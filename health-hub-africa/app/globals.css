@@ -1,0 +1,156 @@
+@import "tailwindcss";
+
+/* ─── Brand Token System ─────────────────────────────────────────────────── */
+@theme inline {
+  /* Primary palette */
+  --color-primary: #137333;
+  --color-primary-dark: #0E4A30;
+  --color-primary-light: #EBF5EC;
+  --color-gold: #B59410;
+  --color-emergency: #C0392B;
+  --color-emergency-light: #FDECEA;
+
+  /* Semantic surfaces */
+  --color-bg: #F4F6F5;
+  --color-surface: #FFFFFF;
+  --color-panel: #FFFFFF;
+  --color-sidebar: #FFFFFF;
+  --color-outer-bg: #ECEFED;
+
+  /* Text */
+  --color-text: #1A1A1A;
+  --color-text-muted: #6B6B6B;
+  --color-text-faint: #A0A0A0;
+
+  /* Border */
+  --color-border: #EBEFEF;
+
+  /* Status */
+  --color-success: #6DC43F;
+  --color-success-bg: #EAF5E2;
+  --color-warning: #E8930A;
+  --color-warning-bg: #FFF4E0;
+  --color-error: #C0392B;
+  --color-error-bg: #FDECEA;
+
+  /* Fonts */
+  --font-display: var(--font-manrope), sans-serif;
+  --font-body: var(--font-manrope), sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-sans: var(--font-body);
+}
+
+/* ─── Dark Mode Overrides ────────────────────────────────────────────────── */
+.dark {
+  --color-bg: #111811;
+  --color-surface: #1A251A;
+  --color-panel: #162B16;
+  --color-sidebar: #0B1A0D;
+  --color-outer-bg: #0B150D;
+
+  --color-text: #D0E8D0;
+  --color-text-muted: #8A9A8A;
+  --color-text-faint: #556655;
+
+  --color-border: #253525;
+
+  --color-primary-light: #1E3A1E;
+  --color-success-bg: #1E3A1E;
+  --color-warning-bg: #2A2010;
+  --color-error-bg: #2A1010;
+}
+
+/* ─── Base Styles ────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  height: 100%;
+  background-color: var(--color-outer-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ─── Scrollbar Styles ───────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ─── Animations ─────────────────────────────────────────────────────────── */
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+
+@keyframes expand-ring {
+  0% { transform: scale(1); opacity: 0.5; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+@keyframes dot-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.4); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.pulse-ring {
+  animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.dot-pulse {
+  animation: dot-pulse 1.5s ease-in-out infinite;
+}
+
+/* ─── Skeleton Loading ───────────────────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-border) 25%,
+    var(--color-surface) 50%,
+    var(--color-border) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 6px;
+}
+
+/* ─── Reduced Motion ─────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
