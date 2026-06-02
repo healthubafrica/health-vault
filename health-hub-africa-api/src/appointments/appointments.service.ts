@@ -1,0 +1,251 @@
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { AppointmentStatus, UserRole } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { JwtPayload } from '../common/decorators/current-user.decorator';
+import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { UpdateAppointmentDto } from './dto/update-appointment.dto';
+import { QueryAppointmentsDto } from './dto/query-appointments.dto';
+
+// Valid FSM transitions: status → allowed next statuses
+const ALLOWED_TRANSITIONS: Record<AppointmentStatus, AppointmentStatus[]> = {
+  [AppointmentStatus.scheduled]: [
+    AppointmentStatus.confirmed,
+    AppointmentStatus.cancelled,
+  ],
+  [AppointmentStatus.confirmed]: [
+    AppointmentStatus.in_progress,
+    AppointmentStatus.cancelled,
+    AppointmentStatus.no_show,
+  ],
+  [AppointmentStatus.in_progress]: [AppointmentStatus.completed],
+  [AppointmentStatus.completed]: [],
+  [AppointmentStatus.cancelled]: [],
+  [AppointmentStatus.no_show]: [],
+};
+
+@Injectable()
+export class AppointmentsService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  // ── Create ─────────────────────────────────────────────────────────────────
+
+  async create(dto: CreateAppointmentDto, currentUser: JwtPayload) {
+    let patientId = dto.patientId;
+
+    if (!patientId) {
+      const patient = await this.prisma.patient.findUnique({
+        where: { userId: currentUser.sub },
+        select: { id: true },
+      });
+      if (!patient) throw new NotFoundException('Patient profile not found');
+      patientId = patient.id;
+    } else {
+      this.requireAdminOrCoordinator(currentUser);
+    }
+
+    const provider = await this.prisma.provider.findUnique({
+      where: { id: dto.providerId },
+      select: { id: true },
+    });
+    if (!provider) throw new NotFoundException('Provider not found');
+
+    return this.prisma.appointment.create({
+      data: {
+        patientId,
+        providerId: dto.providerId,
+        facilityId: dto.facilityId,
+        appointmentType: dto.appointmentType,
+        scheduledAt: new Date(dto.scheduledAt),
+        durationMinutes: dto.durationMinutes,
+        chiefComplaint: dto.chiefComplaint,
+        notes: dto.notes,
+      },
+      select: this.safeSelect(),
+    });
+  }
+
+  // ── Find All ──────────────────────────────────────────────────────────────
+
+  async findAll(query: QueryAppointmentsDto, currentUser: JwtPayload) {
+    const { page = 1, limit = 20 } = query;
+    const skip = (page - 1) * limit;
+
+    const where = this.buildWhere(query, currentUser);
+
+    const [data, total] = await Promise.all([
+      this.prisma.appointment.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { scheduledAt: 'desc' },
+        select: this.safeSelect(),
+      }),
+      this.prisma.appointment.count({ where }),
+    ]);
+
+    return { data, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
+  }
+
+  // ── Find One ──────────────────────────────────────────────────────────────
+
+  async findOne(id: string, currentUser: JwtPayload) {
+    const appt = await this.prisma.appointment.findUnique({
+      where: { id },
+      select: this.safeSelect(),
+    });
+
+    if (!appt) throw new NotFoundException('Appointment not found');
+    this.assertAccess(appt, currentUser);
+
+    return appt;
+  }
+
+  // ── Update / FSM transition ───────────────────────────────────────────────
+
+  async update(id: string, dto: UpdateAppointmentDto, currentUser: JwtPayload) {
+    const appt = await this.prisma.appointment.findUnique({
+      where: { id },
+      select: { id: true, status: true, patient: { select: { userId: true } }, providerId: true },
+    });
+
+    if (!appt) throw new NotFoundException('Appointment not found');
+    this.assertAccess(appt, currentUser);
+
+    if (dto.status && dto.status !== appt.status) {
+      const allowed = ALLOWED_TRANSITIONS[appt.status];
+      if (!allowed.includes(dto.status)) {
+        throw new BadRequestException(
+          `Cannot transition from ${appt.status} to ${dto.status}`,
+        );
+      }
+    }
+
+    const data: any = {};
+    if (dto.scheduledAt) data.scheduledAt = new Date(dto.scheduledAt);
+    if (dto.durationMinutes !== undefined) data.durationMinutes = dto.durationMinutes;
+    if (dto.chiefComplaint !== undefined) data.chiefComplaint = dto.chiefComplaint;
+    if (dto.notes !== undefined) data.notes = dto.notes;
+    if (dto.providerNotes !== undefined) data.providerNotes = dto.providerNotes;
+    if (dto.status !== undefined) data.status = dto.status;
+    if (dto.cancellationReason !== undefined)
+      data.cancellationReason = dto.cancellationReason;
+
+    if (dto.status === AppointmentStatus.completed) data.completedAt = new Date();
+
+    return this.prisma.appointment.update({
+      where: { id },
+      data,
+      select: this.safeSelect(),
+    });
+  }
+
+  // ── Cancel ────────────────────────────────────────────────────────────────
+
+  async cancel(id: string, reason: string, currentUser: JwtPayload) {
+    return this.update(
+      id,
+      { status: AppointmentStatus.cancelled, cancellationReason: reason },
+      currentUser,
+    );
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  private buildWhere(query: QueryAppointmentsDto, currentUser: JwtPayload) {
+    const where: any = {};
+
+    const isAdmin = [
+      UserRole.admin,
+      UserRole.super_admin,
+      UserRole.coordinator,
+    ].includes(currentUser.role as UserRole);
+
+    if (!isAdmin) {
+      if (currentUser.patientId) {
+        where.patientId = currentUser.patientId;
+      } else if (currentUser.providerId) {
+        where.providerId = currentUser.providerId;
+      }
+    } else {
+      if (query.patientId) where.patientId = query.patientId;
+      if (query.providerId) where.providerId = query.providerId;
+    }
+
+    if (query.status) where.status = query.status;
+    if (query.appointmentType) where.appointmentType = query.appointmentType;
+    if (query.fromDate || query.toDate) {
+      where.scheduledAt = {};
+      if (query.fromDate) where.scheduledAt.gte = new Date(query.fromDate);
+      if (query.toDate) where.scheduledAt.lte = new Date(query.toDate);
+    }
+
+    return where;
+  }
+
+  private safeSelect() {
+    return {
+      id: true,
+      patientId: true,
+      providerId: true,
+      facilityId: true,
+      appointmentType: true,
+      status: true,
+      scheduledAt: true,
+      durationMinutes: true,
+      chiefComplaint: true,
+      notes: true,
+      providerNotes: true,
+      cancellationReason: true,
+      completedAt: true,
+      createdAt: true,
+      updatedAt: true,
+      patient: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          hhaPatientId: true,
+        },
+      },
+      provider: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          specialization: true,
+          providerType: true,
+        },
+      },
+    };
+  }
+
+  private assertAccess(
+    appt: { patient?: { userId?: string } | null; providerId?: string },
+    currentUser: JwtPayload,
+  ) {
+    const isAdmin = [
+      UserRole.admin,
+      UserRole.super_admin,
+      UserRole.coordinator,
+    ].includes(currentUser.role as UserRole);
+
+    if (isAdmin) return;
+
+    const isPatient = appt.patient?.userId === currentUser.sub;
+    const isProvider = appt.providerId === currentUser.providerId;
+
+    if (!isPatient && !isProvider) throw new ForbiddenException('Access denied');
+  }
+
+  private requireAdminOrCoordinator(user: JwtPayload) {
+    const allowed = [UserRole.admin, UserRole.super_admin, UserRole.coordinator];
+    if (!allowed.includes(user.role as UserRole)) {
+      throw new ForbiddenException('Insufficient permissions');
+    }
+  }
+}
