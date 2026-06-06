@@ -1,19 +1,134 @@
 import { Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bull';
-import { Gender } from '@prisma/client';
+import { Gender, RecordType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OpenemrService, OPENEMR_SYNC_QUEUE, SyncJobData } from './openemr.service';
 
+// ── FHIR helper types ─────────────────────────────────────────────────────────
+
+interface FhirCoding {
+  system?: string;
+  code?: string;
+  display?: string;
+}
+
+interface FhirCodeableConcept {
+  coding?: FhirCoding[];
+  text?: string;
+}
+
+interface FhirDiagnosticReport {
+  resourceType: string;
+  id?: string;
+  status?: string;
+  code?: FhirCodeableConcept;
+  subject?: { reference?: string };
+  issued?: string;
+  result?: Array<{ reference?: string; display?: string }>;
+  conclusion?: string;
+  conclusionCode?: FhirCodeableConcept[];
+}
+
+// ── Lookup tables ─────────────────────────────────────────────────────────────
+
+const VITALS_LOINC: Record<string, { code: string; unit: string }> = {
+  heartRate:    { code: '8867-4',  unit: '/min' },
+  systolicBp:   { code: '8480-6',  unit: 'mm[Hg]' },
+  diastolicBp:  { code: '8462-4',  unit: 'mm[Hg]' },
+  spo2:         { code: '2708-6',  unit: '%' },
+  weightKg:     { code: '29463-7', unit: 'kg' },
+  heightCm:     { code: '8302-2',  unit: 'cm' },
+  temperatureC: { code: '8310-5',  unit: 'Cel' },
+  bloodGlucose: { code: '2339-0',  unit: 'mg/dL' },
+  hba1c:        { code: '4548-4',  unit: '%' },
+  haemoglobin:  { code: '718-7',   unit: 'g/dL' },
+  wbc:          { code: '6690-2',  unit: '10*3/uL' },
+  rbc:          { code: '789-8',   unit: '10*6/uL' },
+  platelets:    { code: '777-3',   unit: '10*3/uL' },
+};
+
+const RECORD_TYPE_LOINC: Record<string, string> = {
+  visit:         '11488-4',
+  prescription:  '57833-6',
+  lab:           '11502-2',
+  imaging:       '18748-4',
+  document:      '34133-9',
+  referral:      '57133-1',
+  expert_review: '11488-4',
+};
+
+// ── Pure helpers ──────────────────────────────────────────────────────────────
+
 function mapGender(g: Gender): string {
   const map: Record<string, string> = {
-    Male: 'Male',
-    Female: 'Female',
-    Other: 'Unknown',
+    Male:              'Male',
+    Female:            'Female',
+    Other:             'Unknown',
     Prefer_not_to_say: 'Unknown',
   };
   return map[g] ?? 'Unknown';
 }
+
+function toNum(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'object' && 'toNumber' in (v as object)) {
+    return (v as { toNumber(): number }).toNumber();
+  }
+  const n = Number(v);
+  return isNaN(n) ? null : n;
+}
+
+interface FhirBundleEntry {
+  resource: Record<string, unknown>;
+  request: { method: string; url: string };
+}
+
+function buildVitalsBundleEntries(
+  reading: Record<string, unknown>,
+  openemrPatientUuid: string,
+  recordedAt: Date,
+): FhirBundleEntry[] {
+  const entries: FhirBundleEntry[] = [];
+
+  for (const [field, loinc] of Object.entries(VITALS_LOINC)) {
+    const value = toNum(reading[field]);
+    if (value === null) continue;
+
+    entries.push({
+      resource: {
+        resourceType: 'Observation',
+        status: 'final',
+        category: [
+          {
+            coding: [
+              {
+                system: 'http://terminology.hl7.org/CodeSystem/observation-category',
+                code: 'vital-signs',
+              },
+            ],
+          },
+        ],
+        code: {
+          coding: [{ system: 'http://loinc.org', code: loinc.code }],
+        },
+        subject: { reference: `Patient/${openemrPatientUuid}` },
+        effectiveDateTime: recordedAt.toISOString(),
+        valueQuantity: {
+          value,
+          unit: loinc.unit,
+          system: 'http://unitsofmeasure.org',
+          code: loinc.unit,
+        },
+      },
+      request: { method: 'POST', url: 'Observation' },
+    });
+  }
+
+  return entries;
+}
+
+// ── Processor ─────────────────────────────────────────────────────────────────
 
 @Processor(OPENEMR_SYNC_QUEUE)
 export class OpenemrProcessor {
@@ -23,6 +138,8 @@ export class OpenemrProcessor {
     private readonly prisma: PrismaService,
     private readonly openemrService: OpenemrService,
   ) {}
+
+  // ── Patient ──────────────────────────────────────────────────────────────
 
   @Process({ name: 'sync-patient', concurrency: 2 })
   async handleSyncPatient(job: Job<SyncJobData>) {
@@ -43,21 +160,22 @@ export class OpenemrProcessor {
 
       const token = await this.openemrService.getAccessToken();
 
-      // Check if already exists in OpenEMR
       const existing = patient.openemrPatientUuid
-        ? await this.openemrService['callOpenemr'](token, 'GET', `/api/patient/${patient.openemrPatientUuid}`, undefined, patientId).catch(() => null)
+        ? await this.openemrService['callOpenemr'](
+            token, 'GET', `/api/patient/${patient.openemrPatientUuid}`, undefined, patientId,
+          ).catch(() => null)
         : null;
 
       const body: Record<string, string> = {
-        fname: patient.firstName,
-        lname: patient.lastName,
-        DOB: patient.dateOfBirth.toISOString().split('T')[0],
-        sex: mapGender(patient.gender),
-        phone_cell: patient.user.phone ?? '',
-        email: patient.user.email,
-        street: patient.address ?? '',
-        city: patient.city ?? '',
-        state: patient.state ?? '',
+        fname:        patient.firstName,
+        lname:        patient.lastName,
+        DOB:          patient.dateOfBirth.toISOString().split('T')[0],
+        sex:          mapGender(patient.gender),
+        phone_cell:   patient.user.phone ?? '',
+        email:        patient.user.email,
+        street:       patient.address ?? '',
+        city:         patient.city ?? '',
+        state:        patient.state ?? '',
         country_code: patient.country,
       };
 
@@ -80,7 +198,7 @@ export class OpenemrProcessor {
         data: { status: 'completed', completedAt: new Date() },
       });
 
-      this.logger.log(`Sync complete for patient ${patientId} → OpenEMR UUID: ${openemrUuid}`);
+      this.logger.log(`Patient ${patientId} synced → OpenEMR UUID: ${openemrUuid}`);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`Sync failed for patient ${patientId}: ${message}`);
@@ -101,6 +219,8 @@ export class OpenemrProcessor {
     }
   }
 
+  // ── Encounter ────────────────────────────────────────────────────────────
+
   @Process({ name: 'sync-encounter' })
   async handleSyncEncounter(job: Job<SyncJobData>) {
     const { patientId, payload } = job.data;
@@ -119,9 +239,9 @@ export class OpenemrProcessor {
       token, 'POST',
       `/api/patient/${appointment.patient.openemrPatientUuid}/encounter`,
       {
-        date: appointment.scheduledAt.toISOString().split('T')[0],
-        onset_date: appointment.scheduledAt.toISOString().split('T')[0],
-        reason: appointment.reason ?? 'Scheduled Visit',
+        date:        appointment.scheduledAt.toISOString().split('T')[0],
+        onset_date:  appointment.scheduledAt.toISOString().split('T')[0],
+        reason:      appointment.reason ?? 'Scheduled Visit',
         facility_id: '1',
       },
       patientId,
@@ -130,19 +250,116 @@ export class OpenemrProcessor {
     this.logger.log(`Encounter created for patient ${patientId}: eid=${(encounter as Record<string, Record<string, unknown>>).data?.eid}`);
   }
 
+  // ── Clinical Record / Prescription ───────────────────────────────────────
+
   @Process({ name: 'sync-record' })
   async handleSyncRecord(job: Job<SyncJobData>) {
     const { patientId, payload } = job.data;
-    this.logger.log(`Syncing record ${payload?.recordId} for patient ${patientId}`);
-    // Push clinical document to OpenEMR FHIR DocumentReference — see integration.md §5.3
+    const record = await this.prisma.clinicalRecord.findUnique({
+      where: { id: payload!.recordId as string },
+      include: { patient: true, prescription: true },
+    });
+
+    if (!record || !record.patient.openemrPatientUuid) {
+      this.logger.warn(`Skipping record sync — patient ${patientId} not yet synced to OpenEMR`);
+      return;
+    }
+
+    const token = await this.openemrService.getAccessToken();
+    const openemrUuid = record.patient.openemrPatientUuid;
+
+    if (record.recordType === RecordType.prescription && record.prescription) {
+      const rx = record.prescription;
+      await this.openemrService['callOpenemr'](
+        token, 'POST', '/fhir/MedicationRequest',
+        {
+          resourceType: 'MedicationRequest',
+          status: 'active',
+          intent: 'order',
+          medicationCodeableConcept: { text: rx.drugName },
+          subject: { reference: `Patient/${openemrUuid}` },
+          authoredOn: record.createdAt.toISOString(),
+          dosageInstruction: [
+            {
+              text: `${rx.dosage} ${rx.frequency} via ${rx.route}`,
+              timing: { repeat: { frequency: 1, period: 1, periodUnit: 'd' } },
+              route: { text: rx.route },
+              doseAndRate: [{ doseQuantity: { value: 1, unit: rx.dosage } }],
+            },
+          ],
+          dispenseRequest: {
+            numberOfRepeatsAllowed: rx.refillsRemaining,
+            ...(rx.expiresAt && { validityPeriod: { end: rx.expiresAt.toISOString() } }),
+          },
+          ...(rx.notes && { note: [{ text: rx.notes }] }),
+        },
+        patientId,
+      );
+      this.logger.log(`Prescription ${record.id} synced → OpenEMR FHIR MedicationRequest`);
+    } else {
+      const loincCode = RECORD_TYPE_LOINC[record.recordType] ?? '34133-9';
+      await this.openemrService['callOpenemr'](
+        token, 'POST', '/fhir/DocumentReference',
+        {
+          resourceType: 'DocumentReference',
+          status: 'current',
+          type: { coding: [{ system: 'http://loinc.org', code: loincCode }] },
+          subject: { reference: `Patient/${openemrUuid}` },
+          date: record.recordedAt.toISOString(),
+          content: [
+            {
+              attachment: {
+                ...(record.fileUrl && { url: record.fileUrl }),
+                contentType: record.fileMimeType ?? 'application/octet-stream',
+                title: record.title,
+              },
+            },
+          ],
+          context: { encounter: [] },
+        },
+        patientId,
+      );
+      this.logger.log(`Record ${record.id} (${record.recordType}) synced → OpenEMR FHIR DocumentReference`);
+    }
   }
+
+  // ── Vitals ───────────────────────────────────────────────────────────────
 
   @Process({ name: 'sync-vitals' })
   async handleSyncVitals(job: Job<SyncJobData>) {
     const { patientId, payload } = job.data;
-    this.logger.log(`Syncing vitals ${payload?.vitalsId} for patient ${patientId}`);
-    // Push vitals bundle to OpenEMR FHIR Observation — see integration.md §5.6
+    const reading = await this.prisma.vitalsReading.findUnique({
+      where: { id: payload!.vitalsId as string },
+      include: { patient: true },
+    });
+
+    if (!reading || !reading.patient.openemrPatientUuid) {
+      this.logger.warn(`Skipping vitals sync — patient ${patientId} not yet synced to OpenEMR`);
+      return;
+    }
+
+    const entries = buildVitalsBundleEntries(
+      reading as unknown as Record<string, unknown>,
+      reading.patient.openemrPatientUuid,
+      reading.recordedAt,
+    );
+
+    if (entries.length === 0) {
+      this.logger.log(`No non-null vitals to sync for reading ${reading.id}`);
+      return;
+    }
+
+    const token = await this.openemrService.getAccessToken();
+    await this.openemrService['callOpenemr'](
+      token, 'POST', '/fhir',
+      { resourceType: 'Bundle', type: 'transaction', entry: entries },
+      patientId,
+    );
+
+    this.logger.log(`Synced ${entries.length} vitals observations for patient ${patientId}`);
   }
+
+  // ── Lab Results (pull) ────────────────────────────────────────────────────
 
   @Process({ name: 'pull-lab-results' })
   async handlePullLabResults() {
@@ -161,17 +378,142 @@ export class OpenemrProcessor {
           token, 'GET',
           `/fhir/DiagnosticReport?patient=${patient.openemrPatientUuid}&status=final`,
         );
-        const entries = ((bundle as Record<string, unknown>).entry ?? []) as Array<{ resource: Record<string, unknown> }>;
-        this.logger.log(`Pulled ${entries.length} lab reports for patient ${patient.id}`);
-        // TODO: upsert into LabResult — see integration.md §5.4
+        const entries = (
+          (bundle as Record<string, unknown>).entry ?? []
+        ) as Array<{ resource: FhirDiagnosticReport }>;
+
+        for (const entry of entries) {
+          await this.upsertLabResultFromFhir(entry.resource, patient.id);
+        }
+
+        this.logger.log(`Processed ${entries.length} DiagnosticReports for patient ${patient.id}`);
       } catch (err: unknown) {
-        this.logger.error(`Lab pull failed for patient ${patient.id}: ${err instanceof Error ? err.message : String(err)}`);
+        this.logger.error(
+          `Lab pull failed for patient ${patient.id}: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     }
   }
 
+  // ── Lab Order (push) ─────────────────────────────────────────────────────
+
+  @Process({ name: 'sync-labs' })
+  async handleSyncLabOrder(job: Job<SyncJobData>) {
+    const { patientId, payload } = job.data;
+    const labOrder = await this.prisma.labOrder.findUnique({
+      where: { id: payload!.labOrderId as string },
+      include: { patient: true, provider: true },
+    });
+
+    if (!labOrder || !labOrder.patient.openemrPatientUuid) {
+      this.logger.warn(`Skipping lab order sync — patient ${patientId} not yet synced to OpenEMR`);
+      return;
+    }
+
+    const token = await this.openemrService.getAccessToken();
+    const fhirPayload: Record<string, unknown> = {
+      resourceType: 'ServiceRequest',
+      status: 'active',
+      intent: 'order',
+      code: { text: labOrder.notes ?? 'Lab Order' },
+      subject: { reference: `Patient/${labOrder.patient.openemrPatientUuid}` },
+      authoredOn: labOrder.orderedAt.toISOString(),
+      ...(labOrder.notes && { note: [{ text: labOrder.notes }] }),
+    };
+
+    if (labOrder.provider.openemrProviderUuid) {
+      fhirPayload.requester = { reference: `Practitioner/${labOrder.provider.openemrProviderUuid}` };
+    }
+
+    await this.openemrService['callOpenemr'](token, 'POST', '/fhir/ServiceRequest', fhirPayload, patientId);
+    this.logger.log(`Lab order ${labOrder.id} synced → OpenEMR FHIR ServiceRequest`);
+  }
+
+  // ── Provider ─────────────────────────────────────────────────────────────
+
+  @Process({ name: 'sync-provider' })
+  async handleSyncProvider(job: Job<SyncJobData>) {
+    const { patientId: providerId } = job.data;
+    const provider = await this.prisma.provider.findUnique({
+      where: { id: providerId },
+      include: { user: { select: { email: true } } },
+    });
+    if (!provider) return;
+
+    const token = await this.openemrService.getAccessToken();
+    const body: Record<string, string> = {
+      fname:     provider.firstName,
+      lname:     provider.lastName,
+      title:     provider.title,
+      specialty: provider.specialty,
+      npi:       provider.licenseNumber ?? '',
+      email:     provider.user.email,
+    };
+
+    let openemrUuid: string;
+    if (!provider.openemrProviderUuid) {
+      const result = await this.openemrService['callOpenemr'](token, 'POST', '/api/practitioner', body);
+      openemrUuid = ((result as Record<string, Record<string, string>>).data).uuid;
+    } else {
+      await this.openemrService['callOpenemr'](token, 'PUT', `/api/practitioner/${provider.openemrProviderUuid}`, body);
+      openemrUuid = provider.openemrProviderUuid;
+    }
+
+    await this.prisma.provider.update({
+      where: { id: providerId },
+      data: { openemrProviderUuid: openemrUuid },
+    });
+
+    this.logger.log(`Provider ${providerId} synced → OpenEMR Practitioner: ${openemrUuid}`);
+  }
+
+  // ── Retry ────────────────────────────────────────────────────────────────
+
   @Process({ name: 'retry' })
   async handleRetry(job: Job<SyncJobData>) {
     return this.handleSyncPatient(job);
+  }
+
+  // ── Private helpers ───────────────────────────────────────────────────────
+
+  private async upsertLabResultFromFhir(
+    report: FhirDiagnosticReport,
+    patientId: string,
+  ): Promise<void> {
+    // Find the oldest pending order that has no results yet; skip if none found
+    const order = await this.prisma.labOrder.findFirst({
+      where: { patientId, overallStatus: 'pending' },
+      orderBy: { orderedAt: 'asc' },
+      include: { results: { select: { id: true } } },
+    });
+
+    if (!order || order.results.length > 0) return;
+
+    const testName = report.code?.text
+      ?? report.code?.coding?.[0]?.display
+      ?? 'Diagnostic Report';
+    const testCode = report.code?.coding?.[0]?.code;
+    const conclusion = report.conclusion ?? null;
+    const reportedAt = report.issued ? new Date(report.issued) : new Date();
+
+    await this.prisma.$transaction([
+      this.prisma.labResult.create({
+        data: {
+          orderId:     order.id,
+          patientId,
+          testName,
+          testCode,
+          status:      'normal',
+          valueDisplay: conclusion,
+          isFlagged:   false,
+        },
+      }),
+      this.prisma.labOrder.update({
+        where: { id: order.id },
+        data:  { overallStatus: 'normal', reportedAt },
+      }),
+    ]);
+
+    this.logger.log(`Lab result upserted for order ${order.id} (patient ${patientId})`);
   }
 }
