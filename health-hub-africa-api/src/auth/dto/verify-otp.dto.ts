@@ -1,5 +1,5 @@
-import { IsEmail, IsString, Length, Matches, MaxLength, MinLength } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsOptional, IsString, Length, Matches, MaxLength, MinLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 // SEC-003: same policy as RegisterDto
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{12,}$/;
@@ -42,4 +42,11 @@ export class ResetPasswordDto {
   @MaxLength(72)
   @Matches(PASSWORD_REGEX, { message: PASSWORD_MESSAGE })
   newPassword: string;
+}
+
+export class RequestSmsOtpDto {
+  @ApiProperty()
+  @IsEmail()
+  @MaxLength(254)
+  email: string;
 }
