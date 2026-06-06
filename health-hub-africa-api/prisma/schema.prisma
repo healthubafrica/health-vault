@@ -243,19 +243,30 @@ model VerificationToken {
 model Patient {
   id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId      String     @unique @map("user_id") @db.Uuid
-  hhaId       String     @unique @map("hha_id")
+  hhaPatientId String    @unique @map("hha_id")
   regionCode  String     @map("region_code") @db.Char(3)
   firstName   String     @map("first_name")
   lastName    String     @map("last_name")
+  middleName  String?    @map("middle_name")
   dateOfBirth DateTime   @map("date_of_birth") @db.Date
   gender      Gender
+  nationality String?
+  stateOfOrigin String?    @map("state_of_origin")
+  lgaOfOrigin String?       @map("lga_of_origin")
   profilePhotoUrl String? @map("profile_photo_url")
   address     String?
   city        String?
   state       String?
   country     String     @default("Nigeria")
   bloodGroup  BloodGroup? @map("blood_group")
+  nextOfKinName        String? @map("next_of_kin_name")
+  nextOfKinRelationship String? @map("next_of_kin_relationship")
+  nextOfKinPhone       String? @map("next_of_kin_phone")
   genotype    String?
+  nin         String?
+  gdprConsent       Boolean    @default(false) @map("gdpr_consent")
+  marketingConsent  Boolean    @default(false) @map("marketing_consent")
+  preferredTimezone String     @default("Africa/Lagos") @map("preferred_timezone")
   openemrPatientUuid String? @unique @map("openemr_patient_uuid")
   openemrSyncStatus  String  @default("pending") @map("openemr_sync_status")
   status      String     @default("Stable")
@@ -283,11 +294,13 @@ model Patient {
   strideLogs            StrideTriage[]
   expertReviewCases     ExpertReviewCase[]
   auditLogs             AuditLog[]                @relation("AuditLogPatient")
+  prescriptions         Prescription[]
+  invoices              Invoice[]
   syncQueueItems        OpenemrSyncQueue[]
   integrationErrors     IntegrationError[]
 
   @@index([userId])
-  @@index([hhaId])
+  @@index([hhaPatientId])
   @@index([regionCode])
   @@index([openemrPatientUuid])
   @@map("patients")
@@ -340,6 +353,7 @@ model Provider {
   totalPatients   Int      @default(0) @map("total_patients")
   yearsExperience Int      @default(0) @map("years_experience")
   isAvailable     Boolean  @default(true) @map("is_available")
+  openemrProviderUuid String? @unique @map("openemr_provider_uuid")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   deletedAt       DateTime? @map("deleted_at")
