@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/Button'
 import { RECORDS, type RecordType } from '@/lib/data/records'
 import { formatDate } from '@/lib/utils'
 import { FileText, FlaskConical, Pill as PillIcon, File, Download } from 'lucide-react'
+import { records as recordsApi } from '@/lib/api'
+import { useApi } from '@/lib/hooks/useApi'
 
 const TABS = ['All', 'Visits', 'Labs', 'Prescriptions', 'Documents']
 
@@ -34,8 +36,19 @@ const PILL_MAP: Record<RecordType, 'success' | 'info' | 'neutral' | 'warning'> =
 
 export function RecordsScreen() {
   const [tab, setTab] = useState('All')
+  const { data: recordsRes } = useApi(() => recordsApi.list())
 
-  const filtered = RECORDS.filter(r =>
+  const allRecords = (recordsRes?.data ?? RECORDS).map((r: any) => ({
+    id: r.id,
+    type: (r.recordType ?? r.type) as RecordType,
+    title: r.title,
+    date: r.recordedAt ?? r.date,
+    doctor: r.provider ? `${r.provider.title} ${r.provider.lastName}` : r.doctor,
+    fileUrl: r.fileUrl ?? null,
+    isDownloadable: r.isDownloadable ?? true,
+  }))
+
+  const filtered = allRecords.filter((r: any) =>
     tab === 'All' ? true : r.type === TYPE_MAP[tab]
   )
 

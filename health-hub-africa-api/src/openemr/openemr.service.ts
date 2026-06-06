@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
@@ -14,9 +14,9 @@ export interface SyncJobData {
 }
 
 @Injectable()
-export class OpenemrService {
+export class OpenemrService implements OnModuleInit {
   private readonly logger = new Logger(OpenemrService.name);
-  private readonly openemrBase: string;
+  readonly openemrBase: string;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -24,6 +24,18 @@ export class OpenemrService {
     @InjectQueue(OPENEMR_SYNC_QUEUE) private readonly syncQueue: Queue<SyncJobData>,
   ) {
     this.openemrBase = config.getOrThrow('OPENEMR_BASE_URL');
+  }
+
+  async onModuleInit() {
+    const repeatables = await this.syncQueue.getRepeatableJobs();
+    for (const r of repeatables.filter(j => j.name === 'pull-lab-results')) {
+      await this.syncQueue.removeRepeatableByKey(r.key);
+    }
+    await this.syncQueue.add(
+      'pull-lab-results',
+      { patientId: '', operation: 'sync_labs' },
+      { repeat: { cron: '*/15 * * * *' }, removeOnComplete: 10 },
+    );
   }
 
   // ── Enqueue Sync Jobs ──────────────────────────────────────────────────────
@@ -37,6 +49,14 @@ export class OpenemrService {
     this.logger.log(`Enqueued OpenEMR sync for patient ${patientId}`);
   }
 
+  async enqueueEncounterSync(patientId: string, appointmentId: string) {
+    await this.syncQueue.add(
+      'sync-encounter',
+      { patientId, operation: 'sync_record', payload: { appointmentId } },
+      { attempts: 3, backoff: { type: 'exponential', delay: 5000 } },
+    );
+  }
+
   async enqueueRecordSync(patientId: string, recordId: string) {
     await this.syncQueue.add(
       'sync-record',
@@ -45,7 +65,15 @@ export class OpenemrService {
     );
   }
 
-  // ── Sync Queue Item (for admin monitoring) ────────────────────────────────
+  async enqueueVitalsSync(patientId: string, vitalsId: string) {
+    await this.syncQueue.add(
+      'sync-vitals',
+      { patientId, operation: 'sync_record', payload: { vitalsId } },
+      { attempts: 3, backoff: { type: 'exponential', delay: 5000 } },
+    );
+  }
+
+  // ── Sync Queue Items (for admin monitoring) ────────────────────────────────
 
   async findQueueItems(currentUser: JwtPayload) {
     return this.prisma.openemrSyncQueue.findMany({
@@ -61,7 +89,7 @@ export class OpenemrService {
 
     await this.prisma.openemrSyncQueue.update({
       where: { id },
-      data: { status: 'pending', errorMessage: null, attemptCount: 0 },
+      data: { status: 'pending', errorMessage: null, attempts: 0 },
     });
 
     await this.syncQueue.add(
@@ -73,19 +101,44 @@ export class OpenemrService {
     return { message: 'Retry enqueued' };
   }
 
-  // ── OpenEMR Proxy (frontend → HHA → OpenEMR, never direct) ───────────────
+  // ── OpenEMR HTTP Helper ────────────────────────────────────────────────────
 
-  async getPatientFromOpenemr(openemrUuid: string): Promise<Record<string, unknown>> {
-    const token = await this.getAccessToken();
-    const url = `${this.openemrBase}/apis/default/api/patient/${openemrUuid}`;
+  protected async callOpenemr(
+    token: string,
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+    path: string,
+    body?: Record<string, unknown>,
+    patientId?: string,
+  ): Promise<Record<string, unknown>> {
+    const isFhir = path.startsWith('/fhir');
+    const url = `${this.openemrBase}/apis/default${path}`;
 
     const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': isFhir ? 'application/fhir+json' : 'application/json',
+        Accept: isFhir ? 'application/fhir+json' : 'application/json',
+      },
+      body: body ? JSON.stringify(body) : undefined,
     });
 
     if (!res.ok) {
-      this.logger.error(`OpenEMR GET /patient/${openemrUuid} → ${res.status}`);
-      throw new Error(`OpenEMR error: ${res.status}`);
+      const text = await res.text().catch(() => '');
+      this.logger.error(`OpenEMR ${method} ${path} → ${res.status}: ${text.slice(0, 300)}`);
+
+      await this.prisma.integrationError.create({
+        data: {
+          service: 'OpenEMR',
+          endpoint: path,
+          method,
+          errorCode: String(res.status),
+          errorMessage: text.slice(0, 500),
+          patientId: patientId ?? null,
+        },
+      });
+
+      throw new Error(`OpenEMR ${res.status}: ${text.slice(0, 200)}`);
     }
 
     return res.json() as Promise<Record<string, unknown>>;
@@ -95,7 +148,7 @@ export class OpenemrService {
 
   private cachedToken: { value: string; expiresAt: number } | null = null;
 
-  private async getAccessToken(): Promise<string> {
+  async getAccessToken(): Promise<string> {
     if (this.cachedToken && Date.now() < this.cachedToken.expiresAt - 30_000) {
       return this.cachedToken.value;
     }

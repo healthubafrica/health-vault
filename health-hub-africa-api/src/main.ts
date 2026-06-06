@@ -1,5 +1,5 @@
 import { NestFactory, Reflector } from '@nestjs/core';
-import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { ValidationPipe, VersioningType, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
@@ -7,10 +7,14 @@ import compression from 'compression';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
+  const logger = new Logger('Bootstrap');
+
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log'],
-    rawBody: true, // Required for Paystack/Flutterwave webhook signature verification
+    rawBody: true,
   });
+
+  app.enableShutdownHooks();
 
   const config = app.get(ConfigService);
   const port = config.get<number>('PORT', 4000);
@@ -46,7 +50,7 @@ async function bootstrap() {
   });
 
   // ── Global prefix & versioning ──────────────────────────────────────────
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix('api', { exclude: ['health'] });
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
 
   // ── Global validation pipe ──────────────────────────────────────────────
@@ -75,8 +79,8 @@ async function bootstrap() {
   }
 
   await app.listen(port);
-  console.log(`HHA Middleware running on port ${port}`);
-  if (!isProd) console.log(`Swagger: http://localhost:${port}/api/docs`);
+  logger.log(`HHA Middleware running on port ${port} [${isProd ? 'production' : 'development'}]`);
+  if (!isProd) logger.log(`Swagger: http://localhost:${port}/api/docs`);
 }
 
 bootstrap();

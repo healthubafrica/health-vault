@@ -29,6 +29,8 @@ import { ListRow } from '@/components/ui/ListRow'
 import { IdChip } from '@/components/ui/IdChip'
 import { PATIENT } from '@/lib/data/patient'
 import { formatDate } from '@/lib/utils'
+import { patients, vitals as vitalsApi, appointments, subscriptions } from '@/lib/api'
+import { useApi } from '@/lib/hooks/useApi'
 
 const HeartRateChart = dynamic(() => import('@/components/charts/HeartRateChart').then(m => ({ default: m.HeartRateChart })), { ssr: false })
 const SleepChart = dynamic(() => import('@/components/charts/SleepChart').then(m => ({ default: m.SleepChart })), { ssr: false })
@@ -36,19 +38,36 @@ const BloodCellsChart = dynamic(() => import('@/components/charts/BloodCellsChar
 const WeightGauge = dynamic(() => import('@/components/charts/WeightGauge').then(m => ({ default: m.WeightGauge })), { ssr: false })
 
 export function DashboardScreen() {
-  const { vitals, name, doctor, nextAppointment, alerts } = PATIENT
+  const { vitals: mockVitals, doctor, nextAppointment, alerts } = PATIENT
+
+  const { data: profileRes } = useApi(() => patients.getMyProfile())
+  const { data: vitalsRes } = useApi(() => vitalsApi.list())
+  const { data: apptRes } = useApi(() => appointments.list({ upcoming: true }))
+  const { data: subRes } = useApi(() => subscriptions.getMy())
+
+  const profile = profileRes?.data
+  const latestVitals = vitalsRes?.data?.[0]
+  const nextAppt = apptRes?.data?.[0]
+  const activeSub = subRes?.data
+
+  const displayName = profile ? profile.firstName : PATIENT.name
+  const hhaId = profile?.hhaId ?? PATIENT.id
+  const planName = activeSub?.plan?.name ?? PATIENT.plan
+  const heartRate = latestVitals?.heartRate ?? mockVitals.heartRate
+  const sleepHours = latestVitals?.sleepHours ?? mockVitals.sleep
+  const weight = latestVitals?.weightKg ?? mockVitals.weight
 
   return (
     <div className="flex flex-col gap-6 pb-20 md:pb-5">
-      
+
       {/* Hello Banner Card */}
-      <div 
+      <div
         className="relative overflow-hidden rounded-[24px] p-6 text-white flex flex-col md:flex-row md:items-center md:justify-between gap-4 shadow-sm"
         style={{ background: 'var(--color-primary-dark)' }}
       >
         <div className="relative z-10">
           <h1 className="text-xl md:text-2xl font-extrabold flex items-center gap-2">
-            Hello, {name}! <span className="animate-bounce">👋</span>
+            Hello, {displayName}! <span className="animate-bounce">👋</span>
           </h1>
           <p className="text-xs md:text-sm text-gray-200 mt-1 font-medium">
             What do you need today?
@@ -56,10 +75,10 @@ export function DashboardScreen() {
         </div>
         <div className="relative z-10 flex flex-wrap items-center gap-3 md:self-center">
           <span className="text-[11px] font-bold text-gray-300 tracking-wider">
-            {PATIENT.id}
+            {hhaId}
           </span>
           <span className="px-3.5 py-1.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-[#bb9f58]/20 text-[#f5dfa3] border border-[#bb9f58]/40 shadow-inner">
-            {PATIENT.plan} Plan
+            {planName} Plan
           </span>
         </div>
         {/* Decorative subtle background glows */}
@@ -154,7 +173,7 @@ export function DashboardScreen() {
             </div>
             
             <div className="flex items-baseline gap-1 mt-1">
-              <span className="text-2xl font-extrabold text-gray-800">{vitals.heartRate}</span>
+              <span className="text-2xl font-extrabold text-gray-800">{heartRate}</span>
               <span className="text-[10px] font-extrabold text-gray-400 uppercase">bpm</span>
             </div>
           </div>
@@ -178,7 +197,7 @@ export function DashboardScreen() {
             
             <div className="flex items-center mt-1">
               <span className="px-3 py-1 rounded-full bg-[#EBF5EC] text-[#137333] text-[9px] font-extrabold border border-[#137333]/15 uppercase tracking-wider">
-                {vitals.sleep} hours
+                {sleepHours} hours
               </span>
             </div>
           </div>
@@ -201,9 +220,9 @@ export function DashboardScreen() {
           <Card className="flex flex-col items-center justify-center rounded-[24px] p-5">
             <CardTitle className="self-start text-xs font-extrabold text-gray-400 uppercase tracking-wider mb-2">Weight Range</CardTitle>
             <WeightGauge
-              value={vitals.weight}
-              min={vitals.weightTarget.min}
-              max={vitals.weightTarget.max}
+              value={weight}
+              min={mockVitals.weightTarget.min}
+              max={mockVitals.weightTarget.max}
             />
           </Card>
         </div>
@@ -258,14 +277,18 @@ export function DashboardScreen() {
           <CardTitle className="text-xs font-extrabold text-gray-400 uppercase tracking-wider mb-3">Scheduled Care</CardTitle>
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2">
-              <Pill variant="success" className="px-3 py-1 font-extrabold text-[9px] uppercase tracking-wider">{nextAppointment.service}</Pill>
-              <IdChip>{PATIENT.id}</IdChip>
+              <Pill variant="success" className="px-3 py-1 font-extrabold text-[9px] uppercase tracking-wider">
+                {nextAppt?.serviceType ?? nextAppointment.service}
+              </Pill>
+              <IdChip>{hhaId}</IdChip>
             </div>
             <p className="text-lg font-extrabold text-gray-800" style={{ fontFamily: 'var(--font-display)' }}>
-              {formatDate(nextAppointment.date)}
+              {nextAppt ? formatDate(nextAppt.scheduledAt) : formatDate(nextAppointment.date)}
             </p>
             <p className="text-xs font-medium text-gray-400">
-              With {doctor.name}
+              {nextAppt
+                ? `With ${nextAppt.provider.title} ${nextAppt.provider.lastName}`
+                : `With ${doctor.name}`}
             </p>
             <Button size="sm" variant="secondary" className="self-start mt-1">
               Reschedule

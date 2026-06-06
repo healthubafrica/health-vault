@@ -8,9 +8,23 @@ import { IdChip } from '@/components/ui/IdChip'
 import { Avatar } from '@/components/ui/Avatar'
 import { PATIENT } from '@/lib/data/patient'
 import { toast } from 'sonner'
+import { patients } from '@/lib/api'
+import { useApi } from '@/lib/hooks/useApi'
 
 export function ProfileScreen() {
-  function handleSave() {
+  const { data: profileRes } = useApi(() => patients.getMyProfile())
+  const profile = profileRes?.data
+
+  const displayName = profile ? `${profile.firstName} ${profile.lastName}` : PATIENT.name
+  const hhaId = profile?.hhaId ?? PATIENT.id
+  const status = profile?.status ?? PATIENT.status
+  const dob = profile?.dateOfBirth?.slice(0, 10) ?? PATIENT.dob
+  const gender = profile?.gender ?? PATIENT.gender
+  const phone = profile?.user?.phone ?? PATIENT.phone
+  const email = profile?.user?.email ?? PATIENT.email
+  const address = profile?.address ?? PATIENT.address
+
+  async function handleSave() {
     toast.success('Profile saved successfully', {
       description: 'Your health profile has been updated.',
     })
@@ -24,15 +38,15 @@ export function ProfileScreen() {
             Patient Profile
           </h1>
           <div className="flex items-center gap-2 mt-1">
-            <IdChip>{PATIENT.id}</IdChip>
-            <Pill variant="success">{PATIENT.status}</Pill>
+            <IdChip>{hhaId}</IdChip>
+            <Pill variant="success">{status}</Pill>
           </div>
         </div>
         <Avatar
-          seed={PATIENT.name}
+          seed={displayName}
           size="lg"
           shape="rounded"
-          alt={`Avatar for ${PATIENT.name}`}
+          alt={`Avatar for ${displayName}`}
         />
       </div>
 
@@ -40,16 +54,16 @@ export function ProfileScreen() {
       <Card>
         <CardTitle>Personal Information</CardTitle>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormInput label="Full Name" defaultValue={PATIENT.name} />
-          <FormInput label="Date of Birth" type="date" defaultValue={PATIENT.dob} />
-          <FormSelect label="Gender" defaultValue={PATIENT.gender}>
+          <FormInput label="Full Name" defaultValue={displayName} />
+          <FormInput label="Date of Birth" type="date" defaultValue={dob} />
+          <FormSelect label="Gender" defaultValue={gender}>
             <option>Male</option>
             <option>Female</option>
             <option>Prefer not to say</option>
           </FormSelect>
-          <FormInput label="Phone" type="tel" defaultValue={PATIENT.phone} />
-          <FormInput label="Email" type="email" defaultValue={PATIENT.email} />
-          <FormInput label="Address" defaultValue={PATIENT.address} />
+          <FormInput label="Phone" type="tel" defaultValue={phone} />
+          <FormInput label="Email" type="email" defaultValue={email} />
+          <FormInput label="Address" defaultValue={address} />
         </div>
       </Card>
 
@@ -62,10 +76,10 @@ export function ProfileScreen() {
               <option key={bg}>{bg}</option>
             ))}
           </FormSelect>
-          <FormInput label="Allergies" defaultValue={PATIENT.medical.allergies} />
-          <FormInput label="Chronic Conditions" defaultValue={PATIENT.medical.conditions.join(', ')} />
-          <FormInput label="Current Medications" defaultValue={PATIENT.medical.medications.join(', ')} />
-          <FormInput label="Active Care Plan" defaultValue={PATIENT.medical.carePlan} readOnly />
+          <FormInput label="Allergies" defaultValue={profile?.medicalInfo?.allergies?.join(', ') ?? PATIENT.medical.allergies} />
+          <FormInput label="Chronic Conditions" defaultValue={profile?.medicalInfo?.chronicConditions?.join(', ') ?? PATIENT.medical.conditions.join(', ')} />
+          <FormInput label="Current Medications" defaultValue={profile?.medicalInfo?.activeMedications?.join(', ') ?? PATIENT.medical.medications.join(', ')} />
+          <FormInput label="Active Care Plan" defaultValue={profile?.medicalInfo?.activeCarePlan ?? PATIENT.medical.carePlan} readOnly />
         </div>
       </Card>
 
@@ -73,9 +87,9 @@ export function ProfileScreen() {
       <Card>
         <CardTitle>Emergency Contact</CardTitle>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormInput label="Full Name" defaultValue={PATIENT.emergency.name} />
-          <FormInput label="Relationship" defaultValue={PATIENT.emergency.relation} />
-          <FormInput label="Phone" type="tel" defaultValue={PATIENT.emergency.phone} />
+          <FormInput label="Full Name" defaultValue={profile?.emergencyContacts?.[0]?.fullName ?? PATIENT.emergency.name} />
+          <FormInput label="Relationship" defaultValue={profile?.emergencyContacts?.[0]?.relationship ?? PATIENT.emergency.relation} />
+          <FormInput label="Phone" type="tel" defaultValue={profile?.emergencyContacts?.[0]?.phone ?? PATIENT.emergency.phone} />
         </div>
       </Card>
 

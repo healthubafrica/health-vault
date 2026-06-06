@@ -11,6 +11,8 @@ import { APPOINTMENTS, SERVICES } from '@/lib/data/appointments'
 import { formatDate } from '@/lib/utils'
 import { CalendarDays } from 'lucide-react'
 import { toast } from 'sonner'
+import { appointments as apptApi } from '@/lib/api'
+import { useApi } from '@/lib/hooks/useApi'
 
 const TABS = ['All', 'Upcoming', 'Completed', 'Cancelled']
 
@@ -22,8 +24,18 @@ const STATUS_PILL: Record<string, 'success' | 'warning' | 'neutral' | 'emergency
 
 export function AppointmentsScreen() {
   const [tab, setTab] = useState('All')
+  const { data: apptRes } = useApi(() => apptApi.list())
 
-  const filtered = APPOINTMENTS.filter(a =>
+  const allAppointments = (apptRes?.data ?? APPOINTMENTS).map((a: any) => ({
+    id: a.id,
+    service: a.serviceType ?? a.service,
+    doctor: a.provider ? `${a.provider.title} ${a.provider.lastName}` : a.doctor,
+    date: a.scheduledAt ?? a.date,
+    status: a.status,
+    type: a.isTelecare ? 'TeleCare' : (a.type ?? 'In-person'),
+  }))
+
+  const filtered = allAppointments.filter((a: any) =>
     tab === 'All' ? true : a.status === tab.toLowerCase()
   )
 
