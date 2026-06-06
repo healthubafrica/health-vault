@@ -39,12 +39,14 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
 
+    // SEC-001: role is always forced to 'patient' on self-registration.
+    // Admin and provider roles are assigned by existing admins only.
     const user = await this.prisma.user.create({
       data: {
         email: dto.email,
         phone: dto.phone,
         passwordHash,
-        role: dto.role ?? UserRole.patient,
+        role: UserRole.patient,
       },
       select: { id: true, email: true, role: true },
     });
@@ -136,17 +138,20 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new BadRequestException('User not found');
 
+    // SEC-013: tokens are stored as bcrypt hashes; fetch the latest unused one
+    // and compare with bcrypt rather than a direct equality check.
     const token = await this.prisma.verificationToken.findFirst({
       where: {
         userId: user.id,
-        token: otp,
         type: 'email',
         usedAt: null,
         expiresAt: { gt: new Date() },
       },
+      orderBy: { createdAt: 'desc' },
     });
 
-    if (!token) throw new BadRequestException('Invalid or expired OTP');
+    const valid = token ? await bcrypt.compare(otp, token.token) : false;
+    if (!token || !valid) throw new BadRequestException('Invalid or expired OTP');
 
     await this.prisma.$transaction([
       this.prisma.verificationToken.update({
@@ -159,7 +164,8 @@ export class AuthService {
       }),
     ]);
 
-    return { message: 'Email verified successfully' };
+    // Issue tokens on successful verification so the client is logged in immediately
+    return this.issueTokens({ sub: user.id, email: user.email, role: user.role });
   }
 
   async requestPasswordReset(email: string) {
@@ -173,17 +179,19 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new BadRequestException('Invalid request');
 
+    // SEC-013: compare against bcrypt hash stored at OTP creation time
     const token = await this.prisma.verificationToken.findFirst({
       where: {
         userId: user.id,
-        token: otp,
         type: 'password_reset',
         usedAt: null,
         expiresAt: { gt: new Date() },
       },
+      orderBy: { createdAt: 'desc' },
     });
 
-    if (!token) throw new BadRequestException('Invalid or expired OTP');
+    const valid = token ? await bcrypt.compare(otp, token.token) : false;
+    if (!token || !valid) throw new BadRequestException('Invalid or expired OTP');
 
     const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
 
@@ -346,10 +354,14 @@ export class AuthService {
 
     const otp = randomInt(100000, 999999).toString();
 
+    // SEC-013: store a bcrypt hash of the OTP so a DB compromise cannot be
+    // used to harvest valid codes. Verification uses bcrypt.compare().
+    const otpHash = await bcrypt.hash(otp, 10);
+
     await this.prisma.verificationToken.create({
       data: {
         userId,
-        token: otp,
+        token: otpHash,
         type,
         expiresAt: new Date(Date.now() + OTP_TTL_MS),
       },

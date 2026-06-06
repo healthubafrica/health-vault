@@ -29,11 +29,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     if (status >= 500) {
       this.logger.error(
-        `[${request.method}] ${request.url} — ${status}`,
+        `[${request.method}] ${request.route?.path ?? 'unknown'} — ${status}`,
         exception instanceof Error ? exception.stack : String(exception),
       );
     }
 
+    // SEC-007: never include the full request URL (which may contain query
+    // params with IDs or tokens). Use only the static route pattern.
     response.status(status).json({
       success: false,
       statusCode: status,
@@ -42,7 +44,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
           ? (message as { message: string }).message
           : message,
       timestamp: new Date().toISOString(),
-      path: request.url,
     });
   }
 }

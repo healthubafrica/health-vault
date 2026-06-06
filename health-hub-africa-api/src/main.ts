@@ -16,6 +16,11 @@ async function bootstrap() {
 
   app.enableShutdownHooks();
 
+  // SEC-004: trust the first proxy hop (AWS ALB) so req.ip contains the real
+  // client IP and per-IP rate limiting works correctly.
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.set('trust proxy', 1);
+
   const config = app.get(ConfigService);
   const port = config.get<number>('PORT', 4000);
   const frontendUrl = config.get<string>('FRONTEND_URL', 'http://localhost:3000');

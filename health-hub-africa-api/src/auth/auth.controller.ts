@@ -57,7 +57,7 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Rotate refresh token, get new access token' })
-  refresh(@CurrentUser() user: any, @Req() req: Request) {
+  refresh(@CurrentUser() user: JwtPayload & { sessionId: string; refreshToken: string }, @Req() req: Request) {
     return this.authService.refresh(user, req.ip, req.headers['user-agent']);
   }
 
@@ -65,7 +65,7 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Revoke current session' })
-  logout(@CurrentUser() user: any) {
+  logout(@CurrentUser() user: JwtPayload & { sessionId: string }) {
     return this.authService.logout(user.sessionId);
   }
 
@@ -80,6 +80,7 @@ export class AuthController {
   @Public()
   @Post('verify-otp')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ auth: { ttl: 60_000, limit: 5 } }) // SEC-005: prevent OTP brute-force
   @ApiOperation({ summary: 'Verify email OTP to activate account' })
   verifyOtp(@Body() dto: VerifyOtpDto) {
     return this.authService.verifyEmailOtp(dto.email, dto.otp);
@@ -106,6 +107,7 @@ export class AuthController {
   @Public()
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ auth: { ttl: 60_000, limit: 5 } }) // SEC-005: prevent OTP brute-force
   @ApiOperation({ summary: 'Reset password using OTP' })
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.email, dto.otp, dto.newPassword);

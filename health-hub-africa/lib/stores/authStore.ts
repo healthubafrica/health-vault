@@ -13,6 +13,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, phone?: string) => Promise<void>
   verifyOtp: (email: string, otp: string) => Promise<void>
+  fetchMe: () => Promise<void>
   logout: () => Promise<void>
   clearError: () => void
 }
@@ -28,9 +29,12 @@ export const useAuthStore = create<AuthState>()(
       login: async (email, password) => {
         set({ isLoading: true, error: null })
         try {
+          // SEC-002: tokens are written as secure cookies by saveTokens()
           const res = await auth.login(email, password)
-          saveTokens(res.data.accessToken, res.data.refreshToken)
-          set({ user: res.data.user, isAuthenticated: true, isLoading: false })
+          saveTokens(res.accessToken, res.refreshToken)
+          // Fetch full user profile after login
+          const meRes = await auth.me()
+          set({ user: meRes.data, isAuthenticated: true, isLoading: false })
         } catch (e: unknown) {
           set({ error: e instanceof Error ? e.message : 'Login failed', isLoading: false })
           throw e
@@ -51,12 +55,24 @@ export const useAuthStore = create<AuthState>()(
       verifyOtp: async (email, otp) => {
         set({ isLoading: true, error: null })
         try {
+          // verify-otp returns tokens (auto-login on verification)
           const res = await auth.verifyOtp(email, otp)
-          saveTokens(res.data.accessToken, res.data.refreshToken)
-          set({ user: res.data.user, isAuthenticated: true, isLoading: false })
+          saveTokens(res.accessToken, res.refreshToken)
+          const meRes = await auth.me()
+          set({ user: meRes.data, isAuthenticated: true, isLoading: false })
         } catch (e: unknown) {
           set({ error: e instanceof Error ? e.message : 'Verification failed', isLoading: false })
           throw e
+        }
+      },
+
+      fetchMe: async () => {
+        try {
+          const meRes = await auth.me()
+          set({ user: meRes.data, isAuthenticated: true })
+        } catch {
+          clearTokens()
+          set({ user: null, isAuthenticated: false })
         }
       },
 
@@ -64,7 +80,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           await auth.logout()
         } catch {
-          // ignore — clear locally regardless
+          // clear locally regardless of network error
         }
         clearTokens()
         set({ user: null, isAuthenticated: false })
@@ -74,6 +90,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'hha-auth',
+      // SEC-002: only persist non-sensitive state. Tokens live in cookies, not here.
       partialize: (s) => ({ user: s.user, isAuthenticated: s.isAuthenticated }),
     },
   ),
