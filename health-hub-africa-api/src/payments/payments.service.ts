@@ -28,35 +28,135 @@ export class PaymentsService {
   async initiate(dto: InitiatePaymentDto, currentUser: JwtPayload) {
     const patient = await this.prisma.patient.findUnique({
       where: { userId: currentUser.sub },
-      select: { id: true },
+      include: { user: { select: { email: true } } },
     });
     if (!patient) throw new NotFoundException('Patient profile not found');
 
     const idempotencyKey = randomUUID();
+    const amountKobo = dto.amountKobo;
+    const description = `${dto.purpose} — ${dto.currency} ${(amountKobo / 100).toFixed(2)}`;
 
     const payment = await this.prisma.payment.create({
       data: {
         patientId: patient.id,
         gateway: dto.gateway,
-        purpose: dto.purpose,
-        amountKobo: dto.amountKobo,
+        amountKobo,
         currency: dto.currency,
         idempotencyKey,
-        subscriptionId: dto.subscriptionId,
-        appointmentId: dto.appointmentId,
-        metadata: dto.metadata,
+        description,
+        status: PaymentStatus.pending,
       },
     });
 
-    // In production, initiate charge with gateway SDK here and return redirect/authorization URL
+    // Initiate charge with the selected gateway
+    if (dto.gateway === PaymentGateway.Paystack) {
+      return this.initiatePaystack(payment.id, patient.user.email, amountKobo, dto.currency, idempotencyKey, description);
+    }
+
+    if (dto.gateway === PaymentGateway.Flutterwave) {
+      return this.initiateFlutterwave(payment.id, patient.user.email, amountKobo, dto.currency, idempotencyKey, description);
+    }
+
     return {
       paymentId: payment.id,
       idempotencyKey,
       gateway: dto.gateway,
-      amountKobo: dto.amountKobo,
+      amountKobo,
       currency: dto.currency,
       status: payment.status,
-      // authorizationUrl: <from Paystack/Flutterwave SDK>
+    };
+  }
+
+  private async initiatePaystack(
+    paymentId: string,
+    email: string,
+    amountKobo: number,
+    currency: string,
+    reference: string,
+    description: string,
+  ) {
+    const secret = this.config.getOrThrow<string>('PAYSTACK_SECRET_KEY');
+    const res = await fetch('https://api.paystack.co/transaction/initialize', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, amount: amountKobo, currency, reference, metadata: { paymentId, description } }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      this.logger.error(`Paystack init failed: ${err}`);
+      throw new BadRequestException('Payment gateway error. Please try again.');
+    }
+
+    const data = (await res.json()) as { data: { authorization_url: string; access_code: string; reference: string } };
+
+    await this.prisma.payment.update({
+      where: { id: paymentId },
+      data: { gatewayRef: reference },
+    });
+
+    return {
+      paymentId,
+      gateway: PaymentGateway.Paystack,
+      authorizationUrl: data.data.authorization_url,
+      accessCode: data.data.access_code,
+      reference: data.data.reference,
+      amountKobo,
+      currency,
+    };
+  }
+
+  private async initiateFlutterwave(
+    paymentId: string,
+    email: string,
+    amountKobo: number,
+    currency: string,
+    txRef: string,
+    description: string,
+  ) {
+    const secret = this.config.getOrThrow<string>('FLUTTERWAVE_SECRET_KEY');
+    const redirectUrl = `${this.config.get('FRONTEND_URL')}/payments/verify`;
+
+    const res = await fetch('https://api.flutterwave.com/v3/payments', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        tx_ref: txRef,
+        amount: amountKobo / 100,
+        currency,
+        redirect_url: redirectUrl,
+        customer: { email },
+        customizations: { title: 'Health Hub Africa', description },
+        meta: { paymentId },
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      this.logger.error(`Flutterwave init failed: ${err}`);
+      throw new BadRequestException('Payment gateway error. Please try again.');
+    }
+
+    const data = (await res.json()) as { data: { link: string } };
+
+    await this.prisma.payment.update({
+      where: { id: paymentId },
+      data: { gatewayRef: txRef },
+    });
+
+    return {
+      paymentId,
+      gateway: PaymentGateway.Flutterwave,
+      authorizationUrl: data.data.link,
+      txRef,
+      amountKobo,
+      currency,
     };
   }
 
@@ -66,8 +166,8 @@ export class PaymentsService {
     const secret = this.config.getOrThrow<string>('PAYSTACK_SECRET_KEY');
     this.verifyPaystackSignature(rawBody, signature, secret);
 
-    const event = JSON.parse(rawBody.toString());
-    await this.processWebhookEvent(event, PaymentGateway.paystack);
+    const event = JSON.parse(rawBody.toString()) as Record<string, unknown>;
+    await this.processWebhookEvent(event, PaymentGateway.Paystack);
 
     return { received: true };
   }
@@ -78,8 +178,8 @@ export class PaymentsService {
     const secret = this.config.getOrThrow<string>('FLUTTERWAVE_SECRET_KEY');
     this.verifyFlutterwaveSignature(rawBody, signature, secret);
 
-    const event = JSON.parse(rawBody.toString());
-    await this.processWebhookEvent(event, PaymentGateway.flutterwave);
+    const event = JSON.parse(rawBody.toString()) as Record<string, unknown>;
+    await this.processWebhookEvent(event, PaymentGateway.Flutterwave);
 
     return { received: true };
   }
@@ -115,17 +215,17 @@ export class PaymentsService {
     return payment;
   }
 
-  // ── Internal: process webhook ─────────────────────────────────────────────
+  // ── Internal: process webhook event ──────────────────────────────────────
 
-  private async processWebhookEvent(event: any, gateway: PaymentGateway) {
-    const eventType: string = event.event ?? event.type ?? '';
-    const isSuccess =
-      eventType === 'charge.success' || eventType === 'charge.completed';
+  private async processWebhookEvent(event: Record<string, unknown>, gateway: PaymentGateway) {
+    const eventType = (event.event ?? event.type ?? '') as string;
+    const isSuccess = eventType === 'charge.success' || eventType === 'charge.completed';
 
+    const eventData = event.data as Record<string, unknown> | undefined;
     const gatewayRef: string =
-      gateway === PaymentGateway.paystack
-        ? event.data?.reference
-        : event.data?.tx_ref;
+      gateway === PaymentGateway.Paystack
+        ? (eventData?.reference as string)
+        : (eventData?.tx_ref as string);
 
     if (!gatewayRef) {
       this.logger.warn(`Webhook missing reference: ${JSON.stringify(event)}`);
@@ -134,7 +234,7 @@ export class PaymentsService {
 
     // Idempotency: skip if this reference was already processed successfully
     const existing = await this.prisma.payment.findFirst({
-      where: { gatewayReference: gatewayRef, status: PaymentStatus.succeeded },
+      where: { gatewayRef, status: PaymentStatus.paid },
     });
     if (existing) {
       this.logger.log(`Idempotent skip for ref: ${gatewayRef}`);
@@ -142,8 +242,7 @@ export class PaymentsService {
     }
 
     const payment = await this.prisma.payment.findFirst({
-      where: { gateway },
-      // In real impl, match by reference stored at initiation time
+      where: { gatewayRef },
     });
 
     if (!payment) {
@@ -151,15 +250,14 @@ export class PaymentsService {
       return;
     }
 
-    const newStatus = isSuccess ? PaymentStatus.succeeded : PaymentStatus.failed;
+    const newStatus = isSuccess ? PaymentStatus.paid : PaymentStatus.failed;
 
     await this.prisma.payment.update({
       where: { id: payment.id },
       data: {
         status: newStatus,
-        gatewayReference: gatewayRef,
         paidAt: isSuccess ? new Date() : undefined,
-        gatewayResponse: JSON.stringify(event),
+        gatewayResponse: event,
       },
     });
 

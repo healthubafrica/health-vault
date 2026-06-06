@@ -15,22 +15,14 @@ export class NotificationsProcessor {
     const { to, subject, body } = job.data;
     this.logger.log(`Sending email to ${to}: ${subject}`);
 
-    // Mailgun integration
     const apiKey = this.config.get('MAILGUN_API_KEY');
     const domain = this.config.get('MAILGUN_DOMAIN');
-    const fromEmail = this.config.get('MAIL_FROM', 'noreply@healthhubafrica.com');
+    const fromEmail = this.config.get('MAILGUN_FROM', 'noreply@healthhubafrica.com');
 
     if (!apiKey || !domain) {
       this.logger.warn('Mailgun not configured — skipping email');
       return;
     }
-
-    const formData = new URLSearchParams({
-      from: fromEmail,
-      to,
-      subject: subject ?? 'Health Hub Africa',
-      text: body,
-    });
 
     const res = await fetch(`https://api.mailgun.net/v3/${domain}/messages`, {
       method: 'POST',
@@ -38,7 +30,12 @@ export class NotificationsProcessor {
         Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: formData,
+      body: new URLSearchParams({
+        from: fromEmail,
+        to,
+        subject: subject ?? 'Health Hub Africa',
+        text: body,
+      }),
     });
 
     if (!res.ok) {
@@ -79,31 +76,86 @@ export class NotificationsProcessor {
     }
   }
 
+  // FCM HTTP v1 API (replaces legacy fcm/send — shut down June 2024)
   @Process({ name: 'send-push', concurrency: 10 })
   async handlePush(job: Job<NotificationJobData>) {
     const { to, subject, body } = job.data;
     this.logger.log(`Sending push to ${to.substring(0, 20)}...`);
 
-    const firebaseKey = this.config.get('FIREBASE_SERVER_KEY');
-    if (!firebaseKey) {
+    const projectId = this.config.get('FIREBASE_PROJECT_ID');
+    const clientEmail = this.config.get('FIREBASE_CLIENT_EMAIL');
+    const privateKey = this.config.get('FIREBASE_PRIVATE_KEY')?.replace(/\\n/g, '\n');
+
+    if (!projectId || !clientEmail || !privateKey) {
       this.logger.warn('Firebase not configured — skipping push');
       return;
     }
 
-    const res = await fetch('https://fcm.googleapis.com/fcm/send', {
-      method: 'POST',
-      headers: {
-        Authorization: `key=${firebaseKey}`,
-        'Content-Type': 'application/json',
+    const accessToken = await this.getFcmAccessToken(clientEmail, privateKey);
+
+    const res = await fetch(
+      `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: {
+            token: to,
+            notification: { title: subject ?? 'Health Hub Africa', body },
+          },
+        }),
       },
-      body: JSON.stringify({
-        to,
-        notification: { title: subject, body },
+    );
+
+    if (!res.ok) {
+      throw new Error(`FCM v1 error ${res.status}: ${await res.text()}`);
+    }
+
+    this.logger.log(`Push sent to ${to.substring(0, 20)}...`);
+  }
+
+  // Generate a short-lived OAuth2 access token from the Firebase service account
+  private async getFcmAccessToken(clientEmail: string, privateKey: string): Promise<string> {
+    const now = Math.floor(Date.now() / 1000);
+    const scope = 'https://www.googleapis.com/auth/firebase.messaging';
+
+    const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+    const payload = Buffer.from(JSON.stringify({
+      iss: clientEmail,
+      sub: clientEmail,
+      aud: 'https://oauth2.googleapis.com/token',
+      iat: now,
+      exp: now + 3600,
+      scope,
+    })).toString('base64url');
+
+    const signingInput = `${header}.${payload}`;
+
+    // Sign with the private key using Node.js crypto
+    const { createSign } = await import('crypto');
+    const signer = createSign('RSA-SHA256');
+    signer.update(signingInput);
+    const signature = signer.sign(privateKey, 'base64url');
+
+    const jwt = `${signingInput}.${signature}`;
+
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion: jwt,
       }),
     });
 
-    if (!res.ok) {
-      throw new Error(`FCM error ${res.status}: ${await res.text()}`);
+    if (!tokenRes.ok) {
+      throw new Error(`FCM token exchange failed: ${tokenRes.status}`);
     }
+
+    const tokenData = (await tokenRes.json()) as { access_token: string };
+    return tokenData.access_token;
   }
 }

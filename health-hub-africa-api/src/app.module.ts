@@ -28,6 +28,7 @@ import { SupportModule } from './support/support.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { StrideModule } from './stride/stride.module';
 import { AdminModule } from './admin/admin.module';
+import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
@@ -38,17 +39,23 @@ import { AdminModule } from './admin/admin.module';
     }),
     BullModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        redis: {
-          host: config.get('REDIS_HOST', 'localhost'),
-          port: config.get<number>('REDIS_PORT', 6379),
-          password: config.get('REDIS_PASSWORD'),
-        },
-        defaultJobOptions: {
-          removeOnComplete: 100,
-          removeOnFail: 500,
-        },
-      }),
+      useFactory: (config: ConfigService) => {
+        const redisUrl = config.get<string>('REDIS_URL');
+        const redisConfig = redisUrl
+          ? { url: redisUrl }
+          : {
+              host: config.get('REDIS_HOST', 'localhost'),
+              port: config.get<number>('REDIS_PORT', 6379),
+              password: config.get('REDIS_PASSWORD'),
+            };
+        return {
+          redis: redisConfig,
+          defaultJobOptions: {
+            removeOnComplete: 100,
+            removeOnFail: 500,
+          },
+        };
+      },
     }),
     ThrottlerModule.forRoot([
       {
@@ -90,5 +97,6 @@ import { AdminModule } from './admin/admin.module';
     { provide: APP_INTERCEPTOR, useClass: AuditLogInterceptor },
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}

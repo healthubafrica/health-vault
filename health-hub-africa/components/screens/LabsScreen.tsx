@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/Button'
 import { LAB_RESULTS } from '@/lib/data/labs'
 import { formatDate } from '@/lib/utils'
 import { Download, FlaskConical } from 'lucide-react'
+import { labs } from '@/lib/api'
+import { useApi } from '@/lib/hooks/useApi'
 
 const LabBarsChart = dynamic(() => import('@/components/charts/LabBarsChart').then(m => ({ default: m.LabBarsChart })), { ssr: false })
 
@@ -17,6 +19,10 @@ const STATUS_PILL: Record<string, 'success' | 'warning' | 'emergency'> = {
 }
 
 export function LabsScreen() {
+  const { data: labsRes, isLoading } = useApi(() => labs.listOrders())
+
+  const allOrders = labsRes?.data ?? LAB_RESULTS
+
   return (
     <div className="flex flex-col gap-5 pb-20 md:pb-5">
       <div className="flex items-start justify-between gap-3">
@@ -41,7 +47,7 @@ export function LabsScreen() {
           <CardTitle className="mb-0">Lab Results</CardTitle>
         </div>
         <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
-          {LAB_RESULTS.map(lab => (
+          {allOrders.map((lab: any) => (
             <div key={lab.id} className="p-4 flex items-start gap-3">
               <div
                 className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
