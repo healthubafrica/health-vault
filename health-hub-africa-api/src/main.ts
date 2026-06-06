@@ -1,3 +1,7 @@
+import { initSentry } from './instrument';
+initSentry(); // must run before any other import so Sentry can auto-instrument
+
+import * as Sentry from '@sentry/node';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { ValidationPipe, VersioningType, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -20,6 +24,10 @@ async function bootstrap() {
   // client IP and per-IP rate limiting works correctly.
   const expressApp = app.getHttpAdapter().getInstance();
   expressApp.set('trust proxy', 1);
+
+  // Sentry request handler — must come before all other middleware so it can
+  // attach a request context (user, transaction) to every captured event.
+  expressApp.use(Sentry.expressErrorHandler());
 
   const config = app.get(ConfigService);
   const port = config.get<number>('PORT', 4000);

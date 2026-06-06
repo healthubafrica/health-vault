@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import * as Sentry from '@sentry/node';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -32,6 +33,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         `[${request.method}] ${request.route?.path ?? 'unknown'} — ${status}`,
         exception instanceof Error ? exception.stack : String(exception),
       );
+      Sentry.captureException(exception, {
+        extra: {
+          method: request.method,
+          route: request.route?.path ?? 'unknown',
+          statusCode: status,
+        },
+      });
     }
 
     // SEC-007: never include the full request URL (which may contain query
