@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next'
+import { withSentryConfig } from '@sentry/nextjs'
 
 const nextConfig: NextConfig = {
   async headers() {
@@ -23,7 +24,11 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https:",
               "font-src 'self'",
-              "connect-src 'self' " + (process.env.NEXT_PUBLIC_API_URL ?? ''),
+              // Allow API calls + Sentry ingestion endpoint
+              "connect-src 'self' " +
+                (process.env.NEXT_PUBLIC_API_URL ?? '') +
+                ' https://*.sentry.io',
+              "worker-src 'self' blob:",
               "frame-ancestors 'none'",
               "object-src 'none'",
             ].join('; '),
@@ -34,4 +39,20 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default nextConfig
+export default withSentryConfig(nextConfig, {
+  // Sentry organisation + project (set in CI / Vercel env vars for source maps)
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+
+  // Upload source maps only in CI to keep local builds fast
+  silent: !process.env.CI,
+
+  // Hides the Sentry bundle size from the Next.js build output
+  hideSourceMaps: true,
+
+  // Disable the default Sentry tunnel route (/monitoring) — we send directly
+  disableLogger: true,
+
+  // Automatically tree-shake Sentry debug code in production bundles
+  widenClientFileUpload: true,
+})
