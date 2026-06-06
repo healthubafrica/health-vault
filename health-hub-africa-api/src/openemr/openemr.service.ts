@@ -9,7 +9,7 @@ export const OPENEMR_SYNC_QUEUE = 'openemr-sync';
 
 export interface SyncJobData {
   patientId: string;
-  operation: 'create_patient' | 'update_patient' | 'sync_record' | 'sync_labs';
+  operation: 'create_patient' | 'update_patient' | 'sync_record' | 'sync_labs' | 'sync_provider';
   payload?: Record<string, unknown>;
 }
 
@@ -69,6 +69,23 @@ export class OpenemrService implements OnModuleInit {
     await this.syncQueue.add(
       'sync-vitals',
       { patientId, operation: 'sync_record', payload: { vitalsId } },
+      { attempts: 3, backoff: { type: 'exponential', delay: 5000 } },
+    );
+  }
+
+  async enqueueProviderSync(providerId: string) {
+    await this.syncQueue.add(
+      'sync-provider',
+      { patientId: providerId, operation: 'sync_provider' },
+      { attempts: 3, backoff: { type: 'exponential', delay: 5000 } },
+    );
+    this.logger.log(`Enqueued OpenEMR sync for provider ${providerId}`);
+  }
+
+  async enqueueLabOrderSync(patientId: string, labOrderId: string) {
+    await this.syncQueue.add(
+      'sync-labs',
+      { patientId, operation: 'sync_labs', payload: { labOrderId } },
       { attempts: 3, backoff: { type: 'exponential', delay: 5000 } },
     );
   }
