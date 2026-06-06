@@ -34,7 +34,10 @@ export class AuditLogInterceptor implements NestInterceptor {
     if (!STATE_CHANGE_METHODS.has(req.method)) return next.handle();
 
     const user = req.user as JwtPayload | undefined;
-    const ipAddress = req.ip ?? req.headers['x-forwarded-for'];
+    // SEC-012: with trust proxy enabled, req.ip is already the real client IP.
+    // Use it directly; do not fall back to the raw x-forwarded-for header which
+    // can contain a comma-separated list of proxy hops.
+    const ipAddress = req.ip ?? null;
     const userAgent = req.headers['user-agent'];
     const resourceType = this.deriveResourceType(req.path);
 

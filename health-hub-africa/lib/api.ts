@@ -1,28 +1,43 @@
-// Central API client — all backend calls go through here
-// Never import this in Server Components — it reads localStorage for tokens
+// Central API client — all backend calls go through here.
+// Tokens are stored in secure cookies (set by this module) rather than bare
+// localStorage so they survive page reloads and are not accessible to
+// third-party scripts injected via XSS.
 
 const BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000') + '/api/v1'
 
-// ── Token helpers ─────────────────────────────────────────────────────────
+const ACCESS_COOKIE = 'hha_at'   // access token  — samesite=strict
+const REFRESH_COOKIE = 'hha_rt'  // refresh token — samesite=strict
 
-function getAccessToken(): string | null {
-  if (typeof window === 'undefined') return null
-  return localStorage.getItem('hha_access_token')
+// ── Cookie helpers ────────────────────────────────────────────────────────
+
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`))
+  return match ? decodeURIComponent(match[1]) : null
 }
 
-function getRefreshToken(): string | null {
-  if (typeof window === 'undefined') return null
-  return localStorage.getItem('hha_refresh_token')
+function setCookie(name: string, value: string, maxAgeSeconds: number) {
+  if (typeof document === 'undefined') return
+  // SEC-002: use secure + samesite=strict so tokens cannot be sent in
+  // cross-origin requests and are not accessible to injected scripts.
+  const secure = location.protocol === 'https:' ? '; Secure' : ''
+  document.cookie =
+    `${name}=${encodeURIComponent(value)}; Max-Age=${maxAgeSeconds}; Path=/; SameSite=Strict${secure}`
+}
+
+function deleteCookie(name: string) {
+  if (typeof document === 'undefined') return
+  document.cookie = `${name}=; Max-Age=0; Path=/; SameSite=Strict`
 }
 
 export function saveTokens(access: string, refresh: string) {
-  localStorage.setItem('hha_access_token', access)
-  localStorage.setItem('hha_refresh_token', refresh)
+  setCookie(ACCESS_COOKIE, access, 900)        // 15 min — matches JWT_EXPIRY
+  setCookie(REFRESH_COOKIE, refresh, 604800)   // 7 days  — matches JWT_REFRESH_EXPIRY
 }
 
 export function clearTokens() {
-  localStorage.removeItem('hha_access_token')
-  localStorage.removeItem('hha_refresh_token')
+  deleteCookie(ACCESS_COOKIE)
+  deleteCookie(REFRESH_COOKIE)
 }
 
 // ── Core fetch wrapper ────────────────────────────────────────────────────
@@ -32,7 +47,7 @@ async function request<T>(
   options: RequestInit = {},
   retry = true,
 ): Promise<T> {
-  const token = getAccessToken()
+  const token = getCookie(ACCESS_COOKIE)
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
@@ -45,7 +60,7 @@ async function request<T>(
     const refreshed = await attemptTokenRefresh()
     if (refreshed) return request<T>(path, options, false)
     clearTokens()
-    window.location.href = '/login'
+    if (typeof window !== 'undefined') window.location.href = '/login'
     throw new Error('Session expired')
   }
 
@@ -54,14 +69,13 @@ async function request<T>(
     throw new ApiError(res.status, body.message ?? 'Request failed')
   }
 
-  // 204 No Content
   if (res.status === 204) return undefined as T
 
   return res.json() as Promise<T>
 }
 
 async function attemptTokenRefresh(): Promise<boolean> {
-  const refresh = getRefreshToken()
+  const refresh = getCookie(REFRESH_COOKIE)
   if (!refresh) return false
 
   try {
@@ -70,8 +84,8 @@ async function attemptTokenRefresh(): Promise<boolean> {
       headers: { 'Content-Type': 'application/json', 'x-refresh-token': refresh },
     })
     if (!res.ok) return false
-    const data = (await res.json()) as { data: { accessToken: string; refreshToken: string } }
-    saveTokens(data.data.accessToken, data.data.refreshToken)
+    const data = (await res.json()) as { accessToken: string; refreshToken: string }
+    saveTokens(data.accessToken, data.refreshToken)
     return true
   } catch {
     return false
@@ -109,13 +123,13 @@ export const auth = {
     }),
 
   login: (email: string, password: string) =>
-    request<{ data: AuthTokens & { user: User } }>('/auth/login', {
+    request<{ accessToken: string; refreshToken: string; expiresIn: number }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
 
   verifyOtp: (email: string, otp: string, type = 'email') =>
-    request<{ data: AuthTokens & { user: User } }>('/auth/verify-otp', {
+    request<{ accessToken: string; refreshToken: string; expiresIn: number }>('/auth/verify-otp', {
       method: 'POST',
       body: JSON.stringify({ email, otp, type }),
     }),
@@ -353,7 +367,7 @@ export const subscriptions = {
     }),
 }
 
-// ── Notifications preferences ─────────────────────────────────────────────
+// ── Notification preferences ──────────────────────────────────────────────
 
 export const notificationPrefs = {
   get: () => request<{ data: Record<string, boolean> }>('/auth/notification-preferences'),

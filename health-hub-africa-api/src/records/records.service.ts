@@ -40,8 +40,19 @@ export class RecordsService {
 
   // ── Upload URL ─────────────────────────────────────────────────────────────
 
+  // SEC-008: derive the extension from the declared MIME type (which is
+  // allowlisted in the DTO) rather than from the client-supplied filename,
+  // and restrict to alphanumeric characters to prevent path traversal.
+  private static readonly MIME_TO_EXT: Record<string, string> = {
+    'application/pdf': 'pdf',
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'application/dicom': 'dcm',
+  };
+
   async requestUploadUrl(dto: RequestUploadUrlDto, currentUser: JwtPayload) {
-    const ext = dto.filename.split('.').pop() ?? 'bin';
+    const ext = RecordsService.MIME_TO_EXT[dto.contentType] ?? 'bin';
     const objectKey = `records/${currentUser.sub}/${randomUUID()}.${ext}`;
 
     const command = new PutObjectCommand({
@@ -66,7 +77,7 @@ export class RecordsService {
     });
 
     if (!record) throw new NotFoundException('File not found');
-    this.assertReadAccess(record, currentUser);
+    await this.assertReadAccess(record, currentUser);
 
     const command = new GetObjectCommand({
       Bucket: this.bucket,
@@ -140,7 +151,7 @@ export class RecordsService {
     });
 
     if (!record) throw new NotFoundException('Record not found');
-    this.assertReadAccess(record, currentUser);
+    await this.assertReadAccess(record, currentUser);
 
     return record;
   }
@@ -220,21 +231,34 @@ export class RecordsService {
     };
   }
 
-  private assertReadAccess(
-    record: { patient?: { userId?: string } | null; isConfidential?: boolean },
+  private async assertReadAccess(
+    record: { patientId?: string; patient?: { userId?: string } | null; isConfidential?: boolean },
     currentUser: JwtPayload,
   ) {
     const isAdmin = [UserRole.admin, UserRole.super_admin, UserRole.coordinator].includes(
       currentUser.role as UserRole,
     );
     const isOwner = record.patient?.userId === currentUser.sub;
-    const isProvider = [UserRole.provider].includes(currentUser.role as UserRole);
 
-    if (!isAdmin && !isOwner && !isProvider) {
+    // SEC-006: providers may only read records for patients assigned to them.
+    // Any provider role is NOT sufficient — active assignment is required.
+    let isAssignedProvider = false;
+    if (currentUser.role === UserRole.provider && currentUser.providerId && record.patientId) {
+      const assignment = await this.prisma.patientProviderAssignment.findFirst({
+        where: {
+          patientId: record.patientId,
+          providerId: currentUser.providerId,
+          unassignedAt: null,
+        },
+      });
+      isAssignedProvider = !!assignment;
+    }
+
+    if (!isAdmin && !isOwner && !isAssignedProvider) {
       throw new ForbiddenException('Access denied');
     }
-    if (record.isConfidential && !isProvider && !isAdmin) {
-      throw new ForbiddenException('Confidential record: provider access required');
+    if (record.isConfidential && !isAssignedProvider && !isAdmin) {
+      throw new ForbiddenException('Confidential record: assigned provider or admin access required');
     }
   }
 
