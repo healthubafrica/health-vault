@@ -59,7 +59,7 @@ function OtpStep({ email, onSuccess }: { email: string; onSuccess: () => void })
 
 export function LoginScreen() {
   const router = useRouter()
-  const { login, register, isLoading, error, clearError } = useAuthStore()
+  const { login, register, forgotPassword, resetPassword, isLoading, error, clearError } = useAuthStore()
 
   const [isSignUp, setIsSignUp] = useState(false)
   const [showOtp, setShowOtp] = useState(false)
@@ -72,6 +72,15 @@ export function LoginScreen() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [agreeTerms, setAgreeTerms] = useState(false)
   const [localError, setLocalError] = useState('')
+
+  // Forgot password states
+  const [forgotState, setForgotState] = useState<'none' | 'email' | 'otp' | 'success'>('none')
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [resetOtp, setResetOtp] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmNewPassword, setConfirmNewPassword] = useState('')
+  const [showNewPass, setShowNewPass] = useState(false)
+  const [showConfirmNewPass, setShowConfirmNewPass] = useState(false)
 
   const displayError = localError || error
 
@@ -106,6 +115,40 @@ export function LoginScreen() {
       } catch {
         // error shown via store
       }
+    }
+  }
+
+  const handleForgotEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLocalError('')
+    clearError()
+    try {
+      await forgotPassword(forgotEmail)
+      setForgotState('otp')
+    } catch {
+      // error shown via store
+    }
+  }
+
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLocalError('')
+    clearError()
+    if (newPassword !== confirmNewPassword) {
+      setLocalError('Passwords do not match')
+      return
+    }
+    // SEC-003: strict password verification matching backend
+    const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{12,}$/
+    if (!PASSWORD_REGEX.test(newPassword)) {
+      setLocalError('Password must be at least 12 characters and include uppercase, lowercase, a number, and a special character')
+      return
+    }
+    try {
+      await resetPassword(forgotEmail, resetOtp, newPassword)
+      setForgotState('success')
+    } catch {
+      // error shown via store
     }
   }
 
@@ -177,6 +220,171 @@ export function LoginScreen() {
 
           {showOtp ? (
             <OtpStep email={email} onSuccess={handleOtpSuccess} />
+          ) : forgotState === 'email' ? (
+            <>
+              <h2 className="text-2xl font-bold mb-1 text-white" style={{ fontFamily: 'var(--font-display)' }}>
+                Reset password
+              </h2>
+              <p className="text-sm mb-6 text-white/70">
+                Enter your email address and we will send you an OTP to reset your password.
+              </p>
+
+              {displayError && (
+                <div className="mb-4 p-3 rounded-xl text-xs bg-red-500/10 text-red-400 border border-red-500/20">
+                  {displayError}
+                </div>
+              )}
+
+              <form className="flex flex-col gap-4" onSubmit={handleForgotEmailSubmit}>
+                <FormInput
+                  label="Email address"
+                  type="email"
+                  placeholder="b.okafor@email.com"
+                  autoComplete="email"
+                  value={forgotEmail}
+                  onChange={e => setForgotEmail(e.target.value)}
+                  required
+                />
+
+                <Button type="submit" fullWidth size="lg" className="mt-2" disabled={isLoading}>
+                  {isLoading ? 'Sending OTP…' : 'Send Reset Code'}
+                </Button>
+              </form>
+
+              <p className="text-xs text-center mt-6 text-white/70">
+                <button
+                  onClick={() => {
+                    setForgotState('none')
+                    setLocalError('')
+                    clearError()
+                  }}
+                  className="font-medium hover:underline focus:outline-none text-[#6DC43F]"
+                >
+                  Back to Sign In
+                </button>
+              </p>
+            </>
+          ) : forgotState === 'otp' ? (
+            <>
+              <h2 className="text-2xl font-bold mb-1 text-white" style={{ fontFamily: 'var(--font-display)' }}>
+                Reset your password
+              </h2>
+              <p className="text-sm mb-6 text-white/70">
+                Enter the OTP sent to <span className="font-semibold text-white">{forgotEmail}</span> and your new password.
+              </p>
+
+              {displayError && (
+                <div className="mb-4 p-3 rounded-xl text-xs bg-red-500/10 text-red-400 border border-red-500/20">
+                  {displayError}
+                </div>
+              )}
+
+              <form className="flex flex-col gap-4" onSubmit={handleResetPasswordSubmit}>
+                <FormInput
+                  label="Verification code (OTP)"
+                  type="text"
+                  placeholder="123456"
+                  value={resetOtp}
+                  onChange={e => setResetOtp(e.target.value)}
+                  required
+                />
+
+                <div className="relative">
+                  <FormInput
+                    label="New Password"
+                    type={showNewPass ? 'text' : 'password'}
+                    placeholder="Min 12 chars, upper, lower, digit, special"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    aria-label={showNewPass ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowNewPass(s => !s)}
+                    className="absolute right-3 top-8 flex items-center justify-center w-6 h-6 hover:opacity-80 transition-opacity"
+                    style={{ color: 'rgba(255, 255, 255, 0.5)' }}
+                  >
+                    {showNewPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <FormInput
+                    label="Confirm New Password"
+                    type={showConfirmNewPass ? 'text' : 'password'}
+                    placeholder="Re-enter new password"
+                    value={confirmNewPassword}
+                    onChange={e => setConfirmNewPassword(e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    aria-label={showConfirmNewPass ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowConfirmNewPass(s => !s)}
+                    className="absolute right-3 top-8 flex items-center justify-center w-6 h-6 hover:opacity-80 transition-opacity"
+                    style={{ color: 'rgba(255, 255, 255, 0.5)' }}
+                  >
+                    {showConfirmNewPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+
+                <Button type="submit" fullWidth size="lg" className="mt-2" disabled={isLoading}>
+                  {isLoading ? 'Resetting password…' : 'Reset Password'}
+                </Button>
+              </form>
+
+              <div className="flex justify-between items-center mt-6">
+                <button
+                  onClick={() => {
+                    setForgotState('email')
+                    setLocalError('')
+                    clearError()
+                  }}
+                  className="text-xs font-medium hover:underline focus:outline-none text-white/50 cursor-pointer"
+                >
+                  Change Email
+                </button>
+                <button
+                  onClick={() => {
+                    setForgotState('none')
+                    setLocalError('')
+                    clearError()
+                  }}
+                  className="text-xs font-medium hover:underline focus:outline-none text-[#6DC43F] cursor-pointer"
+                >
+                  Back to Sign In
+                </button>
+              </div>
+            </>
+          ) : forgotState === 'success' ? (
+            <>
+              <h2 className="text-2xl font-bold mb-2 text-[#6DC43F]" style={{ fontFamily: 'var(--font-display)' }}>
+                Password Reset!
+              </h2>
+              <p className="text-sm mb-6 text-white/70">
+                Your password has been successfully reset. You can now log in using your new credentials.
+              </p>
+
+              <Button
+                type="button"
+                fullWidth
+                size="lg"
+                onClick={() => {
+                  setForgotState('none')
+                  setIsSignUp(false)
+                  setPassword('')
+                  setConfirmPassword('')
+                  setNewPassword('')
+                  setConfirmNewPassword('')
+                  setResetOtp('')
+                  setLocalError('')
+                  clearError()
+                }}
+              >
+                Go to Sign In
+              </Button>
+            </>
           ) : (
             <>
               <h2 className="text-2xl font-bold mb-1 text-white" style={{ fontFamily: 'var(--font-display)' }}>
@@ -259,9 +467,18 @@ export function LoginScreen() {
 
                 {!isSignUp && (
                   <div className="flex items-center justify-end">
-                    <a href="#" className="text-xs font-medium hover:underline text-[#6DC43F]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForgotEmail(email)
+                        setForgotState('email')
+                        setLocalError('')
+                        clearError()
+                      }}
+                      className="text-xs font-medium hover:underline focus:outline-none text-[#6DC43F] cursor-pointer"
+                    >
                       Forgot password?
-                    </a>
+                    </button>
                   </div>
                 )}
 

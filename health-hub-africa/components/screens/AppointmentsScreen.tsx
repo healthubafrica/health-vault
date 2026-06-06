@@ -13,6 +13,8 @@ import { CalendarDays } from 'lucide-react'
 import { toast } from 'sonner'
 import { appointments as apptApi } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
+import { AppointmentsSkeleton } from '@/components/skeletons/AppointmentsSkeleton'
+import { ErrorState } from '@/components/ui/ErrorState'
 
 const TABS = ['All', 'Upcoming', 'Completed', 'Cancelled']
 
@@ -24,15 +26,22 @@ const STATUS_PILL: Record<string, 'success' | 'warning' | 'neutral' | 'emergency
 
 export function AppointmentsScreen() {
   const [tab, setTab] = useState('All')
-  const { data: apptRes } = useApi(() => apptApi.list())
+  const { data: apptRes, isInitialLoad, error, refetch } = useApi(() => apptApi.list())
+
+  if (isInitialLoad) return <AppointmentsSkeleton />
+  if (error && !apptRes) return <ErrorState message={error} onRetry={refetch} />
 
   const allAppointments = (apptRes?.data ?? APPOINTMENTS).map((a: any) => ({
     id: a.id,
     service: a.serviceType ?? a.service,
     doctor: a.provider ? `${a.provider.title} ${a.provider.lastName}` : a.doctor,
     date: a.scheduledAt ?? a.date,
+    time: a.scheduledAt
+      ? new Date(a.scheduledAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+      : a.time,
     status: a.status,
     type: a.isTelecare ? 'TeleCare' : (a.type ?? 'In-person'),
+    reason: a.reason,
   }))
 
   const filtered = allAppointments.filter((a: any) =>

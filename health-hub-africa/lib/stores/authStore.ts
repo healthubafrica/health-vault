@@ -13,6 +13,8 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, phone?: string) => Promise<void>
   verifyOtp: (email: string, otp: string) => Promise<void>
+  forgotPassword: (email: string) => Promise<void>
+  resetPassword: (email: string, otp: string, newPassword: string) => Promise<void>
   fetchMe: () => Promise<void>
   logout: () => Promise<void>
   clearError: () => void
@@ -84,6 +86,28 @@ export const useAuthStore = create<AuthState>()(
         }
         clearTokens()
         set({ user: null, isAuthenticated: false })
+      },
+
+      forgotPassword: async (email) => {
+        set({ isLoading: true, error: null })
+        try {
+          await auth.forgotPassword(email)
+          set({ isLoading: false })
+        } catch (e: unknown) {
+          set({ error: e instanceof Error ? e.message : 'Forgot password request failed', isLoading: false })
+          throw e
+        }
+      },
+
+      resetPassword: async (email, otp, newPassword) => {
+        set({ isLoading: true, error: null })
+        try {
+          await auth.resetPassword(email, otp, newPassword)
+          set({ isLoading: false })
+        } catch (e: unknown) {
+          set({ error: e instanceof Error ? e.message : 'Password reset failed', isLoading: false })
+          throw e
+        }
       },
 
       clearError: () => set({ error: null }),
