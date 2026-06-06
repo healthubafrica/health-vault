@@ -10,9 +10,14 @@ import { PATIENT } from '@/lib/data/patient'
 import { toast } from 'sonner'
 import { patients } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
+import { ProfileSkeleton } from '@/components/skeletons/ProfileSkeleton'
+import { ErrorState } from '@/components/ui/ErrorState'
 
 export function ProfileScreen() {
-  const { data: profileRes } = useApi(() => patients.getMyProfile())
+  const { data: profileRes, isInitialLoad, error, refetch } = useApi(() => patients.getMyProfile())
+
+  if (isInitialLoad) return <ProfileSkeleton />
+  if (error && !profileRes) return <ErrorState message={error} onRetry={refetch} />
   const profile = profileRes?.data
 
   const displayName = profile ? `${profile.firstName} ${profile.lastName}` : PATIENT.name

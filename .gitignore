@@ -22,6 +22,7 @@ health-hub-africa-api/build/
 .env.production
 health-hub-africa-api/.env
 health-hub-africa-api/.env.*
+!health-hub-africa-api/.env.example
 
 # Prisma
 health-hub-africa-api/prisma/migrations/dev.db
