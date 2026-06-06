@@ -168,6 +168,40 @@ export class AuthService {
     return this.issueTokens({ sub: user.id, email: user.email, role: user.role });
   }
 
+  async requestSmsOtp(email: string) {
+    // Always return the same message to prevent email enumeration (mirrors
+    // requestPasswordReset). Phone mutation is intentionally removed: an
+    // unauthenticated caller must never be able to redirect OTPs to an
+    // attacker-controlled number (account-takeover vector). Phone updates
+    // require an authenticated session.
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user || !user.phone) {
+      return { message: 'If an account with a verified phone exists, a code was sent.' };
+    }
+
+    await this.prisma.verificationToken.updateMany({
+      where: { userId: user.id, type: 'email', usedAt: null },
+      data: { usedAt: new Date() },
+    });
+
+    const otp = randomInt(100000, 999999).toString();
+    const otpHash = await bcrypt.hash(otp, 10);
+
+    await this.prisma.verificationToken.create({
+      data: {
+        userId: user.id,
+        token: otpHash,
+        type: 'email',
+        expiresAt: new Date(Date.now() + OTP_TTL_MS),
+      },
+    });
+
+    const body = `Your Health Hub Africa verification code is: ${otp}\n\nIt expires in 10 minutes.`;
+    await this.notifications.sendSms(user.phone, body, user.id);
+
+    return { message: 'If an account with a verified phone exists, a code was sent.' };
+  }
+
   async requestPasswordReset(email: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     // Always return success to prevent email enumeration
