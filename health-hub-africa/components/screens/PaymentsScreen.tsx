@@ -8,9 +8,14 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { Receipt, CreditCard } from 'lucide-react'
 import { payments as paymentsApi } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
+import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
+import { ErrorState } from '@/components/ui/ErrorState'
 
 export function PaymentsScreen() {
-  const { data: paymentsRes } = useApi(() => paymentsApi.list())
+  const { data: paymentsRes, isInitialLoad, error, refetch } = useApi(() => paymentsApi.list())
+
+  if (isInitialLoad) return <ListSkeleton ariaLabel="Loading payment history" showStats />
+  if (error && !paymentsRes) return <ErrorState message={error} onRetry={refetch} />
 
   const allPayments = paymentsRes?.data?.map((p: any) => ({
     id: p.id,

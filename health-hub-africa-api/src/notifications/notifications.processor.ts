@@ -2,6 +2,7 @@ import { Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Job } from 'bull';
+import { Resend } from 'resend';
 import { NOTIFICATIONS_QUEUE, NotificationJobData } from './notifications.service';
 
 @Processor(NOTIFICATIONS_QUEUE)
@@ -15,34 +16,35 @@ export class NotificationsProcessor {
     const { to, subject, body } = job.data;
     this.logger.log(`Sending email to ${to}: ${subject}`);
 
-    const apiKey = this.config.get('MAILGUN_API_KEY');
-    const domain = this.config.get('MAILGUN_DOMAIN');
-    const fromEmail = this.config.get('MAILGUN_FROM', 'noreply@healthhubafrica.com');
+    const apiKey = this.config.get<string>('RESEND_API_KEY');
+    const from = this.config.get<string>(
+      'RESEND_FROM',
+      'MyHealth Vault+ <noreply@healthhubafrica.com>',
+    );
 
-    if (!apiKey || !domain) {
-      this.logger.warn('Mailgun not configured — skipping email');
+    if (!apiKey) {
+      this.logger.warn('RESEND_API_KEY not configured — skipping email');
       return;
     }
 
-    const res = await fetch(`https://api.mailgun.net/v3/${domain}/messages`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        from: fromEmail,
-        to,
-        subject: subject ?? 'Health Hub Africa',
-        text: body,
-      }),
+    const resend = new Resend(apiKey);
+
+    const isOtp = subject?.toLowerCase().includes('otp') || subject?.toLowerCase().includes('verify');
+    const html = isOtp ? buildOtpHtml(subject ?? '', body) : buildGenericHtml(subject ?? '', body);
+
+    const { error } = await resend.emails.send({
+      from,
+      to,
+      subject: subject ?? 'MyHealth Vault+™',
+      html,
+      text: body,
     });
 
-    if (!res.ok) {
-      throw new Error(`Mailgun error ${res.status}: ${await res.text()}`);
+    if (error) {
+      throw new Error(`Resend error: ${error.message}`);
     }
 
-    this.logger.log(`Email sent to ${to}`);
+    this.logger.log(`Email sent via Resend to ${to}`);
   }
 
   @Process({ name: 'send-sms', concurrency: 5 })
@@ -158,4 +160,103 @@ export class NotificationsProcessor {
     const tokenData = (await tokenRes.json()) as { access_token: string };
     return tokenData.access_token;
   }
+}
+
+// ── Email HTML helpers ────────────────────────────────────────────────────────
+
+function emailShell(content: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MyHealth Vault+™</title>
+</head>
+<body style="margin:0;padding:0;background:#F4F6F5;font-family:'Helvetica Neue',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F4F6F5;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+          <!-- Header -->
+          <tr>
+            <td style="background:#0E4A30;padding:28px 40px;">
+              <p style="margin:0;font-size:20px;font-weight:800;color:#ffffff;letter-spacing:-0.3px;">
+                MyHealth Vault+™
+              </p>
+              <p style="margin:4px 0 0;font-size:11px;font-weight:600;color:#a8d5b5;letter-spacing:1px;text-transform:uppercase;">
+                Health Hub Africa
+              </p>
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding:36px 40px 40px;">
+              ${content}
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="background:#F4F6F5;padding:20px 40px;border-top:1px solid #EBEFEF;">
+              <p style="margin:0;font-size:11px;color:#A0A0A0;line-height:1.6;">
+                This email was sent by Health Hub Africa. If you did not request it, you can safely ignore it.
+                <br/>Your data is protected under our
+                <a href="https://healthhubafrica.com/privacy" style="color:#137333;text-decoration:none;">Privacy Policy</a>.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+function buildOtpHtml(subject: string, body: string): string {
+  // Extract the 6-digit OTP from the body text
+  const otpMatch = body.match(/\b(\d{6})\b/);
+  const otp = otpMatch?.[1];
+
+  const otpBlock = otp
+    ? `<div style="margin:28px 0;text-align:center;">
+         <div style="display:inline-block;background:#EBF5EC;border:2px solid #137333;border-radius:16px;padding:20px 40px;">
+           <p style="margin:0;font-size:42px;font-weight:800;letter-spacing:10px;color:#0E4A30;font-family:'Courier New',monospace;">${otp}</p>
+         </div>
+       </div>
+       <p style="margin:0 0 8px;font-size:13px;color:#6B6B6B;text-align:center;">
+         This code expires in <strong style="color:#1A1A1A;">10 minutes</strong>.
+       </p>`
+    : `<p style="margin:0 0 20px;font-size:15px;color:#1A1A1A;line-height:1.7;">${body}</p>`;
+
+  const isReset = subject.toLowerCase().includes('reset');
+
+  const content = `
+    <h1 style="margin:0 0 6px;font-size:22px;font-weight:800;color:#1A1A1A;">
+      ${isReset ? 'Reset your password' : 'Verify your email'}
+    </h1>
+    <p style="margin:0 0 24px;font-size:14px;color:#6B6B6B;">
+      ${isReset
+        ? 'Use the code below to reset your MyHealth Vault+™ password.'
+        : 'Enter the code below to verify your email and activate your account.'}
+    </p>
+    ${otpBlock}
+    <p style="margin:20px 0 0;font-size:12px;color:#A0A0A0;">
+      Never share this code with anyone. Health Hub Africa will never ask for it.
+    </p>`;
+
+  return emailShell(content);
+}
+
+function buildGenericHtml(subject: string, body: string): string {
+  const paragraphs = body
+    .split('\n')
+    .filter(l => l.trim())
+    .map(l => `<p style="margin:0 0 16px;font-size:14px;color:#1A1A1A;line-height:1.7;">${l}</p>`)
+    .join('');
+
+  const content = `
+    <h1 style="margin:0 0 20px;font-size:22px;font-weight:800;color:#1A1A1A;">${subject}</h1>
+    ${paragraphs}`;
+
+  return emailShell(content);
 }

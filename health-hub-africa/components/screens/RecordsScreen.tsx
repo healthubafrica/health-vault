@@ -10,6 +10,8 @@ import { formatDate } from '@/lib/utils'
 import { FileText, FlaskConical, Pill as PillIcon, File, Download } from 'lucide-react'
 import { records as recordsApi } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
+import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
+import { ErrorState } from '@/components/ui/ErrorState'
 
 const TABS = ['All', 'Visits', 'Labs', 'Prescriptions', 'Documents']
 
@@ -36,7 +38,10 @@ const PILL_MAP: Record<RecordType, 'success' | 'info' | 'neutral' | 'warning'> =
 
 export function RecordsScreen() {
   const [tab, setTab] = useState('All')
-  const { data: recordsRes } = useApi(() => recordsApi.list())
+  const { data: recordsRes, isInitialLoad, error, refetch } = useApi(() => recordsApi.list())
+
+  if (isInitialLoad) return <ListSkeleton ariaLabel="Loading records" showAction />
+  if (error && !recordsRes) return <ErrorState message={error} onRetry={refetch} />
 
   const allRecords = (recordsRes?.data ?? RECORDS).map((r: any) => ({
     id: r.id,
@@ -44,8 +49,9 @@ export function RecordsScreen() {
     title: r.title,
     date: r.recordedAt ?? r.date,
     doctor: r.provider ? `${r.provider.title} ${r.provider.lastName}` : r.doctor,
+    description: r.description,
     fileUrl: r.fileUrl ?? null,
-    isDownloadable: r.isDownloadable ?? true,
+    downloadable: r.isDownloadable ?? r.downloadable ?? true,
   }))
 
   const filtered = allRecords.filter((r: any) =>

@@ -31,6 +31,8 @@ import { PATIENT } from '@/lib/data/patient'
 import { formatDate } from '@/lib/utils'
 import { patients, vitals as vitalsApi, appointments, subscriptions } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
+import { DashboardSkeleton } from '@/components/skeletons/DashboardSkeleton'
+import { ErrorState } from '@/components/ui/ErrorState'
 
 const HeartRateChart = dynamic(() => import('@/components/charts/HeartRateChart').then(m => ({ default: m.HeartRateChart })), { ssr: false })
 const SleepChart = dynamic(() => import('@/components/charts/SleepChart').then(m => ({ default: m.SleepChart })), { ssr: false })
@@ -40,10 +42,16 @@ const WeightGauge = dynamic(() => import('@/components/charts/WeightGauge').then
 export function DashboardScreen() {
   const { vitals: mockVitals, doctor, nextAppointment, alerts } = PATIENT
 
-  const { data: profileRes } = useApi(() => patients.getMyProfile())
-  const { data: vitalsRes } = useApi(() => vitalsApi.list())
-  const { data: apptRes } = useApi(() => appointments.list({ upcoming: true }))
+  const { data: profileRes, isInitialLoad: profileLoading, error: profileError, refetch: refetchProfile } = useApi(() => patients.getMyProfile())
+  const { data: vitalsRes, isInitialLoad: vitalsLoading } = useApi(() => vitalsApi.list())
+  const { data: apptRes, isInitialLoad: apptLoading } = useApi(() => appointments.list({ upcoming: true }))
   const { data: subRes } = useApi(() => subscriptions.getMy())
+
+  if (profileLoading || vitalsLoading || apptLoading) return <DashboardSkeleton />
+
+  if (profileError && !profileRes) {
+    return <ErrorState message={profileError} onRetry={refetchProfile} />
+  }
 
   const profile = profileRes?.data
   const latestVitals = vitalsRes?.data?.[0]

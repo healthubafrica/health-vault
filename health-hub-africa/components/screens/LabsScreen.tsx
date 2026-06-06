@@ -9,6 +9,8 @@ import { formatDate } from '@/lib/utils'
 import { Download, FlaskConical } from 'lucide-react'
 import { labs } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
+import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
+import { ErrorState } from '@/components/ui/ErrorState'
 
 const LabBarsChart = dynamic(() => import('@/components/charts/LabBarsChart').then(m => ({ default: m.LabBarsChart })), { ssr: false })
 
@@ -19,7 +21,10 @@ const STATUS_PILL: Record<string, 'success' | 'warning' | 'emergency'> = {
 }
 
 export function LabsScreen() {
-  const { data: labsRes, isLoading } = useApi(() => labs.listOrders())
+  const { data: labsRes, isInitialLoad, error, refetch } = useApi(() => labs.listOrders())
+
+  if (isInitialLoad) return <ListSkeleton ariaLabel="Loading lab results" showStats showBadge />
+  if (error && !labsRes) return <ErrorState message={error} onRetry={refetch} />
 
   const allOrders = labsRes?.data ?? LAB_RESULTS
 
