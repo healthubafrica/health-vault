@@ -22,6 +22,7 @@ import {
   RequestOtpDto,
   ResetPasswordDto,
   VerifyOtpDto,
+  RequestSmsOtpDto,
 } from './dto/verify-otp.dto';
 import { ChangePasswordDto, Toggle2faDto } from './dto/account-settings.dto';
 import { Public } from '../common/decorators/roles.decorator';
@@ -93,6 +94,15 @@ export class AuthController {
   @ApiOperation({ summary: 'Re-send email verification OTP' })
   requestOtp(@Body() dto: RequestOtpDto) {
     return this.authService.requestPasswordReset(dto.email);
+  }
+
+  @Public()
+  @Post('request-sms-otp')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ auth: { ttl: 60_000, limit: 3 } })
+  @ApiOperation({ summary: 'Request / Resend registration verification OTP via SMS' })
+  requestSmsOtp(@Body() dto: RequestSmsOtpDto) {
+    return this.authService.requestSmsOtp(dto.email);
   }
 
   @Public()
