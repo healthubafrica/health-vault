@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FormInput, FormSelect } from '@/components/ui/FormInput'
 import { Button } from '@/components/ui/Button'
+import { patients } from '@/lib/api'
+import { useAuthStore } from '@/lib/stores/authStore'
 import {
   Heart,
   Dna,
@@ -31,8 +33,11 @@ const AVATAR_OPTIONS = [
 
 export function OnboardingScreen() {
   const router = useRouter()
+  const { user } = useAuthStore()
   const [step, setStep] = useState(1)
   const [name, setName] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
 
   // Prefill name from sessionStorage
   useEffect(() => {
@@ -500,10 +505,46 @@ export function OnboardingScreen() {
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={() => setStep(step + 1)}
+                  disabled={isSubmitting}
+                  onClick={async () => {
+                    // Submit patient profile after step 3
+                    if (step === 3) {
+                      setIsSubmitting(true)
+                      setSubmitError('')
+                      try {
+                        const [firstName, ...rest] = name.trim().split(' ')
+                        await patients.create({
+                          firstName: firstName || name,
+                          lastName: rest.join(' ') || 'Patient',
+                          dateOfBirth: dob || '1990-01-01',
+                          gender: gender === 'Male' ? 'Male' : gender === 'Female' ? 'Female' : 'Other',
+                          bloodGroup: bloodGroup.replace('+', '_PLUS').replace('-', '_MINUS'),
+                          regionCode: 'LAG',
+                          country: 'Nigeria',
+                          medicalInfo: {
+                            allergies: allergies ? allergies.split(',').map(s => s.trim()).filter(Boolean) : [],
+                            chronicConditions,
+                          },
+                          emergencyContacts: emergencyName && emergencyPhone ? [{
+                            fullName: emergencyName,
+                            relationship: 'Emergency Contact',
+                            phone: emergencyPhone,
+                            isPrimary: true,
+                          }] : [],
+                        })
+                        setStep(step + 1)
+                      } catch (e: unknown) {
+                        setSubmitError(e instanceof Error ? e.message : 'Failed to save profile. Please try again.')
+                      } finally {
+                        setIsSubmitting(false)
+                      }
+                    } else {
+                      setStep(step + 1)
+                    }
+                  }}
                   className="flex items-center gap-1 text-xs"
                 >
-                  Continue <ArrowRight size={13} />
+                  {isSubmitting ? 'Saving…' : <><span>Continue</span><ArrowRight size={13} /></>}
                 </Button>
               ) : (
                 <Button
@@ -515,6 +556,9 @@ export function OnboardingScreen() {
                 >
                   Enter Portal Dashboard <UserCheck size={16} />
                 </Button>
+              )}
+              {submitError && (
+                <p className="text-xs text-red-400 text-center w-full mt-2">{submitError}</p>
               )}
             </div>
           )}

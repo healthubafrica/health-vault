@@ -1,17 +1,26 @@
 import { IsString, IsInt, IsOptional, IsEnum, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { PaymentGateway, PaymentPurpose } from '@prisma/client';
+import { PaymentGateway } from '@prisma/client';
+
+export enum PaymentPurpose {
+  subscription = 'subscription',
+  appointment = 'appointment',
+  expertReview = 'expertReview',
+  labOrder = 'labOrder',
+  telecareSession = 'telecareSession',
+  other = 'other',
+}
 
 export class InitiatePaymentDto {
-  @ApiProperty({ enum: PaymentGateway })
+  @ApiProperty({ enum: PaymentGateway, example: 'Paystack' })
   @IsEnum(PaymentGateway)
   gateway: PaymentGateway;
 
-  @ApiProperty({ enum: PaymentPurpose })
+  @ApiProperty({ enum: PaymentPurpose, example: 'subscription' })
   @IsEnum(PaymentPurpose)
   purpose: PaymentPurpose;
 
-  @ApiProperty({ description: 'Amount in kobo (smallest unit)' })
+  @ApiProperty({ description: 'Amount in kobo (smallest unit)', example: 500000 })
   @IsInt()
   @Min(100)
   amountKobo: number;
@@ -20,18 +29,8 @@ export class InitiatePaymentDto {
   @IsString()
   currency: string;
 
-  @ApiPropertyOptional({ description: 'Subscription ID if purpose = subscription' })
+  @ApiPropertyOptional({ description: 'Reference ID for the resource being paid for' })
   @IsOptional()
   @IsString()
-  subscriptionId?: string;
-
-  @ApiPropertyOptional({ description: 'Appointment ID if purpose = appointment' })
-  @IsOptional()
-  @IsString()
-  appointmentId?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  metadata?: string;
+  referenceId?: string;
 }

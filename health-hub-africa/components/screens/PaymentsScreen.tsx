@@ -1,12 +1,28 @@
+'use client'
+
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
 import { PAYMENTS } from '@/lib/data/payments'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Receipt, CreditCard } from 'lucide-react'
+import { payments as paymentsApi } from '@/lib/api'
+import { useApi } from '@/lib/hooks/useApi'
 
 export function PaymentsScreen() {
-  const total = PAYMENTS.reduce((sum, p) => sum + p.amount, 0)
+  const { data: paymentsRes } = useApi(() => paymentsApi.list())
+
+  const allPayments = paymentsRes?.data?.map((p: any) => ({
+    id: p.id,
+    description: p.description,
+    amount: p.amountKobo / 100,
+    currency: p.currency,
+    status: p.status === 'paid' ? 'paid' : p.status,
+    date: p.paidAt ?? p.createdAt,
+    gateway: p.gateway,
+  })) ?? PAYMENTS
+
+  const total = allPayments.reduce((sum: number, p: any) => sum + p.amount, 0)
 
   return (
     <div className="flex flex-col gap-5 pb-20 md:pb-5">
@@ -50,7 +66,7 @@ export function PaymentsScreen() {
           <CardTitle className="mb-0">Transaction History</CardTitle>
         </div>
         <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
-          {PAYMENTS.map(p => (
+          {allPayments.map((p: any) => (
             <div key={p.id} className="flex items-center gap-3 p-4">
               <div
                 className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
