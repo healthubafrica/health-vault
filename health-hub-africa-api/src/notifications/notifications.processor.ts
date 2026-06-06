@@ -52,30 +52,46 @@ export class NotificationsProcessor {
     const { to, body } = job.data;
     this.logger.log(`Sending SMS to ${to}`);
 
-    const accountSid = this.config.get('TWILIO_ACCOUNT_SID');
-    const authToken = this.config.get('TWILIO_AUTH_TOKEN');
-    const fromNumber = this.config.get('TWILIO_FROM_NUMBER');
+    const username = this.config.get<string>('AT_USERNAME');
+    const apiKey = this.config.get<string>('AT_API_KEY');
+    const senderId = this.config.get<string>('AT_SENDER_ID');
 
-    if (!accountSid || !authToken || !fromNumber) {
-      this.logger.warn('Twilio not configured — skipping SMS');
+    if (!username || !apiKey) {
+      this.logger.warn("Africa's Talking not configured — skipping SMS");
       return;
     }
 
-    const res = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({ To: to, From: fromNumber, Body: body }),
+    const isSandbox = username.toLowerCase() === 'sandbox';
+    const baseUrl = isSandbox
+      ? 'https://api.sandbox.africastalking.com'
+      : 'https://api.africastalking.com';
+
+    const params: Record<string, string> = {
+      username,
+      phoneNumbers: to,
+      message: body,
+    };
+
+    if (senderId) {
+      params.senderId = senderId;
+    }
+
+    const res = await fetch(`${baseUrl}/version1/messaging/bulk`, {
+      method: 'POST',
+      headers: {
+        apiKey,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'application/json',
       },
-    );
+      body: new URLSearchParams(params),
+    });
 
     if (!res.ok) {
-      throw new Error(`Twilio error ${res.status}: ${await res.text()}`);
+      throw new Error(`Africa's Talking error ${res.status}: ${await res.text()}`);
     }
+
+    const responseData = await res.json();
+    this.logger.log(`SMS sent successfully to ${to}. Response: ${JSON.stringify(responseData)}`);
   }
 
   // FCM HTTP v1 API (replaces legacy fcm/send — shut down June 2024)
@@ -164,6 +180,16 @@ export class NotificationsProcessor {
 
 // ── Email HTML helpers ────────────────────────────────────────────────────────
 
+// Escape user-controlled strings before embedding in HTML to prevent injection.
+// `content` passed to emailShell is trusted (built by this module), but every
+// value that originates from a queue job (subject, body, otp) must be escaped
+// before interpolation.
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!,
+  );
+}
+
 function emailShell(content: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -213,20 +239,21 @@ function emailShell(content: string): string {
 }
 
 function buildOtpHtml(subject: string, body: string): string {
-  // Extract the 6-digit OTP from the body text
+  // Extract and validate 6-digit OTP — digits only, never raw user input in HTML
   const otpMatch = body.match(/\b(\d{6})\b/);
   const otp = otpMatch?.[1];
+  const safeOtp = otp && /^\d{6}$/.test(otp) ? otp : null;
 
-  const otpBlock = otp
+  const otpBlock = safeOtp
     ? `<div style="margin:28px 0;text-align:center;">
          <div style="display:inline-block;background:#EBF5EC;border:2px solid #137333;border-radius:16px;padding:20px 40px;">
-           <p style="margin:0;font-size:42px;font-weight:800;letter-spacing:10px;color:#0E4A30;font-family:'Courier New',monospace;">${otp}</p>
+           <p style="margin:0;font-size:42px;font-weight:800;letter-spacing:10px;color:#0E4A30;font-family:'Courier New',monospace;">${safeOtp}</p>
          </div>
        </div>
        <p style="margin:0 0 8px;font-size:13px;color:#6B6B6B;text-align:center;">
          This code expires in <strong style="color:#1A1A1A;">10 minutes</strong>.
        </p>`
-    : `<p style="margin:0 0 20px;font-size:15px;color:#1A1A1A;line-height:1.7;">${body}</p>`;
+    : `<p style="margin:0 0 20px;font-size:15px;color:#1A1A1A;line-height:1.7;">${escapeHtml(body)}</p>`;
 
   const isReset = subject.toLowerCase().includes('reset');
 
@@ -251,11 +278,11 @@ function buildGenericHtml(subject: string, body: string): string {
   const paragraphs = body
     .split('\n')
     .filter(l => l.trim())
-    .map(l => `<p style="margin:0 0 16px;font-size:14px;color:#1A1A1A;line-height:1.7;">${l}</p>`)
+    .map(l => `<p style="margin:0 0 16px;font-size:14px;color:#1A1A1A;line-height:1.7;">${escapeHtml(l)}</p>`)
     .join('');
 
   const content = `
-    <h1 style="margin:0 0 20px;font-size:22px;font-weight:800;color:#1A1A1A;">${subject}</h1>
+    <h1 style="margin:0 0 20px;font-size:22px;font-weight:800;color:#1A1A1A;">${escapeHtml(subject)}</h1>
     ${paragraphs}`;
 
   return emailShell(content);
