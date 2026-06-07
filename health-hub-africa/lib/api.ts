@@ -134,6 +134,12 @@ export const auth = {
       body: JSON.stringify({ email, otp, type }),
     }),
 
+  requestSmsOtp: (email: string, phone?: string) =>
+    request<{ message: string }>('/auth/request-sms-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email, phone }),
+    }),
+
   me: () => request<{ data: User }>('/auth/me'),
 
   logout: () =>
@@ -161,6 +167,7 @@ export interface PatientProfile {
   lastName: string
   dateOfBirth: string
   gender: string
+  profilePhotoUrl?: string
   bloodGroup?: string
   address?: string
   city?: string
@@ -195,6 +202,12 @@ export const patients = {
   update: (id: string, data: Record<string, unknown>) =>
     request<{ data: PatientProfile }>(`/patients/${id}`, {
       method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  getProfilePhotoUploadUrl: (data: { contentType: string; sizeBytes: number }) =>
+    request<{ uploadUrl: string; objectKey: string; publicUrl: string }>('/patients/me/profile-photo-upload-url', {
+      method: 'POST',
       body: JSON.stringify(data),
     }),
 }
