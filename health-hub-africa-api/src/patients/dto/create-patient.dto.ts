@@ -118,4 +118,9 @@ export class CreatePatientDto {
   @IsOptional()
   @IsString()
   preferredTimezone?: string;
+
+  @ApiPropertyOptional({ description: 'URL of the profile photo' })
+  @IsOptional()
+  @IsString()
+  profilePhotoUrl?: string;
 }

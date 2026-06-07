@@ -26,6 +26,7 @@ const SHAPE_CLASS: Record<AvatarShape, string> = {
 
 interface AvatarProps {
   seed: string
+  src?: string | null
   style?: DiceBearStyle
   size?: AvatarSize
   shape?: AvatarShape
@@ -39,6 +40,7 @@ function dicebearUrl(seed: string, style: DiceBearStyle): string {
 
 export function Avatar({
   seed,
+  src,
   style = 'micah',
   size = 'md',
   shape = 'circle',
@@ -46,7 +48,7 @@ export function Avatar({
   alt,
 }: AvatarProps) {
   const px = SIZE_MAP[size]
-  const url = dicebearUrl(seed, style)
+  const url = src || dicebearUrl(seed, style)
 
   return (
     <div
