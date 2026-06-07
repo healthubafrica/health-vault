@@ -17,6 +17,7 @@ import { PatientsService } from './patients.service';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { QueryPatientsDto } from './dto/query-patients.dto';
+import { RequestProfilePhotoUrlDto } from './dto/profile-photo-upload.dto';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 
@@ -81,5 +82,15 @@ export class PatientsController {
   @ApiOperation({ summary: 'Self-service account deactivation (requires password confirmation)' })
   selfDeactivate(@Body() dto: DeactivateAccountDto, @CurrentUser() user: JwtPayload) {
     return this.patientsService.selfDeactivate(user, dto.password);
+  }
+
+  @Post('me/profile-photo-upload-url')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request a pre-signed S3 upload URL for a profile picture' })
+  requestProfilePhotoUploadUrl(
+    @Body() dto: RequestProfilePhotoUrlDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.patientsService.requestProfilePhotoUploadUrl(dto, user);
   }
 }

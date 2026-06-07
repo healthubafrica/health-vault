@@ -7,12 +7,17 @@ import {
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { QueryPatientsDto } from './dto/query-patients.dto';
+import { RequestProfilePhotoUrlDto } from './dto/profile-photo-upload.dto';
 
 // HHA Patient ID: HHA-{REGION}-{YYYYMM}-{4-digit-seq}  e.g. HHA-CAN-2605-0004
 const REGION_MAP: Record<string, string> = {
@@ -27,10 +32,24 @@ const REGION_MAP: Record<string, string> = {
 
 @Injectable()
 export class PatientsService {
+  private readonly s3: S3Client;
+  private readonly bucket: string;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
-  ) {}
+    private readonly config: ConfigService,
+  ) {
+    this.s3 = new S3Client({
+      region: config.get('AWS_REGION', 'us-east-1'),
+      credentials: {
+        accessKeyId: config.getOrThrow('AWS_ACCESS_KEY_ID'),
+        secretAccessKey: config.getOrThrow('AWS_SECRET_ACCESS_KEY'),
+      },
+      endpoint: config.get('S3_ENDPOINT'),
+    });
+    this.bucket = config.getOrThrow('S3_BUCKET');
+  }
 
   // ── HHA-ID Generator ──────────────────────────────────────────────────────
 
@@ -63,12 +82,14 @@ export class PatientsService {
     });
     if (existing) throw new ConflictException('Patient profile already exists');
 
+    const regionCode = (dto.country && REGION_MAP[dto.country]) ?? 'HHA';
     const hhaPatientId = await this.generateHhaId(dto.country);
 
     const patient = await this.prisma.patient.create({
       data: {
         userId: currentUser.sub,
         hhaPatientId,
+        regionCode,
         firstName: dto.firstName,
         lastName: dto.lastName,
         middleName: dto.middleName,
@@ -85,12 +106,17 @@ export class PatientsService {
         nextOfKinName: dto.nextOfKinName,
         nextOfKinRelationship: dto.nextOfKinRelationship,
         nextOfKinPhone: dto.nextOfKinPhone,
-        allergies: dto.allergies ?? [],
-        chronicConditions: dto.chronicConditions ?? [],
+        medicalInfo: {
+          create: {
+            allergies: dto.allergies ?? [],
+            chronicConditions: dto.chronicConditions ?? [],
+          }
+        },
         nin: dto.nin,
         gdprConsent: dto.gdprConsent ?? false,
         marketingConsent: dto.marketingConsent ?? false,
         preferredTimezone: dto.preferredTimezone ?? 'Africa/Lagos',
+        profilePhotoUrl: dto.profilePhotoUrl,
       },
       select: this.safeSelect(),
     });
@@ -189,17 +215,49 @@ export class PatientsService {
         nextOfKinName: dto.nextOfKinName,
         nextOfKinRelationship: dto.nextOfKinRelationship,
         nextOfKinPhone: dto.nextOfKinPhone,
-        allergies: dto.allergies,
-        chronicConditions: dto.chronicConditions,
+        medicalInfo: (dto.allergies || dto.chronicConditions) ? {
+          upsert: {
+            create: {
+              allergies: dto.allergies ?? [],
+              chronicConditions: dto.chronicConditions ?? [],
+            },
+            update: {
+              allergies: dto.allergies,
+              chronicConditions: dto.chronicConditions,
+            }
+          }
+        } : undefined,
         nin: dto.nin,
         gdprConsent: dto.gdprConsent,
         marketingConsent: dto.marketingConsent,
         preferredTimezone: dto.preferredTimezone,
+        profilePhotoUrl: dto.profilePhotoUrl,
       },
       select: this.safeSelect(),
     });
 
     return updated;
+  }
+
+  async requestProfilePhotoUploadUrl(dto: RequestProfilePhotoUrlDto, currentUser: JwtPayload) {
+    const ext = dto.contentType === 'image/png' ? 'png' : dto.contentType === 'image/webp' ? 'webp' : 'jpg';
+    const objectKey = `profile-photos/${currentUser.sub}/${randomUUID()}.${ext}`;
+
+    const command = new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: objectKey,
+      ContentType: dto.contentType,
+      ContentLength: dto.sizeBytes,
+      Metadata: { uploadedBy: currentUser.sub },
+    });
+
+    const uploadUrl = await getSignedUrl(this.s3, command, { expiresIn: 600 }); // 10 min
+
+    const publicUrl = this.config.get('S3_ENDPOINT')
+      ? `${this.config.get('S3_ENDPOINT')}/${this.bucket}/${objectKey}`
+      : `https://${this.bucket}.s3.${this.config.get('AWS_REGION', 'us-east-1')}.amazonaws.com/${objectKey}`;
+
+    return { uploadUrl, objectKey, publicUrl };
   }
 
   // ── Self-service: Request Data Export ────────────────────────────────────
@@ -300,12 +358,19 @@ export class PatientsService {
       nextOfKinName: true,
       nextOfKinRelationship: true,
       nextOfKinPhone: true,
-      allergies: true,
-      chronicConditions: true,
+      medicalInfo: {
+        select: {
+          allergies: true,
+          chronicConditions: true,
+          activeMedications: true,
+          activeCarePlan: true,
+        }
+      },
       openemrSyncStatus: true,
       gdprConsent: true,
       marketingConsent: true,
       preferredTimezone: true,
+      profilePhotoUrl: true,
       createdAt: true,
       updatedAt: true,
       user: {
@@ -320,11 +385,9 @@ export class PatientsService {
   }
 
   private assertAccess(patient: { userId: string }, currentUser: JwtPayload) {
-    const isAdmin = [
-      UserRole.admin,
-      UserRole.super_admin,
-      UserRole.coordinator,
-    ].includes(currentUser.role as UserRole);
+    const isAdmin = (
+      [UserRole.admin, UserRole.super_admin, UserRole.coordinator] as string[]
+    ).includes(currentUser.role);
 
     if (!isAdmin && patient.userId !== currentUser.sub) {
       throw new ForbiddenException('Access denied');
@@ -332,8 +395,8 @@ export class PatientsService {
   }
 
   private requireAdminOrCoordinator(user: JwtPayload) {
-    const allowed = [UserRole.admin, UserRole.super_admin, UserRole.coordinator];
-    if (!allowed.includes(user.role as UserRole)) {
+    const allowed = [UserRole.admin, UserRole.super_admin, UserRole.coordinator] as string[];
+    if (!allowed.includes(user.role)) {
       throw new ForbiddenException('Insufficient permissions');
     }
   }

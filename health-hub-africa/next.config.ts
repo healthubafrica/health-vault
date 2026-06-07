@@ -47,8 +47,7 @@ export default withSentryConfig(nextConfig, {
   // Upload source maps only in CI to keep local builds fast
   silent: !process.env.CI,
 
-  // Hides the Sentry bundle size from the Next.js build output
-  hideSourceMaps: true,
+
 
   // Disable the default Sentry tunnel route (/monitoring) — we send directly
   disableLogger: true,

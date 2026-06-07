@@ -15,6 +15,7 @@ interface AuthState {
   verifyOtp: (email: string, otp: string) => Promise<void>
   forgotPassword: (email: string) => Promise<void>
   resetPassword: (email: string, otp: string, newPassword: string) => Promise<void>
+  requestSmsOtp: (email: string, phone?: string) => Promise<void>
   fetchMe: () => Promise<void>
   logout: () => Promise<void>
   clearError: () => void
@@ -106,6 +107,17 @@ export const useAuthStore = create<AuthState>()(
           set({ isLoading: false })
         } catch (e: unknown) {
           set({ error: e instanceof Error ? e.message : 'Password reset failed', isLoading: false })
+          throw e
+        }
+      },
+
+      requestSmsOtp: async (email, phone) => {
+        set({ isLoading: true, error: null })
+        try {
+          await auth.requestSmsOtp(email, phone)
+          set({ isLoading: false })
+        } catch (e: unknown) {
+          set({ error: e instanceof Error ? e.message : 'SMS OTP request failed', isLoading: false })
           throw e
         }
       },

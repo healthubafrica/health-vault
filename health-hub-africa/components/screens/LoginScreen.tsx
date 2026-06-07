@@ -8,18 +8,46 @@ import { Eye, EyeOff, Shield, Activity, Cpu } from 'lucide-react'
 import { useAuthStore } from '@/lib/stores/authStore'
 
 // OTP verification step shown after registration
-function OtpStep({ email, onSuccess }: { email: string; onSuccess: () => void }) {
+function OtpStep({ email, initialPhone, onSuccess }: { email: string; initialPhone: string; onSuccess: () => void }) {
   const [otp, setOtp] = useState('')
-  const { verifyOtp, isLoading, error, clearError } = useAuthStore()
+  const [phone, setPhone] = useState(initialPhone)
+  const [showPhoneInput, setShowPhoneInput] = useState(false)
+  const [smsSent, setSmsSent] = useState(false)
+  const [localError, setLocalError] = useState('')
+  const { verifyOtp, requestSmsOtp, isLoading, error, clearError } = useAuthStore()
+
+  const displayError = localError || error
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault()
+    setLocalError('')
     clearError()
     try {
       await verifyOtp(email, otp)
       onSuccess()
     } catch {
       // error is set in store
+    }
+  }
+
+  const handleSendSms = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    setLocalError('')
+    clearError()
+    if (showPhoneInput && !/^\+[1-9]\d{1,14}$/.test(phone)) {
+      setLocalError('Phone number must be in E.164 format (e.g. +2348012345678)')
+      return
+    }
+    try {
+      await requestSmsOtp(email, phone || undefined)
+      setSmsSent(true)
+      setShowPhoneInput(false)
+      setLocalError('')
+    } catch (err: any) {
+      const errMsg = err?.message || ''
+      if (errMsg.toLowerCase().includes('phone number required')) {
+        setShowPhoneInput(true)
+      }
     }
   }
 
@@ -34,9 +62,9 @@ function OtpStep({ email, onSuccess }: { email: string; onSuccess: () => void })
         </p>
       </div>
 
-      {error && (
+      {displayError && (
         <div className="p-3 rounded-xl text-xs bg-red-500/10 text-red-400 border border-red-500/20">
-          {error}
+          {displayError}
         </div>
       )}
 
@@ -53,6 +81,44 @@ function OtpStep({ email, onSuccess }: { email: string; onSuccess: () => void })
           {isLoading ? 'Verifying…' : 'Verify & Continue'}
         </Button>
       </form>
+
+      <div className="text-center mt-2 flex flex-col gap-2">
+        {smsSent ? (
+          <p className="text-xs text-[#6DC43F] font-semibold">
+            ✓ Code sent via SMS!
+          </p>
+        ) : showPhoneInput ? (
+          <form onSubmit={handleSendSms} className="flex flex-col gap-3 text-left">
+            <FormInput
+              label="Enter phone number for SMS OTP"
+              type="tel"
+              placeholder="+2348012345678"
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+              required
+            />
+            <Button type="submit" size="sm" disabled={isLoading}>
+              {isLoading ? 'Sending SMS…' : 'Send SMS OTP'}
+            </Button>
+            <button
+              type="button"
+              onClick={() => setShowPhoneInput(false)}
+              className="text-xs text-white/50 hover:underline"
+            >
+              Cancel
+            </button>
+          </form>
+        ) : (
+          <button
+            type="button"
+            onClick={() => handleSendSms()}
+            disabled={isLoading}
+            className="text-xs font-medium hover:underline focus:outline-none text-[#6DC43F] cursor-pointer"
+          >
+            Didn't get the email? Resend via SMS
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -68,6 +134,7 @@ export function LoginScreen() {
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [agreeTerms, setAgreeTerms] = useState(false)
@@ -98,8 +165,12 @@ export function LoginScreen() {
         setLocalError('You must agree to the Terms of Service and Privacy Policy')
         return
       }
+      if (phone && !/^\+[1-9]\d{1,14}$/.test(phone)) {
+        setLocalError('Phone number must be in E.164 format (e.g. +2348012345678)')
+        return
+      }
       try {
-        await register(email, password)
+        await register(email, password, phone || undefined)
         if (typeof window !== 'undefined') {
           sessionStorage.setItem('onboarding_name', name || 'Valued Patient')
           sessionStorage.setItem('pending_otp_email', email)
@@ -219,7 +290,7 @@ export function LoginScreen() {
           )}
 
           {showOtp ? (
-            <OtpStep email={email} onSuccess={handleOtpSuccess} />
+            <OtpStep email={email} initialPhone={phone} onSuccess={handleOtpSuccess} />
           ) : forgotState === 'email' ? (
             <>
               <h2 className="text-2xl font-bold mb-1 text-white" style={{ fontFamily: 'var(--font-display)' }}>
@@ -421,6 +492,16 @@ export function LoginScreen() {
                   onChange={e => setEmail(e.target.value)}
                   required
                 />
+
+                {isSignUp && (
+                  <FormInput
+                    label="Phone number (optional)"
+                    type="tel"
+                    placeholder="+2348012345678"
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
+                  />
+                )}
 
                 <div className="relative">
                   <FormInput
