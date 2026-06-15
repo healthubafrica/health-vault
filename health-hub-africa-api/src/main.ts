@@ -53,8 +53,24 @@ async function bootstrap() {
   app.use(compression());
 
   // ── CORS ────────────────────────────────────────────────────────────────
+  // Allow both the bare domain and the www-prefixed variant so that the
+  // browser's Origin header is accepted regardless of which canonical form
+  // the client uses (e.g. https://myvaultplus.com AND https://www.myvaultplus.com).
+  const buildCorsOrigins = (base: string): string[] => {
+    try {
+      const url = new URL(base);
+      const bare = `${url.protocol}//${url.hostname.replace(/^www\./, '')}${url.port ? `:${url.port}` : ''}`;
+      const www = `${url.protocol}//www.${url.hostname.replace(/^www\./, '')}${url.port ? `:${url.port}` : ''}`;
+      return [bare, www];
+    } catch {
+      return [base];
+    }
+  };
+
+  const prodOrigins = buildCorsOrigins(frontendUrl);
+
   app.enableCors({
-    origin: isProd ? frontendUrl : [frontendUrl, 'http://localhost:3000'],
+    origin: isProd ? prodOrigins : [...prodOrigins, 'http://localhost:3000'],
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-refresh-token'],
