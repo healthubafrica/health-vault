@@ -11,6 +11,36 @@ import { CreateProviderDto } from './dto/create-provider.dto';
 import { UpdateProviderDto } from './dto/update-provider.dto';
 import { QueryProvidersDto } from './dto/query-providers.dto';
 
+// The DTO captures a richer profile than the schema stores. Structured
+// details without dedicated columns are appended to the bio text so the
+// information survives.
+function buildBio(dto: Partial<CreateProviderDto>): string | undefined {
+  const details = [
+    dto.bio,
+    dto.qualifications ? `Qualifications: ${dto.qualifications}` : null,
+    dto.subSpecializations?.length
+      ? `Sub-specializations: ${dto.subSpecializations.join(', ')}`
+      : null,
+    dto.licenseBody ? `License body: ${dto.licenseBody}` : null,
+    dto.licenseCountry ? `License country: ${dto.licenseCountry}` : null,
+    dto.currentHospital ? `Hospital: ${dto.currentHospital}` : null,
+    dto.currentDepartment ? `Department: ${dto.currentDepartment}` : null,
+    [dto.officeAddress, dto.officeCity, dto.officeState, dto.officeCountry]
+      .filter(Boolean)
+      .join(', ') || null,
+  ].filter(Boolean);
+  return details.length ? details.join('\n') : undefined;
+}
+
+const TITLE_BY_TYPE: Record<string, string> = {
+  DOCTOR: 'Dr.',
+  NURSE: 'Nurse',
+  PHARMACIST: 'Pharm.',
+  PHYSIOTHERAPIST: 'PT',
+  SPECIALIST: 'Dr.',
+  RADIOLOGIST: 'Dr.',
+};
+
 @Injectable()
 export class ProvidersService {
   constructor(private readonly prisma: PrismaService) {}
@@ -23,37 +53,21 @@ export class ProvidersService {
     });
     if (existing) throw new ConflictException('Provider profile already exists');
 
-    const provider = await this.prisma.provider.create({
+    return this.prisma.provider.create({
       data: {
         userId: currentUser.sub,
         firstName: dto.firstName,
         lastName: dto.lastName,
-        middleName: dto.middleName,
-        providerType: dto.providerType,
-        specialization: dto.specialization,
-        subSpecializations: dto.subSpecializations ?? [],
-        qualifications: dto.qualifications,
+        title: TITLE_BY_TYPE[dto.providerType] ?? 'Dr.',
+        specialty: dto.specialization ?? dto.providerType,
         licenseNumber: dto.licenseNumber,
-        licenseBody: dto.licenseBody,
-        licenseCountry: dto.licenseCountry,
-        yearsOfExperience: dto.yearsOfExperience,
-        bio: dto.bio,
-        currentHospital: dto.currentHospital,
-        currentDepartment: dto.currentDepartment,
-        officeAddress: dto.officeAddress,
-        officeCity: dto.officeCity,
-        officeState: dto.officeState,
-        officeCountry: dto.officeCountry,
-        acceptsVirtualConsults: dto.acceptsVirtualConsults ?? true,
-        acceptsEmergencies: dto.acceptsEmergencies ?? false,
-        consultationFeeKobo: dto.consultationFeeKobo,
-        preferredTimezone: dto.preferredTimezone ?? 'Africa/Lagos',
+        yearsExperience: dto.yearsOfExperience ?? 0,
+        bio: buildBio(dto),
+        isAvailable: dto.acceptsVirtualConsults ?? true,
         profilePhotoUrl: dto.profilePhotoUrl,
       },
       select: this.safeSelect(),
     });
-
-    return provider;
   }
 
   // ── Find All ──────────────────────────────────────────────────────────────
@@ -65,8 +79,6 @@ export class ProvidersService {
       search,
       providerType,
       specialization,
-      city,
-      country,
       acceptsVirtualConsults,
       isVerified,
     } = query;
@@ -78,17 +90,17 @@ export class ProvidersService {
       where.OR = [
         { firstName: { contains: search, mode: 'insensitive' } },
         { lastName: { contains: search, mode: 'insensitive' } },
-        { specialization: { contains: search, mode: 'insensitive' } },
+        { specialty: { contains: search, mode: 'insensitive' } },
       ];
     }
-    if (providerType) where.providerType = providerType;
-    if (specialization)
-      where.specialization = { contains: specialization, mode: 'insensitive' };
-    if (city) where.officeCity = { contains: city, mode: 'insensitive' };
-    if (country) where.officeCountry = country;
-    if (acceptsVirtualConsults !== undefined)
-      where.acceptsVirtualConsults = acceptsVirtualConsults;
-    if (isVerified !== undefined) where.isVerified = isVerified;
+    if (specialization) {
+      where.specialty = { contains: specialization, mode: 'insensitive' };
+    } else if (providerType) {
+      // Provider type has no dedicated column; it is reflected in specialty
+      where.specialty = { contains: providerType, mode: 'insensitive' };
+    }
+    if (acceptsVirtualConsults !== undefined) where.isAvailable = acceptsVirtualConsults;
+    if (isVerified !== undefined) where.user = { isVerified };
 
     const [data, total] = await Promise.all([
       this.prisma.provider.findMany({
@@ -137,32 +149,24 @@ export class ProvidersService {
     if (!provider) throw new NotFoundException('Provider not found');
     this.assertOwnerOrAdmin(provider, currentUser);
 
+    const bio = buildBio(dto);
+
     return this.prisma.provider.update({
       where: { id },
       data: {
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        middleName: dto.middleName,
-        providerType: dto.providerType,
-        specialization: dto.specialization,
-        subSpecializations: dto.subSpecializations,
-        qualifications: dto.qualifications,
-        licenseNumber: dto.licenseNumber,
-        licenseBody: dto.licenseBody,
-        licenseCountry: dto.licenseCountry,
-        yearsOfExperience: dto.yearsOfExperience,
-        bio: dto.bio,
-        currentHospital: dto.currentHospital,
-        currentDepartment: dto.currentDepartment,
-        officeAddress: dto.officeAddress,
-        officeCity: dto.officeCity,
-        officeState: dto.officeState,
-        officeCountry: dto.officeCountry,
-        acceptsVirtualConsults: dto.acceptsVirtualConsults,
-        acceptsEmergencies: dto.acceptsEmergencies,
-        consultationFeeKobo: dto.consultationFeeKobo,
-        preferredTimezone: dto.preferredTimezone,
-        profilePhotoUrl: dto.profilePhotoUrl,
+        ...(dto.firstName !== undefined && { firstName: dto.firstName }),
+        ...(dto.lastName !== undefined && { lastName: dto.lastName }),
+        ...(dto.providerType !== undefined && {
+          title: TITLE_BY_TYPE[dto.providerType] ?? 'Dr.',
+        }),
+        ...(dto.specialization !== undefined && { specialty: dto.specialization }),
+        ...(dto.licenseNumber !== undefined && { licenseNumber: dto.licenseNumber }),
+        ...(dto.yearsOfExperience !== undefined && { yearsExperience: dto.yearsOfExperience }),
+        ...(bio !== undefined && { bio }),
+        ...(dto.acceptsVirtualConsults !== undefined && {
+          isAvailable: dto.acceptsVirtualConsults,
+        }),
+        ...(dto.profilePhotoUrl !== undefined && { profilePhotoUrl: dto.profilePhotoUrl }),
       },
       select: this.safeSelect(),
     });
@@ -176,9 +180,14 @@ export class ProvidersService {
     const provider = await this.prisma.provider.findUnique({ where: { id } });
     if (!provider) throw new NotFoundException('Provider not found');
 
-    return this.prisma.provider.update({
+    // Verification lives on the linked user account
+    await this.prisma.user.update({
+      where: { id: provider.userId },
+      data: { isVerified: true },
+    });
+
+    return this.prisma.provider.findUnique({
       where: { id },
-      data: { isVerified: true, verifiedAt: new Date() },
       select: this.safeSelect(),
     });
   }
@@ -207,50 +216,34 @@ export class ProvidersService {
       userId: true,
       firstName: true,
       lastName: true,
-      middleName: true,
-      providerType: true,
-      specialization: true,
-      subSpecializations: true,
-      qualifications: true,
+      title: true,
+      specialty: true,
       licenseNumber: true,
-      licenseBody: true,
-      licenseCountry: true,
-      yearsOfExperience: true,
+      yearsExperience: true,
       bio: true,
-      currentHospital: true,
-      currentDepartment: true,
-      officeAddress: true,
-      officeCity: true,
-      officeState: true,
-      officeCountry: true,
-      acceptsVirtualConsults: true,
-      acceptsEmergencies: true,
-      consultationFeeKobo: true,
-      isVerified: true,
-      verifiedAt: true,
-      averageRating: true,
-      totalReviews: true,
-      preferredTimezone: true,
+      rating: true,
+      totalPatients: true,
+      isAvailable: true,
       profilePhotoUrl: true,
       createdAt: true,
       updatedAt: true,
       user: {
-        select: { email: true, phone: true },
+        select: { email: true, phone: true, isVerified: true },
       },
     };
   }
 
   private assertOwnerOrAdmin(provider: { userId: string }, currentUser: JwtPayload) {
-    const isAdmin = [UserRole.admin, UserRole.super_admin].includes(
-      currentUser.role as UserRole,
-    );
+    const adminRoles: UserRole[] = [UserRole.admin, UserRole.super_admin];
+    const isAdmin = adminRoles.includes(currentUser.role as UserRole);
     if (!isAdmin && provider.userId !== currentUser.sub) {
       throw new ForbiddenException('Access denied');
     }
   }
 
   private requireAdmin(user: JwtPayload) {
-    if (![UserRole.admin, UserRole.super_admin].includes(user.role as UserRole)) {
+    const adminRoles: UserRole[] = [UserRole.admin, UserRole.super_admin];
+    if (!adminRoles.includes(user.role as UserRole)) {
       throw new ForbiddenException('Insufficient permissions');
     }
   }

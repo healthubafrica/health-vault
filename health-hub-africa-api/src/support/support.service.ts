@@ -3,21 +3,24 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { SupportTicketStatus, UserRole } from '@prisma/client';
+import { UserRole } from '@prisma/client';
+import { SupportTicketStatus } from '../common/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { CreateTicketDto, AddMessageDto, UpdateTicketStatusDto } from './dto/create-ticket.dto';
 
-// TKT-YYYY-000001 sequential ticket ID
-async function generateTicketId(prisma: PrismaService): Promise<string> {
+const ADMIN_ROLES: UserRole[] = [UserRole.admin, UserRole.super_admin, UserRole.coordinator];
+
+// TKT-YYYY-000001 sequential ticket reference
+async function generateTicketRef(prisma: PrismaService): Promise<string> {
   const year = new Date().getFullYear();
   const prefix = `TKT-${year}-`;
   const last = await prisma.supportTicket.findFirst({
-    where: { ticketId: { startsWith: prefix } },
-    orderBy: { ticketId: 'desc' },
-    select: { ticketId: true },
+    where: { hhaRef: { startsWith: prefix } },
+    orderBy: { hhaRef: 'desc' },
+    select: { hhaRef: true },
   });
-  const seq = last ? parseInt(last.ticketId.split('-')[2], 10) + 1 : 1;
+  const seq = last ? parseInt(last.hhaRef.split('-')[2], 10) + 1 : 1;
   return `${prefix}${String(seq).padStart(6, '0')}`;
 }
 
@@ -26,20 +29,22 @@ export class SupportService {
   constructor(private readonly prisma: PrismaService) {}
 
   async createTicket(dto: CreateTicketDto, currentUser: JwtPayload) {
-    const ticketId = await generateTicketId(this.prisma);
+    const hhaRef = await generateTicketRef(this.prisma);
 
+    // The ticket itself has no description column — the description becomes
+    // the opening message of the thread.
     return this.prisma.supportTicket.create({
       data: {
-        ticketId,
-        userId: currentUser.sub,
+        hhaRef,
+        submittedBy: currentUser.sub,
+        patientId: currentUser.patientId ?? null,
         subject: dto.subject,
-        description: dto.description,
-        category: dto.category,
+        category: dto.category ?? 'general',
         priority: dto.priority ?? 'normal',
         messages: {
           create: {
             senderId: currentUser.sub,
-            message: dto.description,
+            body: dto.description,
           },
         },
       },
@@ -48,29 +53,25 @@ export class SupportService {
   }
 
   async findAll(currentUser: JwtPayload) {
-    const isAdmin = [UserRole.admin, UserRole.super_admin, UserRole.coordinator].includes(
-      currentUser.role as UserRole,
-    );
+    const isAdmin = ADMIN_ROLES.includes(currentUser.role as UserRole);
 
     return this.prisma.supportTicket.findMany({
-      where: isAdmin ? {} : { userId: currentUser.sub },
+      where: isAdmin ? {} : { submittedBy: currentUser.sub },
       orderBy: { createdAt: 'desc' },
-      include: { messages: { orderBy: { sentAt: 'desc' }, take: 1 } },
+      include: { messages: { orderBy: { createdAt: 'desc' }, take: 1 } },
     });
   }
 
   async findOne(id: string, currentUser: JwtPayload) {
     const ticket = await this.prisma.supportTicket.findUnique({
       where: { id },
-      include: { messages: { orderBy: { sentAt: 'asc' } } },
+      include: { messages: { orderBy: { createdAt: 'asc' } } },
     });
 
     if (!ticket) throw new NotFoundException('Support ticket not found');
 
-    const isAdmin = [UserRole.admin, UserRole.super_admin, UserRole.coordinator].includes(
-      currentUser.role as UserRole,
-    );
-    if (!isAdmin && ticket.userId !== currentUser.sub) {
+    const isAdmin = ADMIN_ROLES.includes(currentUser.role as UserRole);
+    if (!isAdmin && ticket.submittedBy !== currentUser.sub) {
       throw new ForbiddenException('Access denied');
     }
 
@@ -80,31 +81,26 @@ export class SupportService {
   async addMessage(id: string, dto: AddMessageDto, currentUser: JwtPayload) {
     const ticket = await this.prisma.supportTicket.findUnique({
       where: { id },
-      select: { id: true, userId: true, status: true },
+      select: { id: true, submittedBy: true, status: true },
     });
 
     if (!ticket) throw new NotFoundException('Support ticket not found');
 
-    const isAdmin = [UserRole.admin, UserRole.super_admin, UserRole.coordinator].includes(
-      currentUser.role as UserRole,
-    );
-    if (!isAdmin && ticket.userId !== currentUser.sub) {
+    const isAdmin = ADMIN_ROLES.includes(currentUser.role as UserRole);
+    if (!isAdmin && ticket.submittedBy !== currentUser.sub) {
       throw new ForbiddenException('Access denied');
     }
 
     // Re-open ticket if patient replies to a resolved one
-    const shouldReopen =
-      !isAdmin &&
-      ticket.status === SupportTicketStatus.resolved;
+    const shouldReopen = !isAdmin && ticket.status === SupportTicketStatus.resolved;
 
     const [message] = await this.prisma.$transaction([
       this.prisma.supportMessage.create({
         data: {
           ticketId: id,
           senderId: currentUser.sub,
-          message: dto.message,
-          attachmentUrls: dto.attachmentKeys ?? [],
-          isStaff: isAdmin,
+          body: dto.message,
+          attachmentUrl: dto.attachmentKeys?.[0],
         },
       }),
       ...(shouldReopen
@@ -121,17 +117,16 @@ export class SupportService {
   }
 
   async updateStatus(id: string, dto: UpdateTicketStatusDto, currentUser: JwtPayload) {
-    const isAdmin = [UserRole.admin, UserRole.super_admin, UserRole.coordinator].includes(
-      currentUser.role as UserRole,
-    );
+    const isAdmin = ADMIN_ROLES.includes(currentUser.role as UserRole);
     if (!isAdmin) throw new ForbiddenException('Admin access required');
 
     return this.prisma.supportTicket.update({
       where: { id },
       data: {
         status: dto.status,
-        assignedToId: dto.assignedToId,
+        assignedTo: dto.assignedToId,
         resolvedAt: dto.status === SupportTicketStatus.resolved ? new Date() : undefined,
+        closedAt: dto.status === SupportTicketStatus.closed ? new Date() : undefined,
       },
     });
   }

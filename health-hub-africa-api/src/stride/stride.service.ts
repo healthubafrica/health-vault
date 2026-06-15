@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ExpertReviewStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -14,22 +15,26 @@ export class StrideService {
       activeCases,
       pendingCases,
       resolvedToday,
-      assignedProviders,
+      assignedUnits,
     ] = await Promise.all([
-      this.prisma.dispatchCase.count({
-        where: { status: { in: ['dispatched', 'en_route', 'on_scene', 'transporting', 'at_facility'] } },
-      }),
-      this.prisma.dispatchCase.count({ where: { status: 'pending' } }),
-      this.prisma.dispatchCase.count({
+      this.prisma.dispatchRequest.count({
         where: {
-          status: 'resolved',
-          resolvedAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+          status: {
+            in: ['unit_assigned', 'en_route', 'on_scene', 'patient_stabilised', 'transported'],
+          },
         },
       }),
-      this.prisma.dispatchCase.count({
+      this.prisma.dispatchRequest.count({ where: { status: 'requested' } }),
+      this.prisma.dispatchRequest.count({
         where: {
-          status: { in: ['dispatched', 'en_route', 'on_scene'] },
-          assignedProviderId: { not: null },
+          status: 'closed',
+          closedAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+        },
+      }),
+      this.prisma.dispatchRequest.count({
+        where: {
+          status: { in: ['unit_assigned', 'en_route', 'on_scene'] },
+          unitId: { not: null },
         },
       }),
     ]);
@@ -39,7 +44,7 @@ export class StrideService {
       activeCases,
       pendingCases,
       resolvedToday,
-      assignedProviders,
+      assignedProviders: assignedUnits,
       timestamp: new Date(),
     };
   }
@@ -47,8 +52,10 @@ export class StrideService {
   async getHpacsOverview() {
     const [totalProviders, verifiedProviders, availableForEmergency] = await Promise.all([
       this.prisma.provider.count(),
-      this.prisma.provider.count({ where: { isVerified: true } }),
-      this.prisma.provider.count({ where: { isVerified: true, acceptsEmergencies: true } }),
+      this.prisma.provider.count({ where: { user: { isVerified: true } } }),
+      this.prisma.provider.count({
+        where: { user: { isVerified: true }, isAvailable: true },
+      }),
     ]);
 
     return {
@@ -61,32 +68,32 @@ export class StrideService {
   }
 
   async getEfceActiveCases() {
-    return this.prisma.dispatchCase.findMany({
+    return this.prisma.dispatchRequest.findMany({
       where: {
-        status: { in: ['on_scene', 'transporting', 'at_facility'] },
+        status: { in: ['on_scene', 'patient_stabilised', 'transported'] },
       },
       orderBy: { createdAt: 'asc' },
       include: {
         patient: { select: { firstName: true, lastName: true, hhaPatientId: true } },
-        statusEvents: { orderBy: { createdAt: 'desc' }, take: 1 },
+        events: { orderBy: { occurredAt: 'desc' }, take: 1 },
       },
     });
   }
 
   async getExpertReviewFunnel() {
-    const statuses = [
+    const statuses: ExpertReviewStatus[] = [
       'submitted',
       'under_review',
       'specialist_assigned',
-      'report_in_progress',
+      'in_consultation',
       'report_ready',
-      'delivered',
+      'closed',
       'cancelled',
     ];
 
     const counts = await Promise.all(
       statuses.map((status) =>
-        this.prisma.expertReviewCase.count({ where: { status: status as any } }),
+        this.prisma.expertReviewCase.count({ where: { status } }),
       ),
     );
 

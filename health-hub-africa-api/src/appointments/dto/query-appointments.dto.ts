@@ -1,7 +1,8 @@
 import { IsOptional, IsString, IsInt, Min, Max, IsEnum, IsDateString } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { AppointmentStatus, AppointmentType } from '@prisma/client';
+import { AppointmentStatus } from '@prisma/client';
+import { AppointmentType } from '../../common/enums';
 
 export class QueryAppointmentsDto {
   @ApiPropertyOptional({ default: 1 })

@@ -34,9 +34,9 @@ class EnvironmentVariables {
   @IsNotEmpty()
   DATABASE_URL: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  REDIS_URL: string;
+  REDIS_URL?: string;
 
   @IsString()
   @IsNotEmpty()
@@ -52,13 +52,15 @@ class EnvironmentVariables {
   @IsNumber()
   JWT_REFRESH_EXPIRY: number = 604800;
 
+  // Optional: when absent the AWS SDK falls back to its default credential
+  // provider chain (ECS task role / IAM role) — preferred in production.
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  AWS_ACCESS_KEY_ID: string;
+  AWS_ACCESS_KEY_ID?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  AWS_SECRET_ACCESS_KEY: string;
+  AWS_SECRET_ACCESS_KEY?: string;
 
   @IsString()
   AWS_REGION: string = 'us-east-1';
@@ -70,13 +72,16 @@ class EnvironmentVariables {
   @IsNumber()
   SIGNED_URL_EXPIRY_SECONDS: number = 3600;
 
+  // Optional: PaymentsService uses getOrThrow at call time, so a missing key
+  // fails loudly on the first payment attempt instead of blocking startup
+  // with dummy placeholder values.
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  PAYSTACK_SECRET_KEY: string;
+  PAYSTACK_SECRET_KEY?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  FLUTTERWAVE_SECRET_KEY: string;
+  FLUTTERWAVE_SECRET_KEY?: string;
 
   @IsString()
   @IsNotEmpty()
@@ -117,6 +122,21 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   FIREBASE_CLIENT_EMAIL?: string;
+
+  // Optional: TelecareService throws at call time if these are missing,
+  // so a missing key fails loudly on the first token request instead of
+  // blocking startup.
+  @IsOptional()
+  @IsString()
+  LIVEKIT_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  LIVEKIT_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  LIVEKIT_API_SECRET?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

@@ -29,6 +29,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { StrideModule } from './stride/stride.module';
 import { AdminModule } from './admin/admin.module';
 import { HealthController } from './health/health.controller';
+import { AppController } from './app.controller';
 
 @Module({
   imports: [
@@ -41,9 +42,7 @@ import { HealthController } from './health/health.controller';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const redisUrl = config.get<string>('REDIS_URL');
-        const redisConfig = redisUrl
-          ? { url: redisUrl }
-          : {
+        const redisConfig = redisUrl ?? {
               host: config.get('REDIS_HOST', 'localhost'),
               port: config.get<number>('REDIS_PORT', 6379),
               password: config.get('REDIS_PASSWORD'),
@@ -97,6 +96,6 @@ import { HealthController } from './health/health.controller';
     { provide: APP_INTERCEPTOR, useClass: AuditLogInterceptor },
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
   ],
-  controllers: [HealthController],
+  controllers: [AppController, HealthController],
 })
 export class AppModule {}

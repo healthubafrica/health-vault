@@ -55,4 +55,10 @@ export class TelecareController {
   createNote(@Body() dto: CreateSessionNoteDto, @CurrentUser() user: JwtPayload) {
     return this.telecareService.createNote(dto, user);
   }
+
+  @Post('sessions/:id/token')
+  @ApiOperation({ summary: 'Generate a LiveKit token for the session' })
+  getLivekitToken(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.telecareService.getLivekitToken(id, user);
+  }
 }
