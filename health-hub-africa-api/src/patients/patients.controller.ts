@@ -29,8 +29,8 @@ export class PatientsController {
 
   @Post()
   @ApiOperation({ summary: 'Create patient profile for the authenticated user' })
-  create(@Body() dto: CreatePatientDto, @CurrentUser() user: JwtPayload) {
-    return this.patientsService.create(dto, user);
+  async create(@Body() dto: CreatePatientDto, @CurrentUser() user: JwtPayload) {
+    return { data: await this.patientsService.create(dto, user) };
   }
 
   @Get()
@@ -42,8 +42,8 @@ export class PatientsController {
 
   @Get('me')
   @ApiOperation({ summary: "Get the authenticated user's patient profile" })
-  getMyProfile(@CurrentUser() user: JwtPayload) {
-    return this.patientsService.findMyProfile(user);
+  async getMyProfile(@CurrentUser() user: JwtPayload) {
+    return { data: await this.patientsService.findMyProfile(user) };
   }
 
   @Get(':id')
@@ -54,12 +54,12 @@ export class PatientsController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update a patient profile' })
-  update(
+  async update(
     @Param('id') id: string,
     @Body() dto: UpdatePatientDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.patientsService.update(id, dto, user);
+    return { data: await this.patientsService.update(id, dto, user) };
   }
 
   @Delete(':id')

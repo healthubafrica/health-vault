@@ -150,7 +150,7 @@ export class RecordsService {
     return `${prefix}${String(seq).padStart(6, '0')}`;
   }
 
-  async findRecords(patientId: string | undefined, currentUser: JwtPayload) {
+  async findRecords(patientId: string | undefined, currentUser: JwtPayload, type?: string) {
     let resolvedPatientId = patientId;
 
     if (!resolvedPatientId) {
@@ -165,7 +165,10 @@ export class RecordsService {
     }
 
     return this.prisma.clinicalRecord.findMany({
-      where: { patientId: resolvedPatientId },
+      where: {
+        patientId: resolvedPatientId,
+        ...(type ? { recordType: type } : {}),
+      },
       orderBy: { createdAt: 'desc' },
       select: this.recordSelect(),
     });

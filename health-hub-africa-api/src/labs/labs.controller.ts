@@ -45,14 +45,14 @@ export class LabsController {
 
   @Get('orders')
   @ApiOperation({ summary: 'List lab orders (own, or specify patientId)' })
-  findOrders(@Query() query: PatientIdQuery, @CurrentUser() user: JwtPayload) {
-    return this.labsService.findOrders(query.patientId, user);
+  async findOrders(@Query() query: PatientIdQuery, @CurrentUser() user: JwtPayload) {
+    return { data: await this.labsService.findOrders(query.patientId, user) };
   }
 
   @Get('orders/:id')
   @ApiOperation({ summary: 'Get a lab order with results' })
-  findOrder(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-    return this.labsService.findOrder(id, user);
+  async findOrder(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return { data: await this.labsService.findOrder(id, user) };
   }
 
   @Patch('orders/:id/status')

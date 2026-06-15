@@ -1,6 +1,8 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
@@ -19,6 +21,7 @@ const STATUS_PILL: Record<string, 'success' | 'warning'> = {
 }
 
 export function LabsScreen() {
+  const router = useRouter()
   const { data: labsRes, isInitialLoad, error, refetch } = useApi(() => labs.listOrders())
 
   if (isInitialLoad) return <ListSkeleton ariaLabel="Loading lab results" showStats showBadge />
@@ -65,7 +68,15 @@ export function LabsScreen() {
             Your diagnostic results and lab history
           </p>
         </div>
-        <Button size="sm"><FlaskConical size={14} />Book CareTest™</Button>
+        <Button
+          size="sm"
+          onClick={() => {
+            toast.info('Visit Appointments to book a CareTest™')
+            router.push('/appointments')
+          }}
+        >
+          <FlaskConical size={14} />Book CareTest™
+        </Button>
       </div>
 
       <Card>

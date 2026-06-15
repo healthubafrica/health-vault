@@ -22,29 +22,29 @@ export class SubscriptionsController {
   @Public()
   @Get('plans')
   @ApiOperation({ summary: 'List all available subscription plans' })
-  findPlans() {
-    return this.subscriptionsService.findPlans();
+  async findPlans() {
+    return { data: await this.subscriptionsService.findPlans() };
   }
 
   @Public()
   @Get('plans/:id')
   @ApiOperation({ summary: 'Get a subscription plan by ID' })
-  findPlan(@Param('id') id: string) {
-    return this.subscriptionsService.findPlan(id);
+  async findPlan(@Param('id') id: string) {
+    return { data: await this.subscriptionsService.findPlan(id) };
   }
 
   @ApiBearerAuth()
   @Post()
   @ApiOperation({ summary: 'Subscribe to a plan' })
-  subscribe(@Body() dto: SubscribeDto, @CurrentUser() user: JwtPayload) {
-    return this.subscriptionsService.subscribe(dto, user);
+  async subscribe(@Body() dto: SubscribeDto, @CurrentUser() user: JwtPayload) {
+    return { data: await this.subscriptionsService.subscribe(dto, user) };
   }
 
   @ApiBearerAuth()
   @Get('me')
   @ApiOperation({ summary: 'Get current active subscription' })
-  getMySubscription(@CurrentUser() user: JwtPayload) {
-    return this.subscriptionsService.findMySubscription(user);
+  async getMySubscription(@CurrentUser() user: JwtPayload) {
+    return { data: await this.subscriptionsService.findMySubscription(user) };
   }
 
   @ApiBearerAuth()

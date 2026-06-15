@@ -16,6 +16,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
+import { UpdateNotificationPrefsDto } from './dto/notification-prefs.dto';
 
 const BCRYPT_ROUNDS = 12;
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -334,6 +335,26 @@ export class AuthService {
     });
 
     return { message: 'Session revoked' };
+  }
+
+  // ── Notification Preferences ──────────────────────────────────────────────
+
+  async getNotificationPrefs(userId: string) {
+    const prefs = await this.prisma.notificationPreference.upsert({
+      where: { userId },
+      create: { userId },
+      update: {},
+    });
+    return { data: prefs };
+  }
+
+  async updateNotificationPrefs(userId: string, dto: UpdateNotificationPrefsDto) {
+    const prefs = await this.prisma.notificationPreference.upsert({
+      where: { userId },
+      create: { userId, ...dto },
+      update: dto,
+    });
+    return { data: prefs };
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

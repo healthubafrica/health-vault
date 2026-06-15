@@ -395,6 +395,8 @@ export class PatientsService {
           isPrimary: true,
         }
       },
+      nin: true,
+      status: true,
       openemrSyncStatus: true,
       gdprConsent: true,
       marketingConsent: true,

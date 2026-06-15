@@ -25,6 +25,7 @@ import {
   RequestSmsOtpDto,
 } from './dto/verify-otp.dto';
 import { ChangePasswordDto, Toggle2faDto } from './dto/account-settings.dto';
+import { UpdateNotificationPrefsDto } from './dto/notification-prefs.dto';
 import { Public } from '../common/decorators/roles.decorator';
 import {
   CurrentUser,
@@ -147,6 +148,21 @@ export class AuthController {
   }
 
   @ApiBearerAuth()
+  @Get('notification-preferences')
+  @ApiOperation({ summary: 'Get notification preferences for the current user' })
+  getNotificationPrefs(@CurrentUser() user: JwtPayload) {
+    return this.authService.getNotificationPrefs(user.sub);
+  }
+
+  @ApiBearerAuth()
+  @Patch('notification-preferences')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update notification preferences' })
+  updateNotificationPrefs(@Body() dto: UpdateNotificationPrefsDto, @CurrentUser() user: JwtPayload) {
+    return this.authService.updateNotificationPrefs(user.sub, dto);
+  }
+
+  @ApiBearerAuth()
   @Get('me')
   @ApiOperation({ summary: 'Get current authenticated user details' })
   async getMe(@CurrentUser() user: JwtPayload) {
@@ -163,8 +179,8 @@ export class AuthController {
   @ApiBearerAuth()
   @Get('sessions')
   @ApiOperation({ summary: 'List active sessions for the current user' })
-  getSessions(@CurrentUser() user: JwtPayload) {
-    return this.authService.getSessions(user.sub);
+  async getSessions(@CurrentUser() user: JwtPayload) {
+    return { data: await this.authService.getSessions(user.sub) };
   }
 
   @ApiBearerAuth()

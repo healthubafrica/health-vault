@@ -14,7 +14,7 @@ export function ProfilePanel() {
   const activeSub = subRes?.data
 
   const displayName = profile ? `${profile.firstName} ${profile.lastName}` : ''
-  const hhaId = profile?.hhaId ?? ''
+  const hhaId = profile?.hhaPatientId ?? ''
   const status = profile?.status ?? 'Active'
 
   const fieldsCompleted = [
