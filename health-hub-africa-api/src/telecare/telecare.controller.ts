@@ -28,14 +28,14 @@ export class TelecareController {
 
   @Get('sessions')
   @ApiOperation({ summary: 'List telecare sessions (scoped to current user)' })
-  findSessions(@CurrentUser() user: JwtPayload) {
-    return this.telecareService.findSessions(user);
+  async findSessions(@CurrentUser() user: JwtPayload) {
+    return { data: await this.telecareService.findSessions(user) };
   }
 
   @Get('sessions/:id')
   @ApiOperation({ summary: 'Get a telecare session with notes' })
-  findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-    return this.telecareService.findOne(id, user);
+  async findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return { data: await this.telecareService.findOne(id, user) };
   }
 
   @Patch('sessions/:id')

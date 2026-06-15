@@ -42,36 +42,75 @@ export function clearTokens() {
 
 // ── Core fetch wrapper ────────────────────────────────────────────────────
 
+// GET requests are deduplicated: many components mount at once and request
+// the same endpoint (e.g. /patients/me), which without this can fan out
+// into dozens of identical requests and trip the API's rate limiter (429).
+// Concurrent callers for the same path share one in-flight request, and the
+// result is cached briefly so staggered mounts don't refire either.
+const GET_CACHE_TTL_MS = 3000
+const inflightGetRequests = new Map<string, Promise<unknown>>()
+const recentGetResults = new Map<string, { data: unknown; expiresAt: number }>()
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
   retry = true,
 ): Promise<T> {
-  const token = getCookie(ACCESS_COOKIE)
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
-  }
-  if (token) headers['Authorization'] = `Bearer ${token}`
+  const isGet = !options.method || options.method === 'GET'
 
-  const res = await fetch(`${BASE}${path}`, { ...options, headers })
+  if (isGet) {
+    const cached = recentGetResults.get(path)
+    if (cached && cached.expiresAt > Date.now()) return cached.data as T
 
-  if (res.status === 401 && retry) {
-    const refreshed = await attemptTokenRefresh()
-    if (refreshed) return request<T>(path, options, false)
-    clearTokens()
-    if (typeof window !== 'undefined') window.location.href = '/login'
-    throw new Error('Session expired')
+    const inflight = inflightGetRequests.get(path)
+    if (inflight) return inflight as Promise<T>
   }
 
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ message: 'Request failed' }))
-    throw new ApiError(res.status, body.message ?? 'Request failed')
+  const doRequest = async (): Promise<T> => {
+    const token = getCookie(ACCESS_COOKIE)
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string>),
+    }
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const res = await fetch(`${BASE}${path}`, { ...options, headers })
+
+    if (res.status === 401 && retry) {
+      const refreshed = await attemptTokenRefresh()
+      if (refreshed) return request<T>(path, options, false)
+      clearTokens()
+      if (typeof window !== 'undefined') window.location.href = '/login'
+      throw new Error('Session expired')
+    }
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ message: 'Request failed' }))
+      throw new ApiError(res.status, body.message ?? 'Request failed')
+    }
+
+    if (res.status === 204) return undefined as T
+
+    return res.json() as Promise<T>
   }
 
-  if (res.status === 204) return undefined as T
+  if (!isGet) {
+    // Mutations invalidate any cached GET results so subsequent reads are fresh.
+    recentGetResults.clear()
+    return doRequest()
+  }
 
-  return res.json() as Promise<T>
+  const promise = doRequest()
+    .then((data) => {
+      recentGetResults.set(path, { data, expiresAt: Date.now() + GET_CACHE_TTL_MS })
+      return data
+    })
+    .finally(() => {
+      inflightGetRequests.delete(path)
+    })
+
+  inflightGetRequests.set(path, promise)
+  return promise
 }
 
 async function attemptTokenRefresh(): Promise<boolean> {
@@ -115,6 +154,27 @@ export interface User {
   role: string
 }
 
+export interface Session {
+  id: string
+  ipAddress?: string
+  userAgent?: string
+  createdAt: string
+  expiresAt: string
+}
+
+export interface NotificationPrefs {
+  emailEnabled: boolean
+  smsEnabled: boolean
+  pushEnabled: boolean
+  whatsappEnabled: boolean
+  appointmentReminders: boolean
+  labResultAlerts: boolean
+  paymentReceipts: boolean
+  dispatchUpdates: boolean
+  expertReviewUpdates: boolean
+  marketingComms: boolean
+}
+
 export const auth = {
   register: (email: string, password: string, phone?: string) =>
     request<{ message: string }>('/auth/register', {
@@ -156,13 +216,35 @@ export const auth = {
       method: 'POST',
       body: JSON.stringify({ email, otp, newPassword }),
     }),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ message: string }>('/auth/change-password', {
+      method: 'PATCH',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+
+  getSessions: () => request<{ data: Session[] }>('/auth/sessions'),
+
+  revokeSession: (sessionId: string) =>
+    request<{ message: string }>(`/auth/sessions/${sessionId}`, { method: 'DELETE' }),
+
+  logoutAll: () =>
+    request<{ message: string }>('/auth/logout-all', { method: 'POST' }),
+
+  get2faStatus: () => request<{ twoFactorEnabled: boolean }>('/auth/2fa'),
+
+  toggle2fa: (enabled: boolean) =>
+    request<{ twoFactorEnabled: boolean; message: string }>('/auth/2fa', {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled }),
+    }),
 }
 
 // ── Patients ──────────────────────────────────────────────────────────────
 
 export interface PatientProfile {
   id: string
-  hhaId: string
+  hhaPatientId: string
   firstName: string
   lastName: string
   dateOfBirth: string
@@ -173,6 +255,7 @@ export interface PatientProfile {
   city?: string
   state?: string
   country: string
+  nin?: string
   status: string
   openemrSyncStatus: string
   user: { email: string; phone?: string }
@@ -209,6 +292,27 @@ export const patients = {
     request<{ uploadUrl: string; objectKey: string; publicUrl: string }>('/patients/me/profile-photo-upload-url', {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+
+  requestExport: () =>
+    request<{ message: string }>('/patients/me/request-export', { method: 'POST' }),
+
+  selfDeactivate: (password: string) =>
+    request<{ message: string }>('/patients/me/deactivate', {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    }),
+}
+
+// ── Notification preferences ──────────────────────────────────────────────
+
+export const notificationPrefs = {
+  get: () => request<{ data: NotificationPrefs }>('/auth/notification-preferences'),
+
+  update: (prefs: Partial<NotificationPrefs>) =>
+    request<{ data: NotificationPrefs }>('/auth/notification-preferences', {
+      method: 'PATCH',
+      body: JSON.stringify(prefs),
     }),
 }
 
@@ -272,10 +376,11 @@ export const appointments = {
       body: JSON.stringify(data),
     }),
 
-  cancel: (id: string, note?: string) =>
-    request<{ data: Appointment }>(`/appointments/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'cancelled', cancellationNote: note }),
+  // Cancels via the dedicated cancel endpoint — body takes {reason}, not {cancellationNote}.
+  cancel: (id: string, reason?: string) =>
+    request<{ data: Appointment }>(`/appointments/${id}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: reason ?? '' }),
     }),
 }
 
@@ -296,7 +401,7 @@ export interface ClinicalRecord {
 
 export const records = {
   list: (params?: { type?: string }) => {
-    const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : ''
+    const qs = params?.type ? `?type=${encodeURIComponent(params.type)}` : ''
     return request<{ data: ClinicalRecord[]; meta: { total: number } }>(`/records${qs}`)
   },
 
@@ -307,6 +412,9 @@ export const records = {
       method: 'POST',
       body: JSON.stringify({ filename, mimeType }),
     }),
+
+  getDownloadUrl: (objectKey: string) =>
+    request<{ data: { downloadUrl: string } }>(`/records/download-url/${encodeURIComponent(objectKey)}`),
 }
 
 // ── Lab Orders & Results ──────────────────────────────────────────────────
@@ -387,23 +495,15 @@ export const subscriptions = {
 
   getMy: () => request<{ data: ActiveSubscription | null }>('/subscriptions/me'),
 
-  subscribe: (planId: string, gateway: string) =>
-    request<{ paymentId: string; authorizationUrl: string }>('/subscriptions', {
+  // billingCycle must match backend BillingCycle enum: 'monthly' | 'quarterly' | 'annually'
+  subscribe: (planId: string, billingCycle: string) =>
+    request<{ data: ActiveSubscription }>('/subscriptions', {
       method: 'POST',
-      body: JSON.stringify({ planId, gateway }),
+      body: JSON.stringify({ planId, billingCycle }),
     }),
-}
 
-// ── Notification preferences ──────────────────────────────────────────────
-
-export const notificationPrefs = {
-  get: () => request<{ data: Record<string, boolean> }>('/auth/notification-preferences'),
-
-  update: (prefs: Record<string, boolean>) =>
-    request<{ data: Record<string, boolean> }>('/auth/notification-preferences', {
-      method: 'PATCH',
-      body: JSON.stringify(prefs),
-    }),
+  cancel: (subscriptionId: string) =>
+    request<{ message: string }>(`/subscriptions/${subscriptionId}`, { method: 'DELETE' }),
 }
 
 // ── TeleCare ──────────────────────────────────────────────────────────────
@@ -433,3 +533,41 @@ export const telecare = {
   }),
 }
 
+// ── Dispatch ──────────────────────────────────────────────────────────────
+
+export interface DispatchCase {
+  id: string
+  status: string
+  emergencyType: string
+  description?: string
+  latitude?: number
+  longitude?: number
+  locationAddress?: string
+  contactPhone?: string
+  createdAt: string
+  events?: Array<{
+    id: string
+    status: string
+    notes?: string
+    createdAt: string
+  }>
+}
+
+export const dispatch = {
+  create: (data: {
+    emergencyType: string
+    description?: string
+    latitude?: number
+    longitude?: number
+    locationAddress?: string
+    contactPhone?: string
+  }) =>
+    request<{ data: DispatchCase }>('/dispatch', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  list: () => request<{ data: DispatchCase[] }>('/dispatch'),
+
+  get: (id: string) => request<{ data: DispatchCase }>(`/dispatch/${id}`),
+}

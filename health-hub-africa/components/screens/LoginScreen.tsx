@@ -285,7 +285,7 @@ export function LoginScreen() {
           {!showOtp && (
             <div className="mb-6 flex flex-col gap-1">
               <img src="/logo-white.png" alt="Health-Hub Africa®" className="h-10 w-auto object-contain self-start" />
-              <p className="text-[10px] ml-0.5" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>MyHealth Vault+™</p>
+              <p className="text-[10px] ml-0.5" style={{ color: 'var(--color-text-muted)' }}>MyHealth Vault+™</p>
             </div>
           )}
 
@@ -374,7 +374,7 @@ export function LoginScreen() {
                     aria-label={showNewPass ? 'Hide password' : 'Show password'}
                     onClick={() => setShowNewPass(s => !s)}
                     className="absolute right-3 top-8 flex items-center justify-center w-6 h-6 hover:opacity-80 transition-opacity"
-                    style={{ color: 'rgba(255, 255, 255, 0.5)' }}
+                    style={{ color: 'var(--color-text-muted)' }}
                   >
                     {showNewPass ? <EyeOff size={15} /> : <Eye size={15} />}
                   </button>
@@ -394,7 +394,7 @@ export function LoginScreen() {
                     aria-label={showConfirmNewPass ? 'Hide password' : 'Show password'}
                     onClick={() => setShowConfirmNewPass(s => !s)}
                     className="absolute right-3 top-8 flex items-center justify-center w-6 h-6 hover:opacity-80 transition-opacity"
-                    style={{ color: 'rgba(255, 255, 255, 0.5)' }}
+                    style={{ color: 'var(--color-text-muted)' }}
                   >
                     {showConfirmNewPass ? <EyeOff size={15} /> : <Eye size={15} />}
                   </button>
@@ -518,7 +518,7 @@ export function LoginScreen() {
                     aria-label={showPass ? 'Hide password' : 'Show password'}
                     onClick={() => setShowPass(s => !s)}
                     className="absolute right-3 top-8 flex items-center justify-center w-6 h-6 hover:opacity-80 transition-opacity"
-                    style={{ color: 'rgba(255, 255, 255, 0.5)' }}
+                    style={{ color: 'var(--color-text-muted)' }}
                   >
                     {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
                   </button>
@@ -539,7 +539,7 @@ export function LoginScreen() {
                       aria-label={showConfirmPass ? 'Hide password' : 'Show password'}
                       onClick={() => setShowConfirmPass(s => !s)}
                       className="absolute right-3 top-8 flex items-center justify-center w-6 h-6 hover:opacity-80 transition-opacity"
-                      style={{ color: 'rgba(255, 255, 255, 0.5)' }}
+                      style={{ color: 'var(--color-text-muted)' }}
                     >
                       {showConfirmPass ? <EyeOff size={15} /> : <Eye size={15} />}
                     </button>

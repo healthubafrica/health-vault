@@ -24,10 +24,10 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https:",
               "font-src 'self'",
-              // Allow API calls + Sentry ingestion endpoint
+              // Allow API calls + Sentry ingestion + direct S3 uploads (presigned URLs)
               "connect-src 'self' " +
                 (process.env.NEXT_PUBLIC_API_URL ?? '') +
-                ' https://*.sentry.io',
+                ' https://*.sentry.io https://*.amazonaws.com',
               "worker-src 'self' blob:",
               "frame-ancestors 'none'",
               "object-src 'none'",

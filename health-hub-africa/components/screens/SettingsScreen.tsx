@@ -1,10 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { FormInput, FormSelect } from '@/components/ui/FormInput'
 import { Button } from '@/components/ui/Button'
 import { useSettingsStore } from '@/lib/settingsStore'
+import { useAuthStore } from '@/lib/stores/authStore'
+import {
+  auth,
+  patients,
+  notificationPrefs,
+  clearTokens,
+  ApiError,
+  type Session,
+  type NotificationPrefs,
+} from '@/lib/api'
 import {
   Shield,
   Bell,
@@ -14,6 +25,7 @@ import {
   Trash2,
   ChevronRight,
   LogOut,
+  Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -81,25 +93,42 @@ function SectionHeader({ icon: Icon, title }: SectionHeaderProps) {
   )
 }
 
-// ── Sessions mock ─────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-const MOCK_SESSIONS = [
-  { id: '1', device: 'Chrome on MacBook Pro', location: 'Lagos, Nigeria', lastSeen: 'Now (current)', current: true },
-  { id: '2', device: 'Safari on iPhone 15', location: 'Lagos, Nigeria', lastSeen: '2 hours ago', current: false },
-  { id: '3', device: 'Chrome on Windows', location: 'Accra, Ghana', lastSeen: '3 days ago', current: false },
-]
+function formatSessionLabel(session: Session): string {
+  const agent = session.userAgent ?? 'Unknown device'
+  // Trim to a readable length
+  return agent.length > 60 ? agent.slice(0, 57) + '…' : agent
+}
+
+function formatDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString(undefined, {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return iso
+  }
+}
 
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function SettingsScreen() {
   const s = useSettingsStore()
+  const router = useRouter()
+  const { user } = useAuthStore()
 
-  // Password change is local-only (no store needed)
+  // ── Password change ──────────────────────────────────────────────────────
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordLoading, setPasswordLoading] = useState(false)
 
-  function handlePasswordChange() {
+  async function handlePasswordChange() {
     if (!currentPassword || !newPassword || !confirmPassword) {
       toast.error('All password fields are required.')
       return
@@ -112,26 +141,153 @@ export function SettingsScreen() {
       toast.error('Password must be at least 8 characters.')
       return
     }
-    toast.success('Password updated successfully.')
-    setCurrentPassword('')
-    setNewPassword('')
-    setConfirmPassword('')
+    setPasswordLoading(true)
+    try {
+      const res = await auth.changePassword(currentPassword, newPassword)
+      toast.success(res.message ?? 'Password updated successfully.')
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to update password.')
+    } finally {
+      setPasswordLoading(false)
+    }
   }
 
-  function handleRevokeSession(_id: string) {
-    toast.success('Session revoked.')
+  // ── Two-factor authentication ────────────────────────────────────────────
+  const [twoFaEnabled, setTwoFaEnabled] = useState<boolean>(s.twoFa)
+  const [twoFaLoading, setTwoFaLoading] = useState(false)
+
+  useEffect(() => {
+    auth.get2faStatus()
+      .then(res => setTwoFaEnabled(res.twoFactorEnabled))
+      .catch(() => {
+        // Fallback to store value on error; don't surface noise on mount
+      })
+  }, [])
+
+  async function handleToggle2fa(enabled: boolean) {
+    setTwoFaLoading(true)
+    try {
+      const res = await auth.toggle2fa(enabled)
+      setTwoFaEnabled(res.twoFactorEnabled)
+      s.set({ twoFa: res.twoFactorEnabled })
+      toast.success(res.message ?? (res.twoFactorEnabled ? '2FA enabled.' : '2FA disabled.'))
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to update 2FA.')
+    } finally {
+      setTwoFaLoading(false)
+    }
   }
 
-  function handleSignOutAll() {
-    toast.success('All other sessions have been signed out.')
+  // ── Sessions ─────────────────────────────────────────────────────────────
+  const [sessions, setSessions] = useState<Session[]>([])
+  const [sessionsLoading, setSessionsLoading] = useState(true)
+  const [revokingId, setRevokingId] = useState<string | null>(null)
+  const [signOutAllLoading, setSignOutAllLoading] = useState(false)
+
+  async function loadSessions() {
+    setSessionsLoading(true)
+    try {
+      const res = await auth.getSessions()
+      setSessions(res.data)
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to load sessions.')
+    } finally {
+      setSessionsLoading(false)
+    }
   }
 
-  function handleDownloadData() {
-    toast.success("Data export requested. You'll receive an email within 24 hours.")
+  useEffect(() => { loadSessions() }, [])
+
+  async function handleRevokeSession(sessionId: string) {
+    setRevokingId(sessionId)
+    try {
+      const res = await auth.revokeSession(sessionId)
+      toast.success(res.message ?? 'Session revoked.')
+      await loadSessions()
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to revoke session.')
+    } finally {
+      setRevokingId(null)
+    }
   }
 
-  function handleDeactivate() {
-    toast.error('Account deactivation requires confirmation. Please contact support.')
+  async function handleSignOutAll() {
+    setSignOutAllLoading(true)
+    try {
+      const res = await auth.logoutAll()
+      toast.success(res.message ?? 'All sessions signed out.')
+      clearTokens()
+      router.push('/login')
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to sign out all sessions.')
+      setSignOutAllLoading(false)
+    }
+  }
+
+  // ── Notification preferences ─────────────────────────────────────────────
+  const [prefs, setPrefs] = useState<NotificationPrefs | null>(null)
+  const [prefsLoading, setPrefsLoading] = useState(true)
+
+  useEffect(() => {
+    notificationPrefs.get()
+      .then(res => setPrefs(res.data))
+      .catch(err => {
+        toast.error(err instanceof ApiError ? err.message : 'Failed to load notification preferences.')
+      })
+      .finally(() => setPrefsLoading(false))
+  }, [])
+
+  async function handlePrefToggle(key: keyof NotificationPrefs, value: boolean) {
+    // Optimistic update
+    setPrefs(prev => prev ? { ...prev, [key]: value } : prev)
+    try {
+      const res = await notificationPrefs.update({ [key]: value })
+      setPrefs(res.data)
+    } catch (err) {
+      // Revert on failure
+      setPrefs(prev => prev ? { ...prev, [key]: !value } : prev)
+      toast.error(err instanceof ApiError ? err.message : 'Failed to update preference.')
+    }
+  }
+
+  // ── Data export ──────────────────────────────────────────────────────────
+  const [exportLoading, setExportLoading] = useState(false)
+
+  async function handleDownloadData() {
+    setExportLoading(true)
+    try {
+      await patients.requestExport()
+      toast.success("Export requested — you'll receive it by email within 24 hours.")
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to request data export.')
+    } finally {
+      setExportLoading(false)
+    }
+  }
+
+  // ── Account deactivation ─────────────────────────────────────────────────
+  const [deactivateExpanded, setDeactivateExpanded] = useState(false)
+  const [deactivatePassword, setDeactivatePassword] = useState('')
+  const [deactivateLoading, setDeactivateLoading] = useState(false)
+
+  async function handleDeactivate() {
+    if (!deactivatePassword) {
+      toast.error('Please enter your password to confirm deactivation.')
+      return
+    }
+    setDeactivateLoading(true)
+    try {
+      const res = await patients.selfDeactivate(deactivatePassword)
+      toast.success(res.message ?? 'Account deactivated.')
+      clearTokens()
+      router.push('/login')
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Failed to deactivate account.')
+      setDeactivateLoading(false)
+    }
   }
 
   return (
@@ -153,7 +309,7 @@ export function SettingsScreen() {
         <SectionHeader icon={Shield} title="Account & Security" />
 
         <div className="flex flex-col gap-4">
-          <FormInput label="Email Address" type="email" defaultValue="b.okafor@email.com" readOnly />
+          <FormInput label="Email Address" type="email" value={user?.email ?? ''} readOnly />
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <FormInput
@@ -181,7 +337,8 @@ export function SettingsScreen() {
           </div>
 
           <div>
-            <Button size="sm" onClick={handlePasswordChange}>
+            <Button size="sm" onClick={handlePasswordChange} disabled={passwordLoading}>
+              {passwordLoading && <Loader2 size={13} className="animate-spin" />}
               Update Password
             </Button>
           </div>
@@ -190,11 +347,9 @@ export function SettingsScreen() {
             <ToggleRow
               label="Two-Factor Authentication"
               description="Require a verification code on every login"
-              checked={s.twoFa}
-              onChange={v => {
-                s.set({ twoFa: v })
-                toast.success(v ? '2FA enabled.' : '2FA disabled.')
-              }}
+              checked={twoFaEnabled}
+              onChange={handleToggle2fa}
+              disabled={twoFaLoading}
             />
           </div>
         </div>
@@ -204,48 +359,84 @@ export function SettingsScreen() {
       <Card>
         <SectionHeader icon={Bell} title="Notifications" />
 
-        <ToggleRow
-          label="Email Notifications"
-          description="Receive important updates via email"
-          checked={s.emailNotifs}
-          onChange={v => s.set({ emailNotifs: v })}
-        />
-        <ToggleRow
-          label="SMS Alerts"
-          description="Urgent alerts sent to your registered phone"
-          checked={s.smsAlerts}
-          onChange={v => s.set({ smsAlerts: v })}
-        />
-        <ToggleRow
-          label="Push Notifications"
-          description="Browser or app push notifications"
-          checked={s.pushNotifs}
-          onChange={v => s.set({ pushNotifs: v })}
-        />
-        <ToggleRow
-          label="Appointment Reminders"
-          description="24-hour and 1-hour reminders before appointments"
-          checked={s.appointmentReminders}
-          onChange={v => s.set({ appointmentReminders: v })}
-        />
-        <ToggleRow
-          label="Lab Results Ready"
-          description="Notify when CareTest™ lab results are available"
-          checked={s.labResults}
-          onChange={v => s.set({ labResults: v })}
-        />
-        <ToggleRow
-          label="Payment Receipts"
-          description="Email receipts for all transactions"
-          checked={s.paymentReceipts}
-          onChange={v => s.set({ paymentReceipts: v })}
-        />
-        <ToggleRow
-          label="Marketing Emails"
-          description="Health tips, product updates, and offers"
-          checked={s.marketingEmails}
-          onChange={v => s.set({ marketingEmails: v })}
-        />
+        {prefsLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 size={18} className="animate-spin" style={{ color: 'var(--color-text-muted)' }} />
+          </div>
+        ) : (
+          <>
+            <ToggleRow
+              label="Email Notifications"
+              description="Receive important updates via email"
+              checked={prefs?.emailEnabled ?? false}
+              onChange={v => handlePrefToggle('emailEnabled', v)}
+              disabled={!prefs}
+            />
+            <ToggleRow
+              label="SMS Alerts"
+              description="Urgent alerts sent to your registered phone"
+              checked={prefs?.smsEnabled ?? false}
+              onChange={v => handlePrefToggle('smsEnabled', v)}
+              disabled={!prefs}
+            />
+            <ToggleRow
+              label="Push Notifications"
+              description="Browser or app push notifications"
+              checked={prefs?.pushEnabled ?? false}
+              onChange={v => handlePrefToggle('pushEnabled', v)}
+              disabled={!prefs}
+            />
+            <ToggleRow
+              label="WhatsApp Notifications"
+              description="Receive updates via WhatsApp"
+              checked={prefs?.whatsappEnabled ?? false}
+              onChange={v => handlePrefToggle('whatsappEnabled', v)}
+              disabled={!prefs}
+            />
+            <ToggleRow
+              label="Appointment Reminders"
+              description="24-hour and 1-hour reminders before appointments"
+              checked={prefs?.appointmentReminders ?? false}
+              onChange={v => handlePrefToggle('appointmentReminders', v)}
+              disabled={!prefs}
+            />
+            <ToggleRow
+              label="Lab Results Ready"
+              description="Notify when CareTest™ lab results are available"
+              checked={prefs?.labResultAlerts ?? false}
+              onChange={v => handlePrefToggle('labResultAlerts', v)}
+              disabled={!prefs}
+            />
+            <ToggleRow
+              label="Payment Receipts"
+              description="Email receipts for all transactions"
+              checked={prefs?.paymentReceipts ?? false}
+              onChange={v => handlePrefToggle('paymentReceipts', v)}
+              disabled={!prefs}
+            />
+            <ToggleRow
+              label="Dispatch Updates"
+              description="Status updates for emergency dispatch cases"
+              checked={prefs?.dispatchUpdates ?? false}
+              onChange={v => handlePrefToggle('dispatchUpdates', v)}
+              disabled={!prefs}
+            />
+            <ToggleRow
+              label="Expert Review Updates"
+              description="Notifications when expert reviews are ready"
+              checked={prefs?.expertReviewUpdates ?? false}
+              onChange={v => handlePrefToggle('expertReviewUpdates', v)}
+              disabled={!prefs}
+            />
+            <ToggleRow
+              label="Marketing Emails"
+              description="Health tips, product updates, and offers"
+              checked={prefs?.marketingComms ?? false}
+              onChange={v => handlePrefToggle('marketingComms', v)}
+              disabled={!prefs}
+            />
+          </>
+        )}
       </Card>
 
       {/* ── Privacy & Data ─────────────────────────────────────────────────── */}
@@ -323,46 +514,50 @@ export function SettingsScreen() {
       <Card>
         <SectionHeader icon={MonitorSmartphone} title="Active Sessions" />
 
-        <div className="flex flex-col gap-0">
-          {MOCK_SESSIONS.map(session => (
-            <div
-              key={session.id}
-              className="flex items-center justify-between gap-3 py-3 border-b last:border-b-0"
-              style={{ borderColor: 'var(--color-border)' }}
-            >
-              <div className="flex flex-col gap-0.5 min-w-0">
-                <span className="text-sm font-medium truncate" style={{ color: 'var(--color-text)' }}>
-                  {session.device}
-                  {session.current && (
-                    <span
-                      className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wide"
-                      style={{ background: 'var(--color-primary-light)', color: 'var(--color-primary)' }}
-                    >
-                      Current
-                    </span>
-                  )}
-                </span>
-                <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
-                  {session.location} · {session.lastSeen}
-                </span>
-              </div>
-              {!session.current && (
+        {sessionsLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 size={18} className="animate-spin" style={{ color: 'var(--color-text-muted)' }} />
+          </div>
+        ) : sessions.length === 0 ? (
+          <p className="text-sm py-3" style={{ color: 'var(--color-text-muted)' }}>No active sessions found.</p>
+        ) : (
+          <div className="flex flex-col gap-0">
+            {sessions.map(session => (
+              <div
+                key={session.id}
+                className="flex items-center justify-between gap-3 py-3 border-b last:border-b-0"
+                style={{ borderColor: 'var(--color-border)' }}
+              >
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <span className="text-sm font-medium truncate" style={{ color: 'var(--color-text)' }}>
+                    {formatSessionLabel(session)}
+                  </span>
+                  <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                    {session.ipAddress ? `${session.ipAddress} · ` : ''}
+                    Created {formatDate(session.createdAt)} · Expires {formatDate(session.expiresAt)}
+                  </span>
+                </div>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => handleRevokeSession(session.id)}
-                  aria-label={`Revoke session on ${session.device}`}
+                  disabled={revokingId === session.id}
+                  aria-label={`Revoke session`}
                 >
-                  <LogOut size={13} />
+                  {revokingId === session.id
+                    ? <Loader2 size={13} className="animate-spin" />
+                    : <LogOut size={13} />
+                  }
                   Revoke
                 </Button>
-              )}
-            </div>
-          ))}
-        </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="pt-3">
-          <Button variant="secondary" size="sm" onClick={handleSignOutAll}>
+          <Button variant="secondary" size="sm" onClick={handleSignOutAll} disabled={signOutAllLoading}>
+            {signOutAllLoading && <Loader2 size={13} className="animate-spin" />}
             Sign Out All Other Sessions
           </Button>
         </div>
@@ -380,21 +575,58 @@ export function SettingsScreen() {
                 Export a copy of all your health records, appointments, and account data.
               </p>
             </div>
-            <Button variant="secondary" size="sm" onClick={handleDownloadData} className="shrink-0">
+            <Button variant="secondary" size="sm" onClick={handleDownloadData} disabled={exportLoading} className="shrink-0">
+              {exportLoading && <Loader2 size={13} className="animate-spin" />}
               Request Export
             </Button>
           </div>
 
-          <div className="flex items-start justify-between gap-4 rounded-xl p-3" style={{ background: 'rgba(192,57,43,0.06)' }}>
-            <div>
-              <p className="text-sm font-semibold" style={{ color: '#C0392B' }}>Deactivate Account</p>
-              <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-                Temporarily disable your account. Your data will be retained and recoverable.
-              </p>
+          <div className="flex flex-col gap-3 rounded-xl p-3" style={{ background: 'rgba(192,57,43,0.06)' }}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold" style={{ color: '#C0392B' }}>Deactivate Account</p>
+                <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                  Temporarily disable your account. Your data will be retained and recoverable.
+                </p>
+              </div>
+              <Button
+                variant="emergency-outline"
+                size="sm"
+                onClick={() => setDeactivateExpanded(prev => !prev)}
+                className="shrink-0"
+              >
+                Deactivate
+              </Button>
             </div>
-            <Button variant="emergency-outline" size="sm" onClick={handleDeactivate} className="shrink-0">
-              Deactivate
-            </Button>
+
+            {deactivateExpanded && (
+              <div className="flex flex-col gap-2 pt-1 border-t" style={{ borderColor: 'rgba(192,57,43,0.2)' }}>
+                <p className="text-[11px] font-medium" style={{ color: '#C0392B' }}>
+                  Enter your password to confirm account deactivation.
+                </p>
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <FormInput
+                      label="Confirm Password"
+                      type="password"
+                      value={deactivatePassword}
+                      onChange={e => setDeactivatePassword(e.target.value)}
+                      autoComplete="current-password"
+                    />
+                  </div>
+                  <Button
+                    variant="emergency-outline"
+                    size="sm"
+                    onClick={handleDeactivate}
+                    disabled={deactivateLoading}
+                    className="shrink-0 mb-[1px]"
+                  >
+                    {deactivateLoading && <Loader2 size={13} className="animate-spin" />}
+                    Confirm
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </Card>

@@ -3,20 +3,27 @@
 import { useState } from 'react'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { FilterTabs } from '@/components/ui/FilterTabs'
-import { ListRow } from '@/components/ui/ListRow'
 import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
 import { FormInput, FormSelect, FormTextarea } from '@/components/ui/FormInput'
-import { SERVICES } from '@/lib/data/appointments'
 import { formatDate } from '@/lib/utils'
 import { CalendarDays } from 'lucide-react'
 import { toast } from 'sonner'
-import { appointments as apptApi } from '@/lib/api'
+import { appointments as apptApi, ApiError, type Appointment } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { AppointmentsSkeleton } from '@/components/skeletons/AppointmentsSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
 
 const TABS = ['All', 'Upcoming', 'Completed', 'Cancelled']
+
+const SERVICE_TYPES = [
+  { label: 'Health Consult', value: 'HEALTH_CONSULT' },
+  { label: 'TeleCare', value: 'TELECARE' },
+  { label: 'Care Test', value: 'CARE_TEST' },
+  { label: 'Expert Review', value: 'EXPERT_REVIEW' },
+  { label: 'MinuteCare', value: 'MINUTE_CARE' },
+  { label: 'NeuroFlex', value: 'NEUROFLEX' },
+]
 
 const STATUS_PILL: Record<string, 'success' | 'warning' | 'neutral' | 'emergency'> = {
   upcoming: 'success',
@@ -24,29 +31,83 @@ const STATUS_PILL: Record<string, 'success' | 'warning' | 'neutral' | 'emergency
   cancelled: 'emergency',
 }
 
+function formatScheduledAt(scheduledAt: string): { date: string; time: string } {
+  const dt = new Date(scheduledAt)
+  return {
+    date: formatDate(scheduledAt),
+    time: dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+  }
+}
+
 export function AppointmentsScreen() {
   const [tab, setTab] = useState('All')
-  const { data: apptRes, isInitialLoad, error, refetch } = useApi(() => apptApi.list())
+
+  // Booking form state
+  const [serviceType, setServiceType] = useState(SERVICE_TYPES[0].value)
+  const [scheduledAt, setScheduledAt] = useState('')
+  const [reason, setReason] = useState('')
+  const [isBooking, setIsBooking] = useState(false)
+
+  // Cancellation in-progress tracker
+  const [cancellingId, setCancellingId] = useState<string | null>(null)
+
+  // Build list params — pass upcoming:true for the Upcoming tab
+  const listParams = tab === 'Upcoming' ? { upcoming: true } : undefined
+
+  const { data: apptRes, isInitialLoad, error, refetch } = useApi(
+    () => apptApi.list(listParams),
+    [tab],
+  )
 
   if (isInitialLoad) return <AppointmentsSkeleton />
   if (error && !apptRes) return <ErrorState message={error} onRetry={refetch} />
 
-  const allAppointments = (apptRes?.data ?? []).map((a: any) => ({
-    id: a.id,
-    service: a.serviceType ?? a.service,
-    doctor: a.provider ? `${a.provider.title} ${a.provider.lastName}` : a.doctor,
-    date: a.scheduledAt ?? a.date,
-    time: a.scheduledAt
-      ? new Date(a.scheduledAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-      : a.time,
-    status: a.status,
-    type: a.isTelecare ? 'TeleCare' : (a.type ?? 'In-person'),
-    reason: a.reason,
-  }))
+  const allAppointments: Appointment[] = apptRes?.data ?? []
 
-  const filtered = allAppointments.filter((a: any) =>
-    tab === 'All' ? true : a.status === tab.toLowerCase()
-  )
+  const filtered = tab === 'All' || tab === 'Upcoming'
+    ? allAppointments
+    : allAppointments.filter(a => a.status === tab.toLowerCase())
+
+  async function handleCancel(appointment: Appointment) {
+    setCancellingId(appointment.id)
+    try {
+      await apptApi.cancel(appointment.id, 'Patient requested cancellation')
+      toast.success('Appointment cancelled')
+      refetch()
+    } catch (e: unknown) {
+      const message = e instanceof ApiError ? e.message : 'Failed to cancel appointment'
+      toast.error(message)
+    } finally {
+      setCancellingId(null)
+    }
+  }
+
+  async function handleBook() {
+    if (!scheduledAt) {
+      toast.error('Please select a date and time')
+      return
+    }
+    setIsBooking(true)
+    try {
+      await apptApi.create({
+        serviceType,
+        scheduledAt: new Date(scheduledAt).toISOString(),
+        reason: reason.trim() || undefined,
+        isTelecare: serviceType === 'TELECARE',
+      })
+      toast.success('Appointment requested', {
+        description: 'Your care team will confirm within 24 hours.',
+      })
+      setScheduledAt('')
+      setReason('')
+      refetch()
+    } catch (e: unknown) {
+      const message = e instanceof ApiError ? e.message : 'Failed to request appointment'
+      toast.error(message)
+    } finally {
+      setIsBooking(false)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-5 pb-20 md:pb-5">
@@ -69,29 +130,49 @@ export function AppointmentsScreen() {
           </div>
         ) : (
           <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
-            {filtered.map(appt => (
-              <div key={appt.id} className="flex items-center gap-3 p-4">
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ background: 'var(--color-success-bg)' }}
-                >
-                  <CalendarDays size={16} style={{ color: '#006022' }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{appt.service}</p>
-                    <Pill variant={STATUS_PILL[appt.status]}>{appt.status}</Pill>
+            {filtered.map(appt => {
+              const providerName = `${appt.provider.title} ${appt.provider.lastName}`
+              const { date, time } = formatScheduledAt(appt.scheduledAt)
+              const appointmentType = appt.isTelecare ? 'TeleCare' : 'In-person'
+
+              return (
+                <div key={appt.id} className="flex items-center gap-3 p-4">
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                    style={{ background: 'var(--color-success-bg)' }}
+                  >
+                    <CalendarDays size={16} style={{ color: '#006022' }} />
                   </div>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-                    {appt.doctor} · {formatDate(appt.date)} at {appt.time}
-                  </p>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-faint)' }}>{appt.reason}</p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+                        {appt.serviceType}
+                      </p>
+                      <Pill variant={STATUS_PILL[appt.status] ?? 'neutral'}>{appt.status}</Pill>
+                      <Pill variant="neutral">{appointmentType}</Pill>
+                    </div>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                      {providerName} · {date} at {time}
+                    </p>
+                    {appt.reason && (
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-faint)' }}>
+                        {appt.reason}
+                      </p>
+                    )}
+                  </div>
+                  {appt.status === 'upcoming' && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={cancellingId === appt.id}
+                      onClick={() => handleCancel(appt)}
+                    >
+                      {cancellingId === appt.id ? 'Cancelling…' : 'Cancel'}
+                    </Button>
+                  )}
                 </div>
-                {appt.status === 'upcoming' && (
-                  <Button size="sm" variant="secondary">Reschedule</Button>
-                )}
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </Card>
@@ -100,20 +181,35 @@ export function AppointmentsScreen() {
       <Card>
         <CardTitle>Book New Appointment</CardTitle>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormSelect label="Service">
-            {SERVICES.map(s => <option key={s}>{s}</option>)}
+          <FormSelect
+            label="Service Type"
+            value={serviceType}
+            onChange={e => setServiceType(e.target.value)}
+          >
+            {SERVICE_TYPES.map(s => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
           </FormSelect>
-          <FormInput label="Preferred Date" type="date" />
-          <FormInput label="Preferred Time" type="time" />
-          <FormTextarea label="Reason for Visit" rows={3} className="sm:col-span-2" />
+          <FormInput
+            label="Date &amp; Time"
+            type="datetime-local"
+            value={scheduledAt}
+            onChange={e => setScheduledAt(e.target.value)}
+          />
+          <FormTextarea
+            label="Reason for Visit"
+            rows={3}
+            className="sm:col-span-2"
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+          />
         </div>
         <Button
           className="mt-4"
-          onClick={() => toast.success('Appointment requested', {
-            description: 'Your care team will confirm within 24 hours.',
-          })}
+          disabled={isBooking}
+          onClick={handleBook}
         >
-          Request Appointment
+          {isBooking ? 'Requesting…' : 'Request Appointment'}
         </Button>
       </Card>
     </div>

@@ -24,6 +24,18 @@ class PatientIdQuery {
   patientId?: string;
 }
 
+class RecordsQuery {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  patientId?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by record type (e.g. lab_result, prescription, imaging)' })
+  @IsOptional()
+  @IsString()
+  type?: string;
+}
+
 @ApiTags('Records')
 @ApiBearerAuth()
 @Controller('records')
@@ -41,11 +53,12 @@ export class RecordsController {
 
   @Get('download-url/:objectKey(*)')
   @ApiOperation({ summary: 'Request a time-limited download URL for a stored file' })
-  requestDownloadUrl(
+  async requestDownloadUrl(
     @Param('objectKey') objectKey: string,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.recordsService.requestDownloadUrl(objectKey, user);
+    const result = await this.recordsService.requestDownloadUrl(objectKey, user);
+    return { data: { downloadUrl: result.downloadUrl, expiresIn: result.expiresIn } };
   }
 
   @Post()
@@ -56,17 +69,17 @@ export class RecordsController {
 
   @Get()
   @ApiOperation({ summary: 'List clinical records (own, or specify patientId for providers/admin)' })
-  findRecords(
-    @Query() query: PatientIdQuery,
+  async findRecords(
+    @Query() query: RecordsQuery,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.recordsService.findRecords(query.patientId, user);
+    return { data: await this.recordsService.findRecords(query.patientId, user, query.type) };
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a clinical record by ID' })
-  findRecord(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-    return this.recordsService.findRecord(id, user);
+  async findRecord(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return { data: await this.recordsService.findRecord(id, user) };
   }
 
   @Post('prescriptions')
