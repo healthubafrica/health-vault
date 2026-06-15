@@ -2,7 +2,6 @@ import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/com
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
-import { createSign, randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 
@@ -162,94 +161,144 @@ export class OpenemrService implements OnModuleInit {
     return res.json() as Promise<Record<string, unknown>>;
   }
 
-  // ── Token Management — SMART Backend Services (JWT assertion) ─────────────
+  // ── Token Management — Password Grant + Refresh Token Rotation ─────────────
   //
-  // OpenEMR's client_credentials grant requires a signed JWT assertion
-  // (RFC 7523 / SMART Backend Services spec) instead of a shared client_secret.
-  // We sign a short-lived RS384 JWT per token request using the private key
-  // stored in OPENEMR_PRIVATE_KEY. The matching public key (JWKS) is registered
-  // in OpenEMR's oauth_clients table.
+  // The OpenEMR OAuth2 app is registered as an authorization_code confidential
+  // client. For server-to-server access we use the password grant (ROPC) with
+  // a dedicated service account on first auth, then rotate via refresh_token so
+  // the credentials aren't re-sent on every request.
+  //
+  // Required env vars:
+  //   OPENEMR_CLIENT_ID      — OAuth2 client ID
+  //   OPENEMR_CLIENT_SECRET  — OAuth2 client secret
+  //   OPENEMR_USERNAME       — OpenEMR service account username
+  //   OPENEMR_PASSWORD       — OpenEMR service account password
 
   private cachedToken: { value: string; expiresAt: number } | null = null;
+  private refreshToken: string | null = null;
 
   async getAccessToken(): Promise<string> {
     if (this.cachedToken && Date.now() < this.cachedToken.expiresAt - 60_000) {
       return this.cachedToken.value;
     }
-    return this.fetchTokenWithJwtAssertion();
+
+    if (this.refreshToken) {
+      try {
+        return await this.refreshAccessToken();
+      } catch {
+        this.refreshToken = null;
+        this.logger.warn('OpenEMR refresh token expired; falling back to password grant');
+      }
+    }
+
+    return this.fetchTokenWithPassword();
   }
 
-  private buildJwtAssertion(clientId: string, tokenUrl: string): string {
-    const privateKey = this.config.getOrThrow<string>('OPENEMR_PRIVATE_KEY').replace(/\\n/g, '\n');
-    const kid        = this.config.getOrThrow<string>('OPENEMR_KID');
-    const now        = Math.floor(Date.now() / 1000);
-
-    const header  = Buffer.from(JSON.stringify({ alg: 'RS384', kid, typ: 'JWT' })).toString('base64url');
-    const payload = Buffer.from(JSON.stringify({
-      iss: clientId,
-      sub: clientId,
-      aud: tokenUrl,
-      jti: randomUUID(),
-      iat: now,
-      exp: now + 300, // 5-minute window
-    })).toString('base64url');
-
-    const unsigned  = `${header}.${payload}`;
-    const signer    = createSign('RSA-SHA384');
-    signer.update(unsigned);
-    const signature = signer.sign(privateKey, 'base64url');
-
-    return `${unsigned}.${signature}`;
-  }
-
-  private async fetchTokenWithJwtAssertion(): Promise<string> {
-    const clientId = this.config.getOrThrow<string>('OPENEMR_CLIENT_ID');
-    const tokenUrl = `${this.openemrBase}/oauth2/default/token`;
+  private async fetchTokenWithPassword(): Promise<string> {
+    const clientId     = this.config.getOrThrow<string>('OPENEMR_CLIENT_ID');
+    const clientSecret = this.config.getOrThrow<string>('OPENEMR_CLIENT_SECRET');
+    const username     = this.config.getOrThrow<string>('OPENEMR_USERNAME');
+    const password     = this.config.getOrThrow<string>('OPENEMR_PASSWORD');
+    const tokenUrl     = `${this.openemrBase}/oauth2/default/token`;
 
     const scope = [
       'openid',
       'api:oemr',
       'api:fhir',
-      'system/Patient.read',
-      'system/Patient.write',
-      'system/Observation.read',
-      'system/Observation.write',
-      'system/DocumentReference.read',
-      'system/DocumentReference.write',
-      'system/ServiceRequest.read',
-      'system/ServiceRequest.write',
-      'system/MedicationRequest.read',
-      'system/MedicationRequest.write',
-      'system/Practitioner.read',
-      'system/Practitioner.write',
+      'user/Patient.read',
+      'user/Patient.write',
+      'user/Observation.read',
+      'user/Observation.write',
+      'user/DocumentReference.read',
+      'user/DocumentReference.write',
+      'user/ServiceRequest.read',
+      'user/ServiceRequest.write',
+      'user/MedicationRequest.read',
+      'user/MedicationRequest.write',
+      'user/Practitioner.read',
+      'user/Practitioner.write',
+      'offline_access',
     ].join(' ');
 
-    const assertion = this.buildJwtAssertion(clientId, tokenUrl);
+    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
     const res = await fetch(tokenUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${credentials}`,
+      },
       body: new URLSearchParams({
-        grant_type:            'client_credentials',
-        client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-        client_assertion:      assertion,
+        grant_type: 'password',
+        username,
+        password,
         scope,
       }),
     });
 
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      this.logger.error(`OpenEMR JWT token fetch failed [${res.status}]: ${text.slice(0, 300)}`);
+      this.logger.error(`OpenEMR password grant failed [${res.status}]: ${text.slice(0, 300)}`);
       throw new Error(`OpenEMR token fetch failed: ${res.status} — ${text.slice(0, 200)}`);
     }
 
-    const data = (await res.json()) as { access_token: string; expires_in: number };
+    const data = (await res.json()) as {
+      access_token: string;
+      refresh_token?: string;
+      expires_in: number;
+    };
+
     this.cachedToken = {
       value:     data.access_token,
       expiresAt: Date.now() + data.expires_in * 1000,
     };
+    if (data.refresh_token) {
+      this.refreshToken = data.refresh_token;
+    }
 
-    this.logger.log('OpenEMR access token obtained via SMART Backend Services JWT assertion');
+    this.logger.log('OpenEMR access token obtained via password grant');
+    return this.cachedToken.value;
+  }
+
+  private async refreshAccessToken(): Promise<string> {
+    const clientId     = this.config.getOrThrow<string>('OPENEMR_CLIENT_ID');
+    const clientSecret = this.config.getOrThrow<string>('OPENEMR_CLIENT_SECRET');
+    const tokenUrl     = `${this.openemrBase}/oauth2/default/token`;
+    const credentials  = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+    const res = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${credentials}`,
+      },
+      body: new URLSearchParams({
+        grant_type:    'refresh_token',
+        refresh_token: this.refreshToken!,
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      this.logger.error(`OpenEMR refresh token failed [${res.status}]: ${text.slice(0, 300)}`);
+      throw new Error(`Refresh failed: ${res.status}`);
+    }
+
+    const data = (await res.json()) as {
+      access_token: string;
+      refresh_token?: string;
+      expires_in: number;
+    };
+
+    this.cachedToken = {
+      value:     data.access_token,
+      expiresAt: Date.now() + data.expires_in * 1000,
+    };
+    if (data.refresh_token) {
+      this.refreshToken = data.refresh_token;
+    }
+
+    this.logger.log('OpenEMR access token refreshed');
     return this.cachedToken.value;
   }
 }
