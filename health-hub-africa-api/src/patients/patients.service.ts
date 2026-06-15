@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
@@ -139,7 +139,7 @@ export class PatientsService {
       select: this.safeSelect(),
     });
 
-    return patient;
+    return { ...patient, profilePhotoUrl: await this.signProfilePhotoUrl(patient.profilePhotoUrl) };
   }
 
   // ── Find All (Admin/Coordinator only) ─────────────────────────────────────
@@ -200,7 +200,7 @@ export class PatientsService {
     });
 
     if (!patient) throw new NotFoundException('Patient profile not found');
-    return patient;
+    return { ...patient, profilePhotoUrl: await this.signProfilePhotoUrl(patient.profilePhotoUrl) };
   }
 
   // ── Update ────────────────────────────────────────────────────────────────
@@ -254,7 +254,27 @@ export class PatientsService {
       select: this.safeSelect(),
     });
 
-    return updated;
+    return { ...updated, profilePhotoUrl: await this.signProfilePhotoUrl(updated.profilePhotoUrl) };
+  }
+
+  // Generates a short-lived presigned GET URL from the stored profile photo URL.
+  // The object is private on S3; the stored publicUrl is the canonical key-based
+  // URL we derive the object key from.
+  private async signProfilePhotoUrl(storedUrl: string | null | undefined): Promise<string | null> {
+    if (!storedUrl) return null;
+    try {
+      const region = this.config.get<string>('AWS_REGION', 'us-east-1');
+      const endpoint = this.config.get<string>('S3_ENDPOINT');
+      const base = endpoint
+        ? `${endpoint}/${this.bucket}/`
+        : `https://${this.bucket}.s3.${region}.amazonaws.com/`;
+      if (!storedUrl.startsWith(base)) return storedUrl; // unknown format — return as-is
+      const objectKey = storedUrl.slice(base.length);
+      const command = new GetObjectCommand({ Bucket: this.bucket, Key: objectKey });
+      return await getSignedUrl(this.s3, command, { expiresIn: 3600 });
+    } catch {
+      return storedUrl; // fall back to stored URL rather than breaking the response
+    }
   }
 
   async requestProfilePhotoUploadUrl(dto: RequestProfilePhotoUrlDto, currentUser: JwtPayload) {
