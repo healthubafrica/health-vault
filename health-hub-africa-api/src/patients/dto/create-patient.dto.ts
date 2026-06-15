@@ -12,6 +12,44 @@ import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Gender, BloodGroup } from '@prisma/client';
 
+export class PatientMedicalInfoDto {
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  allergies?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  chronicConditions?: string[];
+}
+
+export class EmergencyContactDto {
+  @ApiProperty()
+  @IsString()
+  fullName: string;
+
+  @ApiProperty()
+  @IsString()
+  relationship: string;
+
+  @ApiProperty()
+  @IsString()
+  phone: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isPrimary?: boolean;
+}
+
 export class CreatePatientDto {
   @ApiProperty()
   @IsString()
@@ -143,42 +181,4 @@ export class CreatePatientDto {
   @IsOptional()
   @IsString()
   profilePhotoUrl?: string;
-}
-
-export class PatientMedicalInfoDto {
-  @ApiPropertyOptional({ type: [String] })
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  allergies?: string[];
-
-  @ApiPropertyOptional({ type: [String] })
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  chronicConditions?: string[];
-}
-
-export class EmergencyContactDto {
-  @ApiProperty()
-  @IsString()
-  fullName: string;
-
-  @ApiProperty()
-  @IsString()
-  relationship: string;
-
-  @ApiProperty()
-  @IsString()
-  phone: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  email?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsBoolean()
-  isPrimary?: boolean;
 }
