@@ -17,7 +17,7 @@ export class SubscriptionsService {
   async findPlans() {
     return this.prisma.subscriptionPlan.findMany({
       where: { isActive: true },
-      orderBy: { monthlyPriceKobo: 'asc' },
+      orderBy: { priceKobo: 'asc' },
     });
   }
 
@@ -48,27 +48,24 @@ export class SubscriptionsService {
     });
     if (!plan) throw new NotFoundException('Plan not found');
 
-    const priceKobo =
-      dto.billingCycle === 'annual'
-        ? plan.annualPriceKobo ?? plan.monthlyPriceKobo * 12
-        : plan.monthlyPriceKobo;
-
     const startDate = new Date();
     const endDate = new Date(startDate);
-    if (dto.billingCycle === 'annual') {
+    if (dto.billingCycle === 'annually') {
       endDate.setFullYear(endDate.getFullYear() + 1);
+    } else if (dto.billingCycle === 'quarterly') {
+      endDate.setMonth(endDate.getMonth() + 3);
     } else {
       endDate.setMonth(endDate.getMonth() + 1);
     }
 
+    // Pricing lives on the plan (priceKobo per billingPeriod); the
+    // subscription row only tracks the period.
     return this.prisma.patientSubscription.create({
       data: {
         patientId,
         planId: dto.planId,
-        billingCycle: dto.billingCycle,
-        currentPeriodStart: startDate,
-        currentPeriodEnd: endDate,
-        priceKobo,
+        startedAt: startDate,
+        expiresAt: endDate,
       },
       include: { plan: true },
     });
@@ -82,7 +79,7 @@ export class SubscriptionsService {
     if (!patient) throw new NotFoundException('Patient profile not found');
 
     return this.prisma.patientSubscription.findFirst({
-      where: { patientId: patient.id, status: { in: ['active', 'trialing'] } },
+      where: { patientId: patient.id, status: { in: ['active', 'trial'] } },
       include: { plan: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -106,7 +103,8 @@ export class SubscriptionsService {
 
     if (!sub) throw new NotFoundException('Subscription not found');
 
-    const isAdmin = [UserRole.admin, UserRole.super_admin].includes(currentUser.role as UserRole);
+    const adminRoles: UserRole[] = [UserRole.admin, UserRole.super_admin];
+    const isAdmin = adminRoles.includes(currentUser.role as UserRole);
     const isOwner = sub.patient.userId === currentUser.sub;
     if (!isAdmin && !isOwner) throw new ForbiddenException('Access denied');
 
@@ -117,7 +115,8 @@ export class SubscriptionsService {
   }
 
   private requireAdmin(user: JwtPayload) {
-    if (![UserRole.admin, UserRole.super_admin].includes(user.role as UserRole)) {
+    const adminRoles: UserRole[] = [UserRole.admin, UserRole.super_admin];
+    if (!adminRoles.includes(user.role as UserRole)) {
       throw new ForbiddenException('Admin access required');
     }
   }

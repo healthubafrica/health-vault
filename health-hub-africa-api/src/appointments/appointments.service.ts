@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AppointmentStatus, UserRole } from '@prisma/client';
+import { AppointmentStatus, ServiceType, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
@@ -13,11 +13,17 @@ import { QueryAppointmentsDto } from './dto/query-appointments.dto';
 
 // Valid FSM transitions: status → allowed next statuses
 const ALLOWED_TRANSITIONS: Record<AppointmentStatus, AppointmentStatus[]> = {
-  [AppointmentStatus.scheduled]: [
+  [AppointmentStatus.requested]: [
     AppointmentStatus.confirmed,
     AppointmentStatus.cancelled,
   ],
   [AppointmentStatus.confirmed]: [
+    AppointmentStatus.upcoming,
+    AppointmentStatus.in_progress,
+    AppointmentStatus.cancelled,
+    AppointmentStatus.no_show,
+  ],
+  [AppointmentStatus.upcoming]: [
     AppointmentStatus.in_progress,
     AppointmentStatus.cancelled,
     AppointmentStatus.no_show,
@@ -27,6 +33,18 @@ const ALLOWED_TRANSITIONS: Record<AppointmentStatus, AppointmentStatus[]> = {
   [AppointmentStatus.cancelled]: [],
   [AppointmentStatus.no_show]: [],
 };
+
+// The booking DTO speaks in appointment types; the schema stores a service
+// type plus a telecare flag.
+function toServiceFields(appointmentType?: string): {
+  serviceType: ServiceType;
+  isTelecare: boolean;
+} {
+  if (appointmentType === 'virtual') {
+    return { serviceType: ServiceType.TeleCare, isTelecare: true };
+  }
+  return { serviceType: ServiceType.HealthConsult, isTelecare: false };
+}
 
 @Injectable()
 export class AppointmentsService {
@@ -54,19 +72,37 @@ export class AppointmentsService {
     });
     if (!provider) throw new NotFoundException('Provider not found');
 
+    const { serviceType, isTelecare } = toServiceFields(dto.appointmentType);
+
     return this.prisma.appointment.create({
       data: {
+        hhaRef: await this.generateAppointmentRef(),
         patientId,
         providerId: dto.providerId,
-        facilityId: dto.facilityId,
-        appointmentType: dto.appointmentType,
+        serviceType,
+        isTelecare,
+        location:
+          dto.facilityId ?? (dto.appointmentType === 'home_visit' ? 'Home visit' : undefined),
         scheduledAt: new Date(dto.scheduledAt),
         durationMinutes: dto.durationMinutes,
-        chiefComplaint: dto.chiefComplaint,
-        notes: dto.notes,
+        reason: dto.chiefComplaint,
+        patientNotes: dto.notes,
       },
       select: this.safeSelect(),
     });
+  }
+
+  // APT-YYYY-000001 sequential appointment reference
+  private async generateAppointmentRef(): Promise<string> {
+    const year = new Date().getFullYear();
+    const prefix = `APT-${year}-`;
+    const last = await this.prisma.appointment.findFirst({
+      where: { hhaRef: { startsWith: prefix } },
+      orderBy: { hhaRef: 'desc' },
+      select: { hhaRef: true },
+    });
+    const seq = last ? parseInt(last.hhaRef.split('-')[2], 10) + 1 : 1;
+    return `${prefix}${String(seq).padStart(6, '0')}`;
   }
 
   // ── Find All ──────────────────────────────────────────────────────────────
@@ -128,14 +164,14 @@ export class AppointmentsService {
     const data: any = {};
     if (dto.scheduledAt) data.scheduledAt = new Date(dto.scheduledAt);
     if (dto.durationMinutes !== undefined) data.durationMinutes = dto.durationMinutes;
-    if (dto.chiefComplaint !== undefined) data.chiefComplaint = dto.chiefComplaint;
-    if (dto.notes !== undefined) data.notes = dto.notes;
+    if (dto.chiefComplaint !== undefined) data.reason = dto.chiefComplaint;
+    if (dto.notes !== undefined) data.patientNotes = dto.notes;
     if (dto.providerNotes !== undefined) data.providerNotes = dto.providerNotes;
     if (dto.status !== undefined) data.status = dto.status;
-    if (dto.cancellationReason !== undefined)
-      data.cancellationReason = dto.cancellationReason;
-
-    if (dto.status === AppointmentStatus.completed) data.completedAt = new Date();
+    if (dto.cancellationReason !== undefined) {
+      data.cancellationNote = dto.cancellationReason;
+      data.cancelledBy = currentUser.sub;
+    }
 
     return this.prisma.appointment.update({
       where: { id },
@@ -159,11 +195,12 @@ export class AppointmentsService {
   private buildWhere(query: QueryAppointmentsDto, currentUser: JwtPayload) {
     const where: any = {};
 
-    const isAdmin = [
+    const adminRoles: UserRole[] = [
       UserRole.admin,
       UserRole.super_admin,
       UserRole.coordinator,
-    ].includes(currentUser.role as UserRole);
+    ];
+    const isAdmin = adminRoles.includes(currentUser.role as UserRole);
 
     if (!isAdmin) {
       if (currentUser.patientId) {
@@ -177,7 +214,9 @@ export class AppointmentsService {
     }
 
     if (query.status) where.status = query.status;
-    if (query.appointmentType) where.appointmentType = query.appointmentType;
+    if (query.appointmentType) {
+      where.isTelecare = query.appointmentType === 'virtual';
+    }
     if (query.fromDate || query.toDate) {
       where.scheduledAt = {};
       if (query.fromDate) where.scheduledAt.gte = new Date(query.fromDate);
@@ -190,23 +229,25 @@ export class AppointmentsService {
   private safeSelect() {
     return {
       id: true,
+      hhaRef: true,
       patientId: true,
       providerId: true,
-      facilityId: true,
-      appointmentType: true,
+      serviceType: true,
+      isTelecare: true,
+      location: true,
       status: true,
       scheduledAt: true,
       durationMinutes: true,
-      chiefComplaint: true,
-      notes: true,
+      reason: true,
+      patientNotes: true,
       providerNotes: true,
-      cancellationReason: true,
-      completedAt: true,
+      cancellationNote: true,
       createdAt: true,
       updatedAt: true,
       patient: {
         select: {
           id: true,
+          userId: true,
           firstName: true,
           lastName: true,
           hhaPatientId: true,
@@ -217,8 +258,8 @@ export class AppointmentsService {
           id: true,
           firstName: true,
           lastName: true,
-          specialization: true,
-          providerType: true,
+          title: true,
+          specialty: true,
         },
       },
     };
@@ -228,13 +269,12 @@ export class AppointmentsService {
     appt: { patient?: { userId?: string } | null; providerId?: string },
     currentUser: JwtPayload,
   ) {
-    const isAdmin = [
+    const adminRoles: UserRole[] = [
       UserRole.admin,
       UserRole.super_admin,
       UserRole.coordinator,
-    ].includes(currentUser.role as UserRole);
-
-    if (isAdmin) return;
+    ];
+    if (adminRoles.includes(currentUser.role as UserRole)) return;
 
     const isPatient = appt.patient?.userId === currentUser.sub;
     const isProvider = appt.providerId === currentUser.providerId;
@@ -243,7 +283,7 @@ export class AppointmentsService {
   }
 
   private requireAdminOrCoordinator(user: JwtPayload) {
-    const allowed = [UserRole.admin, UserRole.super_admin, UserRole.coordinator];
+    const allowed: UserRole[] = [UserRole.admin, UserRole.super_admin, UserRole.coordinator];
     if (!allowed.includes(user.role as UserRole)) {
       throw new ForbiddenException('Insufficient permissions');
     }

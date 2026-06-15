@@ -5,6 +5,7 @@ import {
   NestInterceptor,
 } from '@nestjs/common';
 import { Observable, tap } from 'rxjs';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtPayload } from '../decorators/current-user.decorator';
 
@@ -53,7 +54,7 @@ export class AuditLogInterceptor implements NestInterceptor {
               resourceId: responseBody?.id ?? req.params?.id ?? null,
               ipAddress,
               userAgent,
-              metadata: stripPhi(req.body ?? {}),
+              metadata: stripPhi(req.body ?? {}) as Prisma.InputJsonValue,
               severity: 'info',
             },
           });

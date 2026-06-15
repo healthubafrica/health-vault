@@ -26,29 +26,38 @@ export class VitalsService {
       this.requireProviderOrAdmin(currentUser);
     }
 
-    const bmi =
-      dto.weightKg && dto.heightCm
-        ? parseFloat((dto.weightKg / Math.pow(dto.heightCm / 100, 2)).toFixed(1))
-        : undefined;
+    // recordedBy references a Provider profile, not a User — resolve it when
+    // the recorder is a provider, otherwise leave null (self-recorded).
+    const providerProfile =
+      currentUser.role === UserRole.provider
+        ? await this.prisma.provider.findUnique({
+            where: { userId: currentUser.sub },
+            select: { id: true },
+          })
+        : null;
 
-    return this.prisma.vitals.create({
+    // Fields without dedicated columns are preserved in the notes text.
+    const extraNotes = [
+      dto.respiratoryRate != null ? `Respiratory rate: ${dto.respiratoryRate}` : null,
+      dto.bloodGlucoseContext ? `Glucose context: ${dto.bloodGlucoseContext}` : null,
+    ].filter(Boolean);
+    const notes = [dto.notes, ...extraNotes].filter(Boolean).join(' | ') || undefined;
+
+    return this.prisma.vitalsReading.create({
       data: {
         patientId,
-        recordedById: currentUser.sub,
-        appointmentId: dto.appointmentId,
+        recordedBy: providerProfile?.id,
+        source: providerProfile ? 'provider' : 'manual',
         recordedAt: dto.recordedAt ? new Date(dto.recordedAt) : new Date(),
-        bloodPressureSystolic: dto.bloodPressureSystolic,
-        bloodPressureDiastolic: dto.bloodPressureDiastolic,
+        systolicBp: dto.bloodPressureSystolic,
+        diastolicBp: dto.bloodPressureDiastolic,
         heartRate: dto.heartRate,
-        respiratoryRate: dto.respiratoryRate,
-        temperatureCelsius: dto.temperatureCelsius,
-        oxygenSaturation: dto.oxygenSaturation,
+        temperatureC: dto.temperatureCelsius,
+        spo2: dto.oxygenSaturation,
         weightKg: dto.weightKg,
         heightCm: dto.heightCm,
-        bmi,
         bloodGlucose: dto.bloodGlucose,
-        bloodGlucoseContext: dto.bloodGlucoseContext,
-        notes: dto.notes,
+        notes,
       },
     });
   }
@@ -71,7 +80,7 @@ export class VitalsService {
       this.requireProviderOrAdmin(currentUser);
     }
 
-    return this.prisma.vitals.findMany({
+    return this.prisma.vitalsReading.findMany({
       where: { patientId: resolvedPatientId },
       orderBy: { recordedAt: 'desc' },
       take: Math.min(limit, 200),
@@ -79,16 +88,15 @@ export class VitalsService {
   }
 
   async findOne(id: string, currentUser: JwtPayload) {
-    const vitals = await this.prisma.vitals.findUnique({
+    const vitals = await this.prisma.vitalsReading.findUnique({
       where: { id },
       include: { patient: { select: { userId: true } } },
     });
 
     if (!vitals) throw new NotFoundException('Vitals record not found');
 
-    const isAdmin = [UserRole.admin, UserRole.super_admin, UserRole.coordinator].includes(
-      currentUser.role as UserRole,
-    );
+    const adminRoles: UserRole[] = [UserRole.admin, UserRole.super_admin, UserRole.coordinator];
+    const isAdmin = adminRoles.includes(currentUser.role as UserRole);
     const isOwner = vitals.patient.userId === currentUser.sub;
     const isProvider = currentUser.role === UserRole.provider;
 
@@ -100,7 +108,7 @@ export class VitalsService {
   }
 
   private requireProviderOrAdmin(user: JwtPayload) {
-    const allowed = [
+    const allowed: UserRole[] = [
       UserRole.provider,
       UserRole.admin,
       UserRole.super_admin,

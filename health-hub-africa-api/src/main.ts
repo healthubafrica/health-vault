@@ -1,8 +1,7 @@
 import { initSentry } from './instrument';
 initSentry(); // must run before any other import so Sentry can auto-instrument
 
-import * as Sentry from '@sentry/node';
-import { NestFactory, Reflector } from '@nestjs/core';
+import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, VersioningType, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -25,9 +24,9 @@ async function bootstrap() {
   const expressApp = app.getHttpAdapter().getInstance();
   expressApp.set('trust proxy', 1);
 
-  // Sentry request handler — must come before all other middleware so it can
-  // attach a request context (user, transaction) to every captured event.
-  expressApp.use(Sentry.expressErrorHandler());
+  // Sentry error capture happens in GlobalExceptionFilter — an Express-level
+  // error handler is never reached because Nest's exception layer catches
+  // everything first.
 
   const config = app.get(ConfigService);
   const port = config.get<number>('PORT', 4000);
@@ -56,14 +55,14 @@ async function bootstrap() {
 
   // ── CORS ────────────────────────────────────────────────────────────────
   app.enableCors({
-    origin: frontendUrl,
+    origin: isProd ? frontendUrl : [frontendUrl, 'http://localhost:3000'],
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-refresh-token'],
   });
 
   // ── Global prefix & versioning ──────────────────────────────────────────
-  app.setGlobalPrefix('api', { exclude: ['health'] });
+  app.setGlobalPrefix('api', { exclude: ['health', '/', ''] });
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
 
   // ── Global validation pipe ──────────────────────────────────────────────

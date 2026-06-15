@@ -403,3 +403,31 @@ export const notificationPrefs = {
       body: JSON.stringify(prefs),
     }),
 }
+
+// ── TeleCare ──────────────────────────────────────────────────────────────
+
+export interface TelecareSession {
+  id: string
+  hhaRef: string
+  status: string
+  scheduledAt: string
+  startedAt?: string
+  endedAt?: string
+  durationSeconds?: number
+  meetingUrl?: string
+  recordingUrl?: string
+  notes?: {
+    chiefComplaint?: string
+    assessment?: string
+    plan?: string
+  }
+}
+
+export const telecare = {
+  list: () => request<{ data: TelecareSession[] }>('/telecare/sessions'),
+  get: (id: string) => request<{ data: TelecareSession }>(`/telecare/sessions/${id}`),
+  getToken: (id: string) => request<{ token: string; serverUrl: string; roomName: string }>(`/telecare/sessions/${id}/token`, {
+    method: 'POST',
+  }),
+}
+

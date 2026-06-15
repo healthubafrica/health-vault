@@ -3,11 +3,24 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { LabOrderStatus, UserRole } from '@prisma/client';
+import { LabStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { CreateLabOrderDto } from './dto/create-lab-order.dto';
 import { CreateLabResultDto } from './dto/create-lab-result.dto';
+
+// LAB-YYYY-000001 sequential order reference
+async function generateOrderRef(prisma: PrismaService): Promise<string> {
+  const year = new Date().getFullYear();
+  const prefix = `LAB-${year}-`;
+  const last = await prisma.labOrder.findFirst({
+    where: { hhaRef: { startsWith: prefix } },
+    orderBy: { hhaRef: 'desc' },
+    select: { hhaRef: true },
+  });
+  const seq = last ? parseInt(last.hhaRef.split('-')[2], 10) + 1 : 1;
+  return `${prefix}${String(seq).padStart(6, '0')}`;
+}
 
 @Injectable()
 export class LabsService {
@@ -24,24 +37,34 @@ export class LabsService {
     });
     if (!patient) throw new NotFoundException('Patient not found');
 
+    const notes =
+      [dto.clinicalNotes, dto.priority ? `Priority: ${dto.priority}` : null]
+        .filter(Boolean)
+        .join(' | ') || undefined;
+
+    // Each ordered test becomes a pending LabResult row; values are filled in
+    // when results are submitted.
     return this.prisma.labOrder.create({
       data: {
+        hhaRef: await generateOrderRef(this.prisma),
         patientId: dto.patientId,
-        providerId: currentUser.providerId!,
+        orderedBy: currentUser.providerId!,
         appointmentId: dto.appointmentId,
-        facilityId: dto.facilityId,
-        clinicalNotes: dto.clinicalNotes,
-        priority: dto.priority ?? 'routine',
-        items: {
+        labFacility: dto.facilityId,
+        notes,
+        results: {
           create: dto.items.map((item) => ({
+            patientId: dto.patientId,
             testCode: item.testCode,
             testName: item.testName,
-            specimenType: item.specimenType,
-            instructions: item.instructions,
+            interpretationNote:
+              [item.specimenType ? `Specimen: ${item.specimenType}` : null, item.instructions]
+                .filter(Boolean)
+                .join(' | ') || undefined,
           })),
         },
       },
-      include: { items: true },
+      include: { results: true },
     });
   }
 
@@ -62,7 +85,7 @@ export class LabsService {
     return this.prisma.labOrder.findMany({
       where: { patientId: resolvedPatientId },
       orderBy: { orderedAt: 'desc' },
-      include: { items: true, results: { include: { items: true } } },
+      include: { results: { include: { items: true } } },
     });
   }
 
@@ -70,7 +93,6 @@ export class LabsService {
     const order = await this.prisma.labOrder.findUnique({
       where: { id },
       include: {
-        items: true,
         results: { include: { items: true } },
         patient: { select: { userId: true } },
       },
@@ -82,7 +104,7 @@ export class LabsService {
     return order;
   }
 
-  async updateOrderStatus(id: string, status: LabOrderStatus, currentUser: JwtPayload) {
+  async updateOrderStatus(id: string, status: LabStatus, currentUser: JwtPayload) {
     this.requireProviderOrAdmin(currentUser);
 
     const order = await this.prisma.labOrder.findUnique({ where: { id } });
@@ -90,8 +112,11 @@ export class LabsService {
 
     return this.prisma.labOrder.update({
       where: { id },
-      data: { status },
-      include: { items: true },
+      data: {
+        overallStatus: status,
+        collectedAt: order.collectedAt ?? (status !== LabStatus.pending ? new Date() : undefined),
+      },
+      include: { results: true },
     });
   }
 
@@ -106,41 +131,44 @@ export class LabsService {
     });
     if (!order) throw new NotFoundException('Lab order not found');
 
-    const result = await this.prisma.labResult.create({
-      data: {
-        labOrderId: dto.labOrderId,
-        reportedById: currentUser.sub,
-        interpretation: dto.interpretation,
-        comments: dto.comments,
-        fileUrls: dto.fileKeys ?? [],
-        items: {
-          create: dto.items.map((item) => ({
-            labOrderItemId: item.labOrderItemId,
-            resultValue: item.resultValue,
+    const interpretationNote =
+      [dto.interpretation, dto.comments].filter(Boolean).join(' | ') || undefined;
+
+    // Each item targets the pending LabResult row created with the order
+    // (labOrderItemId = LabResult id).
+    await this.prisma.$transaction(
+      dto.items.map((item, index) =>
+        this.prisma.labResult.update({
+          where: { id: item.labOrderItemId },
+          data: {
+            valueDisplay: item.resultValue,
             unit: item.unit,
             referenceRange: item.referenceRange,
-            isAbnormal: item.isAbnormal ?? false,
-            flag: item.flag,
-          })),
-        },
-      },
-      include: { items: true },
-    });
+            isFlagged: item.isAbnormal ?? false,
+            status: item.isAbnormal ? LabStatus.review : LabStatus.normal,
+            interpretationNote,
+            fileUrl: dto.fileKeys?.[index] ?? dto.fileKeys?.[0],
+          },
+        }),
+      ),
+    );
 
-    await this.prisma.labOrder.update({
+    const anyFlagged = dto.items.some((item) => item.isAbnormal);
+    return this.prisma.labOrder.update({
       where: { id: dto.labOrderId },
-      data: { status: LabOrderStatus.resulted },
+      data: {
+        reportedAt: new Date(),
+        overallStatus: anyFlagged ? LabStatus.review : LabStatus.normal,
+      },
+      include: { results: { include: { items: true } } },
     });
-
-    return result;
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   private assertReadAccess(patient: { userId: string } | null, currentUser: JwtPayload) {
-    const isAdmin = [UserRole.admin, UserRole.super_admin, UserRole.coordinator].includes(
-      currentUser.role as UserRole,
-    );
+    const adminRoles: UserRole[] = [UserRole.admin, UserRole.super_admin, UserRole.coordinator];
+    const isAdmin = adminRoles.includes(currentUser.role as UserRole);
     if (!isAdmin && patient?.userId !== currentUser.sub &&
         currentUser.role !== UserRole.provider) {
       throw new ForbiddenException('Access denied');
@@ -148,7 +176,7 @@ export class LabsService {
   }
 
   private requireProviderOrAdmin(user: JwtPayload) {
-    const allowed = [
+    const allowed: UserRole[] = [
       UserRole.provider,
       UserRole.admin,
       UserRole.super_admin,

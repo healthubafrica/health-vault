@@ -1,6 +1,6 @@
 import { IsString, IsOptional, IsEnum, IsDateString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TelecareSessionStatus } from '@prisma/client';
+import { TelecareSessionStatus } from '../../common/enums';
 
 export class CreateTelecareSessionDto {
   @ApiProperty()

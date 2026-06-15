@@ -9,7 +9,7 @@ import {
   IsUrl,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ProviderType } from '@prisma/client';
+import { ProviderType } from '../../common/enums';
 
 export class CreateProviderDto {
   @ApiProperty()

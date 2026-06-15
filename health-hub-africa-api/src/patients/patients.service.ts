@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { ConfigService } from '@nestjs/config';
@@ -40,12 +40,15 @@ export class PatientsService {
     private readonly notifications: NotificationsService,
     private readonly config: ConfigService,
   ) {
+    // Static keys are optional — when absent the SDK default credential
+    // provider chain resolves the ECS task role (or local AWS profile).
+    const accessKeyId = config.get<string>('AWS_ACCESS_KEY_ID');
+    const secretAccessKey = config.get<string>('AWS_SECRET_ACCESS_KEY');
     this.s3 = new S3Client({
       region: config.get('AWS_REGION', 'us-east-1'),
-      credentials: {
-        accessKeyId: config.getOrThrow('AWS_ACCESS_KEY_ID'),
-        secretAccessKey: config.getOrThrow('AWS_SECRET_ACCESS_KEY'),
-      },
+      ...(accessKeyId && secretAccessKey
+        ? { credentials: { accessKeyId, secretAccessKey } }
+        : {}),
       endpoint: config.get('S3_ENDPOINT'),
     });
     this.bucket = config.getOrThrow('S3_BUCKET');

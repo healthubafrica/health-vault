@@ -8,7 +8,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { LabOrderStatus, UserRole } from '@prisma/client';
+import { LabStatus, UserRole } from '@prisma/client';
 import { LabsService } from './labs.service';
 import { CreateLabOrderDto } from './dto/create-lab-order.dto';
 import { CreateLabResultDto } from './dto/create-lab-result.dto';
@@ -25,9 +25,9 @@ class PatientIdQuery {
 }
 
 class UpdateStatusDto {
-  @ApiPropertyOptional({ enum: LabOrderStatus })
-  @IsEnum(LabOrderStatus)
-  status: LabOrderStatus;
+  @ApiPropertyOptional({ enum: LabStatus })
+  @IsEnum(LabStatus)
+  status: LabStatus;
 }
 
 @ApiTags('Labs')

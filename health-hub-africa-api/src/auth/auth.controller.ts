@@ -147,6 +147,20 @@ export class AuthController {
   }
 
   @ApiBearerAuth()
+  @Get('me')
+  @ApiOperation({ summary: 'Get current authenticated user details' })
+  async getMe(@CurrentUser() user: JwtPayload) {
+    const dbUser = await this.authService.getUserById(user.sub);
+    return {
+      data: {
+        id: dbUser.id,
+        email: dbUser.email,
+        role: dbUser.role,
+      },
+    };
+  }
+
+  @ApiBearerAuth()
   @Get('sessions')
   @ApiOperation({ summary: 'List active sessions for the current user' })
   getSessions(@CurrentUser() user: JwtPayload) {

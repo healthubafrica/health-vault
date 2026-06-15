@@ -16,20 +16,20 @@ import {
   CreateFinalReportDto,
 } from './dto/create-case.dto';
 
-// ER-YYYY-000001 sequential case ID
-async function generateCaseId(prisma: PrismaService): Promise<string> {
+// ER-YYYY-000001 sequential case reference
+async function generateCaseRef(prisma: PrismaService): Promise<string> {
   const year = new Date().getFullYear();
   const prefix = `ER-${year}-`;
   const last = await prisma.expertReviewCase.findFirst({
-    where: { caseId: { startsWith: prefix } },
-    orderBy: { caseId: 'desc' },
-    select: { caseId: true },
+    where: { hhaRef: { startsWith: prefix } },
+    orderBy: { hhaRef: 'desc' },
+    select: { hhaRef: true },
   });
-  const seq = last ? parseInt(last.caseId.split('-')[2], 10) + 1 : 1;
+  const seq = last ? parseInt(last.hhaRef.split('-')[2], 10) + 1 : 1;
   return `${prefix}${String(seq).padStart(6, '0')}`;
 }
 
-// 7-state FSM allowed transitions
+// 7-state FSM allowed transitions (mirrors the ExpertReviewStatus lifecycle)
 const TRANSITIONS: Record<ExpertReviewStatus, ExpertReviewStatus[]> = {
   [ExpertReviewStatus.submitted]: [
     ExpertReviewStatus.under_review,
@@ -40,12 +40,15 @@ const TRANSITIONS: Record<ExpertReviewStatus, ExpertReviewStatus[]> = {
     ExpertReviewStatus.cancelled,
   ],
   [ExpertReviewStatus.specialist_assigned]: [
-    ExpertReviewStatus.report_in_progress,
+    ExpertReviewStatus.in_consultation,
     ExpertReviewStatus.cancelled,
   ],
-  [ExpertReviewStatus.report_in_progress]: [ExpertReviewStatus.report_ready],
-  [ExpertReviewStatus.report_ready]: [ExpertReviewStatus.delivered],
-  [ExpertReviewStatus.delivered]: [],
+  [ExpertReviewStatus.in_consultation]: [
+    ExpertReviewStatus.report_ready,
+    ExpertReviewStatus.cancelled,
+  ],
+  [ExpertReviewStatus.report_ready]: [ExpertReviewStatus.closed],
+  [ExpertReviewStatus.closed]: [],
   [ExpertReviewStatus.cancelled]: [],
 };
 
@@ -69,18 +72,27 @@ export class ExpertReviewService {
       this.requireAdminOrCoordinator(currentUser);
     }
 
-    const caseId = await generateCaseId(this.prisma);
+    const hhaRef = await generateCaseRef(this.prisma);
+
+    const referralNotes =
+      [
+        dto.specificQuestions,
+        dto.requestedSpecialization
+          ? `Requested specialization: ${dto.requestedSpecialization}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join('\n') || undefined;
 
     return this.prisma.expertReviewCase.create({
       data: {
-        caseId,
+        hhaRef,
         patientId,
-        requestedById: currentUser.sub,
+        coordinatorId: currentUser.patientId ? undefined : currentUser.sub,
         reviewType: dto.reviewType,
         urgency: dto.urgency,
-        clinicalSummary: dto.clinicalSummary,
-        specificQuestions: dto.specificQuestions,
-        requestedSpecialization: dto.requestedSpecialization,
+        clinicalQuestion: dto.clinicalSummary,
+        referralNotes,
       },
     });
   }
@@ -88,11 +100,12 @@ export class ExpertReviewService {
   // ── List Cases ─────────────────────────────────────────────────────────────
 
   async findAll(currentUser: JwtPayload) {
-    const isAdmin = [
+    const adminRoles: UserRole[] = [
       UserRole.admin,
       UserRole.super_admin,
       UserRole.coordinator,
-    ].includes(currentUser.role as UserRole);
+    ];
+    const isAdmin = adminRoles.includes(currentUser.role as UserRole);
 
     const where: any = {};
     if (!isAdmin) {
@@ -110,7 +123,7 @@ export class ExpertReviewService {
       where,
       orderBy: { createdAt: 'desc' },
       include: {
-        statusEvents: { orderBy: { createdAt: 'desc' }, take: 3 },
+        statusEvents: { orderBy: { occurredAt: 'desc' }, take: 3 },
         finalReport: { select: { id: true, createdAt: true } },
       },
     });
@@ -123,8 +136,8 @@ export class ExpertReviewService {
       where: { id },
       include: {
         documents: true,
-        statusEvents: { orderBy: { createdAt: 'asc' } },
-        notes: { where: { isInternal: false } },
+        statusEvents: { orderBy: { occurredAt: 'asc' } },
+        specialistNotes: { where: { isVisibleToPatient: true } },
         finalReport: true,
         patient: { select: { userId: true } },
       },
@@ -137,7 +150,7 @@ export class ExpertReviewService {
     if (
       currentUser.role === UserRole.patient &&
       erCase.finalReport &&
-      !erCase.reportDisclaimerAcknowledgedAt
+      !erCase.finalReport.disclaimerAcceptedAt
     ) {
       return { ...erCase, finalReport: null, reportRequiresDisclaimer: true };
     }
@@ -166,15 +179,17 @@ export class ExpertReviewService {
         where: { id },
         data: {
           specialistId: dto.specialistProviderId,
+          specialistAssignedAt: new Date(),
           status: ExpertReviewStatus.specialist_assigned,
         },
       }),
       this.prisma.expertReviewStatusEvent.create({
         data: {
           caseId: id,
-          status: ExpertReviewStatus.specialist_assigned,
+          fromStatus: erCase.status,
+          toStatus: ExpertReviewStatus.specialist_assigned,
           notes: dto.assignmentNotes,
-          updatedById: currentUser.sub,
+          actorId: currentUser.sub,
         },
       }),
     ]);
@@ -201,12 +216,23 @@ export class ExpertReviewService {
     }
 
     const data: any = { status: dto.status };
-    if (dto.status === ExpertReviewStatus.delivered) data.deliveredAt = new Date();
+    if (dto.status === ExpertReviewStatus.under_review) data.acceptedAt = new Date();
+    if (dto.status === ExpertReviewStatus.closed) data.completedAt = new Date();
+    if (dto.status === ExpertReviewStatus.cancelled) {
+      data.cancelledAt = new Date();
+      data.cancellationReason = dto.notes;
+    }
 
     const [updated] = await this.prisma.$transaction([
       this.prisma.expertReviewCase.update({ where: { id }, data }),
       this.prisma.expertReviewStatusEvent.create({
-        data: { caseId: id, status: dto.status, notes: dto.notes, updatedById: currentUser.sub },
+        data: {
+          caseId: id,
+          fromStatus: erCase.status,
+          toStatus: dto.status,
+          notes: dto.notes,
+          actorId: currentUser.sub,
+        },
       }),
     ]);
 
@@ -222,18 +248,23 @@ export class ExpertReviewService {
     });
     if (!erCase) throw new NotFoundException('Case not found');
 
+    const staffRoles: UserRole[] = [
+      UserRole.admin,
+      UserRole.super_admin,
+      UserRole.coordinator,
+      UserRole.provider,
+    ];
     const isOwner = erCase.patient.userId === currentUser.sub;
-    const isAdmin = [UserRole.admin, UserRole.super_admin, UserRole.coordinator, UserRole.provider]
-      .includes(currentUser.role as UserRole);
-    if (!isOwner && !isAdmin) throw new ForbiddenException('Access denied');
+    const isStaff = staffRoles.includes(currentUser.role as UserRole);
+    if (!isOwner && !isStaff) throw new ForbiddenException('Access denied');
 
     return this.prisma.expertReviewDocument.create({
       data: {
         caseId,
-        uploadedById: currentUser.sub,
-        fileKey: dto.fileKey,
-        fileName: dto.fileName,
-        description: dto.description,
+        uploadedBy: currentUser.sub,
+        documentType: 'supporting_document',
+        title: dto.description ?? dto.fileName,
+        fileUrl: dto.fileKey,
       },
     });
   }
@@ -247,8 +278,9 @@ export class ExpertReviewService {
       data: {
         caseId: dto.caseId,
         specialistId: currentUser.providerId!,
-        noteContent: dto.noteContent,
-        isInternal: dto.isInternal ?? false,
+        noteType: 'general',
+        content: dto.noteContent,
+        isVisibleToPatient: !(dto.isInternal ?? false),
       },
     });
   }
@@ -264,17 +296,25 @@ export class ExpertReviewService {
     });
     if (!erCase) throw new NotFoundException('Case not found');
 
+    const recommendations =
+      [
+        dto.recommendations,
+        dto.treatmentPlan ? `Treatment plan:\n${dto.treatmentPlan}` : null,
+        dto.followUpInstructions ? `Follow-up:\n${dto.followUpInstructions}` : null,
+      ]
+        .filter(Boolean)
+        .join('\n\n');
+
     const report = await this.prisma.expertReviewFinalReport.create({
       data: {
         caseId: dto.caseId,
-        reviewedById: currentUser.providerId!,
-        clinicalFindings: dto.clinicalFindings,
-        diagnosis: dto.diagnosis,
-        recommendations: dto.recommendations,
-        treatmentPlan: dto.treatmentPlan,
-        followUpInstructions: dto.followUpInstructions,
+        authoredBy: currentUser.providerId!,
+        summary: dto.clinicalFindings,
+        clinicalOpinion: dto.diagnosis,
+        recommendations,
+        followUpRequired: Boolean(dto.followUpAppointmentId || dto.followUpInstructions),
         followUpAppointmentId: dto.followUpAppointmentId,
-        reportFileUrls: dto.reportFileKeys ?? [],
+        pdfUrl: dto.reportFileKeys?.[0],
       },
     });
 
@@ -286,8 +326,9 @@ export class ExpertReviewService {
       this.prisma.expertReviewStatusEvent.create({
         data: {
           caseId: dto.caseId,
-          status: ExpertReviewStatus.report_ready,
-          updatedById: currentUser.sub,
+          fromStatus: erCase.status,
+          toStatus: ExpertReviewStatus.report_ready,
+          actorId: currentUser.sub,
         },
       }),
     ]);
@@ -300,16 +341,22 @@ export class ExpertReviewService {
   async acknowledgeDisclaimer(id: string, currentUser: JwtPayload) {
     const erCase = await this.prisma.expertReviewCase.findUnique({
       where: { id },
-      select: { patient: { select: { userId: true } } },
+      select: {
+        patient: { select: { userId: true } },
+        finalReport: { select: { id: true } },
+      },
     });
     if (!erCase) throw new NotFoundException('Case not found');
     if (erCase.patient.userId !== currentUser.sub) {
       throw new ForbiddenException('Only the patient can acknowledge the disclaimer');
     }
+    if (!erCase.finalReport) {
+      throw new BadRequestException('No final report to acknowledge');
+    }
 
-    return this.prisma.expertReviewCase.update({
-      where: { id },
-      data: { reportDisclaimerAcknowledgedAt: new Date() },
+    return this.prisma.expertReviewFinalReport.update({
+      where: { caseId: id },
+      data: { disclaimerAccepted: true, disclaimerAcceptedAt: new Date() },
     });
   }
 
@@ -319,10 +366,8 @@ export class ExpertReviewService {
     erCase: { patient?: { userId?: string } | null; leadPhysicianId?: string | null; specialistId?: string | null },
     currentUser: JwtPayload,
   ) {
-    const isAdmin = [UserRole.admin, UserRole.super_admin, UserRole.coordinator].includes(
-      currentUser.role as UserRole,
-    );
-    if (isAdmin) return;
+    const adminRoles: UserRole[] = [UserRole.admin, UserRole.super_admin, UserRole.coordinator];
+    if (adminRoles.includes(currentUser.role as UserRole)) return;
 
     const isPatient = erCase.patient?.userId === currentUser.sub;
     const isProvider =
@@ -333,13 +378,14 @@ export class ExpertReviewService {
   }
 
   private requireAdminOrCoordinator(user: JwtPayload) {
-    if (![UserRole.admin, UserRole.super_admin, UserRole.coordinator].includes(user.role as UserRole)) {
+    const allowed: UserRole[] = [UserRole.admin, UserRole.super_admin, UserRole.coordinator];
+    if (!allowed.includes(user.role as UserRole)) {
       throw new ForbiddenException('Admin or coordinator access required');
     }
   }
 
   private requireAdminOrCoordinatorOrProvider(user: JwtPayload) {
-    const allowed = [
+    const allowed: UserRole[] = [
       UserRole.admin,
       UserRole.super_admin,
       UserRole.coordinator,

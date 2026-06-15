@@ -9,30 +9,33 @@ import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { CreateDispatchCaseDto, UpdateDispatchStatusDto } from './dto/create-dispatch.dto';
 
-// DSP-YYYY-0001 sequential case ID
-async function generateCaseId(prisma: PrismaService): Promise<string> {
+// DSP-YYYY-0001 sequential case reference
+async function generateCaseRef(prisma: PrismaService): Promise<string> {
   const year = new Date().getFullYear();
   const prefix = `DSP-${year}-`;
-  const last = await prisma.dispatchCase.findFirst({
-    where: { caseId: { startsWith: prefix } },
-    orderBy: { caseId: 'desc' },
-    select: { caseId: true },
+  const last = await prisma.dispatchRequest.findFirst({
+    where: { hhaRef: { startsWith: prefix } },
+    orderBy: { hhaRef: 'desc' },
+    select: { hhaRef: true },
   });
-  const seq = last ? parseInt(last.caseId.split('-')[2], 10) + 1 : 1;
+  const seq = last ? parseInt(last.hhaRef.split('-')[2], 10) + 1 : 1;
   return `${prefix}${String(seq).padStart(4, '0')}`;
 }
 
-// 8-state FSM allowed transitions
+// 8-state FSM allowed transitions (mirrors the DispatchStatus lifecycle)
 const TRANSITIONS: Record<DispatchStatus, DispatchStatus[]> = {
-  [DispatchStatus.pending]: [DispatchStatus.acknowledged, DispatchStatus.cancelled],
-  [DispatchStatus.acknowledged]: [DispatchStatus.dispatched, DispatchStatus.cancelled],
-  [DispatchStatus.dispatched]: [DispatchStatus.en_route, DispatchStatus.cancelled],
+  [DispatchStatus.requested]: [DispatchStatus.triaged, DispatchStatus.closed],
+  [DispatchStatus.triaged]: [DispatchStatus.unit_assigned, DispatchStatus.closed],
+  [DispatchStatus.unit_assigned]: [DispatchStatus.en_route, DispatchStatus.closed],
   [DispatchStatus.en_route]: [DispatchStatus.on_scene],
-  [DispatchStatus.on_scene]: [DispatchStatus.transporting, DispatchStatus.resolved],
-  [DispatchStatus.transporting]: [DispatchStatus.at_facility],
-  [DispatchStatus.at_facility]: [DispatchStatus.resolved],
-  [DispatchStatus.resolved]: [],
-  [DispatchStatus.cancelled]: [],
+  [DispatchStatus.on_scene]: [
+    DispatchStatus.patient_stabilised,
+    DispatchStatus.transported,
+    DispatchStatus.closed,
+  ],
+  [DispatchStatus.patient_stabilised]: [DispatchStatus.transported, DispatchStatus.closed],
+  [DispatchStatus.transported]: [DispatchStatus.closed],
+  [DispatchStatus.closed]: [],
 };
 
 @Injectable()
@@ -51,57 +54,66 @@ export class DispatchService {
       patientId = patient.id;
     }
 
-    const caseId = await generateCaseId(this.prisma);
+    const hhaRef = await generateCaseRef(this.prisma);
 
-    return this.prisma.dispatchCase.create({
+    // No dedicated contact-phone column — keep it with the description so
+    // responders still see it.
+    const description = dto.contactPhone
+      ? [dto.description, `Contact: ${dto.contactPhone}`].filter(Boolean).join(' — ')
+      : dto.description;
+
+    return this.prisma.dispatchRequest.create({
       data: {
-        caseId,
+        hhaRef,
         patientId,
-        reportedById: currentUser.sub,
+        requestedBy: currentUser.sub,
         emergencyType: dto.emergencyType,
-        description: dto.description,
+        description,
         latitude: dto.latitude,
         longitude: dto.longitude,
-        locationAddress: dto.locationAddress,
-        contactPhone: dto.contactPhone,
+        locationText: dto.locationAddress,
       },
     });
   }
 
   async findAll(currentUser: JwtPayload) {
-    const isAdmin = [
+    const adminRoles: UserRole[] = [
       UserRole.admin,
       UserRole.super_admin,
       UserRole.coordinator,
-    ].includes(currentUser.role as UserRole);
+    ];
+    const isAdmin = adminRoles.includes(currentUser.role as UserRole);
 
     const where: any = isAdmin
       ? {}
       : currentUser.patientId
         ? { patientId: currentUser.patientId }
-        : { reportedById: currentUser.sub };
+        : { requestedBy: currentUser.sub };
 
-    return this.prisma.dispatchCase.findMany({
+    return this.prisma.dispatchRequest.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: { statusEvents: { orderBy: { createdAt: 'desc' }, take: 5 } },
+      include: { events: { orderBy: { occurredAt: 'desc' }, take: 5 } },
     });
   }
 
   async findOne(id: string, currentUser: JwtPayload) {
-    const dispatchCase = await this.prisma.dispatchCase.findUnique({
+    const dispatchCase = await this.prisma.dispatchRequest.findUnique({
       where: { id },
       include: {
-        statusEvents: { orderBy: { createdAt: 'asc' } },
+        events: { orderBy: { occurredAt: 'asc' } },
         patient: { select: { userId: true } },
       },
     });
 
     if (!dispatchCase) throw new NotFoundException('Dispatch case not found');
 
-    const isAdmin = [UserRole.admin, UserRole.super_admin, UserRole.coordinator].includes(
-      currentUser.role as UserRole,
-    );
+    const adminRoles: UserRole[] = [
+      UserRole.admin,
+      UserRole.super_admin,
+      UserRole.coordinator,
+    ];
+    const isAdmin = adminRoles.includes(currentUser.role as UserRole);
     if (!isAdmin && dispatchCase.patient.userId !== currentUser.sub) {
       throw new ForbiddenException('Access denied');
     }
@@ -112,7 +124,7 @@ export class DispatchService {
   async updateStatus(id: string, dto: UpdateDispatchStatusDto, currentUser: JwtPayload) {
     this.requireCoordinatorOrAdmin(currentUser);
 
-    const dispatchCase = await this.prisma.dispatchCase.findUnique({
+    const dispatchCase = await this.prisma.dispatchRequest.findUnique({
       where: { id },
       select: { id: true, status: true },
     });
@@ -127,19 +139,23 @@ export class DispatchService {
     }
 
     const data: any = { status: dto.status };
-    if (dto.assignedProviderId) data.assignedProviderId = dto.assignedProviderId;
-    if (dto.responseLatitude) data.responseLatitude = dto.responseLatitude;
-    if (dto.responseLongitude) data.responseLongitude = dto.responseLongitude;
-    if (dto.status === DispatchStatus.resolved) data.resolvedAt = new Date();
+    if (dto.assignedProviderId) {
+      data.unitId = dto.assignedProviderId;
+      data.assignedAt = new Date();
+    }
+    if (dto.status === DispatchStatus.on_scene) data.arrivedAt = new Date();
+    if (dto.status === DispatchStatus.closed) data.closedAt = new Date();
 
     const [updated] = await this.prisma.$transaction([
-      this.prisma.dispatchCase.update({ where: { id }, data }),
-      this.prisma.dispatchStatusEvent.create({
+      this.prisma.dispatchRequest.update({ where: { id }, data }),
+      this.prisma.dispatchEvent.create({
         data: {
-          dispatchCaseId: id,
+          requestId: id,
           status: dto.status,
           notes: dto.notes,
-          updatedById: currentUser.sub,
+          actorId: currentUser.sub,
+          latitude: dto.responseLatitude,
+          longitude: dto.responseLongitude,
         },
       }),
     ]);
@@ -148,7 +164,7 @@ export class DispatchService {
   }
 
   private requireCoordinatorOrAdmin(user: JwtPayload) {
-    const allowed = [
+    const allowed: UserRole[] = [
       UserRole.admin,
       UserRole.super_admin,
       UserRole.coordinator,

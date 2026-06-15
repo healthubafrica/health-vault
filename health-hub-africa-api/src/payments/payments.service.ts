@@ -7,7 +7,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PaymentGateway, PaymentStatus, UserRole } from '@prisma/client';
+import { PaymentGateway, PaymentStatus, Prisma, UserRole } from '@prisma/client';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -22,6 +22,19 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
   ) {}
+
+  // PAY-YYYY-000001 sequential payment reference
+  private async generatePaymentRef(): Promise<string> {
+    const year = new Date().getFullYear();
+    const prefix = `PAY-${year}-`;
+    const last = await this.prisma.payment.findFirst({
+      where: { hhaRef: { startsWith: prefix } },
+      orderBy: { hhaRef: 'desc' },
+      select: { hhaRef: true },
+    });
+    const seq = last ? parseInt(last.hhaRef.split('-')[2], 10) + 1 : 1;
+    return `${prefix}${String(seq).padStart(6, '0')}`;
+  }
 
   // ── Initiate Payment ───────────────────────────────────────────────────────
 
@@ -38,6 +51,7 @@ export class PaymentsService {
 
     const payment = await this.prisma.payment.create({
       data: {
+        hhaRef: await this.generatePaymentRef(),
         patientId: patient.id,
         gateway: dto.gateway,
         amountKobo,
@@ -207,7 +221,8 @@ export class PaymentsService {
 
     if (!payment) throw new NotFoundException('Payment not found');
 
-    const isAdmin = [UserRole.admin, UserRole.super_admin].includes(currentUser.role as UserRole);
+    const adminRoles: UserRole[] = [UserRole.admin, UserRole.super_admin];
+    const isAdmin = adminRoles.includes(currentUser.role as UserRole);
     if (!isAdmin && payment.patient.userId !== currentUser.sub) {
       throw new ForbiddenException('Access denied');
     }
@@ -257,7 +272,7 @@ export class PaymentsService {
       data: {
         status: newStatus,
         paidAt: isSuccess ? new Date() : undefined,
-        gatewayResponse: event,
+        gatewayResponse: event as Prisma.InputJsonValue,
       },
     });
 

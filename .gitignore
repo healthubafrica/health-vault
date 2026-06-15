@@ -56,3 +56,15 @@ coverage/
 
 # AWS certificates (downloaded at deploy time)
 *.pem
+
+# Deployment artifacts — contain live credentials, never commit
+task-def.json
+task-def-input.json
+task-def-utf8.json
+secret-payload.json
+secret-input.json
+
+# Internal AWS architecture/deployment docs & scripts — contain account IDs and ARNs
+/AWS-ARCHITECTURE.md
+health-hub-africa-api/prepare-deployment.js
+health-hub-africa-api/prepare-task-def.js
