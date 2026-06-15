@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
 import { IdChip } from '@/components/ui/IdChip'
 import { Avatar } from '@/components/ui/Avatar'
-import { PATIENT } from '@/lib/data/patient'
 import { toast } from 'sonner'
 import { patients } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
@@ -22,14 +21,14 @@ export function ProfileScreen() {
   if (error && !profileRes) return <ErrorState message={error} onRetry={refetch} />
   const profile = profileRes?.data
 
-  const displayName = profile ? `${profile.firstName} ${profile.lastName}` : PATIENT.name
-  const hhaId = profile?.hhaId ?? PATIENT.id
-  const status = profile?.status ?? PATIENT.status
-  const dob = profile?.dateOfBirth?.slice(0, 10) ?? PATIENT.dob
-  const gender = profile?.gender ?? PATIENT.gender
-  const phone = profile?.user?.phone ?? PATIENT.phone
-  const email = profile?.user?.email ?? PATIENT.email
-  const address = profile?.address ?? PATIENT.address
+  const displayName = profile ? `${profile.firstName} ${profile.lastName}` : ''
+  const hhaId = profile?.hhaId ?? ''
+  const status = profile?.status ?? 'Active'
+  const dob = profile?.dateOfBirth?.slice(0, 10) ?? ''
+  const gender = profile?.gender ?? ''
+  const phone = profile?.user?.phone ?? ''
+  const email = profile?.user?.email ?? ''
+  const address = profile?.address ?? ''
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -158,15 +157,16 @@ export function ProfileScreen() {
       <Card>
         <CardTitle>Medical Information</CardTitle>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormSelect label="Blood Group" defaultValue={PATIENT.bloodGroup}>
+          <FormSelect label="Blood Group" defaultValue={profile?.bloodGroup ?? ''}>
+            <option value="">Not set</option>
             {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(bg => (
               <option key={bg}>{bg}</option>
             ))}
           </FormSelect>
-          <FormInput label="Allergies" defaultValue={profile?.medicalInfo?.allergies?.join(', ') ?? PATIENT.medical.allergies} />
-          <FormInput label="Chronic Conditions" defaultValue={profile?.medicalInfo?.chronicConditions?.join(', ') ?? PATIENT.medical.conditions.join(', ')} />
-          <FormInput label="Current Medications" defaultValue={profile?.medicalInfo?.activeMedications?.join(', ') ?? PATIENT.medical.medications.join(', ')} />
-          <FormInput label="Active Care Plan" defaultValue={profile?.medicalInfo?.activeCarePlan ?? PATIENT.medical.carePlan} readOnly />
+          <FormInput label="Allergies" defaultValue={profile?.medicalInfo?.allergies?.join(', ') ?? ''} placeholder="None recorded" />
+          <FormInput label="Chronic Conditions" defaultValue={profile?.medicalInfo?.chronicConditions?.join(', ') ?? ''} placeholder="None recorded" />
+          <FormInput label="Current Medications" defaultValue={profile?.medicalInfo?.activeMedications?.join(', ') ?? ''} placeholder="None recorded" />
+          <FormInput label="Active Care Plan" defaultValue={profile?.medicalInfo?.activeCarePlan ?? ''} placeholder="No active care plan" readOnly />
         </div>
       </Card>
 
@@ -174,9 +174,9 @@ export function ProfileScreen() {
       <Card>
         <CardTitle>Emergency Contact</CardTitle>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormInput label="Full Name" defaultValue={profile?.emergencyContacts?.[0]?.fullName ?? PATIENT.emergency.name} />
-          <FormInput label="Relationship" defaultValue={profile?.emergencyContacts?.[0]?.relationship ?? PATIENT.emergency.relation} />
-          <FormInput label="Phone" type="tel" defaultValue={profile?.emergencyContacts?.[0]?.phone ?? PATIENT.emergency.phone} />
+          <FormInput label="Full Name" defaultValue={profile?.emergencyContacts?.[0]?.fullName ?? ''} placeholder="Not set" />
+          <FormInput label="Relationship" defaultValue={profile?.emergencyContacts?.[0]?.relationship ?? ''} placeholder="Not set" />
+          <FormInput label="Phone" type="tel" defaultValue={profile?.emergencyContacts?.[0]?.phone ?? ''} placeholder="Not set" />
         </div>
       </Card>
 

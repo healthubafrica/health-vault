@@ -3,7 +3,6 @@
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
-import { PAYMENTS } from '@/lib/data/payments'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Receipt, CreditCard } from 'lucide-react'
 import { payments as paymentsApi } from '@/lib/api'
@@ -25,7 +24,7 @@ export function PaymentsScreen() {
     status: p.status === 'paid' ? 'paid' : p.status,
     date: p.paidAt ?? p.createdAt,
     gateway: p.gateway,
-  })) ?? PAYMENTS
+  })) ?? []
 
   const total = allPayments.reduce((sum: number, p: any) => sum + p.amount, 0)
 
@@ -60,7 +59,7 @@ export function PaymentsScreen() {
         >
           <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Transactions</span>
           <span className="text-lg font-bold" style={{ color: 'var(--color-text)', fontFamily: 'var(--font-display)' }}>
-            {PAYMENTS.length}
+            {allPayments.length}
           </span>
         </div>
       </div>
@@ -71,7 +70,11 @@ export function PaymentsScreen() {
           <CardTitle className="mb-0">Transaction History</CardTitle>
         </div>
         <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
-          {allPayments.map((p: any) => (
+          {allPayments.length === 0 ? (
+            <p className="text-sm text-center py-8" style={{ color: 'var(--color-text-muted)' }}>
+              No transactions yet.
+            </p>
+          ) : allPayments.map((p: any) => (
             <div key={p.id} className="flex items-center gap-3 p-4">
               <div
                 className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
