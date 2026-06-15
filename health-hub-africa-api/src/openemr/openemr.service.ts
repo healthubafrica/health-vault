@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/com
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
+import { createSign, randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 
@@ -161,12 +162,13 @@ export class OpenemrService implements OnModuleInit {
     return res.json() as Promise<Record<string, unknown>>;
   }
 
-  // ── Token Management (client_credentials grant) ───────────────────────────
+  // ── Token Management — SMART Backend Services (JWT assertion) ─────────────
   //
-  // Uses the dedicated backend service client registered in OpenEMR's
-  // oauth_clients table (grant_types = 'client_credentials').
-  // Client ID/secret are stored in AWS Secrets Manager as OPENEMR_CLIENT_ID
-  // and OPENEMR_CLIENT_SECRET. The access token is cached until 60s before expiry.
+  // OpenEMR's client_credentials grant requires a signed JWT assertion
+  // (RFC 7523 / SMART Backend Services spec) instead of a shared client_secret.
+  // We sign a short-lived RS384 JWT per token request using the private key
+  // stored in OPENEMR_PRIVATE_KEY. The matching public key (JWKS) is registered
+  // in OpenEMR's oauth_clients table.
 
   private cachedToken: { value: string; expiresAt: number } | null = null;
 
@@ -174,12 +176,36 @@ export class OpenemrService implements OnModuleInit {
     if (this.cachedToken && Date.now() < this.cachedToken.expiresAt - 60_000) {
       return this.cachedToken.value;
     }
+    return this.fetchTokenWithJwtAssertion();
+  }
 
-    const clientId     = this.config.getOrThrow('OPENEMR_CLIENT_ID');
-    const clientSecret = this.config.getOrThrow('OPENEMR_CLIENT_SECRET');
-    const tokenUrl     = `${this.openemrBase}/oauth2/default/token`;
+  private buildJwtAssertion(clientId: string, tokenUrl: string): string {
+    const privateKey = this.config.getOrThrow<string>('OPENEMR_PRIVATE_KEY').replace(/\\n/g, '\n');
+    const kid        = this.config.getOrThrow<string>('OPENEMR_KID');
+    const now        = Math.floor(Date.now() / 1000);
 
-    // Scopes must use system/ prefix for client_credentials (machine-to-machine)
+    const header  = Buffer.from(JSON.stringify({ alg: 'RS384', kid, typ: 'JWT' })).toString('base64url');
+    const payload = Buffer.from(JSON.stringify({
+      iss: clientId,
+      sub: clientId,
+      aud: tokenUrl,
+      jti: randomUUID(),
+      iat: now,
+      exp: now + 300, // 5-minute window
+    })).toString('base64url');
+
+    const unsigned  = `${header}.${payload}`;
+    const signer    = createSign('RSA-SHA384');
+    signer.update(unsigned);
+    const signature = signer.sign(privateKey, 'base64url');
+
+    return `${unsigned}.${signature}`;
+  }
+
+  private async fetchTokenWithJwtAssertion(): Promise<string> {
+    const clientId = this.config.getOrThrow<string>('OPENEMR_CLIENT_ID');
+    const tokenUrl = `${this.openemrBase}/oauth2/default/token`;
+
     const scope = [
       'openid',
       'api:oemr',
@@ -198,20 +224,22 @@ export class OpenemrService implements OnModuleInit {
       'system/Practitioner.write',
     ].join(' ');
 
+    const assertion = this.buildJwtAssertion(clientId, tokenUrl);
+
     const res = await fetch(tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        grant_type:    'client_credentials',
-        client_id:     clientId,
-        client_secret: clientSecret,
+        grant_type:            'client_credentials',
+        client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+        client_assertion:      assertion,
         scope,
       }),
     });
 
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      this.logger.error(`OpenEMR token fetch failed [${res.status}]: ${text.slice(0, 300)}`);
+      this.logger.error(`OpenEMR JWT token fetch failed [${res.status}]: ${text.slice(0, 300)}`);
       throw new Error(`OpenEMR token fetch failed: ${res.status} — ${text.slice(0, 200)}`);
     }
 
@@ -221,7 +249,7 @@ export class OpenemrService implements OnModuleInit {
       expiresAt: Date.now() + data.expires_in * 1000,
     };
 
-    this.logger.log('OpenEMR access token obtained via client_credentials grant');
+    this.logger.log('OpenEMR access token obtained via SMART Backend Services JWT assertion');
     return this.cachedToken.value;
   }
 }
