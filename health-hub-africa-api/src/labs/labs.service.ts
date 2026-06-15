@@ -1,8 +1,10 @@
 import {
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { OpenemrService } from '../openemr/openemr.service';
 import { LabStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
@@ -24,7 +26,12 @@ async function generateOrderRef(prisma: PrismaService): Promise<string> {
 
 @Injectable()
 export class LabsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(LabsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly openemrService: OpenemrService,
+  ) {}
 
   // ── Orders ─────────────────────────────────────────────────────────────────
 
@@ -44,7 +51,7 @@ export class LabsService {
 
     // Each ordered test becomes a pending LabResult row; values are filled in
     // when results are submitted.
-    return this.prisma.labOrder.create({
+    const labOrder = await this.prisma.labOrder.create({
       data: {
         hhaRef: await generateOrderRef(this.prisma),
         patientId: dto.patientId,
@@ -66,6 +73,12 @@ export class LabsService {
       },
       include: { results: true },
     });
+
+    await this.openemrService.enqueueLabOrderSync(labOrder.patientId, labOrder.id).catch(err =>
+      this.logger.error(`Failed to enqueue OpenEMR lab order sync: ${err.message}`),
+    );
+
+    return labOrder;
   }
 
   async findOrders(patientId: string | undefined, currentUser: JwtPayload) {

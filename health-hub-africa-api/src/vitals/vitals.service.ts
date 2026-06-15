@@ -1,8 +1,10 @@
 import {
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { OpenemrService } from '../openemr/openemr.service';
 import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
@@ -10,7 +12,12 @@ import { CreateVitalsDto } from './dto/create-vitals.dto';
 
 @Injectable()
 export class VitalsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(VitalsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly openemrService: OpenemrService,
+  ) {}
 
   async create(dto: CreateVitalsDto, currentUser: JwtPayload) {
     let patientId = dto.patientId;
@@ -43,7 +50,7 @@ export class VitalsService {
     ].filter(Boolean);
     const notes = [dto.notes, ...extraNotes].filter(Boolean).join(' | ') || undefined;
 
-    return this.prisma.vitalsReading.create({
+    const created = await this.prisma.vitalsReading.create({
       data: {
         patientId,
         recordedBy: providerProfile?.id,
@@ -60,6 +67,12 @@ export class VitalsService {
         notes,
       },
     });
+
+    await this.openemrService.enqueueVitalsSync(created.patientId, created.id).catch(err =>
+      this.logger.error(`Failed to enqueue OpenEMR vitals sync: ${err.message}`),
+    );
+
+    return created;
   }
 
   async findForPatient(
