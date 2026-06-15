@@ -85,8 +85,11 @@ export class PatientsService {
     });
     if (existing) throw new ConflictException('Patient profile already exists');
 
-    const regionCode = (dto.country && REGION_MAP[dto.country]) ?? 'HHA';
+    const regionCode = dto.regionCode ?? (dto.country && REGION_MAP[dto.country]) ?? 'HHA';
     const hhaPatientId = await this.generateHhaId(dto.country);
+
+    const allergies = dto.medicalInfo?.allergies ?? dto.allergies ?? [];
+    const chronicConditions = dto.medicalInfo?.chronicConditions ?? dto.chronicConditions ?? [];
 
     const patient = await this.prisma.patient.create({
       data: {
@@ -105,16 +108,27 @@ export class PatientsService {
         address: dto.address,
         city: dto.city,
         state: dto.state,
-        country: dto.country,
+        country: dto.country ?? 'Nigeria',
         nextOfKinName: dto.nextOfKinName,
         nextOfKinRelationship: dto.nextOfKinRelationship,
         nextOfKinPhone: dto.nextOfKinPhone,
         medicalInfo: {
           create: {
-            allergies: dto.allergies ?? [],
-            chronicConditions: dto.chronicConditions ?? [],
+            allergies,
+            chronicConditions,
           }
         },
+        emergencyContacts: dto.emergencyContacts && dto.emergencyContacts.length > 0 ? {
+          createMany: {
+            data: dto.emergencyContacts.map(c => ({
+              fullName: c.fullName,
+              relationship: c.relationship,
+              phone: c.phone,
+              email: c.email,
+              isPrimary: c.isPrimary ?? false,
+            }))
+          }
+        } : undefined,
         nin: dto.nin,
         gdprConsent: dto.gdprConsent ?? false,
         marketingConsent: dto.marketingConsent ?? false,
@@ -345,6 +359,7 @@ export class PatientsService {
       id: true,
       userId: true,
       hhaPatientId: true,
+      regionCode: true,
       firstName: true,
       lastName: true,
       middleName: true,
@@ -367,6 +382,16 @@ export class PatientsService {
           chronicConditions: true,
           activeMedications: true,
           activeCarePlan: true,
+        }
+      },
+      emergencyContacts: {
+        select: {
+          id: true,
+          fullName: true,
+          relationship: true,
+          phone: true,
+          email: true,
+          isPrimary: true,
         }
       },
       openemrSyncStatus: true,
