@@ -1,23 +1,50 @@
 'use client'
 
+import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Check } from 'lucide-react'
-import { subscriptions } from '@/lib/api'
+import { subscriptions, SubscriptionPlan } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { toast } from 'sonner'
 
 export function SubscriptionsScreen() {
   const { data: subRes, isInitialLoad: subLoading, error, refetch } = useApi(() => subscriptions.getMy())
   const { data: plansRes, isInitialLoad: plansLoading } = useApi(() => subscriptions.listPlans())
-
-  if (subLoading || plansLoading) return <ListSkeleton ariaLabel="Loading subscription plans" />
-  if (error && !subRes) return <ErrorState message={error} onRetry={refetch} />
+  const [saving, setSaving] = useState(false)
 
   const activeSub = subRes?.data
   const plans = plansRes?.data ?? []
+
+  async function handleSubscribe(plan: SubscriptionPlan) {
+    try {
+      setSaving(true)
+      await subscriptions.subscribe(plan.id, plan.billingPeriod)
+      toast.success(`Subscribed to ${plan.name}!`)
+      refetch()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Subscription failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleCancel() {
+    if (!activeSub) return
+    try {
+      await subscriptions.cancel(activeSub.id)
+      toast.success('Subscription cancelled')
+      refetch()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Cancellation failed')
+    }
+  }
+
+  if (subLoading || plansLoading) return <ListSkeleton ariaLabel="Loading subscription plans" />
+  if (error && !subRes) return <ErrorState message={error} onRetry={refetch} />
 
   return (
     <div className="flex flex-col gap-5 pb-20 md:pb-5">
@@ -45,7 +72,12 @@ export function SubscriptionsScreen() {
               Renews {formatDate(activeSub.expiresAt)}
             </p>
           </div>
-          <Pill variant="success">{activeSub.status}</Pill>
+          <div className="flex flex-col items-end gap-2">
+            <Pill variant="success">{activeSub.status}</Pill>
+            <Button variant="secondary" size="sm" onClick={handleCancel}>
+              Cancel
+            </Button>
+          </div>
         </div>
       ) : (
         <div
@@ -120,9 +152,10 @@ export function SubscriptionsScreen() {
                   fullWidth
                   className="mt-5"
                   size="md"
-                  disabled={isCurrent}
+                  disabled={isCurrent || saving}
+                  onClick={isCurrent ? undefined : () => handleSubscribe(plan)}
                 >
-                  {isCurrent ? 'Current Plan' : `Choose ${plan.name}`}
+                  {isCurrent ? 'Current Plan' : saving ? 'Processing…' : `Choose ${plan.name}`}
                 </Button>
               </div>
             )

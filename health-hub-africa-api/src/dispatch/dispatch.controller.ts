@@ -12,20 +12,20 @@ export class DispatchController {
 
   @Post()
   @ApiOperation({ summary: 'Report a dispatch emergency case' })
-  createCase(@Body() dto: CreateDispatchCaseDto, @CurrentUser() user: JwtPayload) {
-    return this.dispatchService.createCase(dto, user);
+  async createCase(@Body() dto: CreateDispatchCaseDto, @CurrentUser() user: JwtPayload) {
+    return { data: await this.dispatchService.createCase(dto, user) };
   }
 
   @Get()
   @ApiOperation({ summary: 'List dispatch cases (scoped to role)' })
-  findAll(@CurrentUser() user: JwtPayload) {
-    return this.dispatchService.findAll(user);
+  async findAll(@CurrentUser() user: JwtPayload) {
+    return { data: await this.dispatchService.findAll(user) };
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get dispatch case with full status timeline' })
-  findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-    return this.dispatchService.findOne(id, user);
+  async findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return { data: await this.dispatchService.findOne(id, user) };
   }
 
   @Patch(':id/status')

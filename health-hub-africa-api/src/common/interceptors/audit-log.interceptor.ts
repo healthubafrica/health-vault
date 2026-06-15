@@ -51,7 +51,7 @@ export class AuditLogInterceptor implements NestInterceptor {
               patientId: user?.patientId ?? null,
               action: `${req.method.toLowerCase()}.${resourceType}`,
               resourceType,
-              resourceId: responseBody?.id ?? req.params?.id ?? null,
+              resourceId: responseBody?.data?.id ?? responseBody?.id ?? req.params?.id ?? null,
               ipAddress,
               userAgent,
               metadata: stripPhi(req.body ?? {}) as Prisma.InputJsonValue,

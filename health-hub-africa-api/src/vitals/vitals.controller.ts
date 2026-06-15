@@ -30,14 +30,14 @@ export class VitalsController {
 
   @Post()
   @ApiOperation({ summary: 'Record vitals' })
-  create(@Body() dto: CreateVitalsDto, @CurrentUser() user: JwtPayload) {
-    return this.vitalsService.create(dto, user);
+  async create(@Body() dto: CreateVitalsDto, @CurrentUser() user: JwtPayload) {
+    return { data: await this.vitalsService.create(dto, user) };
   }
 
   @Get()
   @ApiOperation({ summary: 'List vitals (own, or specify patientId for providers/admin)' })
-  findAll(@Query() query: VitalsQuery, @CurrentUser() user: JwtPayload) {
-    return this.vitalsService.findForPatient(query.patientId, user, query.limit);
+  async findAll(@Query() query: VitalsQuery, @CurrentUser() user: JwtPayload) {
+    return { data: await this.vitalsService.findForPatient(query.patientId, user, query.limit) };
   }
 
   @Get(':id')

@@ -531,6 +531,7 @@ export function OnboardingScreen() {
                             phone: emergencyPhone,
                             isPrimary: true,
                           }] : [],
+                          ...(healthId.trim() ? { nin: healthId.trim() } : {}),
                         })
                         setStep(step + 1)
                       } catch (e: unknown) {

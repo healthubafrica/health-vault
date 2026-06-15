@@ -41,7 +41,7 @@ export function SettingsPanel() {
   const profile = profileRes?.data
   const displayName = profile ? `${profile.firstName} ${profile.lastName}` : ''
   const email = profile?.user?.email ?? ''
-  const hhaId = profile?.hhaId ?? ''
+  const hhaId = profile?.hhaPatientId ?? ''
   const planName = subRes?.data?.plan?.name ?? 'Free'
 
   const securityItems = [

@@ -1,6 +1,8 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import {
   Video,
   FlaskConical,
@@ -34,6 +36,7 @@ const WeightGauge = dynamic(() => import('@/components/charts/WeightGauge').then
 const WEIGHT_RANGE_KG = { min: 45, max: 100 }
 
 export function DashboardScreen() {
+  const router = useRouter()
   const { data: profileRes, isInitialLoad: profileLoading, error: profileError, refetch: refetchProfile } = useApi(() => patients.getMyProfile())
   const { data: vitalsRes, isInitialLoad: vitalsLoading } = useApi(() => vitalsApi.list())
   const { data: apptRes, isInitialLoad: apptLoading } = useApi(() => appointments.list({ upcoming: true }))
@@ -52,8 +55,23 @@ export function DashboardScreen() {
   const activeSub = subRes?.data
 
   const displayName = profile?.firstName ?? 'there'
-  const hhaId = profile?.hhaId ?? '—'
+  const hhaId = profile?.hhaPatientId ?? '—'
   const planName = activeSub?.plan?.name ?? 'Free'
+
+  const healthStatus = (() => {
+    if (!latestVitals) return { label: 'No data yet', color: '#6B7280', bg: '#F3F4F6', border: '#6B7280', alert: 'Log vitals to see your status' }
+    const flags = [
+      latestVitals.heartRate != null && (latestVitals.heartRate < 60 || latestVitals.heartRate > 100),
+      latestVitals.spo2 != null && latestVitals.spo2 < 95,
+      latestVitals.systolicBp != null && (latestVitals.systolicBp < 90 || latestVitals.systolicBp > 140),
+      latestVitals.diastolicBp != null && (latestVitals.diastolicBp < 60 || latestVitals.diastolicBp > 90),
+      latestVitals.bloodGlucose != null && (latestVitals.bloodGlucose < 70 || latestVitals.bloodGlucose > 180),
+    ]
+    const hasConcern = flags.some(Boolean)
+    return hasConcern
+      ? { label: 'Review Needed', color: '#B45309', bg: '#FEF3C7', border: '#B45309', alert: 'Some readings outside normal range' }
+      : { label: 'Stable', color: '#137333', bg: '#EBF5EC', border: '#137333', alert: 'No critical alerts' }
+  })()
 
   const heartRate = latestVitals?.heartRate
   const sleepHours = latestVitals?.sleepHours
@@ -129,11 +147,14 @@ export function DashboardScreen() {
             <p className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400">
               Health Summary
             </p>
-            <p className="text-2xl font-extrabold text-[#137333] tracking-tight">
-              Stable
+            <p className="text-2xl font-extrabold tracking-tight" style={{ color: healthStatus.color }}>
+              {healthStatus.label}
             </p>
-            <div className="self-start px-2.5 py-1 rounded-full bg-[#EBF5EC] text-[#137333] text-[9px] font-extrabold uppercase tracking-wider border border-[#137333]/15">
-              No critical alerts
+            <div
+              className="self-start px-2.5 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-wider"
+              style={{ background: healthStatus.bg, color: healthStatus.color, border: `1px solid ${healthStatus.border}25` }}
+            >
+              {healthStatus.alert}
             </div>
           </div>
 
@@ -287,7 +308,15 @@ export function DashboardScreen() {
               <p className="text-xs font-medium text-gray-400">
                 With {nextAppt.provider.title} {nextAppt.provider.lastName}
               </p>
-              <Button size="sm" variant="secondary" className="self-start mt-1">
+              <Button
+                size="sm"
+                variant="secondary"
+                className="self-start mt-1"
+                onClick={() => {
+                  toast.info('Visit Appointments to reschedule')
+                  router.push('/appointments')
+                }}
+              >
                 Reschedule
               </Button>
             </div>
@@ -296,7 +325,11 @@ export function DashboardScreen() {
               <p className="text-sm font-medium text-gray-400">
                 You have no upcoming appointments scheduled.
               </p>
-              <Button size="sm" className="self-start mt-1">
+              <Button
+                size="sm"
+                className="self-start mt-1"
+                onClick={() => router.push('/appointments')}
+              >
                 Book an appointment
               </Button>
             </div>
@@ -321,14 +354,14 @@ export function DashboardScreen() {
                   <p className="text-xs text-gray-400 font-medium">{nextAppt.provider.specialty}</p>
                 </div>
               </div>
-              <Button size="sm" fullWidth className="mt-4">Book Consultation</Button>
+              <Button size="sm" fullWidth className="mt-4" onClick={() => router.push('/appointments')}>Book Consultation</Button>
             </>
           ) : (
             <div className="flex flex-col gap-3">
               <p className="text-sm font-medium text-gray-400">
                 You don't have an assigned provider yet. Book a consultation to get matched with one.
               </p>
-              <Button size="sm" fullWidth className="mt-1">Book Consultation</Button>
+              <Button size="sm" fullWidth className="mt-1" onClick={() => router.push('/appointments')}>Book Consultation</Button>
             </div>
           )}
         </Card>
