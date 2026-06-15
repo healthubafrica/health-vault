@@ -1,11 +1,15 @@
-import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
+import type { Redis } from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 
 export const OPENEMR_SYNC_QUEUE = 'openemr-sync';
+export const OPENEMR_REDIS = Symbol('OPENEMR_REDIS');
+
+const REDIS_REFRESH_KEY = 'openemr:refresh_token';
 
 export interface SyncJobData {
   patientId: string;
@@ -22,11 +26,14 @@ export class OpenemrService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     @InjectQueue(OPENEMR_SYNC_QUEUE) private readonly syncQueue: Queue<SyncJobData>,
+    @Inject(OPENEMR_REDIS) private readonly redis: Redis,
   ) {
     this.openemrBase = config.getOrThrow('OPENEMR_BASE_URL');
   }
 
   async onModuleInit() {
+    await this.loadRefreshTokenFromRedis();
+
     const repeatables = await this.syncQueue.getRepeatableJobs();
     for (const r of repeatables.filter(j => j.name === 'pull-lab-results')) {
       await this.syncQueue.removeRepeatableByKey(r.key);
@@ -161,46 +168,125 @@ export class OpenemrService implements OnModuleInit {
     return res.json() as Promise<Record<string, unknown>>;
   }
 
-  // ── Token Management — Password Grant + Refresh Token Rotation ─────────────
+  // ── Token Management — Authorization Code + Refresh Token ─────────────────
   //
-  // The OpenEMR OAuth2 app is registered as an authorization_code confidential
-  // client. For server-to-server access we use the password grant (ROPC) with
-  // a dedicated service account on first auth, then rotate via refresh_token so
-  // the credentials aren't re-sent on every request.
+  // OpenEMR only supports authorization_code and refresh_token grant types.
+  // The initial token is obtained via a one-time admin authorization flow:
+  //   1. Admin calls GET /openemr/auth/init to get the authorization URL
+  //   2. Admin logs in to OpenEMR in a browser, gets redirected with ?code=...
+  //   3. Admin calls POST /openemr/auth/exchange with the code
+  //   4. Backend stores the refresh_token in Redis for use across restarts
   //
-  // Required env vars:
-  //   OPENEMR_CLIENT_ID      — OAuth2 client ID
-  //   OPENEMR_CLIENT_SECRET  — OAuth2 client secret
-  //   OPENEMR_USERNAME       — OpenEMR service account username
-  //   OPENEMR_PASSWORD       — OpenEMR service account password
+  // After setup, access tokens are refreshed silently using the stored
+  // refresh_token. The refresh_token is updated in Redis on every rotation.
 
   private cachedToken: { value: string; expiresAt: number } | null = null;
   private refreshToken: string | null = null;
+
+  private get clientId(): string {
+    return this.config.getOrThrow<string>('OPENEMR_CLIENT_ID');
+  }
+
+  private get clientSecret(): string {
+    return this.config.getOrThrow<string>('OPENEMR_CLIENT_SECRET');
+  }
+
+  private get basicCredentials(): string {
+    return Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
+  }
+
+  private get tokenUrl(): string {
+    return `${this.openemrBase}/oauth2/default/token`;
+  }
+
+  private async loadRefreshTokenFromRedis(): Promise<void> {
+    try {
+      const stored = await this.redis.get(REDIS_REFRESH_KEY);
+      if (stored) {
+        this.refreshToken = stored;
+        this.logger.log('OpenEMR refresh token loaded from Redis');
+      } else {
+        this.logger.warn(
+          'No OpenEMR refresh token in Redis. ' +
+          'Complete one-time setup: GET /openemr/auth/init → POST /openemr/auth/exchange',
+        );
+      }
+    } catch (err) {
+      this.logger.error(`Failed to load OpenEMR refresh token from Redis: ${err}`);
+    }
+  }
+
+  private async saveRefreshToken(token: string): Promise<void> {
+    this.refreshToken = token;
+    try {
+      await this.redis.set(REDIS_REFRESH_KEY, token);
+    } catch (err) {
+      this.logger.error(`Failed to persist OpenEMR refresh token to Redis: ${err}`);
+    }
+  }
 
   async getAccessToken(): Promise<string> {
     if (this.cachedToken && Date.now() < this.cachedToken.expiresAt - 60_000) {
       return this.cachedToken.value;
     }
 
-    if (this.refreshToken) {
-      try {
-        return await this.refreshAccessToken();
-      } catch {
-        this.refreshToken = null;
-        this.logger.warn('OpenEMR refresh token expired; falling back to password grant');
-      }
+    if (!this.refreshToken) {
+      throw new Error(
+        'OpenEMR not authenticated. Complete the OAuth2 setup: ' +
+        'GET /openemr/auth/init then POST /openemr/auth/exchange',
+      );
     }
 
-    return this.fetchTokenWithPassword();
+    return this.refreshAccessToken();
   }
 
-  private async fetchTokenWithPassword(): Promise<string> {
-    const clientId     = this.config.getOrThrow<string>('OPENEMR_CLIENT_ID');
-    const clientSecret = this.config.getOrThrow<string>('OPENEMR_CLIENT_SECRET');
-    const username     = this.config.getOrThrow<string>('OPENEMR_USERNAME');
-    const password     = this.config.getOrThrow<string>('OPENEMR_PASSWORD');
-    const tokenUrl     = `${this.openemrBase}/oauth2/default/token`;
+  private async refreshAccessToken(): Promise<string> {
+    const res = await fetch(this.tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Basic ${this.basicCredentials}`,
+      },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: this.refreshToken!,
+      }),
+    });
 
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      this.logger.error(`OpenEMR token refresh failed [${res.status}]: ${text.slice(0, 300)}`);
+
+      this.refreshToken = null;
+      try { await this.redis.del(REDIS_REFRESH_KEY); } catch { /* ignore */ }
+
+      throw new Error(
+        `OpenEMR refresh failed (${res.status}). Re-authenticate via POST /openemr/auth/exchange`,
+      );
+    }
+
+    const data = (await res.json()) as {
+      access_token: string;
+      refresh_token?: string;
+      expires_in: number;
+    };
+
+    this.cachedToken = {
+      value: data.access_token,
+      expiresAt: Date.now() + data.expires_in * 1000,
+    };
+
+    if (data.refresh_token) {
+      await this.saveRefreshToken(data.refresh_token);
+    }
+
+    this.logger.log('OpenEMR access token refreshed');
+    return this.cachedToken.value;
+  }
+
+  // ── One-time Auth Setup ────────────────────────────────────────────────────
+
+  buildAuthorizationUrl(redirectUri: string): string {
     const scope = [
       'openid',
       'api:oemr',
@@ -220,68 +306,35 @@ export class OpenemrService implements OnModuleInit {
       'offline_access',
     ].join(' ');
 
-    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-
-    const res = await fetch(tokenUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${credentials}`,
-      },
-      body: new URLSearchParams({
-        grant_type: 'password',
-        username,
-        password,
-        scope,
-      }),
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: this.clientId,
+      redirect_uri: redirectUri,
+      scope,
+      state: Buffer.from(Date.now().toString()).toString('base64url'),
     });
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      this.logger.error(`OpenEMR password grant failed [${res.status}]: ${text.slice(0, 300)}`);
-      throw new Error(`OpenEMR token fetch failed: ${res.status} — ${text.slice(0, 200)}`);
-    }
-
-    const data = (await res.json()) as {
-      access_token: string;
-      refresh_token?: string;
-      expires_in: number;
-    };
-
-    this.cachedToken = {
-      value:     data.access_token,
-      expiresAt: Date.now() + data.expires_in * 1000,
-    };
-    if (data.refresh_token) {
-      this.refreshToken = data.refresh_token;
-    }
-
-    this.logger.log('OpenEMR access token obtained via password grant');
-    return this.cachedToken.value;
+    return `${this.openemrBase}/oauth2/default/authorize?${params.toString()}`;
   }
 
-  private async refreshAccessToken(): Promise<string> {
-    const clientId     = this.config.getOrThrow<string>('OPENEMR_CLIENT_ID');
-    const clientSecret = this.config.getOrThrow<string>('OPENEMR_CLIENT_SECRET');
-    const tokenUrl     = `${this.openemrBase}/oauth2/default/token`;
-    const credentials  = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-
-    const res = await fetch(tokenUrl, {
+  async exchangeCodeForTokens(code: string, redirectUri: string): Promise<{ message: string }> {
+    const res = await fetch(this.tokenUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${credentials}`,
+        Authorization: `Basic ${this.basicCredentials}`,
       },
       body: new URLSearchParams({
-        grant_type:    'refresh_token',
-        refresh_token: this.refreshToken!,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
       }),
     });
 
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      this.logger.error(`OpenEMR refresh token failed [${res.status}]: ${text.slice(0, 300)}`);
-      throw new Error(`Refresh failed: ${res.status}`);
+      this.logger.error(`OpenEMR code exchange failed [${res.status}]: ${text.slice(0, 300)}`);
+      throw new Error(`Code exchange failed: ${res.status} — ${text.slice(0, 200)}`);
     }
 
     const data = (await res.json()) as {
@@ -291,14 +344,19 @@ export class OpenemrService implements OnModuleInit {
     };
 
     this.cachedToken = {
-      value:     data.access_token,
+      value: data.access_token,
       expiresAt: Date.now() + data.expires_in * 1000,
     };
+
     if (data.refresh_token) {
-      this.refreshToken = data.refresh_token;
+      await this.saveRefreshToken(data.refresh_token);
+      this.logger.log('OpenEMR OAuth2 setup complete — refresh token stored');
     }
 
-    this.logger.log('OpenEMR access token refreshed');
-    return this.cachedToken.value;
+    return { message: 'OpenEMR authentication successful. Refresh token stored.' };
+  }
+
+  get isAuthenticated(): boolean {
+    return !!this.refreshToken;
   }
 }
