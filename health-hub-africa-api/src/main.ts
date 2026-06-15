@@ -1,5 +1,4 @@
-import { initSentry } from './instrument';
-initSentry(); // must run before any other import so Sentry can auto-instrument
+import './instrument';
 
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, VersioningType, Logger } from '@nestjs/common';
