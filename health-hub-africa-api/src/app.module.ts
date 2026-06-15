@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { SentryModule } from '@sentry/nestjs/setup';
 import { BullModule } from '@nestjs/bull';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
@@ -33,6 +34,7 @@ import { AppController } from './app.controller';
 
 @Module({
   imports: [
+    SentryModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,
@@ -42,11 +44,28 @@ import { AppController } from './app.controller';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const redisUrl = config.get<string>('REDIS_URL');
-        const redisConfig = redisUrl ?? {
-              host: config.get('REDIS_HOST', 'localhost'),
-              port: config.get<number>('REDIS_PORT', 6379),
-              password: config.get('REDIS_PASSWORD'),
+        let redisConfig: any;
+        if (redisUrl) {
+          try {
+            const parsed = new URL(redisUrl);
+            redisConfig = {
+              host: parsed.hostname,
+              port: parsed.port ? parseInt(parsed.port, 10) : 6379,
+              password: parsed.password ? decodeURIComponent(parsed.password) : undefined,
             };
+            if (parsed.protocol === 'rediss:') {
+              redisConfig.tls = { rejectUnauthorized: false };
+            }
+          } catch (e) {
+            redisConfig = redisUrl;
+          }
+        } else {
+          redisConfig = {
+            host: config.get('REDIS_HOST', 'localhost'),
+            port: config.get<number>('REDIS_PORT', 6379),
+            password: config.get('REDIS_PASSWORD'),
+          };
+        }
         return {
           redis: redisConfig,
           defaultJobOptions: {
