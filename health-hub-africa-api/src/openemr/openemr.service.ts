@@ -1,7 +1,8 @@
-import { Inject, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
+import { randomBytes } from 'crypto';
 import type { Redis } from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
@@ -10,6 +11,13 @@ export const OPENEMR_SYNC_QUEUE = 'openemr-sync';
 export const OPENEMR_REDIS = Symbol('OPENEMR_REDIS');
 
 const REDIS_REFRESH_KEY = 'openemr:refresh_token';
+const REDIS_STATE_PREFIX = 'openemr:oauth_state:';
+const STATE_TTL_SECONDS = 600; // 10 minutes
+
+const ALLOWED_REDIRECT_URIS = new Set([
+  'https://www.myvaultplus.com/auth/callback',
+  'https://myvaultplus.com/auth/callback',
+]);
 
 export interface SyncJobData {
   patientId: string;
@@ -286,7 +294,14 @@ export class OpenemrService implements OnModuleInit {
 
   // ── One-time Auth Setup ────────────────────────────────────────────────────
 
-  buildAuthorizationUrl(redirectUri: string): string {
+  async buildAuthorizationUrl(redirectUri: string): Promise<{ authorizationUrl: string; state: string }> {
+    if (!ALLOWED_REDIRECT_URIS.has(redirectUri)) {
+      throw new BadRequestException(`redirect_uri not in allowlist: ${redirectUri}`);
+    }
+
+    const state = randomBytes(32).toString('base64url');
+    await this.redis.set(`${REDIS_STATE_PREFIX}${state}`, '1', 'EX', STATE_TTL_SECONDS);
+
     const scope = [
       'openid',
       'api:oemr',
@@ -311,13 +326,31 @@ export class OpenemrService implements OnModuleInit {
       client_id: this.clientId,
       redirect_uri: redirectUri,
       scope,
-      state: Buffer.from(Date.now().toString()).toString('base64url'),
+      state,
     });
 
-    return `${this.openemrBase}/oauth2/default/authorize?${params.toString()}`;
+    return {
+      authorizationUrl: `${this.openemrBase}/oauth2/default/authorize?${params.toString()}`,
+      state,
+    };
   }
 
-  async exchangeCodeForTokens(code: string, redirectUri: string): Promise<{ message: string }> {
+  async exchangeCodeForTokens(
+    code: string,
+    redirectUri: string,
+    state: string,
+  ): Promise<{ message: string }> {
+    if (!ALLOWED_REDIRECT_URIS.has(redirectUri)) {
+      throw new BadRequestException(`redirect_uri not in allowlist: ${redirectUri}`);
+    }
+
+    const stateKey = `${REDIS_STATE_PREFIX}${state}`;
+    const storedState = await this.redis.get(stateKey).catch(() => null);
+    if (!storedState) {
+      throw new BadRequestException('Invalid or expired OAuth state. Start over with GET /openemr/auth/init');
+    }
+    await this.redis.del(stateKey);
+
     const res = await fetch(this.tokenUrl, {
       method: 'POST',
       headers: {

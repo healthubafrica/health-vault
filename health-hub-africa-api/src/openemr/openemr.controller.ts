@@ -30,25 +30,26 @@ export class OpenemrController {
   @ApiOperation({
     summary: 'Begin OpenEMR OAuth2 setup (admin only)',
     description:
-      'Returns the OpenEMR authorization URL. Open it in a browser while logged in as an ' +
-      'OpenEMR admin. After approving, copy the `code` from the redirect URL and call ' +
-      'POST /openemr/auth/exchange to complete setup.',
+      'Returns the OpenEMR authorization URL and a one-time state token (10-minute TTL). ' +
+      'Open the URL in a browser while logged in to OpenEMR, approve the permissions, ' +
+      'then copy the `code` AND `state` from the redirect URL and call POST /openemr/auth/exchange.',
   })
   @ApiQuery({
     name: 'redirect_uri',
     required: false,
-    description: 'Redirect URI registered in OpenEMR (default: https://www.myvaultplus.com/auth/callback)',
+    description: 'Must be an allowlisted URI (default: https://www.myvaultplus.com/auth/callback)',
   })
-  initAuth(@Query('redirect_uri') redirectUri?: string) {
+  async initAuth(@Query('redirect_uri') redirectUri?: string) {
     const uri = redirectUri ?? 'https://www.myvaultplus.com/auth/callback';
-    const authorizationUrl = this.openemrService.buildAuthorizationUrl(uri);
+    const { authorizationUrl, state } = await this.openemrService.buildAuthorizationUrl(uri);
     return {
       authorizationUrl,
+      state,
       instructions: [
-        '1. Open the authorizationUrl in a browser where you are logged in to OpenEMR.',
+        '1. Open authorizationUrl in a browser where you are logged in to OpenEMR.',
         '2. Approve the requested permissions.',
-        '3. You will be redirected to the redirect_uri with ?code=XXX in the URL.',
-        '4. Copy that code and POST it to /openemr/auth/exchange.',
+        '3. You will be redirected with ?code=XXX&state=YYY in the URL.',
+        '4. POST both values to /openemr/auth/exchange within 10 minutes.',
       ],
       isAuthenticated: this.openemrService.isAuthenticated,
     };
@@ -58,15 +59,17 @@ export class OpenemrController {
   @ApiOperation({
     summary: 'Exchange OpenEMR authorization code for tokens (admin only)',
     description:
-      'Completes the one-time OAuth2 setup. Submit the code from the OpenEMR redirect URL. ' +
-      'The refresh token is stored in Redis and survives server restarts.',
+      'Completes the one-time OAuth2 setup. The state value must match the one returned by ' +
+      '/auth/init and is verified server-side to prevent CSRF. The refresh token is stored ' +
+      'in Redis and survives server restarts.',
   })
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['code'],
+      required: ['code', 'state'],
       properties: {
-        code: { type: 'string', description: 'Authorization code from OpenEMR redirect' },
+        code: { type: 'string', description: 'Authorization code from the OpenEMR redirect URL' },
+        state: { type: 'string', description: 'State token returned by /auth/init' },
         redirect_uri: {
           type: 'string',
           description: 'Must match the redirect_uri used in /auth/init (default: https://www.myvaultplus.com/auth/callback)',
@@ -76,9 +79,10 @@ export class OpenemrController {
   })
   exchangeCode(
     @Body('code') code: string,
+    @Body('state') state: string,
     @Body('redirect_uri') redirectUri?: string,
   ) {
     const uri = redirectUri ?? 'https://www.myvaultplus.com/auth/callback';
-    return this.openemrService.exchangeCodeForTokens(code, uri);
+    return this.openemrService.exchangeCodeForTokens(code, uri, state);
   }
 }
