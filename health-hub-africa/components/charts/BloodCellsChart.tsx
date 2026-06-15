@@ -11,16 +11,26 @@ import {
 
 ChartJS.register(BarElement, LinearScale, CategoryScale, Tooltip)
 
-const DATA = [3800, 4200, 3900, 4100, 4000, 4300, 3950, 4150, 4000, 3850, 4100, 4000]
+interface BloodCellsChartProps {
+  data?: number[]
+}
 
-export function BloodCellsChart() {
+export function BloodCellsChart({ data }: BloodCellsChartProps) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="h-[80px] flex items-center justify-center">
+        <p className="text-xs font-medium text-gray-400">No blood test results yet</p>
+      </div>
+    )
+  }
+
   return (
-    <div className="h-[80px]" aria-label="Blood cell count chart, current 4000 per microliter">
+    <div className="h-[80px]" aria-label={`Red blood cell count chart, latest ${data[data.length - 1]}`}>
       <Bar
         data={{
-          labels: DATA.map((_, i) => i),
+          labels: data.map((_, i) => String(i)),
           datasets: [{
-            data: DATA,
+            data,
             backgroundColor: '#C0392B',
             borderRadius: 4,
             borderSkipped: false,

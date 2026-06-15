@@ -5,7 +5,7 @@ import { Card, CardTitle } from '@/components/ui/Card'
 import { FilterTabs } from '@/components/ui/FilterTabs'
 import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
-import { RECORDS, type RecordType } from '@/lib/data/records'
+import { type RecordType } from '@/lib/data/records'
 import { formatDate } from '@/lib/utils'
 import { FileText, FlaskConical, Pill as PillIcon, File, Download } from 'lucide-react'
 import { records as recordsApi } from '@/lib/api'
@@ -43,7 +43,7 @@ export function RecordsScreen() {
   if (isInitialLoad) return <ListSkeleton ariaLabel="Loading records" showAction />
   if (error && !recordsRes) return <ErrorState message={error} onRetry={refetch} />
 
-  const allRecords = (recordsRes?.data ?? RECORDS).map((r: any) => ({
+  const allRecords = (recordsRes?.data ?? []).map((r: any) => ({
     id: r.id,
     type: (r.recordType ?? r.type) as RecordType,
     title: r.title,
@@ -72,6 +72,12 @@ export function RecordsScreen() {
       <FilterTabs tabs={TABS} active={tab} onChange={setTab} className="self-start" />
 
       <Card padding="none">
+        {filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 gap-2">
+            <FileText size={32} style={{ color: 'var(--color-text-faint)' }} />
+            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No records found</p>
+          </div>
+        ) : (
         <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
           {filtered.map(record => {
             const Icon = ICON_MAP[record.type]
@@ -108,6 +114,7 @@ export function RecordsScreen() {
             )
           })}
         </div>
+        )}
       </Card>
     </div>
   )

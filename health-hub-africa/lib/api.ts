@@ -227,6 +227,8 @@ export interface VitalsReading {
   bloodGlucose?: number
   hba1c?: number
   haemoglobin?: number
+  wbc?: number
+  rbc?: number
   sleepHours?: number
 }
 
@@ -383,7 +385,7 @@ export interface ActiveSubscription {
 export const subscriptions = {
   listPlans: () => request<{ data: SubscriptionPlan[] }>('/subscriptions/plans'),
 
-  getMy: () => request<{ data: ActiveSubscription | null }>('/subscriptions/my'),
+  getMy: () => request<{ data: ActiveSubscription | null }>('/subscriptions/me'),
 
   subscribe: (planId: string, gateway: string) =>
     request<{ paymentId: string; authorizationUrl: string }>('/subscriptions', {

@@ -11,17 +11,27 @@ import {
 
 ChartJS.register(BarElement, LinearScale, CategoryScale, Tooltip)
 
-const DATA = [7, 6, 8, 5, 7, 6.5, 7, 8, 6, 7, 5.5, 6]
-const LABELS = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May']
+interface SleepChartProps {
+  data?: number[]
+  labels?: string[]
+}
 
-export function SleepChart() {
+export function SleepChart({ data, labels }: SleepChartProps) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="h-[80px] flex items-center justify-center">
+        <p className="text-xs font-medium text-gray-400">No sleep data yet</p>
+      </div>
+    )
+  }
+
   return (
-    <div className="h-[80px]" aria-label="Monthly sleep hours chart, current 6 hours average">
+    <div className="h-[80px]" aria-label={`Sleep hours chart, latest ${data[data.length - 1]} hours`}>
       <Bar
         data={{
-          labels: LABELS,
+          labels: labels ?? data.map((_, i) => String(i)),
           datasets: [{
-            data: DATA,
+            data,
             backgroundColor: '#50aca5',
             borderRadius: 4,
             borderSkipped: false,

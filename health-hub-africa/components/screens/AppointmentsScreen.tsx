@@ -7,7 +7,7 @@ import { ListRow } from '@/components/ui/ListRow'
 import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
 import { FormInput, FormSelect, FormTextarea } from '@/components/ui/FormInput'
-import { APPOINTMENTS, SERVICES } from '@/lib/data/appointments'
+import { SERVICES } from '@/lib/data/appointments'
 import { formatDate } from '@/lib/utils'
 import { CalendarDays } from 'lucide-react'
 import { toast } from 'sonner'
@@ -31,7 +31,7 @@ export function AppointmentsScreen() {
   if (isInitialLoad) return <AppointmentsSkeleton />
   if (error && !apptRes) return <ErrorState message={error} onRetry={refetch} />
 
-  const allAppointments = (apptRes?.data ?? APPOINTMENTS).map((a: any) => ({
+  const allAppointments = (apptRes?.data ?? []).map((a: any) => ({
     id: a.id,
     service: a.serviceType ?? a.service,
     doctor: a.provider ? `${a.provider.title} ${a.provider.lastName}` : a.doctor,

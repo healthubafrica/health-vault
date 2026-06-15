@@ -1,10 +1,11 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { Bell, ChevronRight, PanelRightOpen, Search } from 'lucide-react'
+import { Bell, PanelRightOpen, Search } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
-import { PATIENT } from '@/lib/data/patient'
 import { Avatar } from '@/components/ui/Avatar'
+import { patients, subscriptions } from '@/lib/api'
+import { useApi } from '@/lib/hooks/useApi'
 
 const BREADCRUMBS: Record<string, string[]> = {
   '/dashboard': ['MyHealth Vault+™', 'Dashboard'],
@@ -19,16 +20,16 @@ const BREADCRUMBS: Record<string, string[]> = {
   '/stride': ['MyHealth Vault+™', 'STRIDE™ AI'],
 }
 
-const PLAN_COLORS: Record<string, string> = {
-  Gold: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-  Standard: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
-  Concierge: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-}
-
 export function Topbar() {
   const pathname = usePathname()
   const openMobilePanel = useAppStore((s) => s.openMobilePanel)
   const crumbs = BREADCRUMBS[pathname] ?? ['MyHealth Vault+™']
+  const { data: profileRes } = useApi(() => patients.getMyProfile())
+  const { data: subRes } = useApi(() => subscriptions.getMy())
+
+  const profile = profileRes?.data
+  const displayName = profile ? `${profile.firstName} ${profile.lastName}` : 'User'
+  const planName = subRes?.data?.plan?.name ?? 'Free'
 
   return (
     <header
@@ -81,18 +82,18 @@ export function Topbar() {
         </button>
 
         {/* User Avatar */}
-        <div 
-          aria-label={`Logged in as ${PATIENT.name}`}
+        <div
+          aria-label={`Logged in as ${displayName}`}
           className="shrink-0 cursor-pointer shadow-sm rounded-full overflow-hidden border border-[var(--color-border)] flex items-center justify-center hover:scale-105 transition-transform"
         >
-          <Avatar seed={PATIENT.name} size="sm" shape="circle" />
+          <Avatar seed={displayName} size="sm" shape="circle" />
         </div>
 
-        {/* Plan badge (Gold Plan button shape) */}
+        {/* Plan badge */}
         <span
           className="hidden sm:inline-flex items-center px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#bb9f58]/15 text-[#9a7d3a] border border-[#bb9f58]/20 shadow-sm cursor-default"
         >
-          {PATIENT.plan} Plan
+          {planName} Plan
         </span>
 
         {/* Mobile panel toggle */}

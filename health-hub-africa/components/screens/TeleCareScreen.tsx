@@ -5,7 +5,6 @@ import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
 import { Avatar } from '@/components/ui/Avatar'
-import { PATIENT } from '@/lib/data/patient'
 import { Video, PhoneOff, Clock, Loader2, AlertCircle } from 'lucide-react'
 import { telecare, TelecareSession } from '@/lib/api'
 import { LiveKitRoom, VideoConference } from '@livekit/components-react'
@@ -138,10 +137,10 @@ export function TeleCareScreen() {
           style={{ background: '#0a1a0a' }}
           aria-label="Video consultation area"
         >
-          <Avatar seed={PATIENT.doctor.name} size="lg" shape="circle" alt={PATIENT.doctor.name} />
+          <Avatar seed="Care Provider" size="lg" shape="circle" alt="Care provider" />
           <div className="text-center">
-            <p className="text-white font-semibold text-sm">{PATIENT.doctor.name}</p>
-            <p className="text-white/50 text-xs">{PATIENT.doctor.specialty}</p>
+            <p className="text-white font-semibold text-sm">Your Care Provider</p>
+            <p className="text-white/50 text-xs">Connects when your session starts</p>
           </div>
           {nextSession ? (
             <Pill variant="success">Session Ready</Pill>
@@ -232,23 +231,9 @@ export function TeleCareScreen() {
         <CardTitle>Completed Sessions</CardTitle>
         <div className="flex flex-col gap-0">
           {sessions.filter(s => s.status === 'completed').length === 0 ? (
-            // Fallback to static mocked history if no database completed sessions exist
-            [
-              { date: 'May 10, 2026', duration: '22 mins', topic: 'Medication review', status: 'completed' },
-              { date: 'Apr 2, 2026', duration: '35 mins', topic: 'Hypertension check-in', status: 'completed' },
-              { date: 'Mar 15, 2026', duration: '18 mins', topic: 'General consultation', status: 'completed' },
-            ].map((session, i) => (
-              <div key={i} className="flex items-center gap-3 py-3 border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--color-bg)' }}>
-                  <Clock size={14} style={{ color: 'var(--color-text-muted)' }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>{session.topic}</p>
-                  <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{session.date} · {session.duration}</p>
-                </div>
-                <Pill variant="neutral">{session.status}</Pill>
-              </div>
-            ))
+            <p className="text-sm py-4 text-center" style={{ color: 'var(--color-text-muted)' }}>
+              No completed sessions yet.
+            </p>
           ) : (
             sessions
               .filter(s => s.status === 'completed')

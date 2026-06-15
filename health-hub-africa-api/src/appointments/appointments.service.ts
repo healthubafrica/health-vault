@@ -118,7 +118,7 @@ export class AppointmentsService {
         where,
         skip,
         take: limit,
-        orderBy: { scheduledAt: 'desc' },
+        orderBy: { scheduledAt: query.upcoming ? 'asc' : 'desc' },
         select: this.safeSelect(),
       }),
       this.prisma.appointment.count({ where }),
@@ -221,6 +221,19 @@ export class AppointmentsService {
       where.scheduledAt = {};
       if (query.fromDate) where.scheduledAt.gte = new Date(query.fromDate);
       if (query.toDate) where.scheduledAt.lte = new Date(query.toDate);
+    }
+
+    if (query.upcoming) {
+      where.scheduledAt = { ...where.scheduledAt, gte: new Date() };
+      if (!query.status) {
+        where.status = {
+          notIn: [
+            AppointmentStatus.cancelled,
+            AppointmentStatus.completed,
+            AppointmentStatus.no_show,
+          ],
+        };
+      }
     }
 
     return where;

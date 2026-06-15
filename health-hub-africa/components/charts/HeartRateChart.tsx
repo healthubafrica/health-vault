@@ -13,16 +13,26 @@ import {
 
 ChartJS.register(LineElement, PointElement, LinearScale, CategoryScale, Filler, Tooltip)
 
-const DATA = [88, 92, 85, 90, 94, 88, 91, 87, 93, 90, 89, 92, 86, 91, 88, 93, 90, 87, 92, 90]
+interface HeartRateChartProps {
+  data?: number[]
+}
 
-export function HeartRateChart() {
+export function HeartRateChart({ data }: HeartRateChartProps) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="h-[80px] flex items-center justify-center">
+        <p className="text-xs font-medium text-gray-400">No heart rate readings yet</p>
+      </div>
+    )
+  }
+
   return (
-    <div className="h-[80px]" aria-label="Heart rate trend chart, current 90 bpm">
+    <div className="h-[80px]" aria-label={`Heart rate trend chart, latest ${data[data.length - 1]} bpm`}>
       <Line
         data={{
-          labels: DATA.map((_, i) => i),
+          labels: data.map((_, i) => i),
           datasets: [{
-            data: DATA,
+            data,
             borderColor: '#50aca5',
             backgroundColor: 'rgba(80,172,165,0.08)',
             borderWidth: 2,
