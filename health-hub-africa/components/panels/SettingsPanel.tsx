@@ -2,7 +2,8 @@
 
 import { Pill } from '@/components/ui/Pill'
 import { IdChip } from '@/components/ui/IdChip'
-import { PATIENT } from '@/lib/data/patient'
+import { patients, subscriptions } from '@/lib/api'
+import { useApi } from '@/lib/hooks/useApi'
 import { useSettingsStore } from '@/lib/settingsStore'
 import {
   ShieldCheck,
@@ -34,6 +35,14 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 export function SettingsPanel() {
   const { twoFa, dataSharing, analyticsConsent, researchConsent, marketingEmails } = useSettingsStore()
+  const { data: profileRes } = useApi(() => patients.getMyProfile())
+  const { data: subRes } = useApi(() => subscriptions.getMy())
+
+  const profile = profileRes?.data
+  const displayName = profile ? `${profile.firstName} ${profile.lastName}` : ''
+  const email = profile?.user?.email ?? ''
+  const hhaId = profile?.hhaId ?? ''
+  const planName = subRes?.data?.plan?.name ?? 'Free'
 
   const securityItems = [
     { label: 'Two-Factor Auth', value: twoFa ? 'Enabled' : 'Not enabled', ok: twoFa },
@@ -64,12 +73,12 @@ export function SettingsPanel() {
         <SectionLabel>Account</SectionLabel>
         <div className="flex flex-col gap-1.5">
           <p className="text-sm font-bold" style={{ color: 'var(--color-text)', fontFamily: 'var(--font-display)' }}>
-            {PATIENT.name}
+            {displayName}
           </p>
-          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{PATIENT.email}</p>
+          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{email}</p>
           <div className="flex items-center gap-2 mt-1">
-            <IdChip>{PATIENT.id}</IdChip>
-            <Pill variant="success">{PATIENT.plan} Plan</Pill>
+            <IdChip>{hhaId}</IdChip>
+            <Pill variant="success">{planName} Plan</Pill>
           </div>
         </div>
       </div>

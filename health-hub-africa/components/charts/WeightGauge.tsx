@@ -6,12 +6,20 @@ import { Chart as ChartJS, ArcElement, Tooltip } from 'chart.js'
 ChartJS.register(ArcElement, Tooltip)
 
 interface WeightGaugeProps {
-  value: number
+  value?: number
   min: number
   max: number
 }
 
 export function WeightGauge({ value, min, max }: WeightGaugeProps) {
+  if (value == null) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[170px]">
+        <p className="text-xs font-medium text-gray-400">No weight readings yet</p>
+      </div>
+    )
+  }
+
   const range = max - min
   const position = Math.max(0, Math.min(1, (value - min) / range))
   const filled = position

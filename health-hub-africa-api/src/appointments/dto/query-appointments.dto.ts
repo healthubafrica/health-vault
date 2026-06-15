@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsInt, Min, Max, IsEnum, IsDateString } from 'class-validator';
+import { IsOptional, IsString, IsInt, Min, Max, IsEnum, IsDateString, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { AppointmentStatus } from '@prisma/client';
@@ -49,4 +49,12 @@ export class QueryAppointmentsDto {
   @IsOptional()
   @IsDateString()
   toDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Return only future, non-cancelled appointments ordered soonest-first',
+  })
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  upcoming?: boolean;
 }
