@@ -2,7 +2,7 @@ name: Deploy HHA API
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - 'health-hub-africa-api/**'
       - '.github/workflows/deploy-api.yml'
