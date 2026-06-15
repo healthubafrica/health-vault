@@ -4,6 +4,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
@@ -19,6 +20,7 @@ import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { QueryPatientsDto } from './dto/query-patients.dto';
 import { RequestProfilePhotoUrlDto } from './dto/profile-photo-upload.dto';
+import { OpenemrService } from '../openemr/openemr.service';
 
 // HHA Patient ID: HHA-{REGION}-{YYYYMM}-{4-digit-seq}  e.g. HHA-CAN-2605-0004
 const REGION_MAP: Record<string, string> = {
@@ -33,6 +35,7 @@ const REGION_MAP: Record<string, string> = {
 
 @Injectable()
 export class PatientsService {
+  private readonly logger = new Logger(PatientsService.name);
   private readonly s3: S3Client;
   private readonly bucket: string;
 
@@ -40,6 +43,7 @@ export class PatientsService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly config: ConfigService,
+    private readonly openemrService: OpenemrService,
   ) {
     // Static keys are optional — when absent the SDK default credential
     // provider chain resolves the ECS task role (or local AWS profile).
@@ -138,6 +142,10 @@ export class PatientsService {
       },
       select: this.safeSelect(),
     });
+
+    await this.openemrService.enqueuePatientSync(patient.id).catch(err =>
+      this.logger.error(`Failed to enqueue OpenEMR patient sync: ${err.message}`),
+    );
 
     return { ...patient, profilePhotoUrl: await this.signProfilePhotoUrl(patient.profilePhotoUrl) };
   }
@@ -253,6 +261,10 @@ export class PatientsService {
       },
       select: this.safeSelect(),
     });
+
+    await this.openemrService.enqueuePatientSync(updated.id).catch(err =>
+      this.logger.error(`Failed to enqueue OpenEMR patient sync: ${err.message}`),
+    );
 
     return { ...updated, profilePhotoUrl: await this.signProfilePhotoUrl(updated.profilePhotoUrl) };
   }

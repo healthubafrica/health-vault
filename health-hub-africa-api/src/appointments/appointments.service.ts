@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { AppointmentStatus, ServiceType, UserRole } from '@prisma/client';
@@ -10,6 +11,7 @@ import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { QueryAppointmentsDto } from './dto/query-appointments.dto';
+import { OpenemrService } from '../openemr/openemr.service';
 
 // Valid FSM transitions: status → allowed next statuses
 const ALLOWED_TRANSITIONS: Record<AppointmentStatus, AppointmentStatus[]> = {
@@ -48,7 +50,12 @@ function toServiceFields(appointmentType?: string): {
 
 @Injectable()
 export class AppointmentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(AppointmentsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly openemrService: OpenemrService,
+  ) {}
 
   // ── Create ─────────────────────────────────────────────────────────────────
 
@@ -74,7 +81,7 @@ export class AppointmentsService {
 
     const { serviceType, isTelecare } = toServiceFields(dto.appointmentType);
 
-    return this.prisma.appointment.create({
+    const appointment = await this.prisma.appointment.create({
       data: {
         hhaRef: await this.generateAppointmentRef(),
         patientId,
@@ -90,6 +97,12 @@ export class AppointmentsService {
       },
       select: this.safeSelect(),
     });
+
+    await this.openemrService.enqueueEncounterSync(appointment.patientId, appointment.id).catch(err =>
+      this.logger.error(`Failed to enqueue OpenEMR encounter sync: ${err.message}`),
+    );
+
+    return appointment;
   }
 
   // APT-YYYY-000001 sequential appointment reference
