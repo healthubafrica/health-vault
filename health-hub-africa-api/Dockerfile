@@ -1,9 +1,12 @@
 # ── Stage 1: Build ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder
 
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl wget
 
 WORKDIR /app
+
+# Download AWS RDS SSL global bundle certificate
+RUN wget https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
 
 COPY package*.json ./
 RUN npm ci
