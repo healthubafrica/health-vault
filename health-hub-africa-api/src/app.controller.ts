@@ -13,4 +13,11 @@ export class AppController {
   getHello() {
     return { status: 'ok', message: 'HHA API — MyHealth Vault+™ Middleware' };
   }
+
+  @Public()
+  @Get('debug-sentry')
+  @ApiOperation({ summary: 'Intentional error to test Sentry integration' })
+  getError() {
+    throw new Error('My first Sentry error!');
+  }
 }
