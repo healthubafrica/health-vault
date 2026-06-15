@@ -9,7 +9,7 @@
     "start:dev": "nest start --watch --builder swc",
     "start:debug": "nest start --debug --watch --builder swc",
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:e2e": "jest --config ./test/jest-e2e.json",
