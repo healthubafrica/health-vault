@@ -49,7 +49,7 @@ export class ConsentsService {
 
     return this.prisma.patientConsent.findMany({
       where: { patientId: patient.id },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: { createdAt: 'desc' },
     });
   }
 }

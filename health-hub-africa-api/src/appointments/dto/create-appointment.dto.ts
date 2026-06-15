@@ -7,7 +7,7 @@ import {
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { AppointmentType } from '@prisma/client';
+import { AppointmentType } from '../../common/enums';
 
 export class CreateAppointmentDto {
   @ApiProperty()

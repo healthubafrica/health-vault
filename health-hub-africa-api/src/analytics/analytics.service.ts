@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 
@@ -24,14 +25,18 @@ export class AnalyticsService {
         select: { id: true },
       });
 
+      // Events are patient-scoped in the schema — skip for non-patient users
+      if (!patient) return;
+
       await this.prisma.patientActivityEvent.create({
         data: {
-          patientId: patient?.id,
-          userId: currentUser.sub,
-          eventType: dto.eventType,
-          entityType: dto.entityType,
-          entityId: dto.entityId,
-          metadata: dto.metadata ? JSON.stringify(dto.metadata) : undefined,
+          patientId: patient.id,
+          eventName: dto.eventType,
+          properties: {
+            entityType: dto.entityType,
+            entityId: dto.entityId,
+            ...(dto.metadata ?? {}),
+          } as Prisma.InputJsonValue,
         },
       });
     } catch (err) {
@@ -52,15 +57,15 @@ export class AnalyticsService {
       openSupportTickets,
     ] = await Promise.all([
       this.prisma.patient.count(),
-      this.prisma.provider.count({ where: { isVerified: true } }),
+      this.prisma.provider.count({ where: { user: { isVerified: true } } }),
       this.prisma.appointment.count({
-        where: { status: { in: ['scheduled', 'confirmed', 'in_progress'] } },
+        where: { status: { in: ['requested', 'confirmed', 'upcoming', 'in_progress'] } },
       }),
-      this.prisma.dispatchCase.count({
-        where: { status: { notIn: ['resolved', 'cancelled'] } },
+      this.prisma.dispatchRequest.count({
+        where: { status: { notIn: ['closed'] } },
       }),
       this.prisma.expertReviewCase.count({
-        where: { status: { notIn: ['delivered', 'cancelled'] } },
+        where: { status: { notIn: ['closed', 'cancelled'] } },
       }),
       this.prisma.supportTicket.count({
         where: { status: { notIn: ['resolved', 'closed'] } },
@@ -80,9 +85,9 @@ export class AnalyticsService {
 
   async getRevenueReport(fromDate: string, toDate: string) {
     return this.prisma.payment.groupBy({
-      by: ['currency', 'purpose'],
+      by: ['currency', 'gateway'],
       where: {
-        status: 'succeeded',
+        status: 'paid',
         paidAt: {
           gte: new Date(fromDate),
           lte: new Date(toDate),
@@ -102,7 +107,7 @@ export class AnalyticsService {
         this.prisma.appointment.count({ where: { createdAt: { gte: since } } }),
         this.prisma.telecareSession.count({ where: { createdAt: { gte: since } } }),
         this.prisma.labOrder.count({ where: { orderedAt: { gte: since } } }),
-        this.prisma.dispatchCase.count({ where: { createdAt: { gte: since } } }),
+        this.prisma.dispatchRequest.count({ where: { createdAt: { gte: since } } }),
         this.prisma.expertReviewCase.count({ where: { createdAt: { gte: since } } }),
       ]);
 

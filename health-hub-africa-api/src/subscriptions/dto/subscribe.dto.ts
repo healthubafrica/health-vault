@@ -1,6 +1,6 @@
 import { IsString, IsOptional, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { BillingCycle } from '@prisma/client';
+import { BillingCycle } from '../../common/enums';
 
 export class SubscribeDto {
   @ApiProperty({ description: 'Subscription plan ID' })

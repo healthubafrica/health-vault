@@ -1,7 +1,7 @@
 import { IsOptional, IsString, IsInt, Min, Max, IsEnum, IsBoolean } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { ProviderType } from '@prisma/client';
+import { ProviderType } from '../../common/enums';
 
 export class QueryProvidersDto {
   @ApiPropertyOptional({ default: 1 })

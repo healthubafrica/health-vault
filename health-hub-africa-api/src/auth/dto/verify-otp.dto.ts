@@ -16,6 +16,11 @@ export class VerifyOtpDto {
   @IsString()
   @Length(6, 6)
   otp: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  type?: string;
 }
 
 export class RequestOtpDto {

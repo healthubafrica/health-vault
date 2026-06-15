@@ -9,7 +9,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { UserRole } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -412,5 +412,14 @@ export class AuthService {
         : `Your email verification OTP is: ${otp}\n\nIt expires in 10 minutes.`;
 
     await this.notifications.sendEmail(email, subject, body, userId);
+  }
+
+  async getUserById(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, email: true, role: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    return user;
   }
 }

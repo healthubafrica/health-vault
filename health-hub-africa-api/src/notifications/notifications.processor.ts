@@ -8,13 +8,21 @@ import { NOTIFICATIONS_QUEUE, NotificationJobData } from './notifications.servic
 @Processor(NOTIFICATIONS_QUEUE)
 export class NotificationsProcessor {
   private readonly logger = new Logger(NotificationsProcessor.name);
+  private readonly isProd: boolean;
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly config: ConfigService) {
+    this.isProd = config.get('NODE_ENV') === 'production';
+  }
 
   @Process({ name: 'send-email', concurrency: 5 })
   async handleEmail(job: Job<NotificationJobData>) {
     const { to, subject, body } = job.data;
     this.logger.log(`Sending email to ${to}: ${subject}`);
+    // Never log message bodies in production — they contain OTP codes and PHI
+    // and would end up in CloudWatch Logs.
+    if (!this.isProd) {
+      this.logger.log(`[DEV ONLY] Email Body: ${body}`);
+    }
 
     const apiKey = this.config.get<string>('RESEND_API_KEY');
     const from = this.config.get<string>(
@@ -50,7 +58,9 @@ export class NotificationsProcessor {
   @Process({ name: 'send-sms', concurrency: 5 })
   async handleSms(job: Job<NotificationJobData>) {
     const { to, body } = job.data;
-    this.logger.log(`Sending SMS to ${to}`);
+    this.logger.log(
+      this.isProd ? `Sending SMS to ${to}` : `Sending SMS to ${to}: ${body}`,
+    );
 
     const username = this.config.get<string>('AT_USERNAME');
     const apiKey = this.config.get<string>('AT_API_KEY');

@@ -653,7 +653,7 @@ CREATE TABLE telecare_sessions (
   duration_seconds  INTEGER,
   meeting_url       TEXT,
   recording_url     TEXT,
-  platform          TEXT            NOT NULL DEFAULT 'HHA Native',  -- 'HHA Native', 'Zoom', 'Doxy'
+  platform          TEXT            NOT NULL DEFAULT 'HHA Native',  -- 'HHA Native' (LiveKit), 'Doxy'
   created_at        TIMESTAMPTZ     NOT NULL DEFAULT now(),
   updated_at        TIMESTAMPTZ     NOT NULL DEFAULT now()
 );

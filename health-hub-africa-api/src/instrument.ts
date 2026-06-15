@@ -30,7 +30,7 @@ export function initSentry() {
     // Strip PII from breadcrumbs and events
     beforeSend(event) {
       if (event.request?.cookies) {
-        event.request.cookies = '[Filtered]';
+        delete event.request.cookies;
       }
       return event;
     },
