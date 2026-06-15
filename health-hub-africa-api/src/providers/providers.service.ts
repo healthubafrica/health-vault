@@ -2,8 +2,10 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { OpenemrService } from '../openemr/openemr.service';
 import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
@@ -43,7 +45,12 @@ const TITLE_BY_TYPE: Record<string, string> = {
 
 @Injectable()
 export class ProvidersService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(ProvidersService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly openemrService: OpenemrService,
+  ) {}
 
   // ── Create ─────────────────────────────────────────────────────────────────
 
@@ -53,7 +60,7 @@ export class ProvidersService {
     });
     if (existing) throw new ConflictException('Provider profile already exists');
 
-    return this.prisma.provider.create({
+    const provider = await this.prisma.provider.create({
       data: {
         userId: currentUser.sub,
         firstName: dto.firstName,
@@ -68,6 +75,12 @@ export class ProvidersService {
       },
       select: this.safeSelect(),
     });
+
+    await this.openemrService.enqueueProviderSync(provider.id).catch(err =>
+      this.logger.error(`Failed to enqueue OpenEMR provider sync: ${err.message}`),
+    );
+
+    return provider;
   }
 
   // ── Find All ──────────────────────────────────────────────────────────────
@@ -151,7 +164,7 @@ export class ProvidersService {
 
     const bio = buildBio(dto);
 
-    return this.prisma.provider.update({
+    const updated = await this.prisma.provider.update({
       where: { id },
       data: {
         ...(dto.firstName !== undefined && { firstName: dto.firstName }),
@@ -170,6 +183,12 @@ export class ProvidersService {
       },
       select: this.safeSelect(),
     });
+
+    await this.openemrService.enqueueProviderSync(updated.id).catch(err =>
+      this.logger.error(`Failed to enqueue OpenEMR provider sync: ${err.message}`),
+    );
+
+    return updated;
   }
 
   // ── Verify Provider (Admin only) ──────────────────────────────────────────

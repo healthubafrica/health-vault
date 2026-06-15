@@ -1,8 +1,10 @@
 import {
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { OpenemrService } from '../openemr/openemr.service';
 import { UserRole } from '@prisma/client';
 import {
   S3Client,
@@ -20,12 +22,14 @@ import { RequestUploadUrlDto } from './dto/upload-url.dto';
 
 @Injectable()
 export class RecordsService {
+  private readonly logger = new Logger(RecordsService.name);
   private readonly s3: S3Client;
   private readonly bucket: string;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly openemrService: OpenemrService,
   ) {
     // Static keys are optional — when absent the SDK default credential
     // provider chain resolves the ECS task role (or local AWS profile).
@@ -119,7 +123,7 @@ export class RecordsService {
         .filter(Boolean)
         .join('\n\n') || undefined;
 
-    return this.prisma.clinicalRecord.create({
+    const created = await this.prisma.clinicalRecord.create({
       data: {
         hhaRef: await this.generateRecordRef(),
         patientId,
@@ -135,6 +139,12 @@ export class RecordsService {
       },
       select: this.recordSelect(),
     });
+
+    await this.openemrService.enqueueRecordSync(created.patientId, created.id).catch(err =>
+      this.logger.error(`Failed to enqueue OpenEMR record sync: ${err.message}`),
+    );
+
+    return created;
   }
 
   // REC-YYYY-000001 sequential record reference
@@ -209,7 +219,7 @@ export class RecordsService {
       dto.notes,
     ].filter(Boolean);
 
-    return this.prisma.$transaction(
+    const results = await this.prisma.$transaction(
       dto.items.map((item, index) =>
         this.prisma.prescription.create({
           data: {
@@ -248,6 +258,16 @@ export class RecordsService {
         }),
       ),
     );
+
+    for (const r of results) {
+      if (r.record) {
+        await this.openemrService.enqueueRecordSync(dto.patientId, r.record.id).catch(err =>
+          this.logger.error(`Failed to enqueue OpenEMR prescription sync: ${err.message}`),
+        );
+      }
+    }
+
+    return results;
   }
 
   async findPrescriptions(patientId: string | undefined, currentUser: JwtPayload) {
