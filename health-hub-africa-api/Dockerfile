@@ -24,7 +24,7 @@ RUN npm prune --omit=dev && npx prisma generate
 # ── Stage 2: Production image ─────────────────────────────────────────────
 FROM node:20-alpine AS runner
 
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl util-linux
 
 WORKDIR /app
 
