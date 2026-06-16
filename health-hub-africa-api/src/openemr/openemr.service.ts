@@ -17,6 +17,7 @@ const STATE_TTL_SECONDS = 600; // 10 minutes
 const ALLOWED_REDIRECT_URIS = new Set([
   'https://www.myvaultplus.com/auth/callback',
   'https://myvaultplus.com/auth/callback',
+  'https://api.myvaultplus.com/api/v1/openemr/auth/callback',
 ]);
 
 export interface SyncJobData {
