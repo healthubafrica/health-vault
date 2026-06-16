@@ -62,12 +62,53 @@ const RECORD_TYPE_LOINC: Record<string, string> = {
 
 function mapGender(g: Gender): string {
   const map: Record<string, string> = {
-    Male:              'Male',
-    Female:            'Female',
-    Other:             'Unknown',
-    Prefer_not_to_say: 'Unknown',
+    Male:              'male',
+    Female:            'female',
+    Other:             'other',
+    Prefer_not_to_say: 'unknown',
   };
-  return map[g] ?? 'Unknown';
+  return map[g] ?? 'unknown';
+}
+
+function buildFhirPatient(
+  patient: {
+    firstName: string;
+    lastName: string;
+    middleName?: string | null;
+    dateOfBirth: Date;
+    gender: Gender;
+    address?: string | null;
+    city?: string | null;
+    state?: string | null;
+    country: string;
+    hhaPatientId: string;
+    user: { email: string; phone?: string | null };
+  },
+): Record<string, unknown> {
+  const telecom: Array<Record<string, string>> = [];
+  if (patient.user.phone) {
+    telecom.push({ system: 'phone', use: 'mobile', value: patient.user.phone });
+  }
+  telecom.push({ system: 'email', value: patient.user.email });
+
+  const given = [patient.firstName];
+  if (patient.middleName) given.push(patient.middleName);
+
+  return {
+    resourceType: 'Patient',
+    identifier: [{ system: 'https://myvaultplus.com/patients', value: patient.hhaPatientId }],
+    name: [{ use: 'official', family: patient.lastName, given }],
+    birthDate: patient.dateOfBirth.toISOString().split('T')[0],
+    gender: mapGender(patient.gender),
+    telecom,
+    address: [{
+      use: 'home',
+      line: patient.address ? [patient.address] : [],
+      city: patient.city ?? '',
+      state: patient.state ?? '',
+      country: patient.country,
+    }],
+  };
 }
 
 function toNum(v: unknown): number | null {
@@ -162,29 +203,22 @@ export class OpenemrProcessor {
 
       const existing = patient.openemrPatientUuid
         ? await this.openemrService['callOpenemr'](
-            token, 'GET', `/api/patient/${patient.openemrPatientUuid}`, undefined, patientId,
+            token, 'GET', `/fhir/Patient/${patient.openemrPatientUuid}`, undefined, patientId,
           ).catch(() => null)
         : null;
 
-      const body: Record<string, string> = {
-        fname:        patient.firstName,
-        lname:        patient.lastName,
-        DOB:          patient.dateOfBirth.toISOString().split('T')[0],
-        sex:          mapGender(patient.gender),
-        phone_cell:   patient.user.phone ?? '',
-        email:        patient.user.email,
-        street:       patient.address ?? '',
-        city:         patient.city ?? '',
-        state:        patient.state ?? '',
-        country_code: patient.country,
-      };
+      const fhirPatient = buildFhirPatient(patient);
 
       let openemrUuid: string;
       if (!existing) {
-        const created = await this.openemrService['callOpenemr'](token, 'POST', '/api/patient', body, patientId);
-        openemrUuid = ((created as Record<string, unknown>).data as Record<string, string>).uuid;
+        const created = await this.openemrService['callOpenemr'](token, 'POST', '/fhir/Patient', fhirPatient, patientId);
+        openemrUuid = (created as Record<string, string>).id;
       } else {
-        await this.openemrService['callOpenemr'](token, 'PUT', `/api/patient/${patient.openemrPatientUuid}`, body, patientId);
+        await this.openemrService['callOpenemr'](
+          token, 'PUT', `/fhir/Patient/${patient.openemrPatientUuid}`,
+          { ...fhirPatient, id: patient.openemrPatientUuid },
+          patientId,
+        );
         openemrUuid = patient.openemrPatientUuid!;
       }
 
