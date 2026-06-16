@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { OpenemrService } from '../openemr/openemr.service';
-import { UserRole } from '@prisma/client';
+import { UserRole, RecordType } from '@prisma/client';
 import {
   S3Client,
   PutObjectCommand,
@@ -177,7 +177,7 @@ export class RecordsService {
     return this.prisma.clinicalRecord.findMany({
       where: {
         patientId: resolvedPatientId,
-        ...(type ? { recordType: type } : {}),
+        ...(type ? { recordType: type as RecordType } : {}),
       },
       orderBy: { createdAt: 'desc' },
       select: this.recordSelect(),
