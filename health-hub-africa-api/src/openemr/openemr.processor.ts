@@ -211,8 +211,27 @@ export class OpenemrProcessor {
 
       let openemrUuid: string;
       if (!existing) {
-        const created = await this.openemrService['callOpenemr'](token, 'POST', '/fhir/Patient', fhirPatient, patientId);
-        openemrUuid = (created as Record<string, string>).id;
+        // Search by HHA identifier first to avoid duplicates if a previous sync
+        // completed the POST but failed to save the UUID (e.g. unexpected response shape).
+        const searchBundle = await this.openemrService['callOpenemr'](
+          token, 'GET',
+          `/fhir/Patient?identifier=${encodeURIComponent(`https://myvaultplus.com/patients|${patient.hhaPatientId}`)}`,
+          undefined, patientId,
+        ).catch(() => null);
+        const existingByIdentifier = (searchBundle as Record<string, unknown> | null)?.entry as Array<{ resource: Record<string, unknown> }> | undefined;
+        const foundEntry = existingByIdentifier?.[0]?.resource;
+
+        if (foundEntry?.id) {
+          openemrUuid = foundEntry.id as string;
+          this.logger.log(`Patient ${patientId} already in OpenEMR (found by identifier), UUID: ${openemrUuid}`);
+        } else {
+          const created = await this.openemrService['callOpenemr'](token, 'POST', '/fhir/Patient', fhirPatient, patientId);
+          openemrUuid = (created as Record<string, unknown>).id as string;
+          if (!openemrUuid) {
+            this.logger.error(`OpenEMR POST /fhir/Patient returned no id. Response: ${JSON.stringify(created).slice(0, 500)}`);
+            throw new Error(`OpenEMR FHIR Patient POST returned no id field. Check logs for response shape.`);
+          }
+        }
       } else {
         await this.openemrService['callOpenemr'](
           token, 'PUT', `/fhir/Patient/${patient.openemrPatientUuid}`,
