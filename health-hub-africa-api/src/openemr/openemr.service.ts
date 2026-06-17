@@ -266,6 +266,26 @@ export class OpenemrService implements OnModuleInit {
       const text = await res.text().catch(() => '');
       this.logger.error(`OpenEMR token refresh failed [${res.status}]: ${text.slice(0, 300)}`);
 
+      // Before clearing, check whether Redis has a fresher token than what we tried.
+      // This can happen when a deployment or diagnostic script rotated the token
+      // externally — the in-memory value is stale but Redis is still valid.
+      try {
+        const redisToken = await this.redis.get(REDIS_REFRESH_KEY);
+        if (redisToken && redisToken !== this.refreshToken) {
+          this.logger.warn('Stale in-memory refresh token detected; falling back to Redis token on next attempt');
+          this.refreshToken = redisToken;
+          // Do NOT delete Redis — the caller (Bull job retry) will re-enter and use the fresher token.
+          throw new Error(
+            `OpenEMR refresh failed with stale token (${res.status}). Retrying with Redis token.`,
+          );
+        }
+      } catch (redisErr: unknown) {
+        if (redisErr instanceof Error && redisErr.message.startsWith('OpenEMR refresh failed with stale token')) {
+          throw redisErr;
+        }
+        this.logger.error(`Redis fallback check failed: ${redisErr}`);
+      }
+
       this.refreshToken = null;
       try { await this.redis.del(REDIS_REFRESH_KEY); } catch { /* ignore */ }
 
