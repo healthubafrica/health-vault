@@ -221,15 +221,19 @@ export class OpenemrProcessor {
         const existingByIdentifier = (searchBundle as Record<string, unknown> | null)?.entry as Array<{ resource: Record<string, unknown> }> | undefined;
         const foundEntry = existingByIdentifier?.[0]?.resource;
 
-        if (foundEntry?.id) {
-          openemrUuid = foundEntry.id as string;
+        // OpenEMR returns the FHIR-standard `id` on GET but its own `uuid` key on POST.
+        const foundUuid = (foundEntry?.id ?? foundEntry?.uuid) as string | undefined;
+        if (foundUuid) {
+          openemrUuid = foundUuid;
           this.logger.log(`Patient ${patientId} already in OpenEMR (found by identifier), UUID: ${openemrUuid}`);
         } else {
           const created = await this.openemrService['callOpenemr'](token, 'POST', '/fhir/Patient', fhirPatient, patientId);
-          openemrUuid = (created as Record<string, unknown>).id as string;
+          const raw = created as Record<string, unknown>;
+          // OpenEMR FHIR POST returns { pid, uuid } rather than a standard FHIR Patient resource.
+          openemrUuid = (raw.uuid ?? raw.id) as string;
           if (!openemrUuid) {
-            this.logger.error(`OpenEMR POST /fhir/Patient returned no id. Response: ${JSON.stringify(created).slice(0, 500)}`);
-            throw new Error(`OpenEMR FHIR Patient POST returned no id field. Check logs for response shape.`);
+            this.logger.error(`OpenEMR POST /fhir/Patient returned no uuid/id. Response: ${JSON.stringify(created).slice(0, 500)}`);
+            throw new Error(`OpenEMR FHIR Patient POST returned no uuid field. Check logs for response shape.`);
           }
         }
       } else {
