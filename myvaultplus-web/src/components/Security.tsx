@@ -63,7 +63,7 @@ export default function Security() {
 
           <h2
             style={{
-              fontFamily: 'var(--font-space-grotesk), sans-serif',
+              fontFamily: 'var(--font-manrope), sans-serif',
               fontWeight: 700,
               fontSize: 'clamp(30px, 4vw, 50px)',
               lineHeight: 1.08,
@@ -221,7 +221,7 @@ export default function Security() {
                   <div>
                     <h3
                       style={{
-                        fontFamily: 'var(--font-space-grotesk), sans-serif',
+                        fontFamily: 'var(--font-manrope), sans-serif',
                         fontWeight: 600,
                         fontSize: 18,
                         margin: '0 0 8px',

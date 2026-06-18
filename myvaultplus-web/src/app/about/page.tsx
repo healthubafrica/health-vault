@@ -47,7 +47,7 @@ export default function AboutPage() {
           <div style={{ position: 'relative', width: 304, height: 420 }}>
             <div style={{ position: 'absolute', top: 0, left: 0, width: 260, background: '#07251C', borderRadius: 24, padding: 24, boxShadow: '0 24px 64px rgba(0,0,0,0.52)', transform: 'rotate(-4deg)' }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#34E0A0', marginBottom: 12 }}>One Portal</div>
-              <p style={{ color: '#fff', fontSize: 14, lineHeight: 1.55, fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, margin: 0 }}>Healthcare that Combines Records, Specialists and Intelligent Care.</p>
+              <p style={{ color: '#fff', fontSize: 14, lineHeight: 1.55, fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, margin: 0 }}>Healthcare that Combines Records, Specialists and Intelligent Care.</p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                 <span style={{ width: 26, height: 26, borderRadius: '50%', background: '#34E0A0', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#07251C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -59,11 +59,11 @@ export default function AboutPage() {
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 14 }}>Platform at a Glance</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div style={{ background: '#F7FAF7', borderRadius: 12, padding: '12px 10px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: '#07251C', fontFamily: 'var(--font-space-grotesk), sans-serif' }}>7</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: '#07251C', fontFamily: 'var(--font-manrope), sans-serif' }}>7</div>
                   <div style={{ fontSize: 10, color: '#617870', marginTop: 2 }}>Services</div>
                 </div>
                 <div style={{ background: '#F7FAF7', borderRadius: 12, padding: '12px 10px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: '#07251C', fontFamily: 'var(--font-space-grotesk), sans-serif' }}>98%</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: '#07251C', fontFamily: 'var(--font-manrope), sans-serif' }}>98%</div>
                   <div style={{ fontSize: 10, color: '#617870', marginTop: 2 }}>Satisfaction</div>
                 </div>
               </div>
@@ -77,7 +77,7 @@ export default function AboutPage() {
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 18 }}>— About MyVault+</div>
-            <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
+            <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
               A digital health platform dedicated to making care{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>simpler and more accessible.</em>
             </h2>
@@ -86,7 +86,7 @@ export default function AboutPage() {
             <div style={{ gridRow: '1 / 3', background: '#07251C', borderRadius: 24, padding: 32, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#34E0A0', marginBottom: 18 }}>One Portal</div>
-                <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 22, lineHeight: 1.2, color: '#fff', margin: '0 0 20px', letterSpacing: '-0.01em' }}>Your complete health journey, organised.</h3>
+                <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 22, lineHeight: 1.2, color: '#fff', margin: '0 0 20px', letterSpacing: '-0.01em' }}>Your complete health journey, organised.</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {checkItems.map((item) => (
                     <div key={item} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -99,7 +99,7 @@ export default function AboutPage() {
                 </div>
               </div>
               <div style={{ background: 'rgba(52,224,160,0.08)', border: '1px solid rgba(52,224,160,0.2)', borderRadius: 14, padding: 14 }}>
-                <div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 17, fontWeight: 700, color: '#34E0A0' }}>HHA-LAG-2606-0001</div>
+                <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontSize: 17, fontWeight: 700, color: '#34E0A0' }}>HHA-LAG-2606-0001</div>
                 <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, marginTop: 3 }}>Patient ID · Instant on registration</div>
               </div>
             </div>
@@ -115,14 +115,14 @@ export default function AboutPage() {
             <div style={{ background: '#34E0A0', borderRadius: 24, padding: 28, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#0A4E3C' }}>Specialist Fields</div>
               <div>
-                <div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 52, fontWeight: 700, color: '#07251C', letterSpacing: '-0.03em', lineHeight: 1 }}>18+</div>
+                <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontSize: 52, fontWeight: 700, color: '#07251C', letterSpacing: '-0.03em', lineHeight: 1 }}>18+</div>
                 <div style={{ fontSize: 13.5, fontWeight: 600, color: '#0A4E3C', marginTop: 6 }}>Clinical fields in Expert Review™</div>
               </div>
             </div>
             <div style={{ background: '#07251C', borderRadius: 24, padding: 28, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#34E0A0' }}>Services</div>
               <div>
-                <div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 52, fontWeight: 700, color: '#fff', letterSpacing: '-0.03em', lineHeight: 1 }}>7</div>
+                <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontSize: 52, fontWeight: 700, color: '#fff', letterSpacing: '-0.03em', lineHeight: 1 }}>7</div>
                 <div style={{ fontSize: 13.5, fontWeight: 600, color: 'rgba(255,255,255,0.65)', marginTop: 6 }}>Healthcare services, one portal</div>
               </div>
             </div>
@@ -135,7 +135,7 @@ export default function AboutPage() {
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 18 }}>— Infrastructure</div>
-            <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
+            <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
               Three integrated{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>layers of care.</em>
             </h2>
@@ -144,8 +144,8 @@ export default function AboutPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
               {layers.map((layer) => (
                 <div key={layer.num} style={{ padding: '40px 36px 36px', background: '#fff', borderRadius: 18 }}>
-                  <div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 36, fontWeight: 700, color: '#34E0A0', letterSpacing: '-0.02em', marginBottom: 16 }}>{layer.num}</div>
-                  <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 21, color: '#07251C', margin: '0 0 10px', letterSpacing: '-0.01em' }}>{layer.title}</h3>
+                  <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontSize: 36, fontWeight: 700, color: '#34E0A0', letterSpacing: '-0.02em', marginBottom: 16 }}>{layer.num}</div>
+                  <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 21, color: '#07251C', margin: '0 0 10px', letterSpacing: '-0.01em' }}>{layer.title}</h3>
                   <p style={{ color: '#5A7068', fontSize: 14.5, lineHeight: 1.65, margin: 0 }}>{layer.desc}</p>
                 </div>
               ))}
@@ -159,7 +159,7 @@ export default function AboutPage() {
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 18 }}>— Pillars</div>
-            <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
+            <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
               What we stand{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>for.</em>
             </h2>
@@ -170,7 +170,7 @@ export default function AboutPage() {
                 <span style={{ width: 44, height: 44, borderRadius: 12, background: '#EAF7F1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M9 11l2 2 4-4M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" stroke="#0E8567" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 </span>
-                <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 18, color: '#07251C', margin: 0 }}>{pillar.title}</h3>
+                <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 18, color: '#07251C', margin: 0 }}>{pillar.title}</h3>
                 <p style={{ color: '#41584E', fontSize: 14.5, lineHeight: 1.65, margin: 0 }}>{pillar.desc}</p>
               </div>
             ))}
@@ -184,7 +184,7 @@ export default function AboutPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 48, alignItems: 'start' }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#34E0A0', marginBottom: 18 }}>— Organisation</div>
-              <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', color: '#fff', margin: '0 0 20px' }}>
+              <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', color: '#fff', margin: '0 0 20px' }}>
                 Built by{' '}
                 <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, color: '#34E0A0' }}>Health-Hub Africa®</em>
               </h2>

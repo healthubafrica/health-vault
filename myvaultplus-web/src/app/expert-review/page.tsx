@@ -54,7 +54,7 @@ export default function ExpertReviewPage() {
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, rgba(4,30,20,0.78) 0%, rgba(7,37,28,0.65) 50%, rgba(4,18,12,0.82) 100%)', pointerEvents: 'none' }} />
 
           <div style={{ position: 'relative', maxWidth: 760, width: '100%', margin: '0 auto', padding: '120px 32px 0', textAlign: 'center', zIndex: 1 }}>
-            <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-space-grotesk), sans-serif' }}>
+            <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-manrope), sans-serif' }}>
               <span style={{ display: 'block', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.06 }}>A Second Opinion</span>
               <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#34E0A0', letterSpacing: '-0.02em', lineHeight: 1.06 }}>Changes Everything.</span>
             </h1>
@@ -82,7 +82,7 @@ export default function ExpertReviewPage() {
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 18 }}>— Expert Review™</div>
-            <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
+            <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
               When you need more than{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>one opinion.</em>
             </h2>
@@ -91,7 +91,7 @@ export default function ExpertReviewPage() {
             <div style={{ gridRow: '1 / 3', background: '#07251C', borderRadius: 24, padding: 32, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#34E0A0', marginBottom: 18 }}>How It Works</div>
-                <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 22, lineHeight: 1.2, color: '#fff', margin: '0 0 20px' }}>From submission to specialist report in 5–10 days.</h3>
+                <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 22, lineHeight: 1.2, color: '#fff', margin: '0 0 20px' }}>From submission to specialist report in 5–10 days.</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {bentoCheckItems.map((item) => (
                     <div key={item} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -119,14 +119,14 @@ export default function ExpertReviewPage() {
             <div style={{ background: '#34E0A0', borderRadius: 24, padding: 28, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#0A4E3C' }}>Specialist Fields</div>
               <div>
-                <div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 52, fontWeight: 700, color: '#07251C', letterSpacing: '-0.03em', lineHeight: 1 }}>18+</div>
+                <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontSize: 52, fontWeight: 700, color: '#07251C', letterSpacing: '-0.03em', lineHeight: 1 }}>18+</div>
                 <div style={{ fontSize: 13.5, fontWeight: 600, color: '#0A4E3C', marginTop: 6 }}>Clinical specialties covered</div>
               </div>
             </div>
             <div style={{ background: '#07251C', borderRadius: 24, padding: 28, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#34E0A0' }}>Turnaround</div>
               <div>
-                <div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 36, fontWeight: 700, color: '#fff', letterSpacing: '-0.03em', lineHeight: 1 }}>5–10</div>
+                <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontSize: 36, fontWeight: 700, color: '#fff', letterSpacing: '-0.03em', lineHeight: 1 }}>5–10</div>
                 <div style={{ fontSize: 13.5, fontWeight: 600, color: 'rgba(255,255,255,0.65)', marginTop: 6 }}>Business days</div>
               </div>
             </div>
@@ -139,7 +139,7 @@ export default function ExpertReviewPage() {
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 18 }}>— Review Types</div>
-            <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
+            <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
               Seven kinds of{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>expert review.</em>
             </h2>
@@ -148,7 +148,7 @@ export default function ExpertReviewPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
               {reviewTypes.map((type) => (
                 <div key={type.title} style={{ padding: '32px 32px 28px', background: '#fff', borderRadius: 18 }}>
-                  <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 18, color: '#07251C', margin: '0 0 10px' }}>{type.title}</h3>
+                  <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 18, color: '#07251C', margin: '0 0 10px' }}>{type.title}</h3>
                   <p style={{ color: '#5A7068', fontSize: 14.5, lineHeight: 1.65, margin: 0 }}>{type.desc}</p>
                 </div>
               ))}
@@ -165,7 +165,7 @@ export default function ExpertReviewPage() {
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#34E0A0', marginBottom: 18 }}>— Process</div>
-            <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640, color: '#fff' }}>
+            <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640, color: '#fff' }}>
               How Expert Review™{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, color: '#34E0A0' }}>works.</em>
             </h2>
@@ -173,9 +173,9 @@ export default function ExpertReviewPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 40 }}>
             {processSteps.map((step) => (
               <div key={step.num} style={{ background: '#0C3328', borderRadius: 18, padding: '24px 32px', display: 'grid', gridTemplateColumns: '64px 1fr', gap: 24, alignItems: 'start' }}>
-                <div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 32, fontWeight: 700, color: '#34E0A0', letterSpacing: '-0.02em', lineHeight: 1 }}>{step.num}</div>
+                <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontSize: 32, fontWeight: 700, color: '#34E0A0', letterSpacing: '-0.02em', lineHeight: 1 }}>{step.num}</div>
                 <div>
-                  <div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 18, color: '#fff', marginBottom: 6 }}>{step.title}</div>
+                  <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 18, color: '#fff', marginBottom: 6 }}>{step.title}</div>
                   <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', lineHeight: 1.65 }}>{step.desc}</div>
                 </div>
               </div>
@@ -195,7 +195,7 @@ export default function ExpertReviewPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'start' }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 18 }}>— Specialist Fields</div>
-              <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(22px, 2.5vw, 32px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 0 24px' }}>
+              <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(22px, 2.5vw, 32px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 0 24px' }}>
                 18+ clinical specialties
               </h2>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -206,14 +206,14 @@ export default function ExpertReviewPage() {
             </div>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 18 }}>— Pricing</div>
-              <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(22px, 2.5vw, 32px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 0 24px' }}>
+              <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(22px, 2.5vw, 32px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 0 24px' }}>
                 Pay-per-review pricing
               </h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {pricing.map((p) => (
                   <div key={p.type} style={{ background: '#fff', border: '1.5px solid #D4D4D4', borderRadius: 16, padding: '18px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 15, color: '#07251C' }}>{p.type}</div>
-                    <div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 700, fontSize: 15, color: '#0E8567', whiteSpace: 'nowrap', marginLeft: 16 }}>{p.price}</div>
+                    <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 15, color: '#07251C' }}>{p.type}</div>
+                    <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 700, fontSize: 15, color: '#0E8567', whiteSpace: 'nowrap', marginLeft: 16 }}>{p.price}</div>
                   </div>
                 ))}
               </div>

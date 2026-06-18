@@ -23,7 +23,7 @@ export default function HowItWorks() {
         </div>
         <h2
           style={{
-            fontFamily: 'var(--font-space-grotesk), sans-serif',
+            fontFamily: 'var(--font-manrope), sans-serif',
             fontWeight: 600,
             fontSize: 'clamp(28px, 3.5vw, 44px)',
             lineHeight: 1.12,
@@ -121,7 +121,7 @@ export default function HowItWorks() {
                       </div>
                       <div
                         style={{
-                          fontFamily: 'var(--font-space-grotesk), sans-serif',
+                          fontFamily: 'var(--font-manrope), sans-serif',
                           fontSize: 15,
                           fontWeight: 700,
                           color: s.accent ? '#07251C' : '#fff',
@@ -300,7 +300,7 @@ export default function HowItWorks() {
               </div>
               <div
                 style={{
-                  fontFamily: 'var(--font-space-grotesk), sans-serif',
+                  fontFamily: 'var(--font-manrope), sans-serif',
                   fontWeight: 700,
                   fontSize: 28,
                   color: '#fff',
@@ -483,7 +483,7 @@ function Highlight({ children }: { children: React.ReactNode }) {
 }
 
 const titleStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-space-grotesk), sans-serif',
+  fontFamily: 'var(--font-manrope), sans-serif',
   fontWeight: 600,
   fontSize: 21,
   margin: '0 0 10px',

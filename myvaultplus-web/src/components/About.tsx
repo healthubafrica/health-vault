@@ -26,7 +26,7 @@ export default function About() {
         </div>
         <h2
           style={{
-            fontFamily: 'var(--font-space-grotesk), sans-serif',
+            fontFamily: 'var(--font-manrope), sans-serif',
             fontWeight: 600,
             fontSize: 'clamp(28px, 3.5vw, 40px)',
             lineHeight: 1.1,
@@ -85,7 +85,7 @@ export default function About() {
             </div>
             <h3
               style={{
-                fontFamily: 'var(--font-space-grotesk), sans-serif',
+                fontFamily: 'var(--font-manrope), sans-serif',
                 fontWeight: 600,
                 fontSize: 26,
                 lineHeight: 1.2,
@@ -132,7 +132,7 @@ export default function About() {
           >
             <div
               style={{
-                fontFamily: 'var(--font-space-grotesk), sans-serif',
+                fontFamily: 'var(--font-manrope), sans-serif',
                 fontSize: 18,
                 fontWeight: 700,
                 color: '#34E0A0',
@@ -212,7 +212,7 @@ export default function About() {
           <div>
             <div
               style={{
-                fontFamily: 'var(--font-space-grotesk), sans-serif',
+                fontFamily: 'var(--font-manrope), sans-serif',
                 fontSize: 52,
                 fontWeight: 700,
                 color: '#07251C',
@@ -253,7 +253,7 @@ export default function About() {
           <div>
             <div
               style={{
-                fontFamily: 'var(--font-space-grotesk), sans-serif',
+                fontFamily: 'var(--font-manrope), sans-serif',
                 fontSize: 52,
                 fontWeight: 700,
                 color: '#fff',

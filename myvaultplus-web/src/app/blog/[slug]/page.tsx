@@ -147,7 +147,7 @@ export default async function BlogPostPage({ params }: Props) {
             {/* Title */}
             <h1
               style={{
-                fontFamily: 'var(--font-space-grotesk), sans-serif',
+                fontFamily: 'var(--font-manrope), sans-serif',
                 fontWeight: 700,
                 fontSize: 'clamp(28px, 4vw, 48px)',
                 letterSpacing: '-0.03em',
@@ -215,7 +215,7 @@ export default async function BlogPostPage({ params }: Props) {
             <div key={i} style={{ marginBottom: i < post.sections.length - 1 ? 48 : 0 }}>
               <h2
                 style={{
-                  fontFamily: 'var(--font-space-grotesk), sans-serif',
+                  fontFamily: 'var(--font-manrope), sans-serif',
                   fontWeight: 700,
                   fontSize: 'clamp(18px, 2vw, 24px)',
                   letterSpacing: '-0.015em',
@@ -294,7 +294,7 @@ export default async function BlogPostPage({ params }: Props) {
           >
             <h2
               style={{
-                fontFamily: 'var(--font-space-grotesk), sans-serif',
+                fontFamily: 'var(--font-manrope), sans-serif',
                 fontWeight: 600,
                 fontSize: 'clamp(24px, 3vw, 40px)',
                 letterSpacing: '-0.03em',
@@ -410,7 +410,7 @@ export default async function BlogPostPage({ params }: Props) {
                     </div>
                     <h3
                       style={{
-                        fontFamily: 'var(--font-space-grotesk), sans-serif',
+                        fontFamily: 'var(--font-manrope), sans-serif',
                         fontWeight: 600,
                         fontSize: 16,
                         color: '#fff',

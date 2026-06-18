@@ -105,7 +105,7 @@ export default function Footer() {
             </span>
             <span
               style={{
-                fontFamily: 'var(--font-space-grotesk), sans-serif',
+                fontFamily: 'var(--font-manrope), sans-serif',
                 fontWeight: 700,
                 fontSize: 16,
               }}

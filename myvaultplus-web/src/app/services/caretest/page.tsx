@@ -130,7 +130,7 @@ export default function CareTestPage() {
               zIndex: 1,
             }}
           >
-            <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-space-grotesk), sans-serif' }}>
+            <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-manrope), sans-serif' }}>
               <span style={{ display: 'block', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.06 }}>Lab Tests.</span>
               <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#34E0A0', letterSpacing: '-0.02em', lineHeight: 1.1 }}>Booked in Seconds.</span>
             </h1>
@@ -157,7 +157,7 @@ export default function CareTestPage() {
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 14 }}>— What You Get</div>
-            <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 14px', maxWidth: 560, color: '#07251C' }}>
+            <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 14px', maxWidth: 560, color: '#07251C' }}>
               From booking to results,{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic' }}>fully digital.</em>
             </h2>
@@ -170,7 +170,7 @@ export default function CareTestPage() {
                   <span style={{ width: 44, height: 44, borderRadius: 12, background: '#EAF7F1', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
                     <Icon size={22} strokeWidth={1.8} color="#0E8567" />
                   </span>
-                  <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 16.5, color: '#07251C', margin: '0 0 10px' }}>{f.title}</h3>
+                  <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 16.5, color: '#07251C', margin: '0 0 10px' }}>{f.title}</h3>
                   <p style={{ color: '#41584E', fontSize: 14, lineHeight: 1.65, margin: 0 }}>{f.desc}</p>
                 </div>
               )
@@ -184,7 +184,7 @@ export default function CareTestPage() {
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 14 }}>— Test Catalogue</div>
-            <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto', maxWidth: 520, color: '#07251C' }}>
+            <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto', maxWidth: 520, color: '#07251C' }}>
               Commonly booked{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic' }}>tests.</em>
             </h2>
@@ -207,7 +207,7 @@ export default function CareTestPage() {
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#34E0A0', marginBottom: 14 }}>— How It Works</div>
-            <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto', maxWidth: 520, color: '#fff' }}>
+            <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto', maxWidth: 520, color: '#fff' }}>
               Book, collect, and view results{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', color: '#34E0A0' }}>digitally.</em>
             </h2>
@@ -216,8 +216,8 @@ export default function CareTestPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
               {steps.map((s) => (
                 <div key={s.num} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(52,224,160,0.12)', borderRadius: 18, padding: '32px 28px' }}>
-                  <div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 34, fontWeight: 700, color: '#34E0A0', letterSpacing: '-0.02em', marginBottom: 14 }}>{s.num}</div>
-                  <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 17, color: '#fff', margin: '0 0 10px' }}>{s.title}</h3>
+                  <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontSize: 34, fontWeight: 700, color: '#34E0A0', letterSpacing: '-0.02em', marginBottom: 14 }}>{s.num}</div>
+                  <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 17, color: '#fff', margin: '0 0 10px' }}>{s.title}</h3>
                   <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, lineHeight: 1.65, margin: 0 }}>{s.desc}</p>
                 </div>
               ))}
@@ -232,7 +232,7 @@ export default function CareTestPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 56, alignItems: 'center' }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 14 }}>— Pricing</div>
-              <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 0 16px', color: '#07251C' }}>
+              <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 0 16px', color: '#07251C' }}>
                 Test prices vary by test.{' '}
                 <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic' }}>Plans add discounts.</em>
               </h2>
