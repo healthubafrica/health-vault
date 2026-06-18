@@ -89,7 +89,7 @@ export default function BlogPage() {
             >
               <h1
                 style={{
-                  fontFamily: 'var(--font-space-grotesk), sans-serif',
+                  fontFamily: 'var(--font-manrope), sans-serif',
                   fontWeight: 600,
                   fontSize: 'clamp(32px, 4.5vw, 58px)',
                   letterSpacing: '-0.03em',
@@ -174,7 +174,7 @@ export default function BlogPage() {
             </div>
             <h2
               style={{
-                fontFamily: 'var(--font-space-grotesk), sans-serif',
+                fontFamily: 'var(--font-manrope), sans-serif',
                 fontWeight: 600,
                 fontSize: 'clamp(22px, 2.4vw, 34px)',
                 letterSpacing: '-0.02em',
@@ -285,7 +285,7 @@ export default function BlogPage() {
           >
             <h2
               style={{
-                fontFamily: 'var(--font-space-grotesk), sans-serif',
+                fontFamily: 'var(--font-manrope), sans-serif',
                 fontWeight: 600,
                 fontSize: 'clamp(28px, 3.5vw, 44px)',
                 letterSpacing: '-0.03em',
@@ -381,7 +381,7 @@ export default function BlogPage() {
                 </div>
                 <h3
                   style={{
-                    fontFamily: 'var(--font-space-grotesk), sans-serif',
+                    fontFamily: 'var(--font-manrope), sans-serif',
                     fontWeight: 600,
                     fontSize: 16.5,
                     color: '#07251C',

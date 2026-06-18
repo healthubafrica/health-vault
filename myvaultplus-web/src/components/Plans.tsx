@@ -86,7 +86,7 @@ export default function Plans() {
           </div>
           <h2
             style={{
-              fontFamily: 'var(--font-space-grotesk), sans-serif',
+              fontFamily: 'var(--font-manrope), sans-serif',
               fontWeight: 700,
               fontSize: 'clamp(32px, 4.5vw, 54px)',
               lineHeight: 1.06,
@@ -202,7 +202,7 @@ export default function Plans() {
               {/* Badge label */}
               <div
                 style={{
-                  fontFamily: 'var(--font-space-grotesk), sans-serif',
+                  fontFamily: 'var(--font-manrope), sans-serif',
                   fontSize: 11,
                   fontWeight: 700,
                   letterSpacing: '0.1em',
@@ -229,7 +229,7 @@ export default function Plans() {
               <div style={{ marginBottom: 26 }}>
                 <span
                   style={{
-                    fontFamily: 'var(--font-space-grotesk), sans-serif',
+                    fontFamily: 'var(--font-manrope), sans-serif',
                     fontWeight: 700,
                     fontSize: 38,
                     letterSpacing: '-0.03em',

@@ -50,7 +50,7 @@ export default function PlansPage() {
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, rgba(4,30,20,0.78) 0%, rgba(7,37,28,0.65) 50%, rgba(4,18,12,0.82) 100%)', pointerEvents: 'none' }} />
 
           <div style={{ position: 'relative', maxWidth: 760, width: '100%', margin: '0 auto', padding: '120px 32px 0', textAlign: 'center', zIndex: 1 }}>
-            <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-space-grotesk), sans-serif' }}>
+            <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-manrope), sans-serif' }}>
               <span style={{ display: 'block', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.06 }}>Start Free.</span>
               <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#34E0A0', letterSpacing: '-0.02em', lineHeight: 1.06 }}>Access More When You Need It.</span>
             </h1>
@@ -78,7 +78,7 @@ export default function PlansPage() {
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 60 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 18 }}>— Pricing</div>
-            <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
+            <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
               Flexible plans built for{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>every stage.</em>
             </h2>
@@ -90,10 +90,10 @@ export default function PlansPage() {
                 <div style={{ width: 40, height: 40, borderRadius: 11, background: plan.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, flexShrink: 0 }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" stroke={plan.iconColor} strokeWidth="2" strokeLinejoin="round" /></svg>
                 </div>
-                <div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: '#07251C', marginBottom: 10 }}>{plan.badge}</div>
+                <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: '#07251C', marginBottom: 10 }}>{plan.badge}</div>
                 <p style={{ fontSize: 13.5, lineHeight: 1.55, color: plan.highlight ? '#0A4E3C' : '#5A7068', margin: '0 0 22px' }}>{plan.desc}</p>
                 <div style={{ marginBottom: 26 }}>
-                  <span style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 700, fontSize: 38, letterSpacing: '-0.03em', color: '#07251C' }}>{plan.price}</span>
+                  <span style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 700, fontSize: 38, letterSpacing: '-0.03em', color: '#07251C' }}>{plan.price}</span>
                   <span style={{ fontSize: 15, fontWeight: 500, color: plan.highlight ? '#0A4E3C' : '#7A8C84', marginLeft: 5 }}>{plan.priceSub}</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 11, flex: 1, marginBottom: 28 }}>
@@ -127,7 +127,7 @@ export default function PlansPage() {
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 18 }}>— Compare</div>
-            <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
+            <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
               Everything{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>included.</em>
             </h2>
@@ -137,16 +137,16 @@ export default function PlansPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: '#07251C' }}>
-                    <th style={{ padding: '16px 20px', textAlign: 'left', fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 13, color: '#34E0A0', letterSpacing: '0.05em' }}>Service</th>
+                    <th style={{ padding: '16px 20px', textAlign: 'left', fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 13, color: '#34E0A0', letterSpacing: '0.05em' }}>Service</th>
                     {['Free', 'Basic', 'Gold', 'Corporate'].map((h) => (
-                      <th key={h} style={{ padding: '16px 20px', textAlign: 'center', fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 13, color: '#fff' }}>{h}</th>
+                      <th key={h} style={{ padding: '16px 20px', textAlign: 'center', fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 13, color: '#fff' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {compareRows.map((row, idx) => (
                     <tr key={row.service} style={{ background: idx % 2 === 0 ? '#fff' : '#F7FAF7', borderBottom: '1px solid rgba(7,37,28,0.06)' }}>
-                      <td style={{ padding: '14px 20px', fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 14, color: '#07251C' }}>{row.service}</td>
+                      <td style={{ padding: '14px 20px', fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 14, color: '#07251C' }}>{row.service}</td>
                       {[row.free, row.basic, row.gold, row.corp].map((val, vi) => (
                         <td key={vi} style={{ padding: '14px 20px', textAlign: 'center', fontSize: 13.5, color: val === '✓' ? '#0E8567' : val === '—' ? '#C4CEC9' : '#27433A', fontWeight: val === '✓' ? 700 : 500 }}>{val}</td>
                       ))}

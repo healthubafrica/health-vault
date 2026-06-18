@@ -238,7 +238,7 @@ export default function Navbar({ forceScrolled = false }: { forceScrolled?: bool
                         <div>
                           <div
                             style={{
-                              fontFamily: 'var(--font-space-grotesk), sans-serif',
+                              fontFamily: 'var(--font-manrope), sans-serif',
                               fontWeight: 600,
                               fontSize: 13.5,
                               color: '#07251C',

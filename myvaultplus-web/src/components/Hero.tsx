@@ -54,7 +54,7 @@ export default function Hero() {
           style={{
             margin: '0 0 18px',
             lineHeight: 1.06,
-            fontFamily: 'var(--font-space-grotesk), sans-serif',
+            fontFamily: 'var(--font-manrope), sans-serif',
           }}
         >
           <span
@@ -220,7 +220,7 @@ export default function Hero() {
                 <Image src="https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200&h=120&fit=crop&crop=faces&q=80" alt="Patient" fill style={{ objectFit: 'cover' }} sizes="172px" />
               </div>
               <div style={{ padding: '12px 14px' }}>
-                <div style={{ fontFamily: 'var(--font-space-grotesk)', fontWeight: 700, fontSize: 13, color: '#07251C', letterSpacing: '-0.02em' }}>HHA-LAG<span style={{ color: '#0E8567' }}>-2606</span></div>
+                <div style={{ fontFamily: 'var(--font-manrope)', fontWeight: 700, fontSize: 13, color: '#07251C', letterSpacing: '-0.02em' }}>HHA-LAG<span style={{ color: '#0E8567' }}>-2606</span></div>
                 <div style={{ fontSize: 10, color: '#7A8C84', margin: '2px 0 10px' }}>Patient ID · Active</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                   {[['Records','24'],['Upcoming','2']].map(([l,v]) => (
@@ -236,7 +236,7 @@ export default function Hero() {
             /* 3 — Dark expertise card */
             <div key="dark" style={{ background: '#07251C', borderRadius: 18, padding: '20px 22px', width: 238, flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 160 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#34E0A0', letterSpacing: '0.06em' }}>Healthcare <span style={{ color: '#34E0A0' }}>●</span></div>
-              <div style={{ fontFamily: 'var(--font-space-grotesk)', fontSize: 17, fontWeight: 700, color: '#fff', lineHeight: 1.3, letterSpacing: '-0.02em', marginTop: 12 }}>
+              <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 17, fontWeight: 700, color: '#fff', lineHeight: 1.3, letterSpacing: '-0.02em', marginTop: 12 }}>
                 that Combines <span style={{ color: '#34E0A0' }}>Records</span>, Specialists, and Intelligent Care.
               </div>
               <div style={{ marginTop: 16, fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>MyHealth Vault+™ · Health-Hub Africa®</div>
@@ -248,7 +248,7 @@ export default function Hero() {
                 <div style={{ fontSize: 10, fontWeight: 700, color: '#07251C' }}>Patient Satisfaction</div>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 17l10-10M17 17V7H7" stroke="#34E0A0" strokeWidth="2" strokeLinecap="round"/></svg>
               </div>
-              <div style={{ fontFamily: 'var(--font-space-grotesk)', fontSize: 44, fontWeight: 700, color: '#07251C', letterSpacing: '-0.04em', lineHeight: 1 }}>98<span style={{ fontSize: 22, color: '#0E8567' }}>%</span></div>
+              <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 44, fontWeight: 700, color: '#07251C', letterSpacing: '-0.04em', lineHeight: 1 }}>98<span style={{ fontSize: 22, color: '#0E8567' }}>%</span></div>
               <div style={{ fontSize: 10, color: '#7A8C84', marginTop: 6 }}>In the past 30 days</div>
               <div style={{ marginTop: 10, height: 3, background: '#F1F4EF', borderRadius: 3 }}>
                 <div style={{ width: '98%', height: '100%', background: 'linear-gradient(90deg,#0E8567,#34E0A0)', borderRadius: 3 }} />
@@ -277,7 +277,7 @@ export default function Hero() {
             /* 6 — Big mint stat */
             <div key="stat" style={{ background: '#34E0A0', borderRadius: 18, padding: '20px 22px', width: 158, flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 148 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#07251C', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Active Patients</div>
-              <div style={{ fontFamily: 'var(--font-space-grotesk)', fontSize: 52, fontWeight: 700, color: '#07251C', letterSpacing: '-0.04em', lineHeight: 1 }}>4.9k<span style={{ fontSize: 28 }}>+</span></div>
+              <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 52, fontWeight: 700, color: '#07251C', letterSpacing: '-0.04em', lineHeight: 1 }}>4.9k<span style={{ fontSize: 28 }}>+</span></div>
               <div style={{ fontSize: 10, color: 'rgba(7,37,28,0.6)' }}>Across Nigeria · 2026</div>
             </div>,
 
@@ -332,7 +332,7 @@ export default function Hero() {
             <div key="score" style={{ background: '#F7FAF7', borderRadius: 18, padding: '18px 20px', width: 178, flexShrink: 0 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#07251C', marginBottom: 14 }}>Health Score</div>
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, marginBottom: 10 }}>
-                <div style={{ fontFamily: 'var(--font-space-grotesk)', fontSize: 56, fontWeight: 700, color: '#07251C', letterSpacing: '-0.05em', lineHeight: 1 }}>92</div>
+                <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 56, fontWeight: 700, color: '#07251C', letterSpacing: '-0.05em', lineHeight: 1 }}>92</div>
                 <div style={{ paddingBottom: 6 }}>
                   <div style={{ fontSize: 12, color: '#7A8C84' }}>/ 100</div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#0E8567' }}>Excellent</div>
@@ -358,7 +358,7 @@ export default function Hero() {
                 <Image src="https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200&h=120&fit=crop&crop=faces&q=80" alt="Patient" fill style={{ objectFit: 'cover' }} sizes="172px" />
               </div>
               <div style={{ padding: '12px 14px' }}>
-                <div style={{ fontFamily: 'var(--font-space-grotesk)', fontWeight: 700, fontSize: 13, color: '#07251C', letterSpacing: '-0.02em' }}>HHA-LAG<span style={{ color: '#0E8567' }}>-2606</span></div>
+                <div style={{ fontFamily: 'var(--font-manrope)', fontWeight: 700, fontSize: 13, color: '#07251C', letterSpacing: '-0.02em' }}>HHA-LAG<span style={{ color: '#0E8567' }}>-2606</span></div>
                 <div style={{ fontSize: 10, color: '#7A8C84', margin: '2px 0 10px' }}>Patient ID · Active</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                   {[['Records','24'],['Upcoming','2']].map(([l,v]) => (
@@ -372,7 +372,7 @@ export default function Hero() {
             </div>,
             <div key="dark2" style={{ background: '#07251C', borderRadius: 18, padding: '20px 22px', width: 238, flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 160 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#34E0A0', letterSpacing: '0.06em' }}>Healthcare <span style={{ color: '#34E0A0' }}>●</span></div>
-              <div style={{ fontFamily: 'var(--font-space-grotesk)', fontSize: 17, fontWeight: 700, color: '#fff', lineHeight: 1.3, letterSpacing: '-0.02em', marginTop: 12 }}>
+              <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 17, fontWeight: 700, color: '#fff', lineHeight: 1.3, letterSpacing: '-0.02em', marginTop: 12 }}>
                 that Combines <span style={{ color: '#34E0A0' }}>Records</span>, Specialists, and Intelligent Care.
               </div>
               <div style={{ marginTop: 16, fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>MyHealth Vault+™ · Health-Hub Africa®</div>
@@ -382,7 +382,7 @@ export default function Hero() {
                 <div style={{ fontSize: 10, fontWeight: 700, color: '#07251C' }}>Patient Satisfaction</div>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 17l10-10M17 17V7H7" stroke="#34E0A0" strokeWidth="2" strokeLinecap="round"/></svg>
               </div>
-              <div style={{ fontFamily: 'var(--font-space-grotesk)', fontSize: 44, fontWeight: 700, color: '#07251C', letterSpacing: '-0.04em', lineHeight: 1 }}>98<span style={{ fontSize: 22, color: '#0E8567' }}>%</span></div>
+              <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 44, fontWeight: 700, color: '#07251C', letterSpacing: '-0.04em', lineHeight: 1 }}>98<span style={{ fontSize: 22, color: '#0E8567' }}>%</span></div>
               <div style={{ fontSize: 10, color: '#7A8C84', marginTop: 6 }}>In the past 30 days</div>
               <div style={{ marginTop: 10, height: 3, background: '#F1F4EF', borderRadius: 3 }}>
                 <div style={{ width: '98%', height: '100%', background: 'linear-gradient(90deg,#0E8567,#34E0A0)', borderRadius: 3 }} />
@@ -407,7 +407,7 @@ export default function Hero() {
             </div>,
             <div key="stat2" style={{ background: '#34E0A0', borderRadius: 18, padding: '20px 22px', width: 158, flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 148 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#07251C', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Active Patients</div>
-              <div style={{ fontFamily: 'var(--font-space-grotesk)', fontSize: 52, fontWeight: 700, color: '#07251C', letterSpacing: '-0.04em', lineHeight: 1 }}>4.9k<span style={{ fontSize: 28 }}>+</span></div>
+              <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 52, fontWeight: 700, color: '#07251C', letterSpacing: '-0.04em', lineHeight: 1 }}>4.9k<span style={{ fontSize: 28 }}>+</span></div>
               <div style={{ fontSize: 10, color: 'rgba(7,37,28,0.6)' }}>Across Nigeria · 2026</div>
             </div>,
             <div key="lab2" style={{ background: '#fff', borderRadius: 18, padding: '16px 18px', width: 200, flexShrink: 0 }}>
@@ -454,7 +454,7 @@ export default function Hero() {
             <div key="score2" style={{ background: '#F7FAF7', borderRadius: 18, padding: '18px 20px', width: 178, flexShrink: 0 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#07251C', marginBottom: 14 }}>Health Score</div>
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, marginBottom: 10 }}>
-                <div style={{ fontFamily: 'var(--font-space-grotesk)', fontSize: 56, fontWeight: 700, color: '#07251C', letterSpacing: '-0.05em', lineHeight: 1 }}>92</div>
+                <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 56, fontWeight: 700, color: '#07251C', letterSpacing: '-0.05em', lineHeight: 1 }}>92</div>
                 <div style={{ paddingBottom: 6 }}>
                   <div style={{ fontSize: 12, color: '#7A8C84' }}>/ 100</div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#0E8567' }}>Excellent</div>

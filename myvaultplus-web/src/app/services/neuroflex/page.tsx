@@ -112,7 +112,7 @@ export default function NeuroFlexPage() {
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, rgba(4,30,20,0.85) 0%, rgba(7,37,28,0.72) 50%, rgba(4,18,12,0.88) 100%)', pointerEvents: 'none' }} />
 
           <div style={{ position: 'relative', maxWidth: 760, width: '100%', margin: '0 auto', padding: '120px 32px 0', textAlign: 'center', zIndex: 1 }}>
-            <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-space-grotesk), sans-serif' }}>
+            <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-manrope), sans-serif' }}>
               <span style={{ display: 'block', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.06 }}>Specialist Neurology.</span>
               <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#34E0A0', letterSpacing: '-0.02em', lineHeight: 1.1 }}>Expert. Accessible.</span>
             </h1>
@@ -139,7 +139,7 @@ export default function NeuroFlexPage() {
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 14 }}>— What You Get</div>
-            <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 14px', maxWidth: 560, color: '#07251C' }}>
+            <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 14px', maxWidth: 560, color: '#07251C' }}>
               Neurological care that meets you{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic' }}>where you are.</em>
             </h2>
@@ -152,7 +152,7 @@ export default function NeuroFlexPage() {
                   <span style={{ width: 44, height: 44, borderRadius: 12, background: '#EAF7F1', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
                     <Icon size={22} strokeWidth={1.8} color="#0E8567" />
                   </span>
-                  <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 16.5, color: '#07251C', margin: '0 0 10px' }}>{f.title}</h3>
+                  <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 16.5, color: '#07251C', margin: '0 0 10px' }}>{f.title}</h3>
                   <p style={{ color: '#41584E', fontSize: 14, lineHeight: 1.65, margin: 0 }}>{f.desc}</p>
                 </div>
               )
@@ -167,7 +167,7 @@ export default function NeuroFlexPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 56, alignItems: 'center' }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#34E0A0', marginBottom: 14 }}>— Conditions Covered</div>
-              <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(24px, 3vw, 36px)', lineHeight: 1.15, letterSpacing: '-0.02em', margin: '0 0 16px', color: '#fff' }}>
+              <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(24px, 3vw, 36px)', lineHeight: 1.15, letterSpacing: '-0.02em', margin: '0 0 16px', color: '#fff' }}>
                 12+ neurological conditions and subspecialties.
               </h2>
               <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 15, lineHeight: 1.7, margin: 0 }}>
@@ -188,7 +188,7 @@ export default function NeuroFlexPage() {
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 14 }}>— How It Works</div>
-            <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto', maxWidth: 520, color: '#07251C' }}>
+            <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto', maxWidth: 520, color: '#07251C' }}>
               From referral to care plan{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic' }}>in four steps.</em>
             </h2>
@@ -197,8 +197,8 @@ export default function NeuroFlexPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
               {steps.map((s) => (
                 <div key={s.num} style={{ background: '#fff', borderRadius: 18, padding: '32px 28px' }}>
-                  <div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 34, fontWeight: 700, color: '#34E0A0', letterSpacing: '-0.02em', marginBottom: 14 }}>{s.num}</div>
-                  <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 17, color: '#07251C', margin: '0 0 10px' }}>{s.title}</h3>
+                  <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontSize: 34, fontWeight: 700, color: '#34E0A0', letterSpacing: '-0.02em', marginBottom: 14 }}>{s.num}</div>
+                  <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 17, color: '#07251C', margin: '0 0 10px' }}>{s.title}</h3>
                   <p style={{ color: '#41584E', fontSize: 14, lineHeight: 1.65, margin: 0 }}>{s.desc}</p>
                 </div>
               ))}
@@ -213,7 +213,7 @@ export default function NeuroFlexPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 56, alignItems: 'center' }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 14 }}>— Pricing</div>
-              <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 0 16px', color: '#07251C' }}>
+              <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 0 16px', color: '#07251C' }}>
                 Add-on for all plans.{' '}
                 <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic' }}>Included in Enterprise.</em>
               </h2>

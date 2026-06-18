@@ -1,13 +1,6 @@
 import type { Metadata } from 'next'
-import { Space_Grotesk, Manrope, Playfair_Display } from 'next/font/google'
+import { Manrope, Playfair_Display } from 'next/font/google'
 import './globals.css'
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-space-grotesk',
-  display: 'swap',
-})
 
 const manrope = Manrope({
   subsets: ['latin'],
@@ -57,7 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${spaceGrotesk.variable} ${manrope.variable} ${playfairDisplay.variable}`}
+      className={`${manrope.variable} ${playfairDisplay.variable}`}
     >
       <body style={{ fontFamily: 'var(--font-manrope), sans-serif' }}>
         {children}

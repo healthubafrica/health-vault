@@ -33,7 +33,7 @@ export default function Services() {
           </div>
           <h2
             style={{
-              fontFamily: 'var(--font-space-grotesk), sans-serif',
+              fontFamily: 'var(--font-manrope), sans-serif',
               fontWeight: 600,
               fontSize: 'clamp(28px, 3.5vw, 40px)',
               lineHeight: 1.1,
@@ -144,7 +144,7 @@ export default function Services() {
               </span>
               <h3
                 style={{
-                  fontFamily: 'var(--font-space-grotesk), sans-serif',
+                  fontFamily: 'var(--font-manrope), sans-serif',
                   fontWeight: 600,
                   fontSize: 18,
                   color: '#fff',
@@ -231,7 +231,7 @@ export default function Services() {
             >
               <div
                 style={{
-                  fontFamily: 'var(--font-space-grotesk), sans-serif',
+                  fontFamily: 'var(--font-manrope), sans-serif',
                   fontWeight: 600,
                   fontSize: 17,
                   color: '#07251C',
@@ -310,7 +310,7 @@ function ServiceCard({
         </span>
         <h3
           style={{
-            fontFamily: 'var(--font-space-grotesk), sans-serif',
+            fontFamily: 'var(--font-manrope), sans-serif',
             fontWeight: 600,
             fontSize: 19,
             margin: '14px 0 7px',

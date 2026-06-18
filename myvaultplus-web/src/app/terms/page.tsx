@@ -131,7 +131,7 @@ export default function TermsPage() {
           <div style={{ position: 'relative', width: 304, height: 420 }}>
             <div style={{ position: 'absolute', top: 0, left: 0, width: 260, background: '#07251C', borderRadius: 24, padding: 24, boxShadow: '0 24px 64px rgba(0,0,0,0.52)', transform: 'rotate(-4deg)' }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#34E0A0', marginBottom: 12 }}>Terms of Use</div>
-              <p style={{ color: '#fff', fontSize: 14, lineHeight: 1.55, fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, margin: 0 }}>10 sections covering your rights, obligations, and platform governance.</p>
+              <p style={{ color: '#fff', fontSize: 14, lineHeight: 1.55, fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, margin: 0 }}>10 sections covering your rights, obligations, and platform governance.</p>
               <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>Updated June 2026</div>
               </div>
@@ -168,7 +168,7 @@ export default function TermsPage() {
                 <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 12 }}>
                   — {section.label}
                 </div>
-                <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 22, color: '#07251C', margin: '0 0 16px', letterSpacing: '-0.01em' }}>
+                <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 22, color: '#07251C', margin: '0 0 16px', letterSpacing: '-0.01em' }}>
                   {section.label}
                 </h2>
                 {section.content.split('\n\n').map((para, idx) => (
