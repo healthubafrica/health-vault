@@ -46,12 +46,12 @@ export default function PlansPage() {
     <div style={{ width: '100%', overflowX: 'hidden', background: '#F1F4EF' }}>
       <Navbar />
 
-      <div style={{ margin: '16px 16px 24px', borderRadius: 28, overflow: 'hidden' }}>
+      <div className="page-card-first">
         <section style={{ position: 'relative', background: '#041E14', overflow: 'hidden', minHeight: '88vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <Image src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=1920&h=1080&fit=crop&q=85" alt="Healthcare plans" fill priority style={{ objectFit: 'cover', objectPosition: 'center' }} sizes="100vw" />
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, rgba(4,30,20,0.78) 0%, rgba(7,37,28,0.65) 50%, rgba(4,18,12,0.82) 100%)', pointerEvents: 'none' }} />
 
-          <div style={{ position: 'relative', maxWidth: 760, width: '100%', margin: '0 auto', padding: '120px 32px 0', textAlign: 'center', zIndex: 1 }}>
+          <div className="hero-content">
             <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-manrope), sans-serif' }}>
               <span style={{ display: 'block', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.06 }}>Start Free.</span>
               <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#6DC43F', letterSpacing: '-0.02em', lineHeight: 1.06 }}>Access More When You Need It.</span>
@@ -76,8 +76,8 @@ export default function PlansPage() {
       </div>
 
       {/* Section 1 — Pricing cards */}
-      <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#fff' }}>
-        <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
+      <div className="page-card" style={{ background: '#fff' }}>
+        <section className="section-inner">
           <div style={{ textAlign: 'center', marginBottom: 60 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 18 }}>— Pricing</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
@@ -86,7 +86,7 @@ export default function PlansPage() {
             </h2>
           </div>
 
-          <AnimatedSection stagger style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, alignItems: 'stretch' }}>
+          <AnimatedSection stagger className="rg-3" style={{ alignItems: 'stretch' }}>
             {plans.map((plan) => (
               <AnimatedCard key={plan.badge} style={{ background: plan.highlight ? '#6DC43F' : '#fff', border: plan.highlight ? 'none' : '1.5px solid #D4D4D4', borderRadius: 20, padding: 28, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ width: 40, height: 40, borderRadius: 11, background: plan.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, flexShrink: 0 }}>
@@ -125,8 +125,8 @@ export default function PlansPage() {
       </div>
 
       {/* Section 2 — Comparison */}
-      <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#EBEBEB' }}>
-        <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
+      <div className="page-card" style={{ background: '#EBEBEB' }}>
+        <section className="section-inner">
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 18 }}>— Compare</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>

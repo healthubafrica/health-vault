@@ -101,7 +101,7 @@ export default function FAQPage() {
       />
 
       {/* FAQ accordion */}
-      <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#fff' }}>
+      <div className="page-card" style={{ background: '#fff' }}>
         <section style={{ maxWidth: 860, margin: '0 auto', padding: '80px 48px' }}>
           <div style={{ textAlign: 'center', marginBottom: 52 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 16 }}>· FAQ</div>
@@ -168,7 +168,7 @@ export default function FAQPage() {
       </div>
 
       {/* Still have questions */}
-      <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#07251C' }}>
+      <div className="page-card" style={{ background: '#07251C' }}>
         <section style={{ maxWidth: 1100, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 32, alignItems: 'center' }}>
             <div>
