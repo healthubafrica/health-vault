@@ -2,6 +2,7 @@ import Image from 'next/image'
 import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
+import HeroMarquee from '@/components/HeroMarquee'
 
 const steps = [
   { num: '1', title: 'One Tap', desc: 'Press the DispatchCare™ button from any screen in the MyHealth Vault+™ portal or app.' },
@@ -25,13 +26,6 @@ const planAccess = [
   { plan: 'Corporate', access: 'Priority', highlight: false },
 ]
 
-const heroCards = [
-  { rotate: -20, translateY: -24, scale: 0.80, zIndex: 1, offsetX: -16, bg: '#fff', w: 155, inner: (<div style={{ padding: 14 }}><div style={{ fontSize: 9, fontWeight: 700, color: '#0E8567', marginBottom: 8 }}>STEP 1</div><div style={{ fontSize: 12, fontWeight: 700, color: '#07251C', marginBottom: 6 }}>One Tap</div><div style={{ fontSize: 22, textAlign: 'center', marginTop: 4 }}>📱</div></div>) },
-  { rotate: -10, translateY: -12, scale: 0.88, zIndex: 2, offsetX: -8, bg: '#fff', w: 170, inner: (<div style={{ padding: 14 }}><div style={{ fontSize: 9, fontWeight: 700, color: '#0E8567', marginBottom: 8 }}>STEP 2</div><div style={{ fontSize: 12, fontWeight: 700, color: '#07251C', marginBottom: 6 }}>Location Sent</div><div style={{ fontSize: 22, textAlign: 'center', marginTop: 4 }}>📍</div></div>) },
-  { rotate: 0, translateY: 0, scale: 1, zIndex: 5, offsetX: 0, bg: '#07251C', w: 190, inner: (<div style={{ padding: 16 }}><div style={{ display: 'inline-block', fontSize: 9, fontWeight: 700, color: '#FF5C5C', background: 'rgba(255,92,92,0.15)', padding: '3px 10px', borderRadius: 100, marginBottom: 10 }}>DISPATCHED</div><div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 4 }}>Case DC-2026-4419</div><div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>HHA team alerted</div></div>) },
-  { rotate: 10, translateY: -12, scale: 0.88, zIndex: 2, offsetX: 8, bg: '#fff', w: 170, inner: (<div style={{ padding: 14 }}><div style={{ fontSize: 9, fontWeight: 700, color: '#0E8567', marginBottom: 8 }}>STEP 4</div><div style={{ fontSize: 12, fontWeight: 700, color: '#07251C', marginBottom: 6 }}>Team Alpha</div><div style={{ fontSize: 11, color: '#41584E' }}>ETA: 4 min</div></div>) },
-  { rotate: 20, translateY: -24, scale: 0.80, zIndex: 1, offsetX: 16, bg: '#fff', w: 155, inner: (<div style={{ padding: 14 }}><div style={{ fontSize: 9, fontWeight: 700, color: '#0E8567', marginBottom: 8 }}>STEP 5</div><div style={{ fontSize: 12, fontWeight: 700, color: '#07251C', marginBottom: 6 }}>We Call You</div><div style={{ width: 24, height: 24, borderRadius: '50%', background: '#34E0A0', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 4 }}><svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4L19 7" stroke="#07251C" strokeWidth="2.5" strokeLinecap="round" /></svg></div></div>) },
-]
 
 export default function DispatchCarePage() {
   return (
@@ -64,19 +58,7 @@ export default function DispatchCarePage() {
             </div>
           </div>
 
-          <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 1100, margin: '52px auto 0', perspective: '1000px', height: 210, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-            {heroCards.map((card, i) => (
-              <div key={i} style={{ position: 'absolute', bottom: 0, left: '50%', transform: `translateX(calc(-50% + ${(i - 2) * 175 + card.offsetX}px)) translateY(${card.translateY}px) rotate(${card.rotate}deg) scale(${card.scale})`, transformOrigin: 'bottom center', zIndex: card.zIndex, boxShadow: '0 16px 48px rgba(0,0,0,0.14)', borderRadius: 16, overflow: 'hidden', background: card.bg, width: card.w }}>
-                {card.inner}
-              </div>
-            ))}
-          </div>
-
-          <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '28px 32px 52px' }}>
-            <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13.5, margin: 0 }}>
-              Available on all plans · 24/7 operations · Lagos coverage expanding nationwide
-            </p>
-          </div>
+          <HeroMarquee marginTop={80} />
         </section>
       </div>
 

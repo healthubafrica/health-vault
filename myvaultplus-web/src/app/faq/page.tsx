@@ -2,6 +2,7 @@ import Image from 'next/image'
 import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
+import HeroMarquee from '@/components/HeroMarquee'
 
 const faqGroups = [
   {
@@ -81,23 +82,7 @@ export default function FAQPage() {
             </div>
           </div>
 
-          <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 1100, margin: '52px auto 0', perspective: '1000px', height: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-            {[
-              { rotate: -12, translateY: -12, scale: 0.88, zIndex: 2, offsetX: -10, bg: '#fff', w: 190, inner: (<div style={{ padding: 16 }}><div style={{ fontSize: 9, fontWeight: 700, color: '#0E8567', marginBottom: 10 }}>GETTING STARTED</div>{['What is MyHealth Vault+™?', 'How do I register?', 'Is it free?'].map((q) => (<div key={q} style={{ fontSize: 10, color: '#41584E', marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid #F1F4EF' }}>{q}</div>))}</div>) },
-              { rotate: 0, translateY: 0, scale: 1, zIndex: 5, offsetX: 0, bg: '#07251C', w: 200, inner: (<div style={{ padding: 18 }}><div style={{ fontSize: 9, fontWeight: 700, color: '#34E0A0', marginBottom: 10 }}>FAQS</div><div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 44, fontWeight: 700, color: '#fff', letterSpacing: '-0.03em', lineHeight: 1 }}>19</div><div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 6 }}>Across 5 categories</div></div>) },
-              { rotate: 12, translateY: -12, scale: 0.88, zIndex: 2, offsetX: 10, bg: '#fff', w: 180, inner: (<div style={{ padding: 16 }}><div style={{ fontSize: 9, fontWeight: 700, color: '#0E8567', marginBottom: 8 }}>SUPPORT</div><div style={{ fontSize: 12, fontWeight: 600, color: '#07251C', marginBottom: 4 }}>Fast response</div><div style={{ fontSize: 11, color: '#41584E' }}>Under 2 hours · 7 days/week</div></div>) },
-            ].map((card, i) => (
-              <div key={i} style={{ position: 'absolute', bottom: 0, left: '50%', transform: `translateX(calc(-50% + ${(i - 1) * 210 + card.offsetX}px)) translateY(${card.translateY}px) rotate(${card.rotate}deg) scale(${card.scale})`, transformOrigin: 'bottom center', zIndex: card.zIndex, boxShadow: '0 16px 48px rgba(0,0,0,0.14)', borderRadius: 16, overflow: 'hidden', background: card.bg, width: card.w }}>
-                {card.inner}
-              </div>
-            ))}
-          </div>
-
-          <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '28px 32px 52px' }}>
-            <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13.5, margin: 0 }}>
-              Can&apos;t find your answer? Contact our support team directly.
-            </p>
-          </div>
+          <HeroMarquee marginTop={80} />
         </section>
       </div>
 

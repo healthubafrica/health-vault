@@ -2,6 +2,7 @@ import Image from 'next/image'
 import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
+import HeroMarquee from '@/components/HeroMarquee'
 
 const channels = [
   { icon: '💬', color: '#0E8567', bg: '#EAF7F1', title: 'WhatsApp Support', desc: 'Chat with our support team directly. Fastest response time — typically under 30 minutes.', link: 'https://wa.me/2341234567890', label: 'Chat Now →' },
@@ -42,23 +43,7 @@ export default function ContactPage() {
             </div>
           </div>
 
-          <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 1100, margin: '52px auto 0', perspective: '1000px', height: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-            {[
-              { rotate: -12, translateY: -12, scale: 0.88, zIndex: 2, offsetX: -10, bg: '#fff', w: 175, inner: (<div style={{ padding: 16 }}><div style={{ fontSize: 9, fontWeight: 700, color: '#0E8567', letterSpacing: '0.06em', marginBottom: 8 }}>WHATSAPP</div><div style={{ fontSize: 12, fontWeight: 700, color: '#07251C', marginBottom: 4 }}>WhatsApp Support</div><div style={{ fontSize: 11, color: '#41584E' }}>+234 XXX XXX XXXX</div></div>) },
-              { rotate: 0, translateY: 0, scale: 1, zIndex: 5, offsetX: 0, bg: '#07251C', w: 200, inner: (<div style={{ padding: 18 }}><div style={{ fontSize: 9, fontWeight: 700, color: '#34E0A0', letterSpacing: '0.08em', marginBottom: 10 }}>SUPPORT</div><div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 44, fontWeight: 700, color: '#fff', letterSpacing: '-0.03em', lineHeight: 1 }}>24/7</div><div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 6 }}>Support Available</div></div>) },
-              { rotate: 12, translateY: -12, scale: 0.88, zIndex: 2, offsetX: 10, bg: '#fff', w: 175, inner: (<div style={{ padding: 16 }}><div style={{ fontSize: 9, fontWeight: 700, color: '#7C3AED', letterSpacing: '0.06em', marginBottom: 8 }}>EMAIL</div><div style={{ fontSize: 12, fontWeight: 700, color: '#07251C', marginBottom: 4 }}>Email Support</div><div style={{ fontSize: 11, color: '#41584E' }}>support@myvaultplus.com</div></div>) },
-            ].map((card, i) => (
-              <div key={i} style={{ position: 'absolute', bottom: 0, left: '50%', transform: `translateX(calc(-50% + ${(i - 1) * 210 + card.offsetX}px)) translateY(${card.translateY}px) rotate(${card.rotate}deg) scale(${card.scale})`, transformOrigin: 'bottom center', zIndex: card.zIndex, boxShadow: '0 16px 48px rgba(0,0,0,0.14)', borderRadius: 16, overflow: 'hidden', background: card.bg, width: card.w }}>
-                {card.inner}
-              </div>
-            ))}
-          </div>
-
-          <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '28px 32px 52px' }}>
-            <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13.5, margin: 0 }}>
-              Available 7 days a week · Typical response time: under 2 hours
-            </p>
-          </div>
+          <HeroMarquee marginTop={80} />
         </section>
       </div>
 

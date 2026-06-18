@@ -2,6 +2,7 @@ import Image from 'next/image'
 import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
+import HeroMarquee from '@/components/HeroMarquee'
 
 const reviewTypes = [
   { title: 'Second Opinions', desc: 'Independent expert assessment of any diagnosis from your primary physician.' },
@@ -73,23 +74,7 @@ export default function ExpertReviewPage() {
             </div>
           </div>
 
-          <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 1100, margin: '52px auto 0', perspective: '1000px', height: 210, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-            {[
-              { rotate: -12, translateY: -12, scale: 0.88, zIndex: 2, offsetX: -10, bg: '#07251C', w: 185, inner: (<div style={{ padding: 14 }}><div style={{ fontSize: 9, fontWeight: 700, color: '#34E0A0', marginBottom: 10 }}>CASE STATUS</div>{[{ l: 'Submitted', d: true }, { l: 'Documents', d: true }, { l: 'In Review', d: false }].map((s) => (<div key={s.l} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 7 }}><span style={{ width: 14, height: 14, borderRadius: '50%', background: s.d ? '#34E0A0' : 'transparent', border: s.d ? 'none' : '2px solid rgba(52,224,160,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, color: '#07251C', fontWeight: 700, flexShrink: 0 }}>{s.d ? '✓' : ''}</span><span style={{ fontSize: 10, color: s.d ? '#fff' : 'rgba(255,255,255,0.45)' }}>{s.l}</span></div>))}</div>) },
-              { rotate: 0, translateY: 0, scale: 1, zIndex: 5, offsetX: 0, bg: '#fff', w: 200, inner: (<div style={{ padding: 16 }}><div style={{ fontSize: 9, fontWeight: 700, color: '#0E8567', marginBottom: 8 }}>EXPERT REVIEW™</div><div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 44, fontWeight: 700, color: '#07251C', letterSpacing: '-0.03em', lineHeight: 1 }}>18+</div><div style={{ fontSize: 12, color: '#5A7068', marginTop: 6 }}>Specialist Fields</div></div>) },
-              { rotate: 12, translateY: -12, scale: 0.88, zIndex: 2, offsetX: 10, bg: '#fff', w: 185, inner: (<div style={{ padding: 14 }}><div style={{ display: 'inline-block', fontSize: 9, fontWeight: 700, color: '#0E8567', background: '#EAF7F1', padding: '3px 10px', borderRadius: 100, marginBottom: 8 }}>REPORT READY</div><div style={{ fontSize: 11, color: '#41584E', marginBottom: 4 }}>PDF delivered to your Vault</div><div style={{ fontSize: 10, color: '#7A8C84' }}>5–10 business days</div></div>) },
-            ].map((card, i) => (
-              <div key={i} style={{ position: 'absolute', bottom: 0, left: '50%', transform: `translateX(calc(-50% + ${(i - 1) * 210 + card.offsetX}px)) translateY(${card.translateY}px) rotate(${card.rotate}deg) scale(${card.scale})`, transformOrigin: 'bottom center', zIndex: card.zIndex, boxShadow: '0 16px 48px rgba(0,0,0,0.14)', borderRadius: 16, overflow: 'hidden', background: card.bg, width: card.w }}>
-                {card.inner}
-              </div>
-            ))}
-          </div>
-
-          <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '28px 32px 52px' }}>
-            <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13.5, margin: 0 }}>
-              18+ specialist fields · Reviewed by qualified clinical panels · Report in 5–10 business days
-            </p>
-          </div>
+          <HeroMarquee marginTop={80} />
         </section>
       </div>
 
