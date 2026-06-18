@@ -189,10 +189,10 @@ export interface NotificationPrefs {
 }
 
 export const auth = {
-  register: (email: string, password: string, phone?: string) =>
+  register: (email: string, password: string, phoneNumber?: string, fullName?: string) =>
     request<{ message: string }>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password, phone }),
+      body: JSON.stringify({ email, password, phoneNumber, fullName }),
     }),
 
   login: (email: string, password: string) =>

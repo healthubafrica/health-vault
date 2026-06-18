@@ -11,7 +11,7 @@ interface AuthState {
   error: string | null
 
   login: (email: string, password: string) => Promise<void>
-  register: (email: string, password: string, phone?: string) => Promise<void>
+  register: (email: string, password: string, phoneNumber?: string, fullName?: string) => Promise<void>
   verifyOtp: (email: string, otp: string) => Promise<void>
   forgotPassword: (email: string) => Promise<void>
   resetPassword: (email: string, otp: string, newPassword: string) => Promise<void>
@@ -44,10 +44,10 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      register: async (email, password, phone) => {
+      register: async (email, password, phoneNumber, fullName) => {
         set({ isLoading: true, error: null })
         try {
-          await auth.register(email, password, phone)
+          await auth.register(email, password, phoneNumber, fullName)
           set({ isLoading: false })
         } catch (e: unknown) {
           set({ error: e instanceof Error ? e.message : "We couldn't create your account. Please try again.", isLoading: false })

@@ -13,16 +13,31 @@ const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{12,}$/
 const PASSWORD_MESSAGE =
   'Password must be at least 12 characters and include uppercase, lowercase, a number, and a special character';
 
+const PHONE_REGEX = /^\+[1-9]\d{1,14}$/;
+const PHONE_MESSAGE = 'Phone must be in E.164 format (e.g. +2348012345678)';
+
 export class RegisterDto {
   @ApiProperty({ example: 'jane.doe@example.com' })
   @IsEmail()
   @MaxLength(254)
   email: string;
 
-  @ApiPropertyOptional({ example: '+2348012345678' })
+  @ApiPropertyOptional({ example: 'Bernard Okafor', description: 'Full name collected at registration for onboarding.' })
   @IsOptional()
   @IsString()
-  @Matches(/^\+[1-9]\d{1,14}$/, { message: 'Phone must be in E.164 format' })
+  @MaxLength(200)
+  fullName?: string;
+
+  @ApiPropertyOptional({ example: '+2348012345678', description: 'E.164 phone number.' })
+  @IsOptional()
+  @IsString()
+  @Matches(PHONE_REGEX, { message: PHONE_MESSAGE })
+  phoneNumber?: string;
+
+  @ApiPropertyOptional({ example: '+2348012345678', description: 'Deprecated alias for phoneNumber.' })
+  @IsOptional()
+  @IsString()
+  @Matches(PHONE_REGEX, { message: PHONE_MESSAGE })
   phone?: string;
 
   @ApiProperty({ minLength: 12, description: PASSWORD_MESSAGE })

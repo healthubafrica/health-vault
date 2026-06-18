@@ -63,7 +63,7 @@ function OtpStep({ email, initialPhone, onSuccess }: { email: string; initialPho
       </div>
 
       {displayError && (
-        <div className="p-3 rounded-xl text-xs bg-red-500/10 text-red-400 border border-red-500/20">
+        <div className="p-3 rounded-xl text-xs bg-red-500/10 text-red-400 border border-red-500/20 whitespace-pre-line">
           {displayError}
         </div>
       )}
@@ -169,8 +169,14 @@ export function LoginScreen() {
         setLocalError('Kindly enter your phone number with the country code (for example +2348012345678).')
         return
       }
+      // SEC-003: validate password strength client-side to show clear feedback before hitting the API
+      const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{12,}$/
+      if (!PASSWORD_REGEX.test(password)) {
+        setLocalError('Your password needs at least 12 characters with a mix of uppercase, lowercase, a number, and a symbol.')
+        return
+      }
       try {
-        await register(email, password, phone || undefined)
+        await register(email, password, phone || undefined, name || undefined)
         if (typeof window !== 'undefined') {
           sessionStorage.setItem('onboarding_name', name || 'Valued Patient')
           sessionStorage.setItem('pending_otp_email', email)
