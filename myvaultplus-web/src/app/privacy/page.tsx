@@ -107,7 +107,8 @@ If you are dissatisfied with our response, you have the right to lodge a complai
 export default function PrivacyPage() {
   return (
     <div style={{ width: '100%', overflowX: 'hidden', background: '#F1F4EF' }}>
-      <Navbar />
+      <Navbar forceScrolled />
+      <div style={{ height: 80 }} />
 
       <HeroSplit
         trustText="NDPR 2019 Compliant · AES-256 Encrypted"

@@ -68,19 +68,20 @@ const mobileLinks = [
   { label: 'FAQ', href: '/faq' },
   { label: 'Corporate & HMO', href: '/corporate' },
   { label: 'Plans & Pricing', href: '/plans' },
+  { label: 'Blog', href: '/blog' },
   { label: 'Contact', href: '/contact' },
 ]
 
-export default function Navbar() {
-  const [scrolled, setScrolled] = useState(false)
+export default function Navbar({ forceScrolled = false }: { forceScrolled?: boolean }) {
+  const [scrolled, setScrolled] = useState(forceScrolled)
   const [open, setOpen] = useState(false)
   const [megaMenu, setMegaMenu] = useState<null | 'services' | 'about'>(null)
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 60)
+    const onScroll = () => setScrolled(forceScrolled || window.scrollY > 60)
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
-  }, [])
+  }, [forceScrolled])
 
   const textColor = scrolled ? '#07251C' : '#fff'
   const subTextColor = scrolled ? '#27433A' : 'rgba(255,255,255,0.85)'
@@ -355,6 +356,12 @@ export default function Navbar() {
             style={{ color: subTextColor, textDecoration: 'none', transition: 'color 0.28s ease' }}
           >
             Pricing
+          </Link>
+          <Link
+            href="/blog"
+            style={{ color: subTextColor, textDecoration: 'none', transition: 'color 0.28s ease' }}
+          >
+            Blog
           </Link>
           <Link
             href="/contact"
