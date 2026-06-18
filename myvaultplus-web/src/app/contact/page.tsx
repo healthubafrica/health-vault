@@ -3,6 +3,8 @@ import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
 import HeroMarquee from '@/components/HeroMarquee'
+import AnimatedSection from '@/components/AnimatedSection'
+import AnimatedCard from '@/components/AnimatedCard'
 import { MessageCircle, Phone, Mail } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -58,21 +60,21 @@ export default function ContactPage() {
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>reach us.</em>
             </h2>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+          <AnimatedSection stagger style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
             {channels.map((ch) => {
               const Icon = ch.icon
               return (
-                <div key={ch.title} style={{ background: '#fff', border: '1px solid rgba(7,37,28,0.09)', borderRadius: 22, padding: 28, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <AnimatedCard key={ch.title} style={{ background: '#fff', border: '1px solid rgba(7,37,28,0.09)', borderRadius: 22, padding: 28, display: 'flex', flexDirection: 'column', gap: 16 }}>
                   <span style={{ width: 44, height: 44, borderRadius: 12, background: ch.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Icon size={22} strokeWidth={1.8} color={ch.color} />
                   </span>
                   <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 19, color: '#07251C', margin: 0 }}>{ch.title}</h3>
                   <p style={{ color: '#41584E', fontSize: 14, lineHeight: 1.6, margin: 0, flex: 1 }}>{ch.desc}</p>
                   <a href={ch.link} style={{ color: ch.color, fontWeight: 600, fontSize: 14, textDecoration: 'none' }}>{ch.label}</a>
-                </div>
+                </AnimatedCard>
               )
             })}
-          </div>
+          </AnimatedSection>
         </section>
       </div>
 
