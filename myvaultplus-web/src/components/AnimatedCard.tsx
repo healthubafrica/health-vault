@@ -5,7 +5,7 @@ import { cardVariant, EASE_OUT } from '@/lib/motion'
 interface Props {
   children: React.ReactNode
   style?: React.CSSProperties
-  /** Apply y-lift on hover (default true) */
+  /** Apply y-lift + scale on hover (default true) */
   hoverLift?: boolean
 }
 
@@ -18,10 +18,10 @@ export default function AnimatedCard({ children, style, hoverLift = true }: Prop
       variants={cardVariant}
       whileHover={
         !reduced && hoverLift
-          ? { y: -6, transition: { duration: 0.18, ease: EASE_OUT } }
+          ? { y: -14, scale: 1.03, transition: { duration: 0.22, ease: EASE_OUT } }
           : undefined
       }
-      whileTap={!reduced ? { scale: 0.98, transition: { duration: 0.1 } } : undefined}
+      whileTap={!reduced ? { scale: 0.97, transition: { duration: 0.1 } } : undefined}
     >
       {children}
     </motion.div>
