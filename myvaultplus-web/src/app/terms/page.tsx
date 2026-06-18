@@ -18,7 +18,7 @@ These Terms apply to all users of the Platform, including patients, corporate ac
     label: 'The Services',
     content: `MyHealth Vault+™ provides a digital health portal offering the following services: TeleCare™ (remote medical consultations), Expert Review™ (specialist second opinion reviews), DispatchCare™ (emergency medical dispatch coordination), MinuteCare™ (clinic fast-track scheduling), CareTest™ (diagnostic test bookings), HealthConsult™ (preventive care), and NeuroFlex™ (neurology specialist access).
 
-IMPORTANT HEALTH DISCLAIMER: The services provided through this Platform are intended to supplement — not replace — your relationship with qualified healthcare providers. Nothing on the Platform constitutes medical advice, diagnosis, or treatment. Always seek the advice of a qualified physician or other qualified health provider with any questions about a medical condition. In the event of a medical emergency, call emergency services immediately.
+IMPORTANT HEALTH DISCLAIMER: The services provided through this Platform are intended to supplement (not replace) your relationship with qualified healthcare providers. Nothing on the Platform constitutes medical advice, diagnosis, or treatment. Always seek the advice of a qualified physician or other qualified health provider with any questions about a medical condition. In the event of a medical emergency, call emergency services immediately.
 
 Health-Hub Africa® does not employ the specialists, physicians, or healthcare providers who deliver services through the Platform. These professionals are independent contractors or affiliated partners who operate under their own professional licences and standards.`,
   },
@@ -76,7 +76,7 @@ Violation of these prohibitions may result in immediate account suspension or te
   {
     id: 'ip',
     label: 'Intellectual Property',
-    content: `All content on the Platform — including the MyHealth Vault+™ name and trademark, Health-Hub Africa® name and trademark, software, design, text, graphics, logos, and service names — are the intellectual property of Health-Hub Africa® Limited or its licensors and are protected by Nigerian and international intellectual property laws.
+    content: `All content on the Platform (including the MyHealth Vault+™ name and trademark, Health-Hub Africa® name and trademark, software, design, text, graphics, logos, and service names) are the intellectual property of Health-Hub Africa® Limited or its licensors and are protected by Nigerian and international intellectual property laws.
 
 You are granted a limited, non-exclusive, non-transferable licence to access and use the Platform for personal healthcare management purposes. You may not copy, reproduce, modify, distribute, or create derivative works from any content on the Platform without our prior written consent.
 
@@ -116,7 +116,6 @@ export default function TermsPage() {
       <div style={{ height: 80 }} />
 
       <HeroSplit
-        trustText="Updated June 2026 · 10 sections"
         heading={
           <>
             <span style={{ display: 'block' }}>Terms of Use</span>

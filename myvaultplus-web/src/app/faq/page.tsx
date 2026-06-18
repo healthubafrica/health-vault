@@ -7,9 +7,9 @@ const faqGroups = [
   {
     group: 'Getting Started',
     items: [
-      { q: 'What is MyHealth Vault+™?', a: 'MyHealth Vault+™ is your personal digital health portal — a secure, intelligent platform built by Health-Hub Africa® that gives you access to your health records, healthcare bookings, specialist second opinions, and emergency dispatch from one place.' },
+      { q: 'What is MyHealth Vault+™?', a: 'MyHealth Vault+™ is your personal digital health portal, a secure platform built by Health-Hub Africa® that gives you access to your health records, healthcare bookings, specialist second opinions, and emergency dispatch from one place.' },
       { q: 'How do I register?', a: 'Visit portal.myvaultplus.com/register, enter your details, verify your phone number or email, and your account is ready in under 3 minutes. You will receive a unique Patient ID (HHA-XXXXXXXX) immediately on registration.' },
-      { q: 'Is it free?', a: 'Yes — every patient gets a free Starter account with core portal access, their unique Patient ID, and limited health record viewing. Paid services such as TeleCare™ and Expert Review™ are available on a pay-per-use basis or via subscription plans.' },
+      { q: 'Is it free?', a: 'Every patient gets a free Starter account with core portal access, their unique Patient ID, and limited health record viewing. Paid services such as TeleCare™ and Expert Review™ are available on a pay-per-use basis or via subscription plans.' },
       { q: 'What is a Patient ID?', a: 'Your Patient ID is a unique identifier (format: HHA-CITY-YEAR-NNNN) assigned to you at registration. It serves as your universal health identifier across all Health-Hub Africa® services and partner facilities.' },
       { q: 'Which services are available?', a: 'Seven services are available: TeleCare™ (remote consultations), Expert Review™ (specialist second opinions), DispatchCare™ (emergency dispatch), MinuteCare™ (fast-track clinic), CareTest™ (lab bookings), HealthConsult™ (preventive care), and NeuroFlex™ (neurology).' },
     ],
@@ -18,7 +18,7 @@ const faqGroups = [
     group: 'Account & Records',
     items: [
       { q: 'How are my records stored?', a: 'Your health records are stored on secure, encrypted servers compliant with Nigeria Data Protection Regulation (NDPR) 2019. All data is encrypted at rest and in transit using industry-standard protocols.' },
-      { q: 'Who can see my records?', a: 'Only you — and clinicians or specialists you explicitly authorise — can access your health records. Health-Hub Africa® staff do not access individual patient records except where required by law or for platform support with your consent.' },
+      { q: 'Who can see my records?', a: 'Only you, and any clinicians or specialists you explicitly authorise, can access your health records. Health-Hub Africa® staff do not access individual patient records except where required by law or for platform support with your consent.' },
       { q: 'Can I download my records?', a: 'Yes. You can download your health records, lab results, Expert Review™ reports, and consultation summaries directly from your Vault at any time in PDF or standard formats.' },
       { q: 'What happens if I lose access?', a: 'Contact our support team via WhatsApp, phone, or email. We will verify your identity and restore access securely. Your data is never deleted unless you explicitly request account closure.' },
     ],
@@ -36,9 +36,9 @@ const faqGroups = [
     group: 'Plans & Billing',
     items: [
       { q: "What's the difference between plans?", a: 'The Starter (Free) plan gives portal access and pay-per-use services. The Growth plan (₦4,900/month) adds TeleCare™ sessions and HealthConsult™. The Enterprise plan (₦9,900/month) adds priority access, 2–4 Expert Reviews/year, and NeuroFlex™. Corporate plans are customised for organisations.' },
-      { q: 'Can I upgrade?', a: 'Yes — you can upgrade or downgrade your plan at any time from your account settings. Upgrades take effect immediately; downgrades take effect at the start of the next billing cycle.' },
+      { q: 'Can I upgrade?', a: 'You can upgrade or downgrade your plan at any time from your account settings. Upgrades take effect immediately; downgrades take effect at the start of the next billing cycle.' },
       { q: 'How is billing handled?', a: 'Billing is monthly via card payment, bank transfer, or supported mobile money. All transactions are processed securely. Receipts are emailed and stored in your Vault.' },
-      { q: 'Are there corporate plans?', a: 'Yes — Health-Hub Africa® offers tailored corporate and HMO plans for employers, estates, schools, and government institutions. Visit our Corporate page or email enquiries@myvaultplus.com for details.' },
+      { q: 'Are there corporate plans?', a: 'Health-Hub Africa® offers tailored corporate and HMO plans for employers, estates, schools, and government institutions. Visit our Corporate page or email enquiries@myvaultplus.com for details.' },
     ],
   },
   {
@@ -57,7 +57,6 @@ export default function FAQPage() {
       <div style={{ height: 80 }} />
 
       <HeroSplit
-        trustText="19 questions · 5 categories"
         heading={
           <>
             <span style={{ display: 'block' }}>Frequently Asked</span>
@@ -174,7 +173,7 @@ export default function FAQPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 32, alignItems: 'center' }}>
             <div>
               <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 26, color: '#fff', margin: '0 0 12px' }}>Still have questions?</h3>
-              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 15, lineHeight: 1.6, margin: 0 }}>Our support team is available 7 days a week — WhatsApp, phone, or email.</p>
+              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 15, lineHeight: 1.6, margin: 0 }}>Our support team is available 7 days a week: WhatsApp, phone, or email.</p>
             </div>
             <div style={{ display: 'flex', gap: 12, flexShrink: 0, flexWrap: 'wrap' }}>
               <a href="https://wa.me/2341234567890" style={{ display: 'inline-flex', alignItems: 'center', background: '#fff', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '12px 22px', borderRadius: 100 }}>WhatsApp Support</a>
