@@ -1,8 +1,7 @@
-import Image from 'next/image'
 import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
-import HeroMarquee from '@/components/HeroMarquee'
+import HeroSplit from '@/components/HeroSplit'
 
 const faqGroups = [
   {
@@ -56,35 +55,50 @@ export default function FAQPage() {
     <div style={{ width: '100%', overflowX: 'hidden', background: '#F1F4EF' }}>
       <Navbar />
 
-      <div style={{ margin: '16px 16px 24px', borderRadius: 28, overflow: 'hidden' }}>
-        <section style={{ position: 'relative', background: '#041E14', overflow: 'hidden', minHeight: '88vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <Image src="https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=1920&h=1080&fit=crop&q=85" alt="FAQ — patient support" fill priority style={{ objectFit: 'cover', objectPosition: 'center' }} sizes="100vw" />
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, rgba(4,30,20,0.78) 0%, rgba(7,37,28,0.65) 50%, rgba(4,18,12,0.82) 100%)', pointerEvents: 'none' }} />
-
-          <div style={{ position: 'relative', maxWidth: 760, width: '100%', margin: '0 auto', padding: '120px 32px 0', textAlign: 'center', zIndex: 1 }}>
-            <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-space-grotesk), sans-serif' }}>
-              <span style={{ display: 'block', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.06 }}>Frequently Asked</span>
-              <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#34E0A0', letterSpacing: '-0.02em', lineHeight: 1.06 }}>Questions.</span>
-            </h1>
-            <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 16, lineHeight: 1.65, maxWidth: 520, margin: '0 auto 32px' }}>
-              Everything you need to know about MyHealth Vault+™ and Health-Hub Africa® services.
-            </p>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <a href="/contact" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', border: '1.5px solid rgba(255,255,255,0.55)', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '13px 26px', borderRadius: 100 }}>
-                Contact Support
-              </a>
-              <a href="https://portal.myvaultplus.com/register" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: '#34E0A0', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '12px 12px 12px 24px', borderRadius: 100 }}>
-                Get Started
-                <span style={{ width: 30, height: 30, borderRadius: '50%', background: '#07251C', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M19 5H9M19 5v10" stroke="#34E0A0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                </span>
-              </a>
+      <HeroSplit
+        trustText="19 questions · 5 categories"
+        heading={
+          <>
+            <span style={{ display: 'block' }}>Frequently Asked</span>
+            <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', color: '#0E8567' }}>Questions.</span>
+          </>
+        }
+        description="Everything you need to know about MyHealth Vault+™ and Health-Hub Africa® services."
+        secondaryCta={{ label: 'Contact Support', href: '/contact' }}
+        primaryCta={{ label: 'Get Started', href: 'https://portal.myvaultplus.com/register' }}
+        image="https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=1400&h=1800&fit=crop&q=85"
+        imageAlt="FAQ — patient support"
+        rightCards={
+          <div style={{ position: 'relative', width: 304, height: 420 }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, width: 260, background: '#07251C', borderRadius: 24, padding: 24, boxShadow: '0 24px 64px rgba(0,0,0,0.52)', transform: 'rotate(-4deg)' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#34E0A0', marginBottom: 12 }}>FAQ Centre</div>
+              <p style={{ color: '#fff', fontSize: 14, lineHeight: 1.55, fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, margin: 0 }}>19 questions across 5 categories, regularly updated.</p>
+              <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>Updated June 2026</div>
+              </div>
+            </div>
+            <div style={{ position: 'absolute', top: 158, left: 50, width: 232, background: '#fff', borderRadius: 22, padding: 20, boxShadow: '0 20px 48px rgba(0,0,0,0.38)', transform: 'rotate(3deg)' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 14 }}>Response Time</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#F7FAF7', borderRadius: 10, padding: '10px 12px' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#34E0A0', flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#07251C' }}>WhatsApp &amp; Phone</div>
+                    <div style={{ fontSize: 11, color: '#617870' }}>Under 30 minutes</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#F7FAF7', borderRadius: 10, padding: '10px 12px' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#0E8567', flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#07251C' }}>Email</div>
+                    <div style={{ fontSize: 11, color: '#617870' }}>Under 2 hours</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-
-          <HeroMarquee marginTop={80} />
-        </section>
-      </div>
+        }
+      />
 
       {/* FAQ accordion */}
       <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#fff' }}>
