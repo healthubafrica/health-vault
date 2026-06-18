@@ -53,7 +53,8 @@ const faqGroups = [
 export default function FAQPage() {
   return (
     <div style={{ width: '100%', overflowX: 'hidden', background: '#F1F4EF' }}>
-      <Navbar />
+      <Navbar forceScrolled />
+      <div style={{ height: 80 }} />
 
       <HeroSplit
         trustText="19 questions · 5 categories"

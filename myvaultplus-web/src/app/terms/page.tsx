@@ -112,7 +112,8 @@ For questions about these Terms, contact us at: legal@myvaultplus.com`,
 export default function TermsPage() {
   return (
     <div style={{ width: '100%', overflowX: 'hidden', background: '#F1F4EF' }}>
-      <Navbar />
+      <Navbar forceScrolled />
+      <div style={{ height: 80 }} />
 
       <HeroSplit
         trustText="Updated June 2026 · 10 sections"

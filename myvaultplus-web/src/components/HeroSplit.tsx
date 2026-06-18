@@ -35,7 +35,7 @@ export default function HeroSplit({
         {/* ── Left panel ─────────────────────────────────── */}
         <div style={{
           background: '#F7FAF7',
-          padding: '160px 56px 80px',
+          padding: '56px 56px 72px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'flex-end',
