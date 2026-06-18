@@ -52,7 +52,7 @@ export default function HeroSplit({
                 width: 7,
                 height: 7,
                 borderRadius: '50%',
-                background: '#34E0A0',
+                background: '#6DC43F',
                 flexShrink: 0,
               }} />
               <span style={{ fontSize: 12.5, color: '#617870', fontWeight: 500 }}>{trustText}</span>
@@ -126,7 +126,7 @@ export default function HeroSplit({
                 width: 30,
                 height: 30,
                 borderRadius: '50%',
-                background: '#34E0A0',
+                background: '#6DC43F',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',

@@ -61,7 +61,7 @@ export default function BlogPage() {
                   width: 6,
                   height: 6,
                   borderRadius: '50%',
-                  background: '#34E0A0',
+                  background: '#6DC43F',
                   display: 'inline-block',
                 }}
               />
@@ -71,7 +71,7 @@ export default function BlogPage() {
                   fontWeight: 700,
                   letterSpacing: '0.14em',
                   textTransform: 'uppercase',
-                  color: '#34E0A0',
+                  color: '#6DC43F',
                 }}
               >
                 Blog and Articles
@@ -165,7 +165,7 @@ export default function BlogPage() {
               style={{
                 fontSize: 13,
                 fontWeight: 600,
-                color: '#0E8567',
+                color: '#137333',
                 marginBottom: 16,
                 letterSpacing: '0.04em',
               }}
@@ -218,7 +218,7 @@ export default function BlogPage() {
                   width: 30,
                   height: 30,
                   borderRadius: '50%',
-                  background: '#34E0A0',
+                  background: '#6DC43F',
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -350,7 +350,7 @@ export default function BlogPage() {
                       width: 34,
                       height: 34,
                       borderRadius: '50%',
-                      background: '#34E0A0',
+                      background: '#6DC43F',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',

@@ -18,7 +18,7 @@ export default function About() {
             fontWeight: 700,
             letterSpacing: '0.14em',
             textTransform: 'uppercase',
-            color: '#0E8567',
+            color: '#137333',
             marginBottom: 18,
           }}
         >
@@ -77,7 +77,7 @@ export default function About() {
                 fontWeight: 700,
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase',
-                color: '#34E0A0',
+                color: '#6DC43F',
                 marginBottom: 18,
               }}
             >
@@ -104,7 +104,7 @@ export default function About() {
                       width: 24,
                       height: 24,
                       borderRadius: 7,
-                      background: 'rgba(52,224,160,0.16)',
+                      background: 'rgba(109,196,63,0.16)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -112,7 +112,7 @@ export default function About() {
                     }}
                   >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                      <path d="M5 12l4 4L19 7" stroke="#34E0A0" strokeWidth="2.5" strokeLinecap="round" />
+                      <path d="M5 12l4 4L19 7" stroke="#6DC43F" strokeWidth="2.5" strokeLinecap="round" />
                     </svg>
                   </span>
                   <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13.5 }}>{item}</span>
@@ -124,8 +124,8 @@ export default function About() {
           {/* Patient ID badge */}
           <div
             style={{
-              background: 'rgba(52,224,160,0.08)',
-              border: '1px solid rgba(52,224,160,0.2)',
+              background: 'rgba(109,196,63,0.08)',
+              border: '1px solid rgba(109,196,63,0.2)',
               borderRadius: 14,
               padding: 14,
             }}
@@ -135,7 +135,7 @@ export default function About() {
                 fontFamily: 'var(--font-manrope), sans-serif',
                 fontSize: 18,
                 fontWeight: 700,
-                color: '#34E0A0',
+                color: '#6DC43F',
                 letterSpacing: '-0.01em',
               }}
             >
@@ -175,7 +175,7 @@ export default function About() {
                 fontWeight: 700,
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase',
-                color: '#0E8567',
+                color: '#137333',
                 marginBottom: 8,
               }}
             >
@@ -190,7 +190,7 @@ export default function About() {
         {/* Top-right accent card */}
         <div
           style={{
-            background: '#34E0A0',
+            background: '#6DC43F',
             borderRadius: 24,
             padding: 28,
             display: 'flex',
@@ -245,7 +245,7 @@ export default function About() {
               fontWeight: 700,
               letterSpacing: '0.1em',
               textTransform: 'uppercase',
-              color: '#34E0A0',
+              color: '#6DC43F',
             }}
           >
             Services

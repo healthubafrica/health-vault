@@ -60,7 +60,7 @@ export default function FAQPage() {
         heading={
           <>
             <span style={{ display: 'block' }}>Frequently Asked</span>
-            <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', color: '#0E8567' }}>Questions.</span>
+            <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', color: '#137333' }}>Questions.</span>
           </>
         }
         description="Everything you need to know about MyHealth Vault+™ and Health-Hub Africa® services."
@@ -71,24 +71,24 @@ export default function FAQPage() {
         rightCards={
           <div style={{ position: 'relative', width: 304, height: 420 }}>
             <div style={{ position: 'absolute', top: 0, left: 0, width: 260, background: '#07251C', borderRadius: 24, padding: 24, boxShadow: '0 24px 64px rgba(0,0,0,0.52)', transform: 'rotate(-4deg)' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#34E0A0', marginBottom: 12 }}>FAQ Centre</div>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6DC43F', marginBottom: 12 }}>FAQ Centre</div>
               <p style={{ color: '#fff', fontSize: 14, lineHeight: 1.55, fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, margin: 0 }}>19 questions across 5 categories, regularly updated.</p>
               <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>Updated June 2026</div>
               </div>
             </div>
             <div style={{ position: 'absolute', top: 158, left: 50, width: 232, background: '#fff', borderRadius: 22, padding: 20, boxShadow: '0 20px 48px rgba(0,0,0,0.38)', transform: 'rotate(3deg)' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 14 }}>Response Time</div>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#137333', marginBottom: 14 }}>Response Time</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#F7FAF7', borderRadius: 10, padding: '10px 12px' }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#34E0A0', flexShrink: 0 }} />
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#6DC43F', flexShrink: 0 }} />
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: '#07251C' }}>WhatsApp &amp; Phone</div>
                     <div style={{ fontSize: 11, color: '#617870' }}>Under 30 minutes</div>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#F7FAF7', borderRadius: 10, padding: '10px 12px' }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#0E8567', flexShrink: 0 }} />
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#137333', flexShrink: 0 }} />
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: '#07251C' }}>Email</div>
                     <div style={{ fontSize: 11, color: '#617870' }}>Under 2 hours</div>
@@ -104,10 +104,10 @@ export default function FAQPage() {
       <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#fff' }}>
         <section style={{ maxWidth: 860, margin: '0 auto', padding: '80px 48px' }}>
           <div style={{ textAlign: 'center', marginBottom: 52 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 16 }}>· FAQ</div>
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 16 }}>· FAQ</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 700, fontSize: 'clamp(26px, 3vw, 38px)', lineHeight: 1.1, letterSpacing: '-0.025em', margin: '0 auto 14px', maxWidth: 560, color: '#07251C' }}>
               Frequently asked{' '}
-              <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, color: '#0E8567' }}>questions</em>
+              <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, color: '#137333' }}>questions</em>
             </h2>
             <p style={{ color: '#617870', fontSize: 15, lineHeight: 1.6, margin: '0 auto', maxWidth: 460 }}>
               Everything you need to know about MyHealth Vault+™ in one place.
@@ -117,7 +117,7 @@ export default function FAQPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {faqGroups.map((group) => (
               <div key={group.group}>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#0E8567', padding: '20px 4px 10px' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#137333', padding: '20px 4px 10px' }}>
                   {group.group}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -177,7 +177,7 @@ export default function FAQPage() {
             </div>
             <div style={{ display: 'flex', gap: 12, flexShrink: 0, flexWrap: 'wrap' }}>
               <a href="https://wa.me/2341234567890" style={{ display: 'inline-flex', alignItems: 'center', background: '#fff', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '12px 22px', borderRadius: 100 }}>WhatsApp Support</a>
-              <a href="mailto:support@myvaultplus.com" style={{ display: 'inline-flex', alignItems: 'center', background: '#34E0A0', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '12px 22px', borderRadius: 100 }}>Email Support</a>
+              <a href="mailto:support@myvaultplus.com" style={{ display: 'inline-flex', alignItems: 'center', background: '#6DC43F', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '12px 22px', borderRadius: 100 }}>Email Support</a>
             </div>
           </div>
         </section>
