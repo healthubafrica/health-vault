@@ -122,42 +122,16 @@ export default function Navbar() {
         {/* Logo */}
         <Link
           href="/"
-          style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: textColor }}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}
         >
-          <span
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 9,
-              background: '#0E8567',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"
-                stroke="#34E0A0"
-                strokeWidth="2"
-                strokeLinejoin="round"
-              />
-              <path d="M12 8.5v5M9.5 11h5" stroke="#34E0A0" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </span>
-          <span
-            style={{
-              fontFamily: 'var(--font-space-grotesk), sans-serif',
-              fontWeight: 700,
-              fontSize: 17,
-              letterSpacing: '-0.02em',
-              color: textColor,
-              transition: 'color 0.28s ease',
-            }}
-          >
-            MyHealth Vault+
-          </span>
+          <Image
+            src={scrolled ? '/logo.png' : '/logo-white.png'}
+            alt="MyHealth Vault+ logo"
+            width={140}
+            height={36}
+            style={{ objectFit: 'contain', height: 36, width: 'auto' }}
+            priority
+          />
         </Link>
 
         {/* Desktop nav links */}
