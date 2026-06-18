@@ -102,7 +102,7 @@ export function OnboardingScreen() {
             if (entered === reentered) {
               setStep(5)
             } else {
-              setPinError('PINs do not match. Please try again.')
+              setPinError("Your PINs don't match. Kindly try again.")
               setPin([])
               setConfirmPin([])
               setIsConfirmingPin(false)

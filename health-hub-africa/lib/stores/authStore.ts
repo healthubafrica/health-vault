@@ -39,7 +39,7 @@ export const useAuthStore = create<AuthState>()(
           const meRes = await auth.me()
           set({ user: meRes.data, isAuthenticated: true, isLoading: false })
         } catch (e: unknown) {
-          set({ error: e instanceof Error ? e.message : 'Login failed', isLoading: false })
+          set({ error: e instanceof Error ? e.message : "We couldn't sign you in. Please try again.", isLoading: false })
           throw e
         }
       },
@@ -50,7 +50,7 @@ export const useAuthStore = create<AuthState>()(
           await auth.register(email, password, phone)
           set({ isLoading: false })
         } catch (e: unknown) {
-          set({ error: e instanceof Error ? e.message : 'Registration failed', isLoading: false })
+          set({ error: e instanceof Error ? e.message : "We couldn't create your account. Please try again.", isLoading: false })
           throw e
         }
       },
@@ -64,7 +64,7 @@ export const useAuthStore = create<AuthState>()(
           const meRes = await auth.me()
           set({ user: meRes.data, isAuthenticated: true, isLoading: false })
         } catch (e: unknown) {
-          set({ error: e instanceof Error ? e.message : 'Verification failed', isLoading: false })
+          set({ error: e instanceof Error ? e.message : "We couldn't verify your code. Please try again.", isLoading: false })
           throw e
         }
       },
@@ -95,7 +95,7 @@ export const useAuthStore = create<AuthState>()(
           await auth.forgotPassword(email)
           set({ isLoading: false })
         } catch (e: unknown) {
-          set({ error: e instanceof Error ? e.message : 'Forgot password request failed', isLoading: false })
+          set({ error: e instanceof Error ? e.message : "We couldn't send your reset code. Please try again.", isLoading: false })
           throw e
         }
       },
@@ -106,7 +106,7 @@ export const useAuthStore = create<AuthState>()(
           await auth.resetPassword(email, otp, newPassword)
           set({ isLoading: false })
         } catch (e: unknown) {
-          set({ error: e instanceof Error ? e.message : 'Password reset failed', isLoading: false })
+          set({ error: e instanceof Error ? e.message : "We couldn't reset your password. Please try again.", isLoading: false })
           throw e
         }
       },
@@ -117,7 +117,7 @@ export const useAuthStore = create<AuthState>()(
           await auth.requestSmsOtp(email, phone)
           set({ isLoading: false })
         } catch (e: unknown) {
-          set({ error: e instanceof Error ? e.message : 'SMS OTP request failed', isLoading: false })
+          set({ error: e instanceof Error ? e.message : "We couldn't send your code. Please try again.", isLoading: false })
           throw e
         }
       },

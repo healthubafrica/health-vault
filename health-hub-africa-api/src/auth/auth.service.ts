@@ -21,6 +21,17 @@ import { UpdateNotificationPrefsDto } from './dto/notification-prefs.dto';
 const BCRYPT_ROUNDS = 12;
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
+// SEC: account-level lockout — distinct from per-IP throttling. The IP
+// throttler protects the API from request floods; this protects an individual
+// account from credential-stuffing distributed across many IPs (a botnet would
+// trivially bypass per-IP limits). After MAX_FAILED_LOGINS consecutive
+// failures on a known account, the account is locked for LOCKOUT_DURATION_MS.
+// The lockout is silent — login still returns the generic "Invalid credentials"
+// — to avoid leaking which emails are registered. A successful login or
+// password reset clears the counter.
+const MAX_FAILED_LOGINS = 10;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -72,8 +83,18 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // Account is locked — refuse silently with the same generic message used
+    // for wrong-password so an attacker can't tell which emails are locked
+    // (which would also tell them which emails exist and have been targeted).
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!valid) throw new UnauthorizedException('Invalid credentials');
+    if (!valid) {
+      await this.registerFailedLogin(user.id, user.failedLoginAttempts);
+      throw new UnauthorizedException('Invalid credentials');
+    }
 
     if (!user.isVerified) {
       throw new UnauthorizedException(
@@ -87,12 +108,30 @@ export class AuthService {
       userAgent,
     );
 
+    // Successful login resets the counter so a user who later mistypes
+    // doesn't carry over stale failures from weeks ago.
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: {
+        lastLoginAt: new Date(),
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+      },
     });
 
     return tokens;
+  }
+
+  private async registerFailedLogin(userId: string, currentCount: number): Promise<void> {
+    const next = currentCount + 1;
+    const reachedLimit = next >= MAX_FAILED_LOGINS;
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        failedLoginAttempts: next,
+        lockedUntil: reachedLimit ? new Date(Date.now() + LOCKOUT_DURATION_MS) : undefined,
+      },
+    });
   }
 
   // ── Refresh ───────────────────────────────────────────────────────────────
@@ -237,7 +276,12 @@ export class AuthService {
       }),
       this.prisma.user.update({
         where: { id: user.id },
-        data: { passwordHash },
+        data: {
+          passwordHash,
+          // Reset is the legitimate user's path out of a lockout — clear it.
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+        },
       }),
       // Revoke all sessions on password reset
       this.prisma.userSession.updateMany({
