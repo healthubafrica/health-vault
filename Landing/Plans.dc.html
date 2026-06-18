@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:#F1F4EF;font-family:'Hanken Grotesk',sans-serif;color:#07251C;-webkit-font-smoothing:antialiased;}
+  ::selection{background:#34E0A0;color:#07251C;}
+</style>
+</helmet>
+
+<div style="width:100%;overflow-x:hidden;font-family:'Hanken Grotesk',sans-serif;">
+
+  <!-- NAV -->
+  <header style="position:sticky;top:0;z-index:50;background:rgba(241,244,239,0.88);backdrop-filter:blur(10px);border-bottom:1px solid rgba(7,37,28,0.08);">
+    <nav style="max-width:1240px;margin:0 auto;padding:16px 28px;display:flex;align-items:center;justify-content:space-between;gap:24px;">
+      <a href="MyHealth Vault Plus.dc.html" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:#07251C;">
+        <span style="width:30px;height:30px;border-radius:9px;background:#0E8567;display:flex;align-items:center;justify-content:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" stroke="#34E0A0" stroke-width="2" stroke-linejoin="round"/><path d="M12 8.5v5M9.5 11h5" stroke="#34E0A0" stroke-width="2" stroke-linecap="round"/></svg></span>
+        <span style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:18px;letter-spacing:-0.02em;">MyHealth Vault+</span>
+      </a>
+      <div style="display:flex;align-items:center;gap:28px;font-size:14.5px;font-weight:500;">
+        <a href="Services.dc.html" style="color:#27433A;text-decoration:none;">Services</a>
+        <a href="Plans.dc.html" style="color:#0E8567;text-decoration:none;font-weight:600;">Plans &amp; Pricing</a>
+        <a href="Expert Review.dc.html" style="color:#27433A;text-decoration:none;">Expert Review™</a>
+        <a href="DispatchCare.dc.html" style="color:#27433A;text-decoration:none;">DispatchCare™</a>
+        <a href="About.dc.html" style="color:#27433A;text-decoration:none;">About</a>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <a href="https://portal.myvaultplus.com/login" style="font-size:14.5px;font-weight:600;color:#07251C;text-decoration:none;padding:10px 8px;">Sign In</a>
+        <a href="https://portal.myvaultplus.com/register" style="display:flex;align-items:center;gap:10px;background:#07251C;color:#fff;text-decoration:none;font-weight:600;font-size:14.5px;padding:9px 9px 9px 18px;border-radius:100px;">Create Free Account<span style="width:28px;height:28px;border-radius:50%;background:#34E0A0;display:flex;align-items:center;justify-content:center;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M19 5H9M19 5v10" stroke="#07251C" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span></a>
+      </div>
+    </nav>
+  </header>
+
+  <!-- HEADER -->
+  <section style="position:relative;background:radial-gradient(120% 110% at 50% -20%, #2BB489 0%, #0E8567 42%, #0A6A52 78%, #074F3D 100%);overflow:hidden;">
+    <div style="position:absolute;inset:0;background:radial-gradient(60% 50% at 50% 0%, rgba(52,224,160,0.3), transparent 70%);pointer-events:none;"></div>
+    <div style="position:relative;max-width:900px;margin:0 auto;padding:84px 28px 88px;text-align:center;">
+      <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.22);color:#EAFBF3;border-radius:100px;padding:7px 16px;font-size:13px;font-weight:600;margin-bottom:24px;"><span style="width:7px;height:7px;border-radius:50%;background:#34E0A0;"></span>Plans &amp; Pricing</div>
+      <h1 style="font-family:'Space Grotesk',sans-serif;font-weight:600;color:#fff;font-size:54px;line-height:1.05;letter-spacing:-0.03em;margin:0 auto;max-width:760px;text-wrap:balance;">Start Free. Access More When You Need It.</h1>
+      <p style="color:rgba(255,255,255,0.84);font-size:18px;line-height:1.55;max-width:660px;margin:22px auto 0;text-wrap:pretty;">Every patient gets a free MyHealth Vault+™ account — with access to your secure health portal and core services. Upgrade your plan to unlock expanded service access, Expert Review™ credits, priority routing, and more.</p>
+    </div>
+  </section>
+
+  <!-- PRICING CARDS -->
+  <section style="max-width:1240px;margin:0 auto;padding:64px 28px 0;">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;align-items:start;">
+      <div style="background:#fff;border:1px solid rgba(7,37,28,0.1);border-radius:22px;padding:28px;">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#07251C;">Free</div>
+        <p style="color:#41584E;font-size:13.5px;margin:8px 0 14px;">Your Health Vault, No Cost</p>
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:34px;font-weight:600;letter-spacing:-0.02em;">₦0<span style="font-size:15px;font-weight:500;color:#7A8C84;"> / month</span></div>
+        <a href="https://portal.myvaultplus.com/register" style="display:block;text-align:center;margin:20px 0 22px;background:#F1F4EF;color:#07251C;text-decoration:none;font-weight:600;font-size:14px;padding:12px;border-radius:100px;">Create Free Account</a>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:13.5px;">
+          <div style="display:flex;gap:9px;align-items:flex-start;color:#27433A;"><span style="color:#0E8567;flex-shrink:0;font-weight:700;">✓</span>Patient portal access</div>
+          <div style="display:flex;gap:9px;align-items:flex-start;color:#27433A;"><span style="color:#0E8567;flex-shrink:0;font-weight:700;">✓</span>Unique patient ID</div>
+          <div style="display:flex;gap:9px;align-items:flex-start;color:#27433A;"><span style="color:#0E8567;flex-shrink:0;font-weight:700;">✓</span>Limited record viewing</div>
+          <div style="display:flex;gap:9px;align-items:flex-start;color:#27433A;"><span style="color:#0E8567;flex-shrink:0;font-weight:700;">✓</span>MinuteCare™ &amp; CareTest™ booking</div>
+          <div style="display:flex;gap:9px;align-items:flex-start;color:#7A8C84;"><span style="flex-shrink:0;">•</span>TeleCare™, DispatchCare™ &amp; Expert Review™ pay-per-use</div>
+          <div style="display:flex;gap:9px;align-items:flex-start;color:#27433A;"><span style="color:#0E8567;flex-shrink:0;font-weight:700;">✓</span>WhatsApp and call support</div>
+        </div>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(7,37,28,0.1);border-radius:22px;padding:28px;">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#07251C;">Basic</div>
+        <p style="color:#41584E;font-size:13.5px;margin:8px 0 14px;">Expand Your Access</p>
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:600;letter-spacing:-0.02em;padding:7px 0;">Enquire</div>
+        <a href="https://portal.myvaultplus.com" style="display:block;text-align:center;margin:20px 0 22px;background:#F1F4EF;color:#07251C;text-decoration:none;font-weight:600;font-size:14px;padding:12px;border-radius:100px;">Get Started with Basic</a>
+        <p style="font-size:12px;font-weight:600;color:#7A8C84;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 12px;">Everything in Free, plus</p>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:13.5px;">
+          <div style="display:flex;gap:9px;align-items:flex-start;color:#27433A;"><span style="color:#0E8567;flex-shrink:0;font-weight:700;">✓</span>Full health record access</div>
+          <div style="display:flex;gap:9px;align-items:flex-start;color:#27433A;"><span style="color:#0E8567;flex-shrink:0;font-weight:700;">✓</span>TeleCare™ — limited sessions included</div>
+          <div style="display:flex;gap:9px;align-items:flex-start;color:#27433A;"><span style="color:#0E8567;flex-shrink:0;font-weight:700;">✓</span>Expert Review™ — discounted rate</div>
+          <div style="display:flex;gap:9px;align-items:flex-start;color:#27433A;"><span style="color:#0E8567;flex-shrink:0;font-weight:700;">✓</span>Multi-Specialist Review — discounted</div>
+        </div>
+      </div>
+      <div style="background:#34E0A0;border:1px solid #34E0A0;border-radius:22px;padding:28px;position:relative;">
+        <span style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#07251C;color:#34E0A0;font-size:11px;font-weight:700;letter-spacing:0.06em;padding:5px 14px;border-radius:100px;white-space:nowrap;">MOST POPULAR</span>
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#07251C;">Mid-Level</div>
+        <p style="color:#0A4E3C;font-size:13.5px;margin:8px 0 14px;">More Care, More Coverage</p>
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:600;letter-spacing:-0.02em;padding:7px 0;color:#07251C;">Enquire</div>
+        <a href="https://portal.myvaultplus.com" style="display:block;text-align:center;margin:20px 0 22px;background:#07251C;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:12px;border-radius:100px;">Upgrade to Mid-Level</a>
+        <p style="font-size:12px;font-weight:700;color:#0A4E3C;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 12px;">Everything in Basic, plus</p>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:13.5px;">
+          <div style="display:flex;gap:9px;align-items:flex-start;color:#07251C;"><span style="flex-shrink:0;font-weight:700;">✓</span>Expanded TeleCare™ sessions</div>
+          <div style="display:flex;gap:9px;align-items:flex-start;color:#07251C;"><span style="flex-shrink:0;font-weight:700;">✓</span>Priority CareTest™ booking</div>
+          <div style="display:flex;gap:9px;align-items:flex-start;color:#07251C;"><span style="flex-shrink:0;font-weight:700;">✓</span>DispatchCare™ — discounted rate</div>
+          <div style="display:flex;gap:9px;align-items:flex-start;color:#07251C;"><span style="flex-shrink:0;font-weight:700;">✓</span>HealthConsult™ — included</div>
+          <div style="display:flex;gap:9px;align-items:flex-start;color:#07251C;"><span style="flex-shrink:0;font-weight:700;">✓</span>1 Expert Review™/year + discount</div>
+        </div>
+      </div>
+      <div style="background:#07251C;border:1px solid #07251C;border-radius:22px;padding:28px;">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#34E0A0;">Gold</div>
+        <p style="color:rgba(255,255,255,0.66);font-size:13.5px;margin:8px 0 14px;">The Complete Health Platform</p>
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:600;letter-spacing:-0.02em;padding:7px 0;color:#fff;">Enquire</div>
+        <a href="https://portal.myvaultplus.com" style="display:block;text-align:center;margin:20px 0 22px;background:#34E0A0;color:#07251C;text-decoration:none;font-weight:600;font-size:14px;padding:12px;border-radius:100px;">Go Gold</a>
+        <p style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.06em;margin:0 0 12px;">Everything in Mid-Level, plus</p>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:13.5px;">
+          <div style="display:flex;gap:9px;align-items:flex-start;color:rgba(255,255,255,0.9);"><span style="color:#34E0A0;flex-shrink:0;font-weight:700;">✓</span>Priority TeleCare™ &amp; MinuteCare™</div>
+          <div style="display:flex;gap:9px;align-items:flex-start;color:rgba(255,255,255,0.9);"><span style="color:#34E0A0;flex-shrink:0;font-weight:700;">✓</span>Priority DispatchCare™ routing</div>
+          <div style="display:flex;gap:9px;align-items:flex-start;color:rgba(255,255,255,0.9);"><span style="color:#34E0A0;flex-shrink:0;font-weight:700;">✓</span>2–4 Expert Reviews™/year + priority</div>
+          <div style="display:flex;gap:9px;align-items:flex-start;color:rgba(255,255,255,0.9);"><span style="color:#34E0A0;flex-shrink:0;font-weight:700;">✓</span>Multi-Specialist — priority discount</div>
+          <div style="display:flex;gap:9px;align-items:flex-start;color:rgba(255,255,255,0.9);"><span style="color:#34E0A0;flex-shrink:0;font-weight:700;">✓</span>NeuroFlex™ — add-on available</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CORPORATE -->
+  <section style="max-width:1240px;margin:0 auto;padding:24px 28px 0;">
+    <div style="background:#0C3328;border-radius:24px;padding:40px;display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center;">
+      <div>
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#34E0A0;">Corporate &amp; HMO</div>
+        <h2 style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:30px;letter-spacing:-0.02em;color:#fff;margin:12px 0 10px;">For Teams, Organisations &amp; Institutions</h2>
+        <p style="color:rgba(255,255,255,0.74);font-size:15px;line-height:1.6;margin:0;">Coverage for employers, HMO groups, estates, schools, and government organisations. Benefits and pricing structured per contract.</p>
+        <a href="Corporate.dc.html" style="display:inline-flex;align-items:center;gap:10px;background:#34E0A0;color:#07251C;text-decoration:none;font-weight:600;font-size:15px;padding:11px 12px 11px 22px;border-radius:100px;margin-top:24px;">Enquire About Corporate Plans<span style="width:30px;height:30px;border-radius:50%;background:#07251C;display:flex;align-items:center;justify-content:center;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="#34E0A0" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span></a>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px;">
+        <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:13px;padding:15px;color:rgba(255,255,255,0.86);font-size:13.5px;line-height:1.45;">Group enrolment &amp; management</div>
+        <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:13px;padding:15px;color:rgba(255,255,255,0.86);font-size:13.5px;line-height:1.45;">Contract-defined access to all HHA services</div>
+        <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:13px;padding:15px;color:rgba(255,255,255,0.86);font-size:13.5px;line-height:1.45;">Priority DispatchCare™ for all members</div>
+        <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:13px;padding:15px;color:rgba(255,255,255,0.86);font-size:13.5px;line-height:1.45;">Expert Review™ quota per group contract</div>
+        <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:13px;padding:15px;color:rgba(255,255,255,0.86);font-size:13.5px;line-height:1.45;">Event medical coverage available</div>
+        <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:13px;padding:15px;color:rgba(255,255,255,0.86);font-size:13.5px;line-height:1.45;">Dedicated account management</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPARISON TABLE -->
+  <section style="max-width:1240px;margin:0 auto;padding:88px 28px 96px;">
+    <div style="text-align:center;margin-bottom:44px;">
+      <div style="display:inline-flex;align-items:center;gap:8px;color:#0E8567;font-size:13px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;"><span style="width:5px;height:5px;border-radius:50%;background:#0E8567;"></span>Full Comparison</div>
+      <h2 style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:38px;line-height:1.1;letter-spacing:-0.02em;margin:14px 0 0;">Compare Every Tier</h2>
+    </div>
+    <div style="background:#fff;border:1px solid rgba(7,37,28,0.1);border-radius:22px;overflow:hidden;">
+      <table style="width:100%;border-collapse:collapse;font-size:13.5px;">
+        <thead>
+          <tr style="background:#07251C;">
+            <th style="text-align:left;padding:16px 20px;color:#fff;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;">Feature</th>
+            <th style="text-align:center;padding:16px 12px;color:#fff;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:13px;">Free</th>
+            <th style="text-align:center;padding:16px 12px;color:#fff;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:13px;">Basic</th>
+            <th style="text-align:center;padding:16px 12px;color:#34E0A0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:13px;">Mid-Level</th>
+            <th style="text-align:center;padding:16px 12px;color:#fff;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:13px;">Gold</th>
+            <th style="text-align:center;padding:16px 12px;color:#fff;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:13px;">Corporate</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid rgba(7,37,28,0.07);"><td style="padding:13px 20px;font-weight:600;color:#07251C;">Patient Portal</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;background:#F4FBF7;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td></tr>
+          <tr style="border-bottom:1px solid rgba(7,37,28,0.07);"><td style="padding:13px 20px;font-weight:600;color:#07251C;">Unique Patient ID</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;background:#F4FBF7;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td></tr>
+          <tr style="border-bottom:1px solid rgba(7,37,28,0.07);"><td style="padding:13px 20px;font-weight:600;color:#07251C;">Record Viewing</td><td style="text-align:center;color:#7A8C84;">Limited</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;background:#F4FBF7;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td></tr>
+          <tr style="border-bottom:1px solid rgba(7,37,28,0.07);"><td style="padding:13px 20px;font-weight:600;color:#07251C;">TeleCare™</td><td style="text-align:center;color:#7A8C84;">Pay-per-use</td><td style="text-align:center;color:#27433A;">Limited</td><td style="text-align:center;color:#27433A;background:#F4FBF7;">Expanded</td><td style="text-align:center;color:#27433A;">Priority</td><td style="text-align:center;color:#27433A;">Contract</td></tr>
+          <tr style="border-bottom:1px solid rgba(7,37,28,0.07);"><td style="padding:13px 20px;font-weight:600;color:#07251C;">MinuteCare™</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;background:#F4FBF7;">✓</td><td style="text-align:center;color:#27433A;">Priority</td><td style="text-align:center;color:#27433A;">Contract</td></tr>
+          <tr style="border-bottom:1px solid rgba(7,37,28,0.07);"><td style="padding:13px 20px;font-weight:600;color:#07251C;">CareTest™</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td><td style="text-align:center;color:#27433A;background:#F4FBF7;">Priority</td><td style="text-align:center;color:#27433A;">Priority</td><td style="text-align:center;color:#27433A;">Contract</td></tr>
+          <tr style="border-bottom:1px solid rgba(7,37,28,0.07);"><td style="padding:13px 20px;font-weight:600;color:#07251C;">DispatchCare™</td><td style="text-align:center;color:#7A8C84;">Pay-per-use</td><td style="text-align:center;color:#7A8C84;">Pay-per-use</td><td style="text-align:center;color:#27433A;background:#F4FBF7;">Discounted</td><td style="text-align:center;color:#27433A;">Priority</td><td style="text-align:center;color:#27433A;">Contract</td></tr>
+          <tr style="border-bottom:1px solid rgba(7,37,28,0.07);"><td style="padding:13px 20px;font-weight:600;color:#07251C;">HealthConsult™</td><td style="text-align:center;color:#C2403A;">✕</td><td style="text-align:center;color:#7A8C84;">Add-on</td><td style="text-align:center;color:#0E8567;font-weight:700;background:#F4FBF7;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td><td style="text-align:center;color:#27433A;">Contract</td></tr>
+          <tr style="border-bottom:1px solid rgba(7,37,28,0.07);"><td style="padding:13px 20px;font-weight:600;color:#07251C;">NeuroFlex™</td><td style="text-align:center;color:#7A8C84;">Add-on</td><td style="text-align:center;color:#7A8C84;">Add-on</td><td style="text-align:center;color:#7A8C84;background:#F4FBF7;">Add-on</td><td style="text-align:center;color:#7A8C84;">Add-on</td><td style="text-align:center;color:#27433A;">Contract</td></tr>
+          <tr style="border-bottom:1px solid rgba(7,37,28,0.07);"><td style="padding:13px 20px;font-weight:600;color:#07251C;">Expert Review™</td><td style="text-align:center;color:#7A8C84;">Pay-per-review</td><td style="text-align:center;color:#27433A;">Discounted</td><td style="text-align:center;color:#27433A;background:#F4FBF7;">1/yr + discount</td><td style="text-align:center;color:#27433A;">2–4/yr + priority</td><td style="text-align:center;color:#27433A;">Contract quota</td></tr>
+          <tr style="border-bottom:1px solid rgba(7,37,28,0.07);"><td style="padding:13px 20px;font-weight:600;color:#07251C;">Multi-Specialist Panel</td><td style="text-align:center;color:#7A8C84;">Pay-per-review</td><td style="text-align:center;color:#27433A;">Discounted</td><td style="text-align:center;color:#27433A;background:#F4FBF7;">Discounted</td><td style="text-align:center;color:#27433A;">Priority discount</td><td style="text-align:center;color:#27433A;">Contract</td></tr>
+          <tr style="border-bottom:1px solid rgba(7,37,28,0.07);"><td style="padding:13px 20px;font-weight:600;color:#07251C;">PDF Record Downloads</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;background:#F4FBF7;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td></tr>
+          <tr><td style="padding:13px 20px;font-weight:600;color:#07251C;">WhatsApp + Call Support</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;background:#F4FBF7;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td><td style="text-align:center;color:#0E8567;font-weight:700;">✓</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex;justify-content:center;margin-top:40px;">
+      <a href="https://portal.myvaultplus.com/register" style="display:flex;align-items:center;gap:12px;background:#07251C;color:#fff;text-decoration:none;font-weight:600;font-size:15px;padding:11px 12px 11px 24px;border-radius:100px;">Create Your Free Account<span style="width:30px;height:30px;border-radius:50%;background:#34E0A0;display:flex;align-items:center;justify-content:center;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M19 5H9M19 5v10" stroke="#07251C" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span></a>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer style="background:#052018;color:#fff;">
+    <div style="max-width:1240px;margin:0 auto;padding:72px 28px 0;display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr 1fr;gap:36px;">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;"><span style="width:30px;height:30px;border-radius:9px;background:#0E8567;display:flex;align-items:center;justify-content:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" stroke="#34E0A0" stroke-width="2" stroke-linejoin="round"/><path d="M12 8.5v5M9.5 11h5" stroke="#34E0A0" stroke-width="2" stroke-linecap="round"/></svg></span><span style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:18px;">MyHealth Vault+</span></div>
+        <p style="color:#34E0A0;font-size:13px;font-weight:600;letter-spacing:0.04em;margin:16px 0 4px;">Speed. Agility. Access.</p>
+        <p style="color:rgba(255,255,255,0.55);font-size:13.5px;margin:0;">A product of Health-Hub Africa®</p>
+        <a href="https://www.healthhubafrica.com" style="display:inline-flex;align-items:center;gap:6px;color:#fff;font-size:13.5px;font-weight:600;text-decoration:none;margin-top:16px;border:1px solid rgba(255,255,255,0.2);padding:9px 16px;border-radius:100px;">Visit Health-Hub Africa®<svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M19 5H9M19 5v10" stroke="#34E0A0" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:16px;">Platform</div>
+        <div style="display:flex;flex-direction:column;gap:11px;font-size:14px;">
+          <a href="https://portal.myvaultplus.com" style="color:rgba(255,255,255,0.8);text-decoration:none;">Patient Portal</a>
+          <a href="https://clinical.myvaultplus.com" style="color:rgba(255,255,255,0.8);text-decoration:none;">Clinical Platform</a>
+          <a href="https://admin.myvaultplus.com" style="color:rgba(255,255,255,0.8);text-decoration:none;">Admin Portal</a>
+          <a href="https://api.myvaultplus.com" style="color:rgba(255,255,255,0.8);text-decoration:none;">API Documentation</a>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:16px;">Services</div>
+        <div style="display:flex;flex-direction:column;gap:11px;font-size:14px;">
+          <a href="Services.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">TeleCare™</a>
+          <a href="Services.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">MinuteCare™</a>
+          <a href="Services.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">CareTest™</a>
+          <a href="Services.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">HealthConsult™</a>
+          <a href="Expert Review.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">Expert Review™</a>
+          <a href="DispatchCare.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">DispatchCare™</a>
+          <a href="Services.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">NeuroFlex™</a>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:16px;">Company</div>
+        <div style="display:flex;flex-direction:column;gap:11px;font-size:14px;">
+          <a href="About.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">About</a>
+          <a href="Plans.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">Plans &amp; Pricing</a>
+          <a href="Corporate.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">Corporate &amp; HMO</a>
+          <a href="Contact.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">Contact</a>
+          <a href="FAQ.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">FAQ</a>
+          <a href="#" style="color:rgba(255,255,255,0.5);text-decoration:none;">Careers <span style="font-size:11px;">(soon)</span></a>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:16px;">Legal &amp; Support</div>
+        <div style="display:flex;flex-direction:column;gap:11px;font-size:14px;">
+          <a href="Privacy.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">Privacy Policy</a>
+          <a href="Terms.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">Terms of Use</a>
+          <a href="Privacy.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">Cookie Policy</a>
+          <a href="Contact.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">Contact</a>
+          <a href="Contact.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">WhatsApp Support</a>
+          <a href="Contact.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">Call Support</a>
+        </div>
+      </div>
+    </div>
+    <div style="max-width:1240px;margin:56px auto 0;padding:24px 28px 40px;border-top:1px solid rgba(255,255,255,0.1);">
+      <p style="color:rgba(255,255,255,0.45);font-size:12.5px;line-height:1.6;margin:0;">© 2026 Health-Hub Africa®. All rights reserved. MyHealth Vault+™ is a registered product of Health-Hub Africa®. TeleCare™, MinuteCare™, CareTest™, HealthConsult™, DispatchCare™, Expert Review™, and NeuroFlex™ are trademarks of Health-Hub Africa®.</p>
+    </div>
+  </footer>
+
+</div>
+</x-dc>
+</body>
+</html>
