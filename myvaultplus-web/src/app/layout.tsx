@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Space_Grotesk, Hanken_Grotesk, Playfair_Display } from 'next/font/google'
+import { Space_Grotesk, Manrope, Playfair_Display } from 'next/font/google'
 import './globals.css'
 
 const spaceGrotesk = Space_Grotesk({
@@ -9,10 +9,10 @@ const spaceGrotesk = Space_Grotesk({
   display: 'swap',
 })
 
-const hankenGrotesk = Hanken_Grotesk({
+const manrope = Manrope({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
-  variable: '--font-hanken-grotesk',
+  variable: '--font-manrope',
   display: 'swap',
 })
 
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
   },
   title: 'MyHealth Vault+™ — Your Health. Secure. Always Within Reach.',
   description:
-    'MyHealth Vault+™ is your personal digital health portal — built for Africa. Access records, book care, get specialist second opinions, and activate emergency dispatch from one secure place.',
+    'MyHealth Vault+™ is your personal digital health portal, built for Africa. Access records, book care, get specialist second opinions, and activate emergency dispatch from one secure place.',
   keywords: [
     'digital health',
     'health portal',
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'MyHealth Vault+™ — Your Health. Secure. Always Within Reach.',
     description:
-      'Your personal digital health portal — built for Africa. Access records, book care, get specialist second opinions, and activate emergency dispatch.',
+      'Your personal digital health portal, built for Africa. Access records, book care, get specialist second opinions, and activate emergency dispatch.',
     url: 'https://www.myvaultplus.com',
     siteName: 'MyHealth Vault+™',
     type: 'website',
@@ -57,9 +57,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${spaceGrotesk.variable} ${hankenGrotesk.variable} ${playfairDisplay.variable}`}
+      className={`${spaceGrotesk.variable} ${manrope.variable} ${playfairDisplay.variable}`}
     >
-      <body style={{ fontFamily: 'var(--font-hanken-grotesk), sans-serif' }}>
+      <body style={{ fontFamily: 'var(--font-manrope), sans-serif' }}>
         {children}
       </body>
     </html>

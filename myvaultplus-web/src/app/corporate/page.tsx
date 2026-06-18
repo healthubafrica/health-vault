@@ -3,24 +3,26 @@ import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
 import HeroMarquee from '@/components/HeroMarquee'
+import { Users, Building2, Zap, Shield, Ambulance, Brain, BarChart3, UserCog, Pill, Home, GraduationCap, Landmark } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
-const features = [
-  { icon: '👥', title: 'Group Enrolment', desc: 'Enrol from 10 members upward with centralised account management.' },
-  { icon: '🏥', title: 'Full Portal Access', desc: 'Every enrolled member gets a complete MyHealth Vault+™ account.' },
-  { icon: '⚡', title: 'Priority Services', desc: 'All members receive priority access to TeleCare™ and DispatchCare™.' },
-  { icon: '🛡', title: 'Expert Review Credits', desc: 'Bulk Expert Review™ credits allocated across your organisation.' },
-  { icon: '🚑', title: 'Event Medical Coverage', desc: 'Dedicated DispatchCare™ coverage for events and gatherings.' },
-  { icon: '🧠', title: 'NeuroFlex Access', desc: 'Organisation-wide access to specialist neurology consultations.' },
-  { icon: '📊', title: 'Usage Reporting', desc: 'Quarterly utilisation reports to help you manage your health benefits.' },
-  { icon: '👨‍💼', title: 'Account Management', desc: 'Dedicated account manager for seamless onboarding and ongoing support.' },
+const features: Array<{ icon: LucideIcon; title: string; desc: string }> = [
+  { icon: Users, title: 'Group Enrolment', desc: 'Enrol from 10 members upward with centralised account management.' },
+  { icon: Building2, title: 'Full Portal Access', desc: 'Every enrolled member gets a complete MyHealth Vault+™ account.' },
+  { icon: Zap, title: 'Priority Services', desc: 'All members receive priority access to TeleCare™ and DispatchCare™.' },
+  { icon: Shield, title: 'Expert Review Credits', desc: 'Bulk Expert Review™ credits allocated across your organisation.' },
+  { icon: Ambulance, title: 'Event Medical Coverage', desc: 'Dedicated DispatchCare™ coverage for events and gatherings.' },
+  { icon: Brain, title: 'NeuroFlex Access', desc: 'Organisation-wide access to specialist neurology consultations.' },
+  { icon: BarChart3, title: 'Usage Reporting', desc: 'Quarterly utilisation reports to help you manage your health benefits.' },
+  { icon: UserCog, title: 'Account Management', desc: 'Dedicated account manager for seamless onboarding and ongoing support.' },
 ]
 
-const audiences = [
-  { icon: '🏢', name: 'Employers', desc: 'Staff and dependent health coverage' },
-  { icon: '💊', name: 'HMO Providers', desc: 'Digital health platform integration' },
-  { icon: '🏘', name: 'Residential Estates', desc: 'Community health access for residents' },
-  { icon: '🎓', name: 'Schools & Universities', desc: 'Student and staff healthcare benefits' },
-  { icon: '🏛', name: 'Government Institutions', desc: 'Public sector employee coverage' },
+const audiences: Array<{ icon: LucideIcon; name: string; desc: string }> = [
+  { icon: Building2, name: 'Employers', desc: 'Staff and dependent health coverage' },
+  { icon: Pill, name: 'HMO Providers', desc: 'Digital health platform integration' },
+  { icon: Home, name: 'Residential Estates', desc: 'Community health access for residents' },
+  { icon: GraduationCap, name: 'Schools & Universities', desc: 'Student and staff healthcare benefits' },
+  { icon: Landmark, name: 'Government Institutions', desc: 'Public sector employee coverage' },
 ]
 
 const bentoCheckItems = [
@@ -47,7 +49,7 @@ export default function CorporatePage() {
               <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#34E0A0', letterSpacing: '-0.02em', lineHeight: 1.06 }}>That Actually Work.</span>
             </h1>
             <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 16, lineHeight: 1.65, maxWidth: 520, margin: '0 auto 32px' }}>
-              Give your employees, members, or dependants access to a full digital health ecosystem — managed, measurable, and always available.
+              Give your employees, members, or dependants access to a full digital health ecosystem; managed, measurable, and always available.
             </p>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
               <a href="/plans" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', border: '1.5px solid rgba(255,255,255,0.55)', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '13px 26px', borderRadius: 100 }}>
@@ -61,7 +63,6 @@ export default function CorporatePage() {
               </a>
             </div>
           </div>
-
           <HeroMarquee marginTop={80} />
         </section>
       </div>
@@ -77,13 +78,18 @@ export default function CorporatePage() {
             </h2>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-            {features.map((feat) => (
-              <div key={feat.title} style={{ background: '#fff', border: '1px solid rgba(7,37,28,0.09)', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <span style={{ width: 44, height: 44, borderRadius: 12, background: '#EAF7F1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>{feat.icon}</span>
-                <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 15, color: '#07251C', margin: 0 }}>{feat.title}</h3>
-                <p style={{ color: '#41584E', fontSize: 13.5, lineHeight: 1.55, margin: 0 }}>{feat.desc}</p>
-              </div>
-            ))}
+            {features.map((feat) => {
+              const Icon = feat.icon
+              return (
+                <div key={feat.title} style={{ background: '#fff', border: '1px solid rgba(7,37,28,0.09)', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <span style={{ width: 44, height: 44, borderRadius: 12, background: '#EAF7F1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon size={22} strokeWidth={1.8} color="#0E8567" />
+                  </span>
+                  <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 15, color: '#07251C', margin: 0 }}>{feat.title}</h3>
+                  <p style={{ color: '#41584E', fontSize: 13.5, lineHeight: 1.55, margin: 0 }}>{feat.desc}</p>
+                </div>
+              )
+            })}
           </div>
         </section>
       </div>
@@ -99,13 +105,18 @@ export default function CorporatePage() {
             </h2>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
-            {audiences.map((aud) => (
-              <div key={aud.name} style={{ background: '#0C3328', borderRadius: 18, padding: '28px 20px', display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'center' }}>
-                <span style={{ fontSize: 32 }}>{aud.icon}</span>
-                <div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 15, color: '#fff' }}>{aud.name}</div>
-                <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.55)', lineHeight: 1.5 }}>{aud.desc}</div>
-              </div>
-            ))}
+            {audiences.map((aud) => {
+              const Icon = aud.icon
+              return (
+                <div key={aud.name} style={{ background: '#0C3328', borderRadius: 18, padding: '28px 20px', display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'center', alignItems: 'center' }}>
+                  <span style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(52,224,160,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon size={24} strokeWidth={1.8} color="#34E0A0" />
+                  </span>
+                  <div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 15, color: '#fff' }}>{aud.name}</div>
+                  <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.55)', lineHeight: 1.5 }}>{aud.desc}</div>
+                </div>
+              )
+            })}
           </div>
         </section>
       </div>

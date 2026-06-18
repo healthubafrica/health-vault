@@ -3,11 +3,13 @@ import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
 import HeroMarquee from '@/components/HeroMarquee'
+import { MessageCircle, Phone, Mail } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
-const channels = [
-  { icon: '💬', color: '#0E8567', bg: '#EAF7F1', title: 'WhatsApp Support', desc: 'Chat with our support team directly. Fastest response time — typically under 30 minutes.', link: 'https://wa.me/2341234567890', label: 'Chat Now →' },
-  { icon: '📞', color: '#2563EB', bg: '#EFF6FF', title: 'Phone Support', desc: 'Call us during business hours and speak directly with a patient support representative.', link: 'tel:+2341234567890', label: 'Call Now →' },
-  { icon: '✉️', color: '#7C3AED', bg: '#F5F3FF', title: 'Email Support', desc: 'Send a detailed message and receive a thorough response within 2 business hours.', link: 'mailto:support@myvaultplus.com', label: 'Send Email →' },
+const channels: Array<{ icon: LucideIcon; color: string; bg: string; title: string; desc: string; link: string; label: string }> = [
+  { icon: MessageCircle, color: '#0E8567', bg: '#EAF7F1', title: 'WhatsApp Support', desc: 'Chat with our support team directly. Fastest response time, typically under 30 minutes.', link: 'https://wa.me/2341234567890', label: 'Chat Now →' },
+  { icon: Phone, color: '#2563EB', bg: '#EFF6FF', title: 'Phone Support', desc: 'Call us during business hours and speak directly with a patient support representative.', link: 'tel:+2341234567890', label: 'Call Now →' },
+  { icon: Mail, color: '#7C3AED', bg: '#F5F3FF', title: 'Email Support', desc: 'Send a detailed message and receive a thorough response within 2 business hours.', link: 'mailto:support@myvaultplus.com', label: 'Send Email →' },
 ]
 
 export default function ContactPage() {
@@ -42,7 +44,6 @@ export default function ContactPage() {
               </a>
             </div>
           </div>
-
           <HeroMarquee marginTop={80} />
         </section>
       </div>
@@ -58,14 +59,19 @@ export default function ContactPage() {
             </h2>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-            {channels.map((ch) => (
-              <div key={ch.title} style={{ background: '#fff', border: '1px solid rgba(7,37,28,0.09)', borderRadius: 22, padding: 28, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <span style={{ width: 44, height: 44, borderRadius: 12, background: ch.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>{ch.icon}</span>
-                <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 19, color: '#07251C', margin: 0 }}>{ch.title}</h3>
-                <p style={{ color: '#41584E', fontSize: 14, lineHeight: 1.6, margin: 0, flex: 1 }}>{ch.desc}</p>
-                <a href={ch.link} style={{ color: ch.color, fontWeight: 600, fontSize: 14, textDecoration: 'none' }}>{ch.label}</a>
-              </div>
-            ))}
+            {channels.map((ch) => {
+              const Icon = ch.icon
+              return (
+                <div key={ch.title} style={{ background: '#fff', border: '1px solid rgba(7,37,28,0.09)', borderRadius: 22, padding: 28, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <span style={{ width: 44, height: 44, borderRadius: 12, background: ch.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon size={22} strokeWidth={1.8} color={ch.color} />
+                  </span>
+                  <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 19, color: '#07251C', margin: 0 }}>{ch.title}</h3>
+                  <p style={{ color: '#41584E', fontSize: 14, lineHeight: 1.6, margin: 0, flex: 1 }}>{ch.desc}</p>
+                  <a href={ch.link} style={{ color: ch.color, fontWeight: 600, fontSize: 14, textDecoration: 'none' }}>{ch.label}</a>
+                </div>
+              )
+            })}
           </div>
         </section>
       </div>

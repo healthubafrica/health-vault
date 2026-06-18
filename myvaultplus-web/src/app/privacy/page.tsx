@@ -46,7 +46,7 @@ We do not sell your personal data to third parties. We do not use your health da
 
 • End-to-end encryption for all data in transit (TLS 1.3)
 • AES-256 encryption for data at rest
-• Role-based access controls — only authorised personnel can access your data
+• Role-based access controls; only authorised personnel can access your data
 • Regular security audits and penetration testing
 • Automated intrusion detection and monitoring
 
@@ -85,7 +85,7 @@ To exercise any of these rights, contact us at: privacy@myvaultplus.com or write
     label: 'Cookies',
     content: `MyHealth Vault+™ uses cookies and similar tracking technologies to:
 
-• Keep you signed in to your account (session cookies — essential)
+• Keep you signed in to your account (session cookies, essential)
 • Remember your preferences (functional cookies)
 • Analyse platform usage to improve our services (analytics cookies)
 
@@ -111,7 +111,6 @@ export default function PrivacyPage() {
       <div style={{ height: 80 }} />
 
       <HeroSplit
-        trustText="NDPR 2019 Compliant · AES-256 Encrypted"
         heading={
           <>
             <span style={{ display: 'block' }}>Your Privacy.</span>

@@ -52,7 +52,7 @@ export default function HowItWorks() {
             lineHeight: 1.65,
           }}
         >
-          We help Nigerians access better healthcare — not by replacing human doctors,
+          We help Nigerians access better healthcare, not by replacing human doctors,
           but by amplifying them with technology that is always within reach.
         </p>
       </div>
@@ -172,7 +172,7 @@ export default function HowItWorks() {
             <h3 style={titleStyle}>Your Records, Always Organised</h3>
             <p style={bodyStyle}>
               Every consultation,{' '}
-              <Highlight>lab result</Highlight>, prescription, and report — stored securely and
+              <Highlight>lab result</Highlight>, prescription, and report, stored securely and
               accessible in seconds.{' '}
               <Highlight>Filter, view, and download</Highlight> at any time.
             </p>
@@ -341,7 +341,7 @@ export default function HowItWorks() {
             </div>
             <h3 style={titleStyle}>Book Care, Instantly</h3>
             <p style={bodyStyle}>
-              Schedule any service in <Highlight>4 steps or fewer</Highlight> — all bookings{' '}
+              Schedule any service in <Highlight>4 steps or fewer</Highlight>, with all bookings{' '}
               <Highlight>confirmed directly</Highlight> in your Vault, with reminders.
             </p>
           </GridCard>

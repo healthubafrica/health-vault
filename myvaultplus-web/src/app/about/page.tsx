@@ -7,21 +7,21 @@ import HeroSplit from '@/components/HeroSplit'
 const checkItems = [
   'Secure health records, always accessible',
   'Book care in 4 steps or fewer',
-  'Emergency dispatch — one tap, any screen',
+  'Emergency dispatch; one tap, any screen',
   'Specialist second opinions via Expert Review™',
 ]
 
 const pillars = [
-  { title: 'Patient-Centred Design', desc: 'Every feature is built around the patient experience — intuitive, fast, and always accessible from any device.' },
+  { title: 'Patient-Centred Design', desc: 'Every feature is built around the patient experience, intuitive, fast, and always accessible from any device.' },
   { title: 'Clinical Accuracy', desc: 'Our specialist networks and review panels maintain the highest standards of clinical rigour in every interaction.' },
-  { title: 'Data Sovereignty', desc: 'Your health data belongs to you — stored securely, NDPR-compliant, and never sold or shared without consent.' },
-  { title: 'Scalable Infrastructure', desc: "Built on modern, scalable technology that grows with Nigeria's healthcare needs — from individual patients to enterprise." },
+  { title: 'Data Sovereignty', desc: 'Your health data belongs to you, stored securely, NDPR-compliant, and never sold or shared without consent.' },
+  { title: 'Scalable Infrastructure', desc: "Built on modern, scalable technology that grows with Nigeria's healthcare needs, from individual patients to enterprise." },
 ]
 
 const layers = [
-  { num: '01', title: 'MyHealth Vault+™ UI', desc: 'The patient-facing portal — health records, bookings, communications, and emergency dispatch in one secure interface.' },
+  { num: '01', title: 'MyHealth Vault+™ UI', desc: 'The patient-facing portal, health records, bookings, communications, and emergency dispatch in one secure interface.' },
   { num: '02', title: 'HHA Middleware', desc: 'Intelligent routing, authentication, FHIR R4 compliance, and real-time data synchronisation across all services.' },
-  { num: '03', title: 'Clinical Infrastructure', desc: 'Hospital integrations, specialist networks, lab partnerships, and emergency operations — the backbone of care delivery.' },
+  { num: '03', title: 'Clinical Infrastructure', desc: 'Hospital integrations, specialist networks, lab partnerships, and emergency operations, the backbone of care delivery.' },
 ]
 
 
@@ -32,14 +32,13 @@ export default function AboutPage() {
       <div style={{ height: 80 }} />
 
       <HeroSplit
-        trustText="Nigeria's leading health portal · Launched 2023"
         heading={
           <>
             <span style={{ display: 'block' }}>About MyHealth Vault+™</span>
             <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', color: '#0E8567' }}>by Health-Hub Africa®</span>
           </>
         }
-        description="The patient-facing digital health portal — a secure, intelligent, and personalised digital home for healthcare in Africa."
+        description="The patient-facing digital health portal is a secure, intelligent, and personalised digital home for healthcare in Africa."
         secondaryCta={{ label: 'Our Services', href: '/services' }}
         primaryCta={{ label: 'Get Started', href: 'https://portal.myvaultplus.com/register' }}
         image="https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=1400&h=1800&fit=crop&q=85"
@@ -110,7 +109,7 @@ export default function AboutPage() {
               </div>
               <div style={{ padding: 24 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 8 }}>Onboard in under 3 minutes</div>
-                <p style={{ color: '#41584E', fontSize: 14, lineHeight: 1.6, margin: 0 }}>Register, access your portal, and start using Health-Hub Africa® services immediately — at no cost.</p>
+                <p style={{ color: '#41584E', fontSize: 14, lineHeight: 1.6, margin: 0 }}>Register, access your portal, and start using Health-Hub Africa® services immediately, at no cost.</p>
               </div>
             </div>
             <div style={{ background: '#34E0A0', borderRadius: 24, padding: 28, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
@@ -190,7 +189,7 @@ export default function AboutPage() {
                 <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, color: '#34E0A0' }}>Health-Hub Africa®</em>
               </h2>
               <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 15, lineHeight: 1.7, margin: '0 0 16px' }}>
-                Health-Hub Africa® is an integrated healthcare technology company based in Lagos, Nigeria. We build the infrastructure that connects patients to quality care — combining clinical expertise with world-class digital product development.
+                Health-Hub Africa® is an integrated healthcare technology company based in Lagos, Nigeria. We build the infrastructure that connects patients to quality care, combining clinical expertise with world-class digital product development.
               </p>
               <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 15, lineHeight: 1.7, margin: 0 }}>
                 MyHealth Vault+™ is our flagship patient-facing platform, designed to give every Nigerian access to a secure, intelligent digital health home.
