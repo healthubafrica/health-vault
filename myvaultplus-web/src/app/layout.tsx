@@ -25,6 +25,10 @@ const playfairDisplay = Playfair_Display({
 })
 
 export const metadata: Metadata = {
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+  },
   title: 'MyHealth Vault+™ — Your Health. Secure. Always Within Reach.',
   description:
     'MyHealth Vault+™ is your personal digital health portal — built for Africa. Access records, book care, get specialist second opinions, and activate emergency dispatch from one secure place.',
