@@ -6,6 +6,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { UserRole } from '@prisma/client';
@@ -44,24 +45,50 @@ export class AuthService {
   // ── Registration ─────────────────────────────────────────────────────────
 
   async register(dto: RegisterDto, ipAddress?: string) {
-    const existing = await this.prisma.user.findUnique({
+    // Check duplicate email
+    const existingEmail = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
-    if (existing) throw new ConflictException('Email already registered');
+    if (existingEmail) throw new ConflictException('Email already registered');
+
+    // Check duplicate phone (phone has a unique index)
+    const phone = dto.phoneNumber ?? dto.phone;
+    if (phone) {
+      const existingPhone = await this.prisma.user.findUnique({
+        where: { phone },
+      });
+      if (existingPhone) throw new ConflictException('Phone number already registered');
+    }
 
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
 
     // SEC-001: role is always forced to 'patient' on self-registration.
     // Admin and provider roles are assigned by existing admins only.
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        phone: dto.phone,
-        passwordHash,
-        role: UserRole.patient,
-      },
-      select: { id: true, email: true, role: true },
-    });
+    let user: { id: string; email: string; role: UserRole };
+    try {
+      user = await this.prisma.user.create({
+        data: {
+          email: dto.email,
+          phone,
+          passwordHash,
+          role: UserRole.patient,
+        },
+        select: { id: true, email: true, role: true },
+      });
+    } catch (err) {
+      // Safety net for race conditions: two concurrent registrations with the
+      // same unique field can both pass the pre-checks above and then one will
+      // hit the DB constraint. Convert P2002 → 409 so it never surfaces as 500.
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        const fields = (err.meta?.target as string[]) ?? [];
+        const field = fields.includes('phone') ? 'Phone number' : 'Email';
+        throw new ConflictException(`${field} already registered`);
+      }
+      throw err;
+    }
 
     await this.sendEmailOtp(user.email, user.id, 'email');
 

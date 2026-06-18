@@ -9,6 +9,7 @@ import {
 import { Request, Response } from 'express';
 import * as Sentry from '@sentry/nestjs';
 import { SentryExceptionCaptured } from '@sentry/nestjs';
+import { Prisma } from '@prisma/client';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -19,6 +20,31 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
+
+    // ── Prisma known errors → meaningful HTTP responses ───────────────────
+    if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      if (exception.code === 'P2002') {
+        // Unique constraint violation → 409 Conflict
+        const fields = (exception.meta?.target as string[]) ?? [];
+        const field = fields.length ? fields.join(', ') : 'field';
+        return response.status(HttpStatus.CONFLICT).json({
+          success: false,
+          statusCode: HttpStatus.CONFLICT,
+          message: `A record with this ${field} already exists`,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      if (exception.code === 'P2025') {
+        // Record not found (e.g. update/delete on non-existent row) → 404
+        return response.status(HttpStatus.NOT_FOUND).json({
+          success: false,
+          statusCode: HttpStatus.NOT_FOUND,
+          message: 'Record not found',
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
 
     const status =
       exception instanceof HttpException
