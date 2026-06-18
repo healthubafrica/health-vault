@@ -20,7 +20,7 @@ export default function About() {
   const animate = inView ? 'visible' : 'hidden'
 
   return (
-    <section style={{ maxWidth: 1280, margin: '0 auto', padding: '104px 32px' }}>
+    <section className="section-inner-lg">
       {/* Section header */}
       <motion.div
         ref={ref}
@@ -70,13 +70,7 @@ export default function About() {
         variants={staggerContainer(0.08)}
         initial={initial}
         animate={animate}
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1.4fr 1.3fr 1fr',
-          gridTemplateRows: '1fr 1fr',
-          gap: 16,
-          minHeight: 380,
-        }}
+        className="about-bento"
       >
         {/* Left — large dark card */}
         <motion.div

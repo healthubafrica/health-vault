@@ -3,7 +3,7 @@ import { motion, useInView, useReducedMotion } from 'framer-motion'
 import { useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { EASE_OUT, cardVariant, staggerContainer } from '@/lib/motion'
+import { EASE_OUT, cardVariant, staggerContainer, labelVariant, headingVariant, bodyVariant } from '@/lib/motion'
 
 const ArrowRight = ({ color = '#07251C' }: { color?: string }) => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
@@ -26,15 +26,16 @@ export default function Services() {
         borderBottom: '1px solid rgba(7,37,28,0.07)',
       }}
     >
-      <div ref={ref} style={{ maxWidth: 1280, margin: '0 auto', padding: '104px 32px' }}>
-        {/* Section header */}
+      <div ref={ref} className="section-inner-lg">
+        {/* Section header — each element staggers in */}
         <motion.div
-          style={{ textAlign: 'center', marginBottom: 48 }}
-          initial={{ opacity: 0, y: 24 }}
-          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
-          transition={{ duration: 0.5, ease: EASE_OUT }}
+          style={{ textAlign: 'center', marginBottom: 56 }}
+          variants={staggerContainer(0.14)}
+          initial={initial}
+          animate={animate}
         >
-          <div
+          <motion.div
+            variants={labelVariant}
             style={{
               fontSize: 12,
               fontWeight: 700,
@@ -45,15 +46,16 @@ export default function Services() {
             }}
           >
             — Services
-          </div>
-          <h2
+          </motion.div>
+          <motion.h2
+            variants={headingVariant}
             style={{
               fontFamily: 'var(--font-manrope), sans-serif',
               fontWeight: 600,
               fontSize: 'clamp(28px, 3.5vw, 40px)',
               lineHeight: 1.1,
               letterSpacing: '-0.02em',
-              margin: '0 auto 20px',
+              margin: '0 auto 24px',
               maxWidth: 640,
             }}
           >
@@ -67,42 +69,44 @@ export default function Services() {
             >
               intelligent access.
             </em>
-          </h2>
-          <motion.div
-            whileHover={!reduced ? { scale: 1.03, transition: { duration: 0.15 } } : undefined}
-            whileTap={!reduced ? { scale: 0.97 } : undefined}
-            style={{ display: 'inline-block' }}
-          >
-            <Link
-              href="/services"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 10,
-                background: '#07251C',
-                color: '#fff',
-                textDecoration: 'none',
-                fontWeight: 600,
-                fontSize: 14,
-                padding: '10px 11px 10px 22px',
-                borderRadius: 100,
-              }}
+          </motion.h2>
+          <motion.div variants={bodyVariant} style={{ display: 'inline-block' }}>
+            <motion.div
+              whileHover={!reduced ? { scale: 1.05, transition: { duration: 0.18 } } : undefined}
+              whileTap={!reduced ? { scale: 0.97 } : undefined}
+              style={{ display: 'inline-block' }}
             >
-              View All Services
-              <span
+              <Link
+                href="/services"
                 style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: '50%',
-                  background: '#6DC43F',
-                  display: 'flex',
+                  display: 'inline-flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
+                  gap: 10,
+                  background: '#07251C',
+                  color: '#fff',
+                  textDecoration: 'none',
+                  fontWeight: 600,
+                  fontSize: 14,
+                  padding: '10px 11px 10px 22px',
+                  borderRadius: 100,
                 }}
               >
-                <ArrowRight />
-              </span>
-            </Link>
+                View All Services
+                <span
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    background: '#6DC43F',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <ArrowRight />
+                </span>
+              </Link>
+            </motion.div>
           </motion.div>
         </motion.div>
 
@@ -111,16 +115,12 @@ export default function Services() {
           variants={staggerContainer(0.08)}
           initial={initial}
           animate={animate}
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1.1fr 1fr 1fr',
-            gap: 16,
-          }}
+          className="services-bento"
         >
           {/* TeleCare image card */}
           <motion.div
             variants={cardVariant}
-            whileHover={!reduced ? { y: -5, transition: { duration: 0.18, ease: EASE_OUT } } : undefined}
+            whileHover={!reduced ? { y: -14, scale: 1.02, transition: { duration: 0.22, ease: EASE_OUT } } : undefined}
             style={{
               background: '#07251C',
               borderRadius: 22,
@@ -140,13 +140,18 @@ export default function Services() {
                 flexShrink: 0,
               }}
             >
-              <Image
-                src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=800&h=600&fit=crop&crop=faces&q=80"
-                alt="Black woman doctor in telehealth video consultation"
-                fill
-                style={{ objectFit: 'cover', objectPosition: 'center top' }}
-                sizes="(max-width: 768px) 100vw, 500px"
-              />
+              <motion.div
+                style={{ position: 'absolute', inset: 0 }}
+                whileHover={!reduced ? { scale: 1.09, transition: { duration: 0.55, ease: EASE_OUT } } : undefined}
+              >
+                <Image
+                  src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=800&h=600&fit=crop&crop=faces&q=80"
+                  alt="Black woman doctor in telehealth video consultation"
+                  fill
+                  style={{ objectFit: 'cover', objectPosition: 'center top' }}
+                  sizes="(max-width: 768px) 100vw, 500px"
+                />
+              </motion.div>
             </div>
 
             <div style={{ padding: '8px 8px 12px' }}>
@@ -223,12 +228,8 @@ export default function Services() {
           variants={staggerContainer(0.07)}
           initial={initial}
           animate={animate}
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 16,
-            marginTop: 16,
-          }}
+          className="rg-3"
+          style={{ marginTop: 16 }}
         >
           {[
             {
@@ -250,7 +251,7 @@ export default function Services() {
             <motion.div
               key={svc.name}
               variants={cardVariant}
-              whileHover={!reduced ? { y: -5, transition: { duration: 0.18, ease: EASE_OUT } } : undefined}
+              whileHover={!reduced ? { y: -14, scale: 1.03, transition: { duration: 0.22, ease: EASE_OUT } } : undefined}
               style={{
                 background: '#fff',
                 border: '1px solid rgba(7,37,28,0.09)',
@@ -319,7 +320,7 @@ function ServiceCard({
   return (
     <motion.div
       variants={cardVariant}
-      whileHover={!reduced ? { y: -5, transition: { duration: 0.18, ease: EASE_OUT } } : undefined}
+      whileHover={!reduced ? { y: -14, scale: 1.03, transition: { duration: 0.22, ease: EASE_OUT } } : undefined}
       style={{
         background: '#fff',
         border: '1px solid rgba(7,37,28,0.09)',

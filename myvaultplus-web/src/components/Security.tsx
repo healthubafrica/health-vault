@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import { motion, useInView, useReducedMotion } from 'framer-motion'
 import Image from 'next/image'
-import { EASE_OUT } from '@/lib/motion'
+import { EASE_OUT, staggerContainer, labelVariant, headingVariant, bodyVariant } from '@/lib/motion'
 
 const items = [
   {
@@ -37,17 +37,18 @@ export default function Security() {
 
   return (
     <section style={{ background: '#F7FAF7' }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '104px 32px' }}>
+      <div className="section-inner-lg">
 
-        {/* ── Header ── */}
+        {/* ── Header — per-element stagger ── */}
         <motion.div
           ref={headerRef}
           style={{ textAlign: 'center', marginBottom: 64 }}
-          initial={{ opacity: 0, y: 24 }}
-          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
-          transition={{ duration: 0.5, ease: EASE_OUT }}
+          variants={staggerContainer(0.14)}
+          initial={reduced ? 'visible' : 'hidden'}
+          animate={inView ? 'visible' : 'hidden'}
         >
-          <div
+          <motion.div
+            variants={labelVariant}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -70,9 +71,10 @@ export default function Security() {
               }}
             />
             Security &amp; Trust
-          </div>
+          </motion.div>
 
-          <h2
+          <motion.h2
+            variants={headingVariant}
             style={{
               fontFamily: 'var(--font-manrope), sans-serif',
               fontWeight: 700,
@@ -94,9 +96,10 @@ export default function Security() {
             >
               governed infrastructure
             </em>
-          </h2>
+          </motion.h2>
 
-          <p
+          <motion.p
+            variants={bodyVariant}
             style={{
               color: '#5A7068',
               fontSize: 15,
@@ -107,61 +110,61 @@ export default function Security() {
           >
             Whether you&apos;re checking results or sharing records with a specialist, your data
             stays encrypted and never exposed.
-          </p>
+          </motion.p>
 
-          <a
-            href="https://portal.myvaultplus.com/register"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 10,
-              background: '#07251C',
-              color: '#fff',
-              textDecoration: 'none',
-              fontWeight: 700,
-              fontSize: 11,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              padding: '11px 11px 11px 22px',
-              borderRadius: 100,
-            }}
-          >
-            Get Started
-            <span
+          <motion.div variants={bodyVariant} style={{ display: 'inline-block' }}>
+            <motion.a
+              href="https://portal.myvaultplus.com/register"
+              whileHover={!reduced ? { scale: 1.05, transition: { duration: 0.18 } } : undefined}
+              whileTap={!reduced ? { scale: 0.97 } : undefined}
               style={{
-                width: 28,
-                height: 28,
-                borderRadius: '50%',
-                background: '#6DC43F',
                 display: 'inline-flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
+                gap: 10,
+                background: '#07251C',
+                color: '#fff',
+                textDecoration: 'none',
+                fontWeight: 700,
+                fontSize: 11,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                padding: '11px 11px 11px 22px',
+                borderRadius: 100,
               }}
             >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M5 19L19 5M19 5H9M19 5v10"
-                  stroke="#07251C"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-          </a>
+              Get Started
+              <span
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: '50%',
+                  background: '#6DC43F',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M5 19L19 5M19 5H9M19 5v10"
+                    stroke="#07251C"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+            </motion.a>
+          </motion.div>
         </motion.div>
 
         {/* ── Outer gray wrapper ── */}
         <div
+          className="security-grid"
           style={{
-            background: '#DEDEDE',
-            borderRadius: 28,
-            padding: 16,
             display: 'grid',
             gridTemplateColumns: items.map((_, i) => (hovered === i ? '2fr' : '1fr')).join(' '),
-            gap: 12,
-            transition: 'grid-template-columns 0.44s cubic-bezier(0.4, 0, 0.2, 1)',
           }}
           onMouseLeave={() => setHovered(0)}
         >
@@ -178,6 +181,7 @@ export default function Security() {
                */
               <div
                 key={i}
+                className="security-card"
                 onMouseEnter={() => setHovered(i)}
                 style={{
                   background: '#fff',
@@ -190,7 +194,6 @@ export default function Security() {
                   padding: 28,
                   gap: isActive ? 20 : 0,
                   transition: 'gap 0.44s cubic-bezier(0.4, 0, 0.2, 1)',
-                  /* Height = image (260px) + top+bottom padding (56px) */
                   height: 316,
                 }}
               >
@@ -258,9 +261,9 @@ export default function Security() {
 
                 {/* ── Right: square image, inset, animates in on hover ── */}
                 <div
+                  className="security-img"
                   style={{
                     flexShrink: 0,
-                    /* width and height are both 260px → perfect square */
                     width: isActive ? 260 : 0,
                     height: 260,
                     alignSelf: 'center',

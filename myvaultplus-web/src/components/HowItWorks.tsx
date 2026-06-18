@@ -1,7 +1,7 @@
 'use client'
 import { motion, useInView, useReducedMotion } from 'framer-motion'
 import { useRef } from 'react'
-import { EASE_OUT, cardVariant, staggerContainer } from '@/lib/motion'
+import { EASE_OUT, cardVariant, staggerContainer, labelVariant, headingVariant, bodyVariant } from '@/lib/motion'
 
 export default function HowItWorks() {
   const ref = useRef(null)
@@ -11,15 +11,16 @@ export default function HowItWorks() {
   const animate = inView ? 'visible' : 'hidden'
 
   return (
-    <section ref={ref} style={{ maxWidth: 1280, margin: '0 auto', padding: '104px 32px' }}>
-      {/* Header */}
+    <section ref={ref} className="section-inner-lg">
+      {/* Header — per-element stagger */}
       <motion.div
         style={{ textAlign: 'center', marginBottom: 60 }}
-        initial={{ opacity: 0, y: 24 }}
-        animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
-        transition={{ duration: 0.5, ease: EASE_OUT }}
+        variants={staggerContainer(0.14)}
+        initial={initial}
+        animate={animate}
       >
-        <div
+        <motion.div
+          variants={labelVariant}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -36,8 +37,9 @@ export default function HowItWorks() {
             style={{ width: 5, height: 5, borderRadius: '50%', background: '#137333', display: 'inline-block' }}
           />
           How It Works
-        </div>
-        <h2
+        </motion.div>
+        <motion.h2
+          variants={headingVariant}
           style={{
             fontFamily: 'var(--font-manrope), sans-serif',
             fontWeight: 600,
@@ -58,8 +60,9 @@ export default function HowItWorks() {
           >
             intelligent care delivery.
           </em>
-        </h2>
-        <p
+        </motion.h2>
+        <motion.p
+          variants={bodyVariant}
           style={{
             color: '#5A7068',
             fontSize: 16,
@@ -70,7 +73,7 @@ export default function HowItWorks() {
         >
           We help Nigerians access better healthcare, not by replacing human doctors,
           but by amplifying them with technology that is always within reach.
-        </p>
+        </motion.p>
       </motion.div>
 
       {/* Outer container — grey wrapper, same spec as Security section */}
@@ -85,11 +88,8 @@ export default function HowItWorks() {
           variants={staggerContainer(0.1)}
           initial={initial}
           animate={animate}
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 12,
-          }}
+          className="rg-2"
+          style={{ gap: 12 }}
         >
           {/* ── Card 1 — Records ── */}
           <GridCard>

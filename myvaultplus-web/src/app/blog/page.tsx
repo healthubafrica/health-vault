@@ -20,7 +20,7 @@ export default function BlogPage() {
       <Navbar />
 
       {/* ── Dark header ── */}
-      <div style={{ margin: '16px 16px 0', borderRadius: '28px 28px 0 0', overflow: 'hidden' }}>
+      <div className="blog-header">
         <section
           style={{
             position: 'relative',
@@ -119,23 +119,10 @@ export default function BlogPage() {
       </div>
 
       {/* ── Featured post ── */}
-      <div
-        style={{
-          margin: '0 16px 0',
-          background: '#fff',
-          overflow: 'hidden',
-        }}
-      >
+      <div className="blog-mid" style={{ background: '#fff' }}>
         <div
-          style={{
-            maxWidth: 1280,
-            margin: '0 auto',
-            padding: '64px 56px',
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 56,
-            alignItems: 'center',
-          }}
+          className="blog-featured-inner rg-2"
+          style={{ gap: 56, alignItems: 'center' }}
         >
           {/* Image */}
           <Link
@@ -241,14 +228,7 @@ export default function BlogPage() {
       </div>
 
       {/* ── Recent posts grid ── */}
-      <div
-        style={{
-          margin: '0 16px 24px',
-          borderRadius: '0 0 28px 28px',
-          overflow: 'hidden',
-          background: '#F7FAF7',
-        }}
-      >
+      <div className="blog-footer" style={{ background: '#F7FAF7' }}>
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '72px 56px 88px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
             <span
@@ -310,13 +290,7 @@ export default function BlogPage() {
             </p>
           </div>
 
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 28,
-            }}
-          >
+          <div className="rg-3" style={{ gap: 28 }}>
             {recent.map((post) => (
               <Link
                 key={post.slug}

@@ -47,17 +47,16 @@ export default function Hero() {
           maxWidth: 760,
           width: '100%',
           margin: '0 auto',
-          /* Extra top padding for the fixed transparent navbar (≈76px tall) */
-          padding: '180px 32px 0',
+          padding: 'clamp(100px,15vw,180px) clamp(16px,4vw,32px) 0',
           textAlign: 'center',
           zIndex: 1,
         }}
       >
         {/* Headline */}
         <motion.h1
-          initial={reduced ? false : { opacity: 0, y: 28 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: EASE_OUT, delay: 0.1 }}
+          initial={reduced ? false : { opacity: 0, y: 72, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 1.0, ease: EASE_OUT, delay: 0.08 }}
           style={{
             margin: '0 0 18px',
             lineHeight: 1.06,
@@ -94,9 +93,9 @@ export default function Hero() {
         </motion.h1>
 
         <motion.p
-          initial={reduced ? false : { opacity: 0, y: 20 }}
+          initial={reduced ? false : { opacity: 0, y: 48 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: EASE_OUT, delay: 0.24 }}
+          transition={{ duration: 0.85, ease: EASE_OUT, delay: 0.28 }}
           style={{
             color: 'rgba(255,255,255,0.78)',
             fontSize: 16,
@@ -111,9 +110,9 @@ export default function Hero() {
 
         {/* CTA row */}
         <motion.div
-          initial={reduced ? false : { opacity: 0, y: 16 }}
+          initial={reduced ? false : { opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: EASE_OUT, delay: 0.36 }}
+          transition={{ duration: 0.78, ease: EASE_OUT, delay: 0.46 }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -192,9 +191,9 @@ export default function Hero() {
 
       {/* ── Marquee dashboard cards ── */}
       <motion.div
-        initial={reduced ? false : { opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.6, ease: EASE_OUT, delay: 0.1 }}
+        initial={reduced ? false : { opacity: 0, y: 56 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 1.1, ease: EASE_OUT, delay: 0.62 }}
         style={{
           position: 'relative',
           zIndex: 1,

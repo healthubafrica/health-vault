@@ -3,7 +3,7 @@
 import { useRef } from 'react'
 import { motion, useInView, useReducedMotion } from 'framer-motion'
 import Image from 'next/image'
-import { EASE_OUT } from '@/lib/motion'
+import { EASE_OUT, staggerContainer, labelVariant, headingVariant, bodyVariant } from '@/lib/motion'
 
 const testimonials = [
   {
@@ -60,14 +60,14 @@ export default function Testimonials() {
 
   return (
     <section style={{ background: '#fff', padding: '96px 0' }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 32px' }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 clamp(16px, 4vw, 56px)' }}>
 
-        {/* ── Header row ── */}
+        {/* ── Header row — per-element stagger ── */}
         <motion.div
           ref={headerRef}
-          initial={{ opacity: 0, y: 24 }}
-          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
-          transition={{ duration: 0.5, ease: EASE_OUT }}
+          variants={staggerContainer(0.14)}
+          initial={reduced ? 'visible' : 'hidden'}
+          animate={inView ? 'visible' : 'hidden'}
           style={{
             display: 'flex',
             alignItems: 'flex-end',
@@ -78,7 +78,8 @@ export default function Testimonials() {
           }}
         >
           <div style={{ maxWidth: 520 }}>
-            <div
+            <motion.div
+              variants={labelVariant}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -101,9 +102,10 @@ export default function Testimonials() {
                 }}
               />
               Testimonials
-            </div>
+            </motion.div>
 
-            <h2
+            <motion.h2
+              variants={headingVariant}
               style={{
                 fontFamily: 'var(--font-manrope), sans-serif',
                 fontWeight: 700,
@@ -115,10 +117,10 @@ export default function Testimonials() {
               }}
             >
               What they say about us?
-            </h2>
-            <p style={{ color: '#5A7068', fontSize: 15, lineHeight: 1.6, margin: 0 }}>
+            </motion.h2>
+            <motion.p variants={bodyVariant} style={{ color: '#5A7068', fontSize: 15, lineHeight: 1.6, margin: 0 }}>
               Here&apos;s what they shared about their experience using MyHealth Vault+.
-            </p>
+            </motion.p>
           </div>
 
           {/* Prev / Next arrows */}
