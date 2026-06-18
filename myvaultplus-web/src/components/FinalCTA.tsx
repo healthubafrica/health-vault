@@ -82,7 +82,7 @@ export default function FinalCTA() {
 
         <h2
           style={{
-            fontFamily: 'var(--font-space-grotesk), sans-serif',
+            fontFamily: 'var(--font-manrope), sans-serif',
             fontWeight: 700,
             fontSize: 'clamp(28px, 4vw, 48px)',
             color: '#fff',

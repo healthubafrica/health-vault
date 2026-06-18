@@ -72,7 +72,7 @@ export default function FAQPage() {
           <div style={{ position: 'relative', width: 304, height: 420 }}>
             <div style={{ position: 'absolute', top: 0, left: 0, width: 260, background: '#07251C', borderRadius: 24, padding: 24, boxShadow: '0 24px 64px rgba(0,0,0,0.52)', transform: 'rotate(-4deg)' }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#34E0A0', marginBottom: 12 }}>FAQ Centre</div>
-              <p style={{ color: '#fff', fontSize: 14, lineHeight: 1.55, fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, margin: 0 }}>19 questions across 5 categories, regularly updated.</p>
+              <p style={{ color: '#fff', fontSize: 14, lineHeight: 1.55, fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, margin: 0 }}>19 questions across 5 categories, regularly updated.</p>
               <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>Updated June 2026</div>
               </div>
@@ -105,7 +105,7 @@ export default function FAQPage() {
         <section style={{ maxWidth: 860, margin: '0 auto', padding: '80px 48px' }}>
           <div style={{ textAlign: 'center', marginBottom: 52 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 16 }}>· FAQ</div>
-            <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 700, fontSize: 'clamp(26px, 3vw, 38px)', lineHeight: 1.1, letterSpacing: '-0.025em', margin: '0 auto 14px', maxWidth: 560, color: '#07251C' }}>
+            <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 700, fontSize: 'clamp(26px, 3vw, 38px)', lineHeight: 1.1, letterSpacing: '-0.025em', margin: '0 auto 14px', maxWidth: 560, color: '#07251C' }}>
               Frequently asked{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, color: '#0E8567' }}>questions</em>
             </h2>
@@ -131,7 +131,7 @@ export default function FAQPage() {
                         background: '#F2F2F2',
                         borderRadius: 16,
                         padding: '18px 18px 18px 24px',
-                        fontFamily: 'var(--font-space-grotesk), sans-serif',
+                        fontFamily: 'var(--font-manrope), sans-serif',
                         fontWeight: 600,
                         fontSize: 15.5,
                         color: '#07251C',
@@ -172,7 +172,7 @@ export default function FAQPage() {
         <section style={{ maxWidth: 1100, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 32, alignItems: 'center' }}>
             <div>
-              <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 26, color: '#fff', margin: '0 0 12px' }}>Still have questions?</h3>
+              <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 26, color: '#fff', margin: '0 0 12px' }}>Still have questions?</h3>
               <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 15, lineHeight: 1.6, margin: 0 }}>Our support team is available 7 days a week: WhatsApp, phone, or email.</p>
             </div>
             <div style={{ display: 'flex', gap: 12, flexShrink: 0, flexWrap: 'wrap' }}>

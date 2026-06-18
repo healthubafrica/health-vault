@@ -39,7 +39,7 @@ export default function DispatchCarePage() {
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, rgba(10,20,15,0.85) 0%, rgba(7,37,28,0.70) 50%, rgba(10,15,12,0.88) 100%)', pointerEvents: 'none' }} />
 
           <div style={{ position: 'relative', maxWidth: 760, width: '100%', margin: '0 auto', padding: '120px 32px 0', textAlign: 'center', zIndex: 1 }}>
-            <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-space-grotesk), sans-serif' }}>
+            <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-manrope), sans-serif' }}>
               <span style={{ display: 'block', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.06 }}>Emergency Help.</span>
               <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#FF5C5C', letterSpacing: '-0.02em', lineHeight: 1.06 }}>One Tap.</span>
             </h1>
@@ -67,7 +67,7 @@ export default function DispatchCarePage() {
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 18 }}>— Process</div>
-            <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
+            <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
               From tap to{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>team in seconds.</em>
             </h2>
@@ -76,8 +76,8 @@ export default function DispatchCarePage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
               {steps.map((step) => (
                 <div key={step.num} style={{ padding: '32px 24px 28px', background: '#fff', borderRadius: 18 }}>
-                  <div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 32, fontWeight: 700, color: '#34E0A0', letterSpacing: '-0.02em', marginBottom: 14 }}>{step.num}</div>
-                  <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 17, color: '#07251C', margin: '0 0 8px', letterSpacing: '-0.01em' }}>{step.title}</h3>
+                  <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontSize: 32, fontWeight: 700, color: '#34E0A0', letterSpacing: '-0.02em', marginBottom: 14 }}>{step.num}</div>
+                  <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 17, color: '#07251C', margin: '0 0 8px', letterSpacing: '-0.01em' }}>{step.title}</h3>
                   <p style={{ color: '#5A7068', fontSize: 13.5, lineHeight: 1.6, margin: 0 }}>{step.desc}</p>
                 </div>
               ))}
@@ -91,14 +91,14 @@ export default function DispatchCarePage() {
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 18 }}>— Coverage</div>
-            <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
+            <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
               What DispatchCare™{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>covers.</em>
             </h2>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div style={{ background: '#fff', border: '1.5px solid #D4D4D4', borderRadius: 22, padding: 36 }}>
-              <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 20, color: '#07251C', margin: '0 0 20px' }}>Emergency Types Covered</h3>
+              <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 20, color: '#07251C', margin: '0 0 20px' }}>Emergency Types Covered</h3>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {emergencyTypes.map((type) => (
                   <span key={type} style={{ fontSize: 13, fontWeight: 500, padding: '6px 14px', borderRadius: 100, background: '#F1F4EF', color: '#07251C', border: '1px solid rgba(7,37,28,0.09)' }}>{type}</span>
@@ -106,7 +106,7 @@ export default function DispatchCarePage() {
               </div>
             </div>
             <div style={{ background: '#07251C', borderRadius: 22, padding: 36 }}>
-              <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 20, color: '#fff', margin: '0 0 20px' }}>Emergency Contacts</h3>
+              <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 20, color: '#fff', margin: '0 0 20px' }}>Emergency Contacts</h3>
               <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, lineHeight: 1.65, margin: '0 0 24px' }}>For immediate life-threatening emergencies, use the DispatchCare™ button in your Vault, or contact us directly:</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <a href="tel:+2341234567890" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#FF5C5C', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 14, padding: '14px 24px', borderRadius: 100 }}>
@@ -126,7 +126,7 @@ export default function DispatchCarePage() {
         <section style={{ maxWidth: 900, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 18 }}>— Access</div>
-            <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
+            <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
               Available across{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>all plans.</em>
             </h2>
@@ -136,14 +136,14 @@ export default function DispatchCarePage() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: '#07251C' }}>
-                    <th style={{ padding: '14px 20px', textAlign: 'left', fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 13, color: '#34E0A0' }}>Plan</th>
-                    <th style={{ padding: '14px 20px', textAlign: 'center', fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 13, color: '#fff' }}>DispatchCare™ Access</th>
+                    <th style={{ padding: '14px 20px', textAlign: 'left', fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 13, color: '#34E0A0' }}>Plan</th>
+                    <th style={{ padding: '14px 20px', textAlign: 'center', fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 13, color: '#fff' }}>DispatchCare™ Access</th>
                   </tr>
                 </thead>
                 <tbody>
                   {planAccess.map((row, idx) => (
                     <tr key={row.plan} style={{ background: row.highlight ? '#F0FDF4' : idx % 2 === 0 ? '#fff' : '#F7FAF7', borderBottom: '1px solid rgba(7,37,28,0.06)' }}>
-                      <td style={{ padding: '14px 20px', fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 15, color: '#07251C' }}>{row.plan}</td>
+                      <td style={{ padding: '14px 20px', fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 15, color: '#07251C' }}>{row.plan}</td>
                       <td style={{ padding: '14px 20px', textAlign: 'center', fontSize: 14, color: row.access.includes('✓') ? '#0E8567' : '#27433A', fontWeight: row.access.includes('✓') ? 700 : 500 }}>{row.access}</td>
                     </tr>
                   ))}

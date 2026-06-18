@@ -60,7 +60,7 @@ export default function HeroSplit({
           )}
 
           <h1 style={{
-            fontFamily: 'var(--font-space-grotesk), sans-serif',
+            fontFamily: 'var(--font-manrope), sans-serif',
             fontWeight: 700,
             fontSize: 'clamp(30px, 3.6vw, 54px)',
             color: '#07251C',
