@@ -2,12 +2,15 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { BullModule } from '@nestjs/bull';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from 'nestjs-throttler-storage-redis';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { UserThrottlerGuard } from './common/guards/user-throttler.guard';
+import { createRedisClient } from './common/redis/redis.factory';
 import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { AuthModule } from './auth/auth.module';
@@ -75,18 +78,21 @@ import { AppController } from './app.controller';
         };
       },
     }),
-    ThrottlerModule.forRoot([
-      {
-        name: 'global',
-        ttl: 60_000,
-        limit: 100,
-      },
-      {
-        name: 'auth',
-        ttl: 60_000,
-        limit: 10,
-      },
-    ]),
+    // Redis-backed Throttler storage. Required for horizontal scaling: with
+    // the default in-memory storage, counters live in each Node process, so
+    // running >1 instance lets a caller round-robin past the limit. Using
+    // the same Redis we already run for Bull/OpenEMR keeps infra footprint
+    // unchanged.
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        throttlers: [
+          { name: 'global', ttl: 60_000, limit: 100 },
+          { name: 'auth',   ttl: 60_000, limit: 10  },
+        ],
+        storage: new ThrottlerStorageRedisService(createRedisClient(config)),
+      }),
+    }),
     PrismaModule,
     AuthModule,
     PatientsModule,
@@ -111,7 +117,7 @@ import { AppController } from './app.controller';
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: UserThrottlerGuard },
     { provide: APP_INTERCEPTOR, useClass: AuditLogInterceptor },
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
   ],

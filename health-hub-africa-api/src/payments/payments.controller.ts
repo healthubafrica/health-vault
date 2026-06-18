@@ -11,7 +11,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { SkipThrottle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { Public } from '../common/decorators/roles.decorator';
 import { PaymentsService } from './payments.service';
@@ -23,8 +23,12 @@ import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decor
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
+  // Each initiation creates a record with the upstream PSP (Paystack /
+  // Flutterwave). Legitimate users retry on failure but rarely more than a
+  // few times in a minute; 10/min blocks scripted enumeration / card-testing.
   @ApiBearerAuth()
   @Post()
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @ApiOperation({ summary: 'Initiate a payment' })
   initiate(@Body() dto: InitiatePaymentDto, @CurrentUser() user: JwtPayload) {
     return this.paymentsService.initiate(dto, user);

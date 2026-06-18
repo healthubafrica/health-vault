@@ -30,7 +30,7 @@ export function TeleCareScreen() {
       })
       .catch((err) => {
         console.error('Failed to load telecare sessions:', err)
-        setError('Could not load sessions. Make sure the API is running.')
+        setError("We couldn't load your sessions. Kindly check your connection and try again.")
         setLoading(false)
       })
   }
@@ -47,11 +47,11 @@ export function TeleCareScreen() {
         setActiveToken(res.token)
         setActiveRoom(res.roomName)
       } else {
-        setError('Failed to retrieve LiveKit token from backend.')
+        setError("We couldn't set up your call. Kindly try again in a moment.")
       }
     } catch (err: any) {
       console.error('Error joining session:', err)
-      setError(err.message || 'Error occurred while getting connection credentials.')
+      setError(err.message || "We had trouble connecting you to the session. Kindly try again.")
     } finally {
       setJoining(false)
     }

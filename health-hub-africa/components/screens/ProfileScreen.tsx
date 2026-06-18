@@ -69,12 +69,12 @@ export function ProfileScreen() {
 
     const allowedTypes = ['image/png', 'image/jpeg', 'image/webp']
     if (!allowedTypes.includes(file.type)) {
-      toast.error('Invalid file type', { description: 'Only PNG, JPEG, and WebP images are allowed.' })
+      toast.error("That image type isn't supported", { description: 'Kindly upload a PNG, JPEG, or WebP photo.' })
       return
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('File too large', { description: 'Profile photo must be smaller than 5 MB.' })
+      toast.error('That photo is too large', { description: 'Kindly upload a photo smaller than 5 MB.' })
       return
     }
 

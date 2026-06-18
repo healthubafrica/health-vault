@@ -130,26 +130,26 @@ export function SettingsScreen() {
 
   async function handlePasswordChange() {
     if (!currentPassword || !newPassword || !confirmPassword) {
-      toast.error('All password fields are required.')
+      toast.error('Kindly fill in all the password fields.')
       return
     }
     if (newPassword !== confirmPassword) {
-      toast.error('New passwords do not match.')
+      toast.error("Your new passwords don't match. Kindly check and try again.")
       return
     }
     if (newPassword.length < 8) {
-      toast.error('Password must be at least 8 characters.')
+      toast.error('Your password needs at least 8 characters.')
       return
     }
     setPasswordLoading(true)
     try {
       const res = await auth.changePassword(currentPassword, newPassword)
-      toast.success(res.message ?? 'Password updated successfully.')
+      toast.success(res.message ?? 'Your password has been updated.')
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to update password.')
+      toast.error(err instanceof ApiError ? err.message : "We couldn't update your password. Please try again.")
     } finally {
       setPasswordLoading(false)
     }
@@ -173,9 +173,9 @@ export function SettingsScreen() {
       const res = await auth.toggle2fa(enabled)
       setTwoFaEnabled(res.twoFactorEnabled)
       s.set({ twoFa: res.twoFactorEnabled })
-      toast.success(res.message ?? (res.twoFactorEnabled ? '2FA enabled.' : '2FA disabled.'))
+      toast.success(res.message ?? (res.twoFactorEnabled ? 'Two-factor sign-in is now on.' : 'Two-factor sign-in is now off.'))
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to update 2FA.')
+      toast.error(err instanceof ApiError ? err.message : "We couldn't update your two-factor setting. Please try again.")
     } finally {
       setTwoFaLoading(false)
     }
@@ -193,7 +193,7 @@ export function SettingsScreen() {
       const res = await auth.getSessions()
       setSessions(res.data)
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to load sessions.')
+      toast.error(err instanceof ApiError ? err.message : "We couldn't load your sessions. Please try again.")
     } finally {
       setSessionsLoading(false)
     }
@@ -205,10 +205,10 @@ export function SettingsScreen() {
     setRevokingId(sessionId)
     try {
       const res = await auth.revokeSession(sessionId)
-      toast.success(res.message ?? 'Session revoked.')
+      toast.success(res.message ?? 'That session has been signed out.')
       await loadSessions()
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to revoke session.')
+      toast.error(err instanceof ApiError ? err.message : "We couldn't sign out that session. Please try again.")
     } finally {
       setRevokingId(null)
     }
@@ -218,11 +218,11 @@ export function SettingsScreen() {
     setSignOutAllLoading(true)
     try {
       const res = await auth.logoutAll()
-      toast.success(res.message ?? 'All sessions signed out.')
+      toast.success(res.message ?? "You've been signed out of all your sessions.")
       clearTokens()
       router.push('/login')
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to sign out all sessions.')
+      toast.error(err instanceof ApiError ? err.message : "We couldn't sign out all your sessions. Please try again.")
       setSignOutAllLoading(false)
     }
   }
@@ -235,7 +235,7 @@ export function SettingsScreen() {
     notificationPrefs.get()
       .then(res => setPrefs(res.data))
       .catch(err => {
-        toast.error(err instanceof ApiError ? err.message : 'Failed to load notification preferences.')
+        toast.error(err instanceof ApiError ? err.message : "We couldn't load your notification preferences. Please try again.")
       })
       .finally(() => setPrefsLoading(false))
   }, [])
@@ -249,7 +249,7 @@ export function SettingsScreen() {
     } catch (err) {
       // Revert on failure
       setPrefs(prev => prev ? { ...prev, [key]: !value } : prev)
-      toast.error(err instanceof ApiError ? err.message : 'Failed to update preference.')
+      toast.error(err instanceof ApiError ? err.message : "We couldn't save that preference. Please try again.")
     }
   }
 
@@ -260,9 +260,9 @@ export function SettingsScreen() {
     setExportLoading(true)
     try {
       await patients.requestExport()
-      toast.success("Export requested — you'll receive it by email within 24 hours.")
+      toast.success("Your data export is on the way — you'll get it by email within 24 hours.")
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to request data export.')
+      toast.error(err instanceof ApiError ? err.message : "We couldn't request your data export. Please try again.")
     } finally {
       setExportLoading(false)
     }
@@ -275,17 +275,17 @@ export function SettingsScreen() {
 
   async function handleDeactivate() {
     if (!deactivatePassword) {
-      toast.error('Please enter your password to confirm deactivation.')
+      toast.error('Kindly enter your password to confirm.')
       return
     }
     setDeactivateLoading(true)
     try {
       const res = await patients.selfDeactivate(deactivatePassword)
-      toast.success(res.message ?? 'Account deactivated.')
+      toast.success(res.message ?? 'Your account has been deactivated.')
       clearTokens()
       router.push('/login')
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Failed to deactivate account.')
+      toast.error(err instanceof ApiError ? err.message : "We couldn't deactivate your account. Please try again.")
       setDeactivateLoading(false)
     }
   }

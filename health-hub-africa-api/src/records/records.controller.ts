@@ -7,6 +7,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { UserRole } from '@prisma/client';
 import { RecordsService } from './records.service';
 import { CreateRecordDto } from './dto/create-record.dto';
@@ -42,7 +43,10 @@ class RecordsQuery {
 export class RecordsController {
   constructor(private readonly recordsService: RecordsService) {}
 
+  // Each presign authorises an S3 PUT (egress + storage cost). 30/min lets a
+  // patient bulk-upload an album of scans but blocks scripted abuse.
   @Post('upload-url')
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
   @ApiOperation({ summary: 'Request a pre-signed S3 upload URL' })
   requestUploadUrl(
     @Body() dto: RequestUploadUrlDto,
@@ -51,7 +55,10 @@ export class RecordsController {
     return this.recordsService.requestUploadUrl(dto, user);
   }
 
+  // Download URL minting itself is cheap, but enumeration of object keys is
+  // an info-disclosure risk. 60/min is plenty for normal browsing.
   @Get('download-url/:objectKey(*)')
+  @Throttle({ default: { ttl: 60_000, limit: 60 } })
   @ApiOperation({ summary: 'Request a time-limited download URL for a stored file' })
   async requestDownloadUrl(
     @Param('objectKey') objectKey: string,
