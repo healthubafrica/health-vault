@@ -2,6 +2,7 @@ import Image from 'next/image'
 import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
+import HeroMarquee from '@/components/HeroMarquee'
 
 const sections = [
   {
@@ -135,23 +136,7 @@ export default function PrivacyPage() {
             </div>
           </div>
 
-          <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 1100, margin: '52px auto 0', perspective: '1000px', height: 190, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-            {[
-              { rotate: -12, translateY: -12, scale: 0.88, zIndex: 2, offsetX: -10, bg: '#fff', w: 180, inner: (<div style={{ padding: 16 }}><div style={{ display: 'inline-block', fontSize: 9, fontWeight: 700, color: '#0E8567', background: '#EAF7F1', padding: '3px 10px', borderRadius: 100, marginBottom: 8 }}>NDPR COMPLIANT</div><div style={{ fontSize: 11, color: '#41584E' }}>Nigeria Data Protection Regulation 2019</div></div>) },
-              { rotate: 0, translateY: 0, scale: 1, zIndex: 5, offsetX: 0, bg: '#07251C', w: 200, inner: (<div style={{ padding: 18 }}><div style={{ fontSize: 28, textAlign: 'center', marginBottom: 8 }}>🔐</div><div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 16, fontWeight: 700, color: '#fff', textAlign: 'center' }}>End-to-End</div><div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', textAlign: 'center', marginTop: 4 }}>AES-256 Encryption</div></div>) },
-              { rotate: 12, translateY: -12, scale: 0.88, zIndex: 2, offsetX: 10, bg: '#fff', w: 180, inner: (<div style={{ padding: 16 }}><div style={{ fontSize: 9, fontWeight: 700, color: '#0E8567', marginBottom: 8 }}>YOUR DATA</div><div style={{ fontSize: 13, fontWeight: 700, color: '#07251C', marginBottom: 4 }}>You own it.</div><div style={{ fontSize: 11, color: '#41584E' }}>Download anytime, delete on request</div></div>) },
-            ].map((card, i) => (
-              <div key={i} style={{ position: 'absolute', bottom: 0, left: '50%', transform: `translateX(calc(-50% + ${(i - 1) * 210 + card.offsetX}px)) translateY(${card.translateY}px) rotate(${card.rotate}deg) scale(${card.scale})`, transformOrigin: 'bottom center', zIndex: card.zIndex, boxShadow: '0 16px 48px rgba(0,0,0,0.14)', borderRadius: 16, overflow: 'hidden', background: card.bg, width: card.w }}>
-                {card.inner}
-              </div>
-            ))}
-          </div>
-
-          <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '28px 32px 52px' }}>
-            <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13.5, margin: 0 }}>
-              Compliant with Nigeria Data Protection Regulation (NDPR) 2019
-            </p>
-          </div>
+          <HeroMarquee marginTop={80} />
         </section>
       </div>
 
