@@ -29,7 +29,7 @@ export default function Marquee() {
               <span
                 key={i}
                 style={{
-                  color: item.accent ? '#0E8567' : i === 0 ? '#07251C' : 'rgba(7,37,28,0.42)',
+                  color: item.accent ? '#137333' : i === 0 ? '#07251C' : 'rgba(7,37,28,0.42)',
                   fontWeight: item.accent ? 700 : 500,
                   fontSize: item.accent ? 13 : 14.5,
                   letterSpacing: item.accent ? '0.05em' : undefined,

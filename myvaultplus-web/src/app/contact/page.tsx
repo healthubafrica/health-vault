@@ -7,7 +7,7 @@ import { MessageCircle, Phone, Mail } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 const channels: Array<{ icon: LucideIcon; color: string; bg: string; title: string; desc: string; link: string; label: string }> = [
-  { icon: MessageCircle, color: '#0E8567', bg: '#EAF7F1', title: 'WhatsApp Support', desc: 'Chat with our support team directly. Fastest response time, typically under 30 minutes.', link: 'https://wa.me/2341234567890', label: 'Chat Now →' },
+  { icon: MessageCircle, color: '#137333', bg: '#EAF7F1', title: 'WhatsApp Support', desc: 'Chat with our support team directly. Fastest response time, typically under 30 minutes.', link: 'https://wa.me/2341234567890', label: 'Chat Now →' },
   { icon: Phone, color: '#2563EB', bg: '#EFF6FF', title: 'Phone Support', desc: 'Call us during business hours and speak directly with a patient support representative.', link: 'tel:+2341234567890', label: 'Call Now →' },
   { icon: Mail, color: '#7C3AED', bg: '#F5F3FF', title: 'Email Support', desc: 'Send a detailed message and receive a thorough response within 2 business hours.', link: 'mailto:support@myvaultplus.com', label: 'Send Email →' },
 ]
@@ -25,7 +25,7 @@ export default function ContactPage() {
           <div style={{ position: 'relative', maxWidth: 760, width: '100%', margin: '0 auto', padding: '120px 32px 0', textAlign: 'center', zIndex: 1 }}>
             <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-manrope), sans-serif' }}>
               <span style={{ display: 'block', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.06 }}>Get in Touch,</span>
-              <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#34E0A0', letterSpacing: '-0.02em', lineHeight: 1.06 }}>
+              <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#6DC43F', letterSpacing: '-0.02em', lineHeight: 1.06 }}>
                 We&apos;re Here to Help
               </span>
             </h1>
@@ -36,10 +36,10 @@ export default function ContactPage() {
               <a href="/faq" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', border: '1.5px solid rgba(255,255,255,0.55)', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '13px 26px', borderRadius: 100 }}>
                 View FAQ
               </a>
-              <a href="https://wa.me/2341234567890" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: '#34E0A0', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '12px 12px 12px 24px', borderRadius: 100 }}>
+              <a href="https://wa.me/2341234567890" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: '#6DC43F', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '12px 12px 12px 24px', borderRadius: 100 }}>
                 WhatsApp Us
                 <span style={{ width: 30, height: 30, borderRadius: '50%', background: '#07251C', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M19 5H9M19 5v10" stroke="#34E0A0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M19 5H9M19 5v10" stroke="#6DC43F" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 </span>
               </a>
             </div>
@@ -52,7 +52,7 @@ export default function ContactPage() {
       <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#fff' }}>
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 18 }}>— Contact</div>
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 18 }}>— Contact</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
               Three ways to{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>reach us.</em>
@@ -80,7 +80,7 @@ export default function ContactPage() {
       <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#EBEBEB' }}>
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 18 }}>— Message Us</div>
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 18 }}>— Message Us</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
               Send a{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>direct message.</em>
@@ -125,7 +125,7 @@ export default function ContactPage() {
                   </div>
                   <button type="button" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 10, background: '#07251C', color: '#fff', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '14px 28px', borderRadius: 100, border: 'none', cursor: 'pointer' }}>
                     Send Message
-                    <span style={{ width: 28, height: 28, borderRadius: '50%', background: '#34E0A0', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ width: 28, height: 28, borderRadius: '50%', background: '#6DC43F', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M19 5H9M19 5v10" stroke="#07251C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                     </span>
                   </button>
@@ -134,7 +134,7 @@ export default function ContactPage() {
 
               {/* Quick info */}
               <div style={{ background: '#07251C', borderRadius: 18, padding: '40px 36px' }}>
-                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#34E0A0', marginBottom: 20 }}>Quick Contact</div>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#6DC43F', marginBottom: 20 }}>Quick Contact</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                   {[
                     { label: 'Address', value: 'Health-Hub Africa® Ltd\nLagos, Nigeria' },
@@ -143,13 +143,13 @@ export default function ContactPage() {
                     { label: 'WhatsApp', value: '+234 XXX XXX XXXX' },
                   ].map((item) => (
                     <div key={item.label}>
-                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(52,224,160,0.7)', marginBottom: 6 }}>{item.label}</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(109,196,63,0.7)', marginBottom: 6 }}>{item.label}</div>
                       <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)', lineHeight: 1.5, whiteSpace: 'pre-line' }}>{item.value}</div>
                     </div>
                   ))}
-                  <div style={{ marginTop: 8, padding: '14px 16px', background: 'rgba(52,224,160,0.08)', border: '1px solid rgba(52,224,160,0.2)', borderRadius: 12 }}>
+                  <div style={{ marginTop: 8, padding: '14px 16px', background: 'rgba(109,196,63,0.08)', border: '1px solid rgba(109,196,63,0.2)', borderRadius: 12 }}>
                     <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.55 }}>
-                      Typical response time: <span style={{ color: '#34E0A0', fontWeight: 600 }}>under 2 hours</span>
+                      Typical response time: <span style={{ color: '#6DC43F', fontWeight: 600 }}>under 2 hours</span>
                       <br />Available 7 days a week
                     </div>
                   </div>

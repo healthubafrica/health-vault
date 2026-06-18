@@ -123,7 +123,7 @@ export default function FinalCTA() {
             display: 'inline-flex',
             alignItems: 'center',
             gap: 10,
-            background: '#34E0A0',
+            background: '#6DC43F',
             color: '#07251C',
             textDecoration: 'none',
             fontWeight: 700,
@@ -150,7 +150,7 @@ export default function FinalCTA() {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
               <path
                 d="M5 19L19 5M19 5H9M19 5v10"
-                stroke="#34E0A0"
+                stroke="#6DC43F"
                 strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"

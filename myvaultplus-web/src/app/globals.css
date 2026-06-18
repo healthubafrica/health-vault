@@ -4,8 +4,8 @@
 
 :root {
   --forest: #07251C;
-  --green: #0E8567;
-  --mint: #34E0A0;
+  --green: #137333;
+  --mint: #6DC43F;
   --mint-dark: #34BC93;
   --bg-light: #F7FAF7;
   --dark-deep: #052018;
@@ -36,7 +36,7 @@ body {
 }
 
 ::selection {
-  background: #34E0A0;
+  background: #6DC43F;
   color: #07251C;
 }
 

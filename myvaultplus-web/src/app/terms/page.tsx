@@ -119,7 +119,7 @@ export default function TermsPage() {
         heading={
           <>
             <span style={{ display: 'block' }}>Terms of Use</span>
-            <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', color: '#0E8567' }}>Your Rights and Ours.</span>
+            <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', color: '#137333' }}>Your Rights and Ours.</span>
           </>
         }
         description="The terms governing your use of MyHealth Vault+™ and Health-Hub Africa® services."
@@ -130,24 +130,24 @@ export default function TermsPage() {
         rightCards={
           <div style={{ position: 'relative', width: 304, height: 420 }}>
             <div style={{ position: 'absolute', top: 0, left: 0, width: 260, background: '#07251C', borderRadius: 24, padding: 24, boxShadow: '0 24px 64px rgba(0,0,0,0.52)', transform: 'rotate(-4deg)' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#34E0A0', marginBottom: 12 }}>Terms of Use</div>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6DC43F', marginBottom: 12 }}>Terms of Use</div>
               <p style={{ color: '#fff', fontSize: 14, lineHeight: 1.55, fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, margin: 0 }}>10 sections covering your rights, obligations, and platform governance.</p>
               <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>Updated June 2026</div>
               </div>
             </div>
             <div style={{ position: 'absolute', top: 158, left: 50, width: 232, background: '#fff', borderRadius: 22, padding: 20, boxShadow: '0 20px 48px rgba(0,0,0,0.38)', transform: 'rotate(3deg)' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 14 }}>Jurisdiction</div>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#137333', marginBottom: 14 }}>Jurisdiction</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#F7FAF7', borderRadius: 10, padding: '10px 12px' }}>
-                  <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#07251C', color: '#34E0A0', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, flexShrink: 0 }}>NG</span>
+                  <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#07251C', color: '#6DC43F', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, flexShrink: 0 }}>NG</span>
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: '#07251C' }}>Federal Republic of Nigeria</div>
                     <div style={{ fontSize: 11, color: '#617870' }}>Governing Law</div>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#F7FAF7', borderRadius: 10, padding: '10px 12px' }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#34E0A0', flexShrink: 0 }} />
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#6DC43F', flexShrink: 0 }} />
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: '#07251C' }}>NDPR 2019 Compliant</div>
                     <div style={{ fontSize: 11, color: '#617870' }}>Data Protection</div>
@@ -165,7 +165,7 @@ export default function TermsPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 56 }}>
             {sections.map((section) => (
               <div key={section.id} id={section.id}>
-                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 12 }}>
                   — {section.label}
                 </div>
                 <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 22, color: '#07251C', margin: '0 0 16px', letterSpacing: '-0.01em' }}>

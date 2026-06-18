@@ -12,12 +12,12 @@ export default function HowItWorks() {
             fontWeight: 700,
             letterSpacing: '0.14em',
             textTransform: 'uppercase',
-            color: '#0E8567',
+            color: '#137333',
             marginBottom: 20,
           }}
         >
           <span
-            style={{ width: 5, height: 5, borderRadius: '50%', background: '#0E8567', display: 'inline-block' }}
+            style={{ width: 5, height: 5, borderRadius: '50%', background: '#137333', display: 'inline-block' }}
           />
           How It Works
         </div>
@@ -94,7 +94,7 @@ export default function HowItWorks() {
                   style={{
                     fontSize: 9,
                     fontWeight: 700,
-                    color: '#34E0A0',
+                    color: '#6DC43F',
                     letterSpacing: '0.1em',
                     marginBottom: 12,
                   }}
@@ -110,7 +110,7 @@ export default function HowItWorks() {
                     <div
                       key={s.l}
                       style={{
-                        background: s.accent ? '#34E0A0' : '#0C3328',
+                        background: s.accent ? '#6DC43F' : '#0C3328',
                         borderRadius: 9,
                         padding: '8px 10px',
                         flex: 1,
@@ -160,7 +160,7 @@ export default function HowItWorks() {
                         width: 6,
                         height: 6,
                         borderRadius: '50%',
-                        background: '#0E8567',
+                        background: '#137333',
                         flexShrink: 0,
                       }}
                     />
@@ -196,7 +196,7 @@ export default function HowItWorks() {
                   style={{
                     fontSize: 9,
                     fontWeight: 700,
-                    color: '#34E0A0',
+                    color: '#6DC43F',
                     letterSpacing: '0.08em',
                     marginBottom: 12,
                   }}
@@ -215,7 +215,7 @@ export default function HowItWorks() {
                     }}
                   >
                     Specialist-grade{' '}
-                    <span style={{ color: '#34E0A0' }}>cardiac</span>
+                    <span style={{ color: '#6DC43F' }}>cardiac</span>
                     {' '}review.
                   </div>
                 </div>
@@ -228,8 +228,8 @@ export default function HowItWorks() {
                         fontWeight: 600,
                         padding: '3px 9px',
                         borderRadius: 100,
-                        background: i === 0 ? '#34E0A0' : i === 1 ? 'rgba(52,224,160,0.15)' : 'rgba(255,255,255,0.1)',
-                        color: i === 0 ? '#07251C' : i === 1 ? '#34E0A0' : 'rgba(255,255,255,0.7)',
+                        background: i === 0 ? '#6DC43F' : i === 1 ? 'rgba(109,196,63,0.15)' : 'rgba(255,255,255,0.1)',
+                        color: i === 0 ? '#07251C' : i === 1 ? '#6DC43F' : 'rgba(255,255,255,0.7)',
                       }}
                     >
                       {tag}
@@ -258,7 +258,7 @@ export default function HowItWorks() {
                     style={{
                       width: '100%',
                       height: h * 0.9,
-                      background: i === 5 ? '#0E8567' : i === 3 ? '#34E0A0' : '#D8E6DF',
+                      background: i === 5 ? '#137333' : i === 3 ? '#6DC43F' : '#D8E6DF',
                       borderRadius: 4,
                     }}
                   />
@@ -291,7 +291,7 @@ export default function HowItWorks() {
                 style={{
                   fontSize: 9,
                   fontWeight: 700,
-                  color: '#34E0A0',
+                  color: '#6DC43F',
                   letterSpacing: '0.1em',
                   marginBottom: 10,
                 }}
@@ -330,7 +330,7 @@ export default function HowItWorks() {
                       fontWeight: 600,
                       padding: '5px 12px',
                       borderRadius: 100,
-                      background: t.primary ? '#34E0A0' : 'rgba(255,255,255,0.1)',
+                      background: t.primary ? '#6DC43F' : 'rgba(255,255,255,0.1)',
                       color: t.primary ? '#07251C' : 'rgba(255,255,255,0.75)',
                     }}
                   >
@@ -371,8 +371,8 @@ export default function HowItWorks() {
                       width: size,
                       height: size,
                       borderRadius: '50%',
-                      border: `1px solid rgba(14,133,103,${0.12 + i * 0.1})`,
-                      background: i === 3 ? '#0E8567' : 'transparent',
+                      border: `1px solid rgba(19,115,51,${0.12 + i * 0.1})`,
+                      background: i === 3 ? '#137333' : 'transparent',
                       transform: 'translate(-50%,-50%)',
                       display: 'flex',
                       alignItems: 'center',
@@ -416,7 +416,7 @@ export default function HowItWorks() {
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       background: '#fff',
-                      border: `1px solid ${r.active ? '#0E8567' : '#EEF3F0'}`,
+                      border: `1px solid ${r.active ? '#137333' : '#EEF3F0'}`,
                       borderRadius: 10,
                       padding: '8px 11px',
                       boxShadow: '0 2px 8px rgba(7,37,28,0.06)',
@@ -428,7 +428,7 @@ export default function HowItWorks() {
                           width: 8,
                           height: 8,
                           borderRadius: '50%',
-                          background: r.active ? '#0E8567' : '#D8E6DF',
+                          background: r.active ? '#137333' : '#D8E6DF',
                           flexShrink: 0,
                         }}
                       />
@@ -440,7 +440,7 @@ export default function HowItWorks() {
                         fontWeight: 700,
                         padding: '2px 7px',
                         borderRadius: 100,
-                        background: r.active ? '#34E0A0' : '#F0F4F1',
+                        background: r.active ? '#6DC43F' : '#F0F4F1',
                         color: r.active ? '#07251C' : '#5A7068',
                       }}
                     >
@@ -479,7 +479,7 @@ function GridCard({ children }: { children: React.ReactNode }) {
 }
 
 function Highlight({ children }: { children: React.ReactNode }) {
-  return <span style={{ color: '#0E8567', fontWeight: 500 }}>{children}</span>
+  return <span style={{ color: '#137333', fontWeight: 500 }}>{children}</span>
 }
 
 const titleStyle: React.CSSProperties = {

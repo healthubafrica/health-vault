@@ -77,7 +77,7 @@ export default function Hero() {
               fontStyle: 'italic',
               fontWeight: 700,
               fontSize: 'clamp(32px, 5.5vw, 58px)',
-              color: '#34E0A0',
+              color: '#6DC43F',
               letterSpacing: '-0.02em',
               lineHeight: 1.06,
             }}
@@ -139,7 +139,7 @@ export default function Hero() {
               display: 'inline-flex',
               alignItems: 'center',
               gap: 10,
-              background: '#34E0A0',
+              background: '#6DC43F',
               color: '#07251C',
               textDecoration: 'none',
               fontWeight: 700,
@@ -166,7 +166,7 @@ export default function Hero() {
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
                 <path
                   d="M5 19L19 5M19 5H9M19 5v10"
-                  stroke="#34E0A0"
+                  stroke="#6DC43F"
                   strokeWidth="2.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -206,10 +206,10 @@ export default function Hero() {
           {[
             /* 1 — Service tags */
             <div key="tags" style={{ background: '#fff', borderRadius: 18, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10, width: 270, flexShrink: 0 }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: '#0E8567', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Health-Hub Africa®</div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#137333', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Health-Hub Africa®</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
                 {['TeleCare™','Expert Review™','DispatchCare™','Secure Vault','CareTest™','NeuroFlex™'].map(t => (
-                  <span key={t} style={{ background: t === 'Expert Review™' ? '#07251C' : '#F1F4EF', color: t === 'Expert Review™' ? '#34E0A0' : '#27433A', borderRadius: 100, padding: '5px 12px', fontSize: 11, fontWeight: 600 }}>{t}</span>
+                  <span key={t} style={{ background: t === 'Expert Review™' ? '#07251C' : '#F1F4EF', color: t === 'Expert Review™' ? '#6DC43F' : '#27433A', borderRadius: 100, padding: '5px 12px', fontSize: 11, fontWeight: 600 }}>{t}</span>
                 ))}
               </div>
             </div>,
@@ -220,7 +220,7 @@ export default function Hero() {
                 <Image src="https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200&h=120&fit=crop&crop=faces&q=80" alt="Patient" fill style={{ objectFit: 'cover' }} sizes="172px" />
               </div>
               <div style={{ padding: '12px 14px' }}>
-                <div style={{ fontFamily: 'var(--font-manrope)', fontWeight: 700, fontSize: 13, color: '#07251C', letterSpacing: '-0.02em' }}>HHA-LAG<span style={{ color: '#0E8567' }}>-2606</span></div>
+                <div style={{ fontFamily: 'var(--font-manrope)', fontWeight: 700, fontSize: 13, color: '#07251C', letterSpacing: '-0.02em' }}>HHA-LAG<span style={{ color: '#137333' }}>-2606</span></div>
                 <div style={{ fontSize: 10, color: '#7A8C84', margin: '2px 0 10px' }}>Patient ID · Active</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                   {[['Records','24'],['Upcoming','2']].map(([l,v]) => (
@@ -235,9 +235,9 @@ export default function Hero() {
 
             /* 3 — Dark expertise card */
             <div key="dark" style={{ background: '#07251C', borderRadius: 18, padding: '20px 22px', width: 238, flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 160 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#34E0A0', letterSpacing: '0.06em' }}>Healthcare <span style={{ color: '#34E0A0' }}>●</span></div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#6DC43F', letterSpacing: '0.06em' }}>Healthcare <span style={{ color: '#6DC43F' }}>●</span></div>
               <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 17, fontWeight: 700, color: '#fff', lineHeight: 1.3, letterSpacing: '-0.02em', marginTop: 12 }}>
-                that Combines <span style={{ color: '#34E0A0' }}>Records</span>, Specialists, and Intelligent Care.
+                that Combines <span style={{ color: '#6DC43F' }}>Records</span>, Specialists, and Intelligent Care.
               </div>
               <div style={{ marginTop: 16, fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>MyHealth Vault+™ · Health-Hub Africa®</div>
             </div>,
@@ -246,12 +246,12 @@ export default function Hero() {
             <div key="satisfaction" style={{ background: '#fff', borderRadius: 18, padding: '18px 20px', width: 175, flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: '#07251C' }}>Patient Satisfaction</div>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 17l10-10M17 17V7H7" stroke="#34E0A0" strokeWidth="2" strokeLinecap="round"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 17l10-10M17 17V7H7" stroke="#6DC43F" strokeWidth="2" strokeLinecap="round"/></svg>
               </div>
-              <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 44, fontWeight: 700, color: '#07251C', letterSpacing: '-0.04em', lineHeight: 1 }}>98<span style={{ fontSize: 22, color: '#0E8567' }}>%</span></div>
+              <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 44, fontWeight: 700, color: '#07251C', letterSpacing: '-0.04em', lineHeight: 1 }}>98<span style={{ fontSize: 22, color: '#137333' }}>%</span></div>
               <div style={{ fontSize: 10, color: '#7A8C84', marginTop: 6 }}>In the past 30 days</div>
               <div style={{ marginTop: 10, height: 3, background: '#F1F4EF', borderRadius: 3 }}>
-                <div style={{ width: '98%', height: '100%', background: 'linear-gradient(90deg,#0E8567,#34E0A0)', borderRadius: 3 }} />
+                <div style={{ width: '98%', height: '100%', background: 'linear-gradient(90deg,#137333,#6DC43F)', borderRadius: 3 }} />
               </div>
             </div>,
 
@@ -259,7 +259,7 @@ export default function Hero() {
             <div key="appt" style={{ background: '#fff', borderRadius: 18, padding: '16px 18px', width: 200, flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                 <div style={{ width: 30, height: 30, borderRadius: 9, background: '#EAF7F1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="#0E8567" strokeWidth="1.8"/><path d="M16 2v4M8 2v4M3 10h18" stroke="#0E8567" strokeWidth="1.8" strokeLinecap="round"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="#137333" strokeWidth="1.8"/><path d="M16 2v4M8 2v4M3 10h18" stroke="#137333" strokeWidth="1.8" strokeLinecap="round"/></svg>
                 </div>
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#07251C' }}>TeleCare™</div>
@@ -269,13 +269,13 @@ export default function Hero() {
               <div style={{ fontSize: 12, fontWeight: 600, color: '#07251C', marginBottom: 4 }}>Dr. Adaeze Okonkwo</div>
               <div style={{ fontSize: 10, color: '#617870', marginBottom: 12 }}>General Practice · Lagos</div>
               <div style={{ background: '#EAF7F1', borderRadius: 100, padding: '5px 12px', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#0E8567', display: 'block' }} />
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#0E8567' }}>Confirmed</span>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#137333', display: 'block' }} />
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#137333' }}>Confirmed</span>
               </div>
             </div>,
 
             /* 6 — Big mint stat */
-            <div key="stat" style={{ background: '#34E0A0', borderRadius: 18, padding: '20px 22px', width: 158, flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 148 }}>
+            <div key="stat" style={{ background: '#6DC43F', borderRadius: 18, padding: '20px 22px', width: 158, flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 148 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#07251C', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Active Patients</div>
               <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 52, fontWeight: 700, color: '#07251C', letterSpacing: '-0.04em', lineHeight: 1 }}>4.9k<span style={{ fontSize: 28 }}>+</span></div>
               <div style={{ fontSize: 10, color: 'rgba(7,37,28,0.6)' }}>Across Nigeria · 2026</div>
@@ -283,9 +283,9 @@ export default function Hero() {
 
             /* 7 — Lab results */
             <div key="lab" style={{ background: '#fff', borderRadius: 18, padding: '16px 18px', width: 200, flexShrink: 0 }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: '#0E8567', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>CareTest™</div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#137333', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>CareTest™</div>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#07251C', marginBottom: 14 }}>Lab Results</div>
-              {[['Haemoglobin','72%','#0E8567'],['Glucose','48%','#F5A623'],['WBC Count','60%','#34E0A0']].map(([label, pct, color]) => (
+              {[['Haemoglobin','72%','#137333'],['Glucose','48%','#F5A623'],['WBC Count','60%','#6DC43F']].map(([label, pct, color]) => (
                 <div key={label} style={{ marginBottom: 9 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#617870', marginBottom: 4 }}>
                     <span>{label}</span><span style={{ fontWeight: 600, color: '#07251C' }}>{pct}</span>
@@ -305,9 +305,9 @@ export default function Hero() {
               </div>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 3 }}>Emergency Active</div>
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginBottom: 14 }}>DC-2026-004419 · 2 min ago</div>
-              <div style={{ background: 'linear-gradient(135deg,#0E8567,#063C2C)', borderRadius: 10, padding: '10px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="#34E0A0"/></svg>
-                <span style={{ fontSize: 10, color: '#34E0A0', fontWeight: 600 }}>Location detected</span>
+              <div style={{ background: 'linear-gradient(135deg,#137333,#063C2C)', borderRadius: 10, padding: '10px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="#6DC43F"/></svg>
+                <span style={{ fontSize: 10, color: '#6DC43F', fontWeight: 600 }}>Location detected</span>
               </div>
               <div style={{ background: 'rgba(255,92,92,0.15)', borderRadius: 8, padding: '6px 10px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: '#FF5C5C' }}>HHA team alerted</div>
             </div>,
@@ -318,10 +318,10 @@ export default function Hero() {
                 <Image src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=200&h=100&fit=crop&crop=faces&q=80" alt="Specialist" fill style={{ objectFit: 'cover' }} sizes="185px" />
               </div>
               <div style={{ padding: '12px 14px' }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: '#0E8567', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>Expert Review™</div>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#137333', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>Expert Review™</div>
                 {[['Documents submitted', true],['Panel assigned', true],['In review…', false]].map(([l, done]) => (
                   <div key={String(l)} style={{ display: 'flex', gap: 7, alignItems: 'center', marginBottom: 6 }}>
-                    <span style={{ width: 14, height: 14, borderRadius: '50%', background: done ? '#34E0A0' : 'transparent', border: done ? 'none' : '1.5px solid #34E0A0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 8, color: '#07251C', fontWeight: 700 }}>{done ? '✓' : ''}</span>
+                    <span style={{ width: 14, height: 14, borderRadius: '50%', background: done ? '#6DC43F' : 'transparent', border: done ? 'none' : '1.5px solid #6DC43F', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 8, color: '#07251C', fontWeight: 700 }}>{done ? '✓' : ''}</span>
                     <span style={{ fontSize: 10, color: done ? '#07251C' : '#7A8C84' }}>{String(l)}</span>
                   </div>
                 ))}
@@ -335,21 +335,21 @@ export default function Hero() {
                 <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 56, fontWeight: 700, color: '#07251C', letterSpacing: '-0.05em', lineHeight: 1 }}>92</div>
                 <div style={{ paddingBottom: 6 }}>
                   <div style={{ fontSize: 12, color: '#7A8C84' }}>/ 100</div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#0E8567' }}>Excellent</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#137333' }}>Excellent</div>
                 </div>
               </div>
               <div style={{ height: 6, background: '#E8F0EC', borderRadius: 6 }}>
-                <div style={{ width: '92%', height: '100%', background: 'linear-gradient(90deg,#0E8567,#34E0A0)', borderRadius: 6 }} />
+                <div style={{ width: '92%', height: '100%', background: 'linear-gradient(90deg,#137333,#6DC43F)', borderRadius: 6 }} />
               </div>
               <div style={{ fontSize: 10, color: '#7A8C84', marginTop: 8 }}>Updated · June 2026</div>
             </div>,
           ].concat([
             /* duplicate set for seamless loop */
             <div key="tags2" style={{ background: '#fff', borderRadius: 18, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10, width: 270, flexShrink: 0 }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: '#0E8567', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Health-Hub Africa®</div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#137333', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Health-Hub Africa®</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
                 {['TeleCare™','Expert Review™','DispatchCare™','Secure Vault','CareTest™','NeuroFlex™'].map(t => (
-                  <span key={t} style={{ background: t === 'Expert Review™' ? '#07251C' : '#F1F4EF', color: t === 'Expert Review™' ? '#34E0A0' : '#27433A', borderRadius: 100, padding: '5px 12px', fontSize: 11, fontWeight: 600 }}>{t}</span>
+                  <span key={t} style={{ background: t === 'Expert Review™' ? '#07251C' : '#F1F4EF', color: t === 'Expert Review™' ? '#6DC43F' : '#27433A', borderRadius: 100, padding: '5px 12px', fontSize: 11, fontWeight: 600 }}>{t}</span>
                 ))}
               </div>
             </div>,
@@ -358,7 +358,7 @@ export default function Hero() {
                 <Image src="https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200&h=120&fit=crop&crop=faces&q=80" alt="Patient" fill style={{ objectFit: 'cover' }} sizes="172px" />
               </div>
               <div style={{ padding: '12px 14px' }}>
-                <div style={{ fontFamily: 'var(--font-manrope)', fontWeight: 700, fontSize: 13, color: '#07251C', letterSpacing: '-0.02em' }}>HHA-LAG<span style={{ color: '#0E8567' }}>-2606</span></div>
+                <div style={{ fontFamily: 'var(--font-manrope)', fontWeight: 700, fontSize: 13, color: '#07251C', letterSpacing: '-0.02em' }}>HHA-LAG<span style={{ color: '#137333' }}>-2606</span></div>
                 <div style={{ fontSize: 10, color: '#7A8C84', margin: '2px 0 10px' }}>Patient ID · Active</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                   {[['Records','24'],['Upcoming','2']].map(([l,v]) => (
@@ -371,27 +371,27 @@ export default function Hero() {
               </div>
             </div>,
             <div key="dark2" style={{ background: '#07251C', borderRadius: 18, padding: '20px 22px', width: 238, flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 160 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#34E0A0', letterSpacing: '0.06em' }}>Healthcare <span style={{ color: '#34E0A0' }}>●</span></div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#6DC43F', letterSpacing: '0.06em' }}>Healthcare <span style={{ color: '#6DC43F' }}>●</span></div>
               <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 17, fontWeight: 700, color: '#fff', lineHeight: 1.3, letterSpacing: '-0.02em', marginTop: 12 }}>
-                that Combines <span style={{ color: '#34E0A0' }}>Records</span>, Specialists, and Intelligent Care.
+                that Combines <span style={{ color: '#6DC43F' }}>Records</span>, Specialists, and Intelligent Care.
               </div>
               <div style={{ marginTop: 16, fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>MyHealth Vault+™ · Health-Hub Africa®</div>
             </div>,
             <div key="satisfaction2" style={{ background: '#fff', borderRadius: 18, padding: '18px 20px', width: 175, flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: '#07251C' }}>Patient Satisfaction</div>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 17l10-10M17 17V7H7" stroke="#34E0A0" strokeWidth="2" strokeLinecap="round"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 17l10-10M17 17V7H7" stroke="#6DC43F" strokeWidth="2" strokeLinecap="round"/></svg>
               </div>
-              <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 44, fontWeight: 700, color: '#07251C', letterSpacing: '-0.04em', lineHeight: 1 }}>98<span style={{ fontSize: 22, color: '#0E8567' }}>%</span></div>
+              <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 44, fontWeight: 700, color: '#07251C', letterSpacing: '-0.04em', lineHeight: 1 }}>98<span style={{ fontSize: 22, color: '#137333' }}>%</span></div>
               <div style={{ fontSize: 10, color: '#7A8C84', marginTop: 6 }}>In the past 30 days</div>
               <div style={{ marginTop: 10, height: 3, background: '#F1F4EF', borderRadius: 3 }}>
-                <div style={{ width: '98%', height: '100%', background: 'linear-gradient(90deg,#0E8567,#34E0A0)', borderRadius: 3 }} />
+                <div style={{ width: '98%', height: '100%', background: 'linear-gradient(90deg,#137333,#6DC43F)', borderRadius: 3 }} />
               </div>
             </div>,
             <div key="appt2" style={{ background: '#fff', borderRadius: 18, padding: '16px 18px', width: 200, flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                 <div style={{ width: 30, height: 30, borderRadius: 9, background: '#EAF7F1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="#0E8567" strokeWidth="1.8"/><path d="M16 2v4M8 2v4M3 10h18" stroke="#0E8567" strokeWidth="1.8" strokeLinecap="round"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="#137333" strokeWidth="1.8"/><path d="M16 2v4M8 2v4M3 10h18" stroke="#137333" strokeWidth="1.8" strokeLinecap="round"/></svg>
                 </div>
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#07251C' }}>TeleCare™</div>
@@ -401,19 +401,19 @@ export default function Hero() {
               <div style={{ fontSize: 12, fontWeight: 600, color: '#07251C', marginBottom: 4 }}>Dr. Adaeze Okonkwo</div>
               <div style={{ fontSize: 10, color: '#617870', marginBottom: 12 }}>General Practice · Lagos</div>
               <div style={{ background: '#EAF7F1', borderRadius: 100, padding: '5px 12px', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#0E8567', display: 'block' }} />
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#0E8567' }}>Confirmed</span>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#137333', display: 'block' }} />
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#137333' }}>Confirmed</span>
               </div>
             </div>,
-            <div key="stat2" style={{ background: '#34E0A0', borderRadius: 18, padding: '20px 22px', width: 158, flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 148 }}>
+            <div key="stat2" style={{ background: '#6DC43F', borderRadius: 18, padding: '20px 22px', width: 158, flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 148 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#07251C', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Active Patients</div>
               <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 52, fontWeight: 700, color: '#07251C', letterSpacing: '-0.04em', lineHeight: 1 }}>4.9k<span style={{ fontSize: 28 }}>+</span></div>
               <div style={{ fontSize: 10, color: 'rgba(7,37,28,0.6)' }}>Across Nigeria · 2026</div>
             </div>,
             <div key="lab2" style={{ background: '#fff', borderRadius: 18, padding: '16px 18px', width: 200, flexShrink: 0 }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: '#0E8567', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>CareTest™</div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#137333', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>CareTest™</div>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#07251C', marginBottom: 14 }}>Lab Results</div>
-              {[['Haemoglobin','72%','#0E8567'],['Glucose','48%','#F5A623'],['WBC Count','60%','#34E0A0']].map(([label, pct, color]) => (
+              {[['Haemoglobin','72%','#137333'],['Glucose','48%','#F5A623'],['WBC Count','60%','#6DC43F']].map(([label, pct, color]) => (
                 <div key={label} style={{ marginBottom: 9 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#617870', marginBottom: 4 }}>
                     <span>{label}</span><span style={{ fontWeight: 600, color: '#07251C' }}>{pct}</span>
@@ -431,9 +431,9 @@ export default function Hero() {
               </div>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 3 }}>Emergency Active</div>
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginBottom: 14 }}>DC-2026-004419 · 2 min ago</div>
-              <div style={{ background: 'linear-gradient(135deg,#0E8567,#063C2C)', borderRadius: 10, padding: '10px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="#34E0A0"/></svg>
-                <span style={{ fontSize: 10, color: '#34E0A0', fontWeight: 600 }}>Location detected</span>
+              <div style={{ background: 'linear-gradient(135deg,#137333,#063C2C)', borderRadius: 10, padding: '10px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="#6DC43F"/></svg>
+                <span style={{ fontSize: 10, color: '#6DC43F', fontWeight: 600 }}>Location detected</span>
               </div>
               <div style={{ background: 'rgba(255,92,92,0.15)', borderRadius: 8, padding: '6px 10px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: '#FF5C5C' }}>HHA team alerted</div>
             </div>,
@@ -442,10 +442,10 @@ export default function Hero() {
                 <Image src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=200&h=100&fit=crop&crop=faces&q=80" alt="Specialist" fill style={{ objectFit: 'cover' }} sizes="185px" />
               </div>
               <div style={{ padding: '12px 14px' }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: '#0E8567', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>Expert Review™</div>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#137333', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>Expert Review™</div>
                 {[['Documents submitted', true],['Panel assigned', true],['In review…', false]].map(([l, done]) => (
                   <div key={String(l)} style={{ display: 'flex', gap: 7, alignItems: 'center', marginBottom: 6 }}>
-                    <span style={{ width: 14, height: 14, borderRadius: '50%', background: done ? '#34E0A0' : 'transparent', border: done ? 'none' : '1.5px solid #34E0A0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 8, color: '#07251C', fontWeight: 700 }}>{done ? '✓' : ''}</span>
+                    <span style={{ width: 14, height: 14, borderRadius: '50%', background: done ? '#6DC43F' : 'transparent', border: done ? 'none' : '1.5px solid #6DC43F', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 8, color: '#07251C', fontWeight: 700 }}>{done ? '✓' : ''}</span>
                     <span style={{ fontSize: 10, color: done ? '#07251C' : '#7A8C84' }}>{String(l)}</span>
                   </div>
                 ))}
@@ -457,11 +457,11 @@ export default function Hero() {
                 <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 56, fontWeight: 700, color: '#07251C', letterSpacing: '-0.05em', lineHeight: 1 }}>92</div>
                 <div style={{ paddingBottom: 6 }}>
                   <div style={{ fontSize: 12, color: '#7A8C84' }}>/ 100</div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#0E8567' }}>Excellent</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#137333' }}>Excellent</div>
                 </div>
               </div>
               <div style={{ height: 6, background: '#E8F0EC', borderRadius: 6 }}>
-                <div style={{ width: '92%', height: '100%', background: 'linear-gradient(90deg,#0E8567,#34E0A0)', borderRadius: 6 }} />
+                <div style={{ width: '92%', height: '100%', background: 'linear-gradient(90deg,#137333,#6DC43F)', borderRadius: 6 }} />
               </div>
               <div style={{ fontSize: 10, color: '#7A8C84', marginTop: 8 }}>Updated · June 2026</div>
             </div>,

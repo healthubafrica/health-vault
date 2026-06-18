@@ -81,7 +81,7 @@ export default function Footer() {
                 width: 30,
                 height: 30,
                 borderRadius: 9,
-                background: '#0E8567',
+                background: '#137333',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -91,13 +91,13 @@ export default function Footer() {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                 <path
                   d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"
-                  stroke="#34E0A0"
+                  stroke="#6DC43F"
                   strokeWidth="2"
                   strokeLinejoin="round"
                 />
                 <path
                   d="M12 8.5v5M9.5 11h5"
-                  stroke="#34E0A0"
+                  stroke="#6DC43F"
                   strokeWidth="2"
                   strokeLinecap="round"
                 />
@@ -171,7 +171,7 @@ export default function Footer() {
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 8,
-                background: '#34E0A0',
+                background: '#6DC43F',
                 color: '#07251C',
                 fontWeight: 700,
                 fontSize: 12,
@@ -200,7 +200,7 @@ export default function Footer() {
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
                   <path
                     d="M5 19L19 5M19 5H9M19 5v10"
-                    stroke="#34E0A0"
+                    stroke="#6DC43F"
                     strokeWidth="2.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
