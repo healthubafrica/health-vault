@@ -106,9 +106,11 @@ function pickFirstString(msg: unknown): string {
 // recognise the shape.
 function softenValidation(msg: string): string {
   const lower = msg.toLowerCase()
+  if (lower.includes('should not exist') || lower.includes('property') && lower.includes('not exist'))
+    return ''  // field no longer rejected after DTO update; silently drop if it ever appears
   if (lower.includes('email'))
     return 'Kindly enter a valid email address.'
-  if (lower.includes('password') && (lower.includes('long') || lower.includes('characters')))
+  if (lower.includes('password') && (lower.includes('long') || lower.includes('characters') || lower.includes('match')))
     return 'Your password needs at least 12 characters with a mix of uppercase, lowercase, a number, and a symbol.'
   if (lower.includes('phone'))
     return 'Kindly enter your phone number with the country code (for example +2348012345678).'
@@ -120,15 +122,26 @@ function softenValidation(msg: string): string {
 }
 
 export function friendlyApiError(status: number, rawMessage: unknown): string {
-  const raw = pickFirstString(rawMessage).trim()
+  const firstRaw = pickFirstString(rawMessage).trim()
 
+  // Check RULES against the first/representative message
   for (const rule of RULES) {
-    if (rule.test(status, raw)) return rule.message
+    if (rule.test(status, firstRaw)) return rule.message
   }
 
-  if (status === 400 && raw) return softenValidation(raw)
+  // For 400 validation arrays: soften each message, deduplicate, join for display
+  if (status === 400 && Array.isArray(rawMessage)) {
+    const messages = rawMessage
+      .filter((m): m is string => typeof m === 'string')
+      .map(softenValidation)
+      .filter((m) => m.length > 0)
+      .filter((m, i, arr) => arr.indexOf(m) === i)
+    if (messages.length > 0) return messages.join('\n')
+  }
 
-  return raw || GENERIC_MSG
+  if (status === 400 && firstRaw) return softenValidation(firstRaw) || GENERIC_MSG
+
+  return firstRaw || GENERIC_MSG
 }
 
 export function friendlyNetworkError(): string {
