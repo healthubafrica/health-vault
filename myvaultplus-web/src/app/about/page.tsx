@@ -28,7 +28,8 @@ const layers = [
 export default function AboutPage() {
   return (
     <div style={{ width: '100%', overflowX: 'hidden', background: '#F1F4EF' }}>
-      <Navbar />
+      <Navbar forceScrolled />
+      <div style={{ height: 80 }} />
 
       <HeroSplit
         trustText="Nigeria's leading health portal · Launched 2023"
