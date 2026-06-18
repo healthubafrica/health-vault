@@ -3,6 +3,8 @@ import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
 import HeroMarquee from '@/components/HeroMarquee'
+import AnimatedSection from '@/components/AnimatedSection'
+import AnimatedCard from '@/components/AnimatedCard'
 
 const reviewTypes = [
   { title: 'Second Opinions', desc: 'Independent expert assessment of any diagnosis from your primary physician.' },
@@ -145,17 +147,17 @@ export default function ExpertReviewPage() {
             </h2>
           </div>
           <div style={{ background: '#DEDEDE', borderRadius: 28, padding: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            <AnimatedSection stagger style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
               {reviewTypes.map((type) => (
-                <div key={type.title} style={{ padding: '32px 32px 28px', background: '#fff', borderRadius: 18 }}>
+                <AnimatedCard key={type.title} style={{ padding: '32px 32px 28px', background: '#fff', borderRadius: 18 }}>
                   <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 18, color: '#07251C', margin: '0 0 10px' }}>{type.title}</h3>
                   <p style={{ color: '#5A7068', fontSize: 14.5, lineHeight: 1.65, margin: 0 }}>{type.desc}</p>
-                </div>
+                </AnimatedCard>
               ))}
-              <div style={{ padding: '32px 32px 28px', background: '#F7FAF7', borderRadius: 18, border: '1px dashed rgba(7,37,28,0.15)' }}>
+              <AnimatedCard hoverLift={false} style={{ padding: '32px 32px 28px', background: '#F7FAF7', borderRadius: 18, border: '1px dashed rgba(7,37,28,0.15)' }}>
                 <p style={{ color: '#7A8C84', fontSize: 14, lineHeight: 1.55, margin: 0, fontStyle: 'italic' }}>More review types available on request. Contact us to discuss your specific clinical needs.</p>
-              </div>
-            </div>
+              </AnimatedCard>
+            </AnimatedSection>
           </div>
         </section>
       </div>
@@ -170,17 +172,17 @@ export default function ExpertReviewPage() {
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, color: '#6DC43F' }}>works.</em>
             </h2>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 40 }}>
+          <AnimatedSection stagger style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 40 }}>
             {processSteps.map((step) => (
-              <div key={step.num} style={{ background: '#0C3328', borderRadius: 18, padding: '24px 32px', display: 'grid', gridTemplateColumns: '64px 1fr', gap: 24, alignItems: 'start' }}>
+              <AnimatedCard key={step.num} hoverLift={false} style={{ background: '#0C3328', borderRadius: 18, padding: '24px 32px', display: 'grid', gridTemplateColumns: '64px 1fr', gap: 24, alignItems: 'start' }}>
                 <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontSize: 32, fontWeight: 700, color: '#6DC43F', letterSpacing: '-0.02em', lineHeight: 1 }}>{step.num}</div>
                 <div>
                   <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 18, color: '#fff', marginBottom: 6 }}>{step.title}</div>
                   <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', lineHeight: 1.65 }}>{step.desc}</div>
                 </div>
-              </div>
+              </AnimatedCard>
             ))}
-          </div>
+          </AnimatedSection>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
             {['Submitted', 'Documents Uploaded', 'Under Review', 'Specialist Assigned', 'Report Ready'].map((status, i) => (
               <span key={status} style={{ fontSize: 12, fontWeight: 600, padding: '7px 16px', borderRadius: 100, background: i === 4 ? '#6DC43F' : 'rgba(109,196,63,0.12)', color: i === 4 ? '#07251C' : '#6DC43F', border: i === 4 ? 'none' : '1px solid rgba(109,196,63,0.25)' }}>{status}</span>
