@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:#F1F4EF;font-family:'Hanken Grotesk',sans-serif;color:#07251C;-webkit-font-smoothing:antialiased;}
+  ::selection{background:#34E0A0;color:#07251C;}
+</style>
+</helmet>
+
+<div style="width:100%;overflow-x:hidden;font-family:'Hanken Grotesk',sans-serif;">
+
+  <!-- NAV -->
+  <header style="position:sticky;top:0;z-index:50;background:rgba(241,244,239,0.88);backdrop-filter:blur(10px);border-bottom:1px solid rgba(7,37,28,0.08);">
+    <nav style="max-width:1240px;margin:0 auto;padding:16px 28px;display:flex;align-items:center;justify-content:space-between;gap:24px;">
+      <a href="MyHealth Vault Plus.dc.html" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:#07251C;">
+        <span style="width:30px;height:30px;border-radius:9px;background:#0E8567;display:flex;align-items:center;justify-content:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" stroke="#34E0A0" stroke-width="2" stroke-linejoin="round"/><path d="M12 8.5v5M9.5 11h5" stroke="#34E0A0" stroke-width="2" stroke-linecap="round"/></svg></span>
+        <span style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:18px;letter-spacing:-0.02em;">MyHealth Vault+</span>
+      </a>
+      <div style="display:flex;align-items:center;gap:28px;font-size:14.5px;font-weight:500;">
+        <a href="Services.dc.html" style="color:#0E8567;text-decoration:none;font-weight:600;">Services</a>
+        <a href="Plans.dc.html" style="color:#27433A;text-decoration:none;">Plans &amp; Pricing</a>
+        <a href="Expert Review.dc.html" style="color:#27433A;text-decoration:none;">Expert Review™</a>
+        <a href="DispatchCare.dc.html" style="color:#27433A;text-decoration:none;">DispatchCare™</a>
+        <a href="About.dc.html" style="color:#27433A;text-decoration:none;">About</a>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <a href="https://portal.myvaultplus.com/login" style="font-size:14.5px;font-weight:600;color:#07251C;text-decoration:none;padding:10px 8px;">Sign In</a>
+        <a href="https://portal.myvaultplus.com/register" style="display:flex;align-items:center;gap:10px;background:#07251C;color:#fff;text-decoration:none;font-weight:600;font-size:14.5px;padding:9px 9px 9px 18px;border-radius:100px;">Create Free Account<span style="width:28px;height:28px;border-radius:50%;background:#34E0A0;display:flex;align-items:center;justify-content:center;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M19 5H9M19 5v10" stroke="#07251C" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span></a>
+      </div>
+    </nav>
+  </header>
+
+  <!-- HEADER -->
+  <section style="position:relative;background:radial-gradient(120% 110% at 50% -20%, #2BB489 0%, #0E8567 42%, #0A6A52 78%, #074F3D 100%);overflow:hidden;">
+    <div style="position:absolute;inset:0;background:radial-gradient(60% 50% at 50% 0%, rgba(52,224,160,0.3), transparent 70%);pointer-events:none;"></div>
+    <div style="position:relative;max-width:900px;margin:0 auto;padding:84px 28px 88px;text-align:center;">
+      <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.22);color:#EAFBF3;border-radius:100px;padding:7px 16px;font-size:13px;font-weight:600;margin-bottom:24px;"><span style="width:7px;height:7px;border-radius:50%;background:#34E0A0;"></span>Services</div>
+      <h1 style="font-family:'Space Grotesk',sans-serif;font-weight:600;color:#fff;font-size:54px;line-height:1.05;letter-spacing:-0.03em;margin:0 auto;max-width:760px;text-wrap:balance;">Everything Your Health Needs. One Platform.</h1>
+      <p style="color:rgba(255,255,255,0.84);font-size:18px;line-height:1.55;max-width:660px;margin:22px auto 0;text-wrap:pretty;">MyHealth Vault+™ connects you to the full Health-Hub Africa® service ecosystem — from routine consultations to emergency dispatch and specialist second opinions. Every service is bookable through your secure patient portal.</p>
+    </div>
+  </section>
+
+  <!-- SERVICE 1 TELECARE -->
+  <section style="max-width:1100px;margin:0 auto;padding:84px 28px 0;">
+    <div style="display:grid;grid-template-columns:0.85fr 1.15fr;gap:48px;align-items:start;">
+      <div>
+        <span style="width:50px;height:50px;border-radius:14px;background:#EAF7F1;display:flex;align-items:center;justify-content:center;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M15 10l4-2v8l-4-2v-4z" stroke="#0E8567" stroke-width="2" stroke-linejoin="round"/><rect x="3" y="6" width="12" height="12" rx="2" stroke="#0E8567" stroke-width="2"/></svg></span>
+        <h2 style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:30px;letter-spacing:-0.02em;margin:18px 0 4px;">TeleCare™</h2>
+        <p style="font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:17px;color:#0E8567;margin:0 0 14px;">Remote Healthcare, Delivered to You</p>
+        <p style="color:#41584E;font-size:15px;line-height:1.65;margin:0;">Consult with qualified healthcare providers via video or phone — from your home, office, or anywhere in Nigeria. TeleCare™ eliminates the need to travel for routine consultations and follow-ups.</p>
+        <p style="font-style:italic;color:#7A8C84;font-size:13.5px;margin:18px 0 0;">Who it's for: All plan tiers (pay-per-use on Free; included or expanded on paid plans)</p>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(7,37,28,0.09);border-radius:22px;padding:32px;">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#07251C;">What's included</div>
+        <div style="display:flex;flex-direction:column;gap:13px;margin-top:18px;">
+          <div style="display:flex;gap:11px;align-items:flex-start;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#0E8567" stroke-width="2"/><path d="M8.5 12l2.5 2.5L15.5 9" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="color:#27433A;font-size:14.5px;line-height:1.5;">Video and phone consultations with licensed providers</span></div>
+          <div style="display:flex;gap:11px;align-items:flex-start;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#0E8567" stroke-width="2"/><path d="M8.5 12l2.5 2.5L15.5 9" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="color:#27433A;font-size:14.5px;line-height:1.5;">Follow-up booking within the same session</span></div>
+          <div style="display:flex;gap:11px;align-items:flex-start;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#0E8567" stroke-width="2"/><path d="M8.5 12l2.5 2.5L15.5 9" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="color:#27433A;font-size:14.5px;line-height:1.5;">Consultation notes added to your MyHealth Vault+™ record</span></div>
+          <div style="display:flex;gap:11px;align-items:flex-start;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#0E8567" stroke-width="2"/><path d="M8.5 12l2.5 2.5L15.5 9" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="color:#27433A;font-size:14.5px;line-height:1.5;">Prescription requests processed through your Vault</span></div>
+        </div>
+        <a href="https://portal.myvaultplus.com" style="display:inline-flex;align-items:center;gap:9px;background:#07251C;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:10px 11px 10px 20px;border-radius:100px;margin-top:24px;">Book a TeleCare™ Consultation<span style="width:28px;height:28px;border-radius:50%;background:#34E0A0;display:flex;align-items:center;justify-content:center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="#07251C" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- SERVICE 2 MINUTECARE -->
+  <section style="max-width:1100px;margin:0 auto;padding:64px 28px 0;">
+    <div style="height:1px;background:rgba(7,37,28,0.1);margin-bottom:64px;"></div>
+    <div style="display:grid;grid-template-columns:0.85fr 1.15fr;gap:48px;align-items:start;">
+      <div>
+        <span style="width:50px;height:50px;border-radius:14px;background:#EAF7F1;display:flex;align-items:center;justify-content:center;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="#0E8567" stroke-width="2"/><path d="M12 8v4l3 2" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <h2 style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:30px;letter-spacing:-0.02em;margin:18px 0 4px;">MinuteCare™</h2>
+        <p style="font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:17px;color:#0E8567;margin:0 0 14px;">Fast Walk-In Clinic Access</p>
+        <p style="color:#41584E;font-size:15px;line-height:1.65;margin:0;">Schedule same-day or short-notice walk-in clinic visits with your preferred provider. MinuteCare™ gives you a confirmed arrival slot — no waiting around.</p>
+        <p style="font-style:italic;color:#7A8C84;font-size:13.5px;margin:18px 0 0;">Who it's for: All plan tiers</p>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(7,37,28,0.09);border-radius:22px;padding:32px;">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#07251C;">What's included</div>
+        <div style="display:flex;flex-direction:column;gap:13px;margin-top:18px;">
+          <div style="display:flex;gap:11px;align-items:flex-start;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#0E8567" stroke-width="2"/><path d="M8.5 12l2.5 2.5L15.5 9" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="color:#27433A;font-size:14.5px;line-height:1.5;">Same-day appointment slots</span></div>
+          <div style="display:flex;gap:11px;align-items:flex-start;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#0E8567" stroke-width="2"/><path d="M8.5 12l2.5 2.5L15.5 9" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="color:#27433A;font-size:14.5px;line-height:1.5;">Clinic location confirmation</span></div>
+          <div style="display:flex;gap:11px;align-items:flex-start;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#0E8567" stroke-width="2"/><path d="M8.5 12l2.5 2.5L15.5 9" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="color:#27433A;font-size:14.5px;line-height:1.5;">Reminder SMS/email before your visit</span></div>
+          <div style="display:flex;gap:11px;align-items:flex-start;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#0E8567" stroke-width="2"/><path d="M8.5 12l2.5 2.5L15.5 9" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="color:#27433A;font-size:14.5px;line-height:1.5;">Visit record linked to your Vault</span></div>
+        </div>
+        <a href="https://portal.myvaultplus.com" style="display:inline-flex;align-items:center;gap:9px;background:#07251C;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:10px 11px 10px 20px;border-radius:100px;margin-top:24px;">Book MinuteCare™<span style="width:28px;height:28px;border-radius:50%;background:#34E0A0;display:flex;align-items:center;justify-content:center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="#07251C" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- SERVICE 3 CARETEST -->
+  <section style="max-width:1100px;margin:0 auto;padding:64px 28px 0;">
+    <div style="height:1px;background:rgba(7,37,28,0.1);margin-bottom:64px;"></div>
+    <div style="display:grid;grid-template-columns:0.85fr 1.15fr;gap:48px;align-items:start;">
+      <div>
+        <span style="width:50px;height:50px;border-radius:14px;background:#EAF7F1;display:flex;align-items:center;justify-content:center;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M9 3h6v4l4 8a4 4 0 01-3.6 6H8.6A4 4 0 015 15l4-8V3z" stroke="#0E8567" stroke-width="2" stroke-linejoin="round"/><path d="M9 3h6" stroke="#0E8567" stroke-width="2" stroke-linecap="round"/></svg></span>
+        <h2 style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:30px;letter-spacing:-0.02em;margin:18px 0 4px;">CareTest™</h2>
+        <p style="font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:17px;color:#0E8567;margin:0 0 14px;">Lab Tests &amp; Diagnostic Appointments</p>
+        <p style="color:#41584E;font-size:15px;line-height:1.65;margin:0;">Book diagnostic tests, lab panels, and health screenings with ease. CareTest™ links your results directly to your health record so everything is in one place.</p>
+        <p style="font-style:italic;color:#7A8C84;font-size:13.5px;margin:18px 0 0;">Who it's for: All plan tiers (Priority access on Mid-Level, Gold, and Corporate)</p>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(7,37,28,0.09);border-radius:22px;padding:32px;">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#07251C;">What's included</div>
+        <div style="display:flex;flex-direction:column;gap:13px;margin-top:18px;">
+          <div style="display:flex;gap:11px;align-items:flex-start;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#0E8567" stroke-width="2"/><path d="M8.5 12l2.5 2.5L15.5 9" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="color:#27433A;font-size:14.5px;line-height:1.5;">Blood panels, urinalysis, imaging referrals, and more</span></div>
+          <div style="display:flex;gap:11px;align-items:flex-start;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#0E8567" stroke-width="2"/><path d="M8.5 12l2.5 2.5L15.5 9" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="color:#27433A;font-size:14.5px;line-height:1.5;">Results delivered to your MyHealth Vault+™ portal</span></div>
+          <div style="display:flex;gap:11px;align-items:flex-start;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#0E8567" stroke-width="2"/><path d="M8.5 12l2.5 2.5L15.5 9" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="color:#27433A;font-size:14.5px;line-height:1.5;">Downloadable PDF lab reports</span></div>
+          <div style="display:flex;gap:11px;align-items:flex-start;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#0E8567" stroke-width="2"/><path d="M8.5 12l2.5 2.5L15.5 9" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="color:#27433A;font-size:14.5px;line-height:1.5;">Prescription and referral support</span></div>
+        </div>
+        <a href="https://portal.myvaultplus.com" style="display:inline-flex;align-items:center;gap:9px;background:#07251C;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:10px 11px 10px 20px;border-radius:100px;margin-top:24px;">Book a CareTest™ Appointment<span style="width:28px;height:28px;border-radius:50%;background:#34E0A0;display:flex;align-items:center;justify-content:center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="#07251C" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- SERVICE 4 HEALTHCONSULT -->
+  <section style="max-width:1100px;margin:0 auto;padding:64px 28px 0;">
+    <div style="height:1px;background:rgba(7,37,28,0.1);margin-bottom:64px;"></div>
+    <div style="display:grid;grid-template-columns:0.85fr 1.15fr;gap:48px;align-items:start;">
+      <div>
+        <span style="width:50px;height:50px;border-radius:14px;background:#EAF7F1;display:flex;align-items:center;justify-content:center;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-4.5-7-10a4 4 0 017-2.6A4 4 0 0119 11c0 5.5-7 10-7 10z" stroke="#0E8567" stroke-width="2" stroke-linejoin="round"/></svg></span>
+        <h2 style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:30px;letter-spacing:-0.02em;margin:18px 0 4px;">HealthConsult™</h2>
+        <p style="font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:17px;color:#0E8567;margin:0 0 14px;">Personalised Preventive Health</p>
+        <p style="color:#41584E;font-size:15px;line-height:1.65;margin:0;">HealthConsult™ is a structured care plan and preventive health programme service. Work with a qualified health professional to build a personalised wellness and prevention strategy.</p>
+        <p style="font-style:italic;color:#7A8C84;font-size:13.5px;margin:18px 0 0;">Who it's for: Mid-Level, Gold, and Corporate plans (add-on for Basic)</p>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(7,37,28,0.09);border-radius:22px;padding:32px;">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#07251C;">What's included</div>
+        <div style="display:flex;flex-direction:column;gap:13px;margin-top:18px;">
+          <div style="display:flex;gap:11px;align-items:flex-start;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#0E8567" stroke-width="2"/><path d="M8.5 12l2.5 2.5L15.5 9" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="color:#27433A;font-size:14.5px;line-height:1.5;">Preventive health consultation</span></div>
+          <div style="display:flex;gap:11px;align-items:flex-start;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#0E8567" stroke-width="2"/><path d="M8.5 12l2.5 2.5L15.5 9" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="color:#27433A;font-size:14.5px;line-height:1.5;">Personalised care and wellness plan</span></div>
+          <div style="display:flex;gap:11px;align-items:flex-start;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#0E8567" stroke-width="2"/><path d="M8.5 12l2.5 2.5L15.5 9" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="color:#27433A;font-size:14.5px;line-height:1.5;">Chronic disease management support</span></div>
+          <div style="display:flex;gap:11px;align-items:flex-start;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#0E8567" stroke-width="2"/><path d="M8.5 12l2.5 2.5L15.5 9" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="color:#27433A;font-size:14.5px;line-height:1.5;">Programme notes stored in your Vault</span></div>
+        </div>
+        <a href="https://portal.myvaultplus.com" style="display:inline-flex;align-items:center;gap:9px;background:#07251C;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:10px 11px 10px 20px;border-radius:100px;margin-top:24px;">Book a HealthConsult™ Session<span style="width:28px;height:28px;border-radius:50%;background:#34E0A0;display:flex;align-items:center;justify-content:center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="#07251C" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- SERVICE 5 EXPERT REVIEW (dark feature) -->
+  <section style="max-width:1100px;margin:84px auto 0;padding:0 28px;">
+    <div style="background:#07251C;border-radius:28px;padding:48px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center;">
+        <div>
+          <span style="width:50px;height:50px;border-radius:14px;background:rgba(52,224,160,0.16);display:flex;align-items:center;justify-content:center;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M9 11l2 2 4-4" stroke="#34E0A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" stroke="#34E0A0" stroke-width="2" stroke-linejoin="round"/></svg></span>
+          <h2 style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:30px;letter-spacing:-0.02em;margin:18px 0 4px;color:#fff;">Expert Review™</h2>
+          <p style="font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:17px;color:#34E0A0;margin:0 0 14px;">Specialist Second Opinions &amp; Multi-Specialist Panels</p>
+          <p style="color:rgba(255,255,255,0.74);font-size:15px;line-height:1.65;margin:0;">Health-Hub Africa's premium digital clinical service. When a diagnosis feels uncertain, a treatment decision feels heavy, or you want an independent specialist view — Expert Review™ gives you access to a qualified panel, through your Vault, with a written report.</p>
+          <a href="MyHealth Vault Plus.dc.html#expert" style="display:inline-flex;align-items:center;gap:9px;background:#34E0A0;color:#07251C;text-decoration:none;font-weight:600;font-size:14px;padding:10px 11px 10px 20px;border-radius:100px;margin-top:24px;">Learn More About Expert Review™<span style="width:28px;height:28px;border-radius:50%;background:#07251C;display:flex;align-items:center;justify-content:center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="#34E0A0" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span></a>
+        </div>
+        <div style="background:#0C3328;border:1px solid rgba(52,224,160,0.18);border-radius:20px;padding:26px;">
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#34E0A0;">What's included</div>
+          <div style="display:flex;flex-direction:column;gap:11px;margin-top:16px;">
+            <div style="display:flex;gap:10px;align-items:flex-start;"><span style="color:#34E0A0;flex-shrink:0;font-weight:700;font-size:14px;">✓</span><span style="color:rgba(255,255,255,0.85);font-size:13.5px;line-height:1.5;">Second opinions on diagnoses, treatments, medications</span></div>
+            <div style="display:flex;gap:10px;align-items:flex-start;"><span style="color:#34E0A0;flex-shrink:0;font-weight:700;font-size:14px;">✓</span><span style="color:rgba(255,255,255,0.85);font-size:13.5px;line-height:1.5;">Lab and imaging reviews</span></div>
+            <div style="display:flex;gap:10px;align-items:flex-start;"><span style="color:#34E0A0;flex-shrink:0;font-weight:700;font-size:14px;">✓</span><span style="color:rgba(255,255,255,0.85);font-size:13.5px;line-height:1.5;">Multi-specialist case panels</span></div>
+            <div style="display:flex;gap:10px;align-items:flex-start;"><span style="color:#34E0A0;flex-shrink:0;font-weight:700;font-size:14px;">✓</span><span style="color:rgba(255,255,255,0.85);font-size:13.5px;line-height:1.5;">Post-discharge care reviews</span></div>
+            <div style="display:flex;gap:10px;align-items:flex-start;"><span style="color:#34E0A0;flex-shrink:0;font-weight:700;font-size:14px;">✓</span><span style="color:rgba(255,255,255,0.85);font-size:13.5px;line-height:1.5;">Visual case tracker with real-time status updates</span></div>
+            <div style="display:flex;gap:10px;align-items:flex-start;"><span style="color:#34E0A0;flex-shrink:0;font-weight:700;font-size:14px;">✓</span><span style="color:rgba(255,255,255,0.85);font-size:13.5px;line-height:1.5;">Final specialist report stored in your Vault</span></div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:32px;padding-top:28px;border-top:1px solid rgba(255,255,255,0.12);">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#34E0A0;margin-bottom:14px;">Specialist fields include</div>
+        <div style="display:flex;flex-wrap:wrap;gap:9px;">
+          <span style="border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.82);font-size:13px;padding:6px 13px;border-radius:100px;">Cardiology</span>
+          <span style="border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.82);font-size:13px;padding:6px 13px;border-radius:100px;">Oncology</span>
+          <span style="border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.82);font-size:13px;padding:6px 13px;border-radius:100px;">Neurology (NeuroFlex™)</span>
+          <span style="border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.82);font-size:13px;padding:6px 13px;border-radius:100px;">Orthopedics</span>
+          <span style="border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.82);font-size:13px;padding:6px 13px;border-radius:100px;">Gastroenterology</span>
+          <span style="border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.82);font-size:13px;padding:6px 13px;border-radius:100px;">Pulmonology</span>
+          <span style="border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.82);font-size:13px;padding:6px 13px;border-radius:100px;">Obstetrics &amp; Gynecology</span>
+          <span style="border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.82);font-size:13px;padding:6px 13px;border-radius:100px;">Pediatrics</span>
+          <span style="border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.82);font-size:13px;padding:6px 13px;border-radius:100px;">Internal Medicine</span>
+          <span style="border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.82);font-size:13px;padding:6px 13px;border-radius:100px;">General Surgery</span>
+          <span style="border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.82);font-size:13px;padding:6px 13px;border-radius:100px;">ENT</span>
+          <span style="border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.82);font-size:13px;padding:6px 13px;border-radius:100px;">Ophthalmology</span>
+          <span style="border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.82);font-size:13px;padding:6px 13px;border-radius:100px;">Psychiatry/Mental Health</span>
+          <span style="border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.82);font-size:13px;padding:6px 13px;border-radius:100px;">Dermatology</span>
+          <span style="border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.82);font-size:13px;padding:6px 13px;border-radius:100px;">Endocrinology</span>
+          <span style="border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.82);font-size:13px;padding:6px 13px;border-radius:100px;">Nephrology</span>
+          <span style="border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.82);font-size:13px;padding:6px 13px;border-radius:100px;">Emergency Medicine</span>
+          <span style="color:rgba(255,255,255,0.5);font-size:13px;padding:6px 4px;">and more</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SERVICE 6 DISPATCHCARE -->
+  <section id="dispatchcare" style="max-width:1100px;margin:0 auto;padding:84px 28px 0;">
+    <div style="display:grid;grid-template-columns:0.85fr 1.15fr;gap:48px;align-items:start;">
+      <div>
+        <span style="width:50px;height:50px;border-radius:14px;background:rgba(255,92,92,0.14);display:flex;align-items:center;justify-content:center;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M5 17h14l-1.5-5A4 4 0 0013.7 9h-3.4A4 4 0 006.5 12L5 17z" stroke="#FF5C5C" stroke-width="2" stroke-linejoin="round"/><circle cx="8" cy="18" r="1.6" stroke="#FF5C5C" stroke-width="2"/><circle cx="16" cy="18" r="1.6" stroke="#FF5C5C" stroke-width="2"/></svg></span>
+        <h2 style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:30px;letter-spacing:-0.02em;margin:18px 0 4px;">DispatchCare™</h2>
+        <p style="font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:17px;color:#0E8567;margin:0 0 14px;">Emergency Medical Dispatch. One Tap.</p>
+        <p style="color:#41584E;font-size:15px;line-height:1.65;margin:0;">DispatchCare™ is your emergency lifeline. In a medical emergency, one tap from any screen in your portal sends your location, case details, and an alert to the Health-Hub Africa® operations team for immediate dispatch coordination.</p>
+        <p style="font-style:italic;color:#7A8C84;font-size:13.5px;margin:18px 0 0;">Who it's for: All patients (Priority routing on Gold and Corporate plans)</p>
+      </div>
+      <div style="background:#fff;border:1px solid rgba(7,37,28,0.09);border-radius:22px;padding:32px;">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#07251C;">What's included</div>
+        <div style="display:flex;flex-direction:column;gap:13px;margin-top:18px;">
+          <div style="display:flex;gap:11px;align-items:flex-start;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#0E8567" stroke-width="2"/><path d="M8.5 12l2.5 2.5L15.5 9" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="color:#27433A;font-size:14.5px;line-height:1.5;">One-tap emergency button accessible from every portal screen</span></div>
+          <div style="display:flex;gap:11px;align-items:flex-start;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#0E8567" stroke-width="2"/><path d="M8.5 12l2.5 2.5L15.5 9" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="color:#27433A;font-size:14.5px;line-height:1.5;">Auto-detects your location via device GPS (manual fallback)</span></div>
+          <div style="display:flex;gap:11px;align-items:flex-start;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#0E8567" stroke-width="2"/><path d="M8.5 12l2.5 2.5L15.5 9" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="color:#27433A;font-size:14.5px;line-height:1.5;">Emergency type selection: Chest Pain, Accident, Stroke &amp; more</span></div>
+          <div style="display:flex;gap:11px;align-items:flex-start;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#0E8567" stroke-width="2"/><path d="M8.5 12l2.5 2.5L15.5 9" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="color:#27433A;font-size:14.5px;line-height:1.5;">Instant case ID (DC-YYYY-000001), SMS &amp; WhatsApp confirmation</span></div>
+          <div style="display:flex;gap:11px;align-items:flex-start;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#0E8567" stroke-width="2"/><path d="M8.5 12l2.5 2.5L15.5 9" stroke="#0E8567" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="color:#27433A;font-size:14.5px;line-height:1.5;">HHA emergency call line always visible</span></div>
+        </div>
+        <a href="https://portal.myvaultplus.com" style="display:inline-flex;align-items:center;gap:9px;background:#07251C;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:10px 11px 10px 20px;border-radius:100px;margin-top:24px;">Learn More About DispatchCare™<span style="width:28px;height:28px;border-radius:50%;background:#34E0A0;display:flex;align-items:center;justify-content:center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="#07251C" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- SERVICE 7 NEUROFLEX -->
+  <section style="max-width:1100px;margin:0 auto;padding:64px 28px 96px;">
+    <div style="height:1px;background:rgba(7,37,28,0.1);margin-bottom:64px;"></div>
+    <div style="background:#fff;border:1px solid rgba(7,37,28,0.09);border-radius:22px;padding:36px;display:flex;align-items:center;justify-content:space-between;gap:32px;flex-wrap:wrap;">
+      <div style="max-width:620px;">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <span style="width:48px;height:48px;border-radius:13px;background:#EAF7F1;display:flex;align-items:center;justify-content:center;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><path d="M9 4a3 3 0 00-3 3 3 3 0 00-1 5.8A3 3 0 009 18a3 3 0 006 0 3 3 0 004-5.2A3 3 0 0015 4a3 3 0 00-6 0z" stroke="#0E8567" stroke-width="1.8" stroke-linejoin="round"/></svg></span>
+          <div>
+            <h2 style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:24px;letter-spacing:-0.02em;margin:0;">NeuroFlex™ <span style="font-size:12px;font-weight:700;color:#0E8567;background:#EAF7F1;padding:4px 10px;border-radius:100px;vertical-align:middle;margin-left:6px;">COMING SOON</span></h2>
+            <p style="font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:15px;color:#0E8567;margin:4px 0 0;">Specialist Neurology Services</p>
+          </div>
+        </div>
+        <p style="color:#41584E;font-size:15px;line-height:1.65;margin:16px 0 0;">Health-Hub Africa's dedicated neurology service line. Book specialist neurology consultations and reviews through your MyHealth Vault+™ portal. Available as an add-on across all plan tiers.</p>
+      </div>
+      <a href="https://portal.myvaultplus.com/register" style="display:inline-flex;align-items:center;gap:9px;border:1px solid rgba(7,37,28,0.18);color:#07251C;text-decoration:none;font-weight:600;font-size:14px;padding:12px 22px;border-radius:100px;white-space:nowrap;">Join the Waitlist<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="#07251C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section style="background:radial-gradient(120% 120% at 50% 0%, #0E8567 0%, #074F3D 60%, #052E24 100%);">
+    <div style="max-width:820px;margin:0 auto;padding:88px 28px;text-align:center;">
+      <h2 style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:44px;line-height:1.08;letter-spacing:-0.03em;color:#fff;margin:0;text-wrap:balance;">One portal for every service.</h2>
+      <p style="color:rgba(255,255,255,0.8);font-size:17px;line-height:1.6;max-width:560px;margin:20px auto 0;">Create your free account and book any Health-Hub Africa® service in minutes.</p>
+      <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-top:30px;flex-wrap:wrap;">
+        <a href="https://portal.myvaultplus.com/register" style="display:flex;align-items:center;gap:12px;background:#34E0A0;color:#07251C;text-decoration:none;font-weight:600;font-size:16px;padding:11px 12px 11px 24px;border-radius:100px;">Create Your Free Account<span style="width:32px;height:32px;border-radius:50%;background:#07251C;display:flex;align-items:center;justify-content:center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M19 5H9M19 5v10" stroke="#34E0A0" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span></a>
+        <a href="Plans.dc.html" style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:#fff;text-decoration:none;font-weight:600;font-size:16px;padding:13px 26px;border-radius:100px;">See Plans &amp; Pricing</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer style="background:#052018;color:#fff;">
+    <div style="max-width:1240px;margin:0 auto;padding:72px 28px 0;display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr 1fr;gap:36px;">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;"><span style="width:30px;height:30px;border-radius:9px;background:#0E8567;display:flex;align-items:center;justify-content:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" stroke="#34E0A0" stroke-width="2" stroke-linejoin="round"/><path d="M12 8.5v5M9.5 11h5" stroke="#34E0A0" stroke-width="2" stroke-linecap="round"/></svg></span><span style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:18px;">MyHealth Vault+</span></div>
+        <p style="color:#34E0A0;font-size:13px;font-weight:600;letter-spacing:0.04em;margin:16px 0 4px;">Speed. Agility. Access.</p>
+        <p style="color:rgba(255,255,255,0.55);font-size:13.5px;margin:0;">A product of Health-Hub Africa®</p>
+        <a href="https://www.healthhubafrica.com" style="display:inline-flex;align-items:center;gap:6px;color:#fff;font-size:13.5px;font-weight:600;text-decoration:none;margin-top:16px;border:1px solid rgba(255,255,255,0.2);padding:9px 16px;border-radius:100px;">Visit Health-Hub Africa®<svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M19 5H9M19 5v10" stroke="#34E0A0" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:16px;">Platform</div>
+        <div style="display:flex;flex-direction:column;gap:11px;font-size:14px;">
+          <a href="https://portal.myvaultplus.com" style="color:rgba(255,255,255,0.8);text-decoration:none;">Patient Portal</a>
+          <a href="https://clinical.myvaultplus.com" style="color:rgba(255,255,255,0.8);text-decoration:none;">Clinical Platform</a>
+          <a href="https://admin.myvaultplus.com" style="color:rgba(255,255,255,0.8);text-decoration:none;">Admin Portal</a>
+          <a href="https://api.myvaultplus.com" style="color:rgba(255,255,255,0.8);text-decoration:none;">API Documentation</a>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:16px;">Services</div>
+        <div style="display:flex;flex-direction:column;gap:11px;font-size:14px;">
+          <a href="Services.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">TeleCare™</a>
+          <a href="Services.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">MinuteCare™</a>
+          <a href="Services.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">CareTest™</a>
+          <a href="Services.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">HealthConsult™</a>
+          <a href="Expert Review.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">Expert Review™</a>
+          <a href="DispatchCare.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">DispatchCare™</a>
+          <a href="Services.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">NeuroFlex™</a>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:16px;">Company</div>
+        <div style="display:flex;flex-direction:column;gap:11px;font-size:14px;">
+          <a href="About.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">About</a>
+          <a href="Plans.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">Plans &amp; Pricing</a>
+          <a href="Corporate.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">Corporate &amp; HMO</a>
+          <a href="Contact.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">Contact</a>
+          <a href="FAQ.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">FAQ</a>
+          <a href="#" style="color:rgba(255,255,255,0.5);text-decoration:none;">Careers <span style="font-size:11px;">(soon)</span></a>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:16px;">Legal &amp; Support</div>
+        <div style="display:flex;flex-direction:column;gap:11px;font-size:14px;">
+          <a href="Privacy.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">Privacy Policy</a>
+          <a href="Terms.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">Terms of Use</a>
+          <a href="Privacy.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">Cookie Policy</a>
+          <a href="Contact.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">Contact</a>
+          <a href="Contact.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">WhatsApp Support</a>
+          <a href="Contact.dc.html" style="color:rgba(255,255,255,0.8);text-decoration:none;">Call Support</a>
+        </div>
+      </div>
+    </div>
+    <div style="max-width:1240px;margin:56px auto 0;padding:24px 28px 40px;border-top:1px solid rgba(255,255,255,0.1);">
+      <p style="color:rgba(255,255,255,0.45);font-size:12.5px;line-height:1.6;margin:0;">© 2026 Health-Hub Africa®. All rights reserved. MyHealth Vault+™ is a registered product of Health-Hub Africa®. TeleCare™, MinuteCare™, CareTest™, HealthConsult™, DispatchCare™, Expert Review™, and NeuroFlex™ are trademarks of Health-Hub Africa®.</p>
+    </div>
+  </footer>
+
+</div>
+</x-dc>
+</body>
+</html>

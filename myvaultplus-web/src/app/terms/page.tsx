@@ -1,0 +1,191 @@
+import Image from 'next/image'
+import Navbar from '@/components/Navbar'
+import FinalCTA from '@/components/FinalCTA'
+import Footer from '@/components/Footer'
+
+const sections = [
+  {
+    id: 'acceptance',
+    label: 'Acceptance of Terms',
+    content: `By accessing, registering for, or using MyHealth Vault+™ (the "Platform"), you agree to be bound by these Terms of Use ("Terms"). These Terms constitute a legally binding agreement between you and Health-Hub Africa® Limited ("Health-Hub Africa®", "we", "us", or "our").
+
+If you do not agree to these Terms in their entirety, you must not use the Platform. Your continued use of the Platform after any amendment to these Terms constitutes your acceptance of the updated Terms.
+
+These Terms apply to all users of the Platform, including patients, corporate account holders, and any other persons who access or use the Platform in any capacity.`,
+  },
+  {
+    id: 'services',
+    label: 'The Services',
+    content: `MyHealth Vault+™ provides a digital health portal offering the following services: TeleCare™ (remote medical consultations), Expert Review™ (specialist second opinion reviews), DispatchCare™ (emergency medical dispatch coordination), MinuteCare™ (clinic fast-track scheduling), CareTest™ (diagnostic test bookings), HealthConsult™ (preventive care), and NeuroFlex™ (neurology specialist access).
+
+IMPORTANT HEALTH DISCLAIMER: The services provided through this Platform are intended to supplement — not replace — your relationship with qualified healthcare providers. Nothing on the Platform constitutes medical advice, diagnosis, or treatment. Always seek the advice of a qualified physician or other qualified health provider with any questions about a medical condition. In the event of a medical emergency, call emergency services immediately.
+
+Health-Hub Africa® does not employ the specialists, physicians, or healthcare providers who deliver services through the Platform. These professionals are independent contractors or affiliated partners who operate under their own professional licences and standards.`,
+  },
+  {
+    id: 'registration',
+    label: 'Account Registration',
+    content: `To use most features of the Platform, you must create an account. You agree to:
+
+• Provide accurate, complete, and current information during registration
+• Maintain the accuracy of your account information and update it promptly if it changes
+• Maintain the security and confidentiality of your login credentials
+• Immediately notify us at support@myvaultplus.com if you suspect unauthorised access to your account
+• Accept responsibility for all activities that occur under your account
+
+You must be at least 18 years of age to create an account. Accounts for minors must be created and managed by a parent or legal guardian.
+
+Health-Hub Africa® reserves the right to suspend or terminate accounts that violate these Terms or where we reasonably suspect fraudulent activity.`,
+  },
+  {
+    id: 'billing',
+    label: 'Subscription & Billing',
+    content: `Certain features of the Platform are available only on paid subscription plans. By subscribing to a paid plan, you agree to pay the applicable fees as set out on the Plans page.
+
+Subscriptions are billed monthly in advance. All fees are quoted and charged in Nigerian Naira (₦) unless otherwise stated. Fees are non-refundable except where required by law or where we have made an error.
+
+You may upgrade or downgrade your plan at any time. Upgrades take effect immediately; downgrades take effect at the start of the next billing cycle. You may cancel your subscription at any time; cancellation takes effect at the end of the current billing period.
+
+Health-Hub Africa® reserves the right to change pricing with 30 days' notice. Continued use of paid services after a pricing change constitutes acceptance of the new pricing.`,
+  },
+  {
+    id: 'disclaimer',
+    label: 'Health Information Disclaimer',
+    content: `The content available through MyHealth Vault+™, including Expert Review™ reports, HealthConsult™ programmes, and any other health information, is provided for informational purposes only and does not constitute medical advice.
+
+Expert Review™ reports represent the independent professional opinion of the specialist(s) who reviewed your case. These opinions are provided to inform your decision-making and should be discussed with your treating physician. Health-Hub Africa® makes no warranty as to the accuracy or completeness of any clinical opinion provided.
+
+DispatchCare™ coordinates emergency response but cannot guarantee specific response times. Emergency response is subject to availability of responders, traffic conditions, and other factors outside our control. DispatchCare™ is not a substitute for calling emergency services (e.g. 112 or local emergency numbers).`,
+  },
+  {
+    id: 'prohibited',
+    label: 'Prohibited Use',
+    content: `You agree not to use the Platform to:
+
+• Violate any applicable law or regulation
+• Upload or transmit false, misleading, or fraudulent health information
+• Impersonate any person or entity, or misrepresent your affiliation
+• Attempt to gain unauthorised access to any part of the Platform or its systems
+• Interfere with or disrupt the Platform's operation or the servers and networks connected to it
+• Use the Platform for any purpose other than your personal healthcare management (or organisation management for corporate accounts)
+• Scrape, copy, or extract data from the Platform without written authorisation
+• Upload malware, viruses, or any other harmful code
+
+Violation of these prohibitions may result in immediate account suspension or termination and may be reported to relevant authorities.`,
+  },
+  {
+    id: 'ip',
+    label: 'Intellectual Property',
+    content: `All content on the Platform — including the MyHealth Vault+™ name and trademark, Health-Hub Africa® name and trademark, software, design, text, graphics, logos, and service names — are the intellectual property of Health-Hub Africa® Limited or its licensors and are protected by Nigerian and international intellectual property laws.
+
+You are granted a limited, non-exclusive, non-transferable licence to access and use the Platform for personal healthcare management purposes. You may not copy, reproduce, modify, distribute, or create derivative works from any content on the Platform without our prior written consent.
+
+Your health data remains your property. By uploading data to the Platform, you grant Health-Hub Africa® a limited licence to process and store that data for the purpose of providing the services.`,
+  },
+  {
+    id: 'liability',
+    label: 'Limitation of Liability',
+    content: `To the maximum extent permitted by applicable Nigerian law, Health-Hub Africa® shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the Platform or any services provided through it.
+
+Our total cumulative liability to you for any claims arising out of or relating to these Terms or your use of the Platform shall not exceed the total fees you have paid to us in the 12 months preceding the claim.
+
+Nothing in these Terms limits our liability for death or personal injury caused by our negligence, fraud or fraudulent misrepresentation, or any other liability that cannot be excluded by law.`,
+  },
+  {
+    id: 'governing-law',
+    label: 'Governing Law',
+    content: `These Terms shall be governed by and construed in accordance with the laws of the Federal Republic of Nigeria. Any dispute arising out of or in connection with these Terms or your use of the Platform shall be subject to the exclusive jurisdiction of the courts of the Federal Republic of Nigeria.
+
+If any provision of these Terms is found to be unlawful, void, or unenforceable, the remaining provisions shall continue in full force and effect.`,
+  },
+  {
+    id: 'changes',
+    label: 'Changes to Terms',
+    content: `Health-Hub Africa® reserves the right to modify these Terms at any time. We will notify you of material changes by email (to the address associated with your account) or by posting a notice on the Platform at least 30 days before the changes take effect.
+
+Your continued use of the Platform after the effective date of any changes constitutes your acceptance of the revised Terms. If you do not agree to the revised Terms, you must stop using the Platform and may request account closure.
+
+For questions about these Terms, contact us at: legal@myvaultplus.com`,
+  },
+]
+
+export default function TermsPage() {
+  return (
+    <div style={{ width: '100%', overflowX: 'hidden', background: '#F1F4EF' }}>
+      <Navbar />
+
+      <div style={{ margin: '16px 16px 24px', borderRadius: 28, overflow: 'hidden' }}>
+        <section style={{ position: 'relative', background: '#041E14', overflow: 'hidden', minHeight: '88vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Image src="https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=1920&h=1080&fit=crop&q=85" alt="Legal terms document" fill priority style={{ objectFit: 'cover', objectPosition: 'center' }} sizes="100vw" />
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, rgba(4,30,20,0.78) 0%, rgba(7,37,28,0.65) 50%, rgba(4,18,12,0.82) 100%)', pointerEvents: 'none' }} />
+
+          <div style={{ position: 'relative', maxWidth: 760, width: '100%', margin: '0 auto', padding: '120px 32px 0', textAlign: 'center', zIndex: 1 }}>
+            <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-space-grotesk), sans-serif' }}>
+              <span style={{ display: 'block', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.06 }}>Terms of Use</span>
+              <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#34E0A0', letterSpacing: '-0.02em', lineHeight: 1.06 }}>Your Rights and Ours.</span>
+            </h1>
+            <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 16, lineHeight: 1.65, maxWidth: 520, margin: '0 auto 32px' }}>
+              The terms governing your use of MyHealth Vault+™ and Health-Hub Africa® services.
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <a href="/privacy" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', border: '1.5px solid rgba(255,255,255,0.55)', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '13px 26px', borderRadius: 100 }}>
+                View Privacy Policy
+              </a>
+              <a href="https://portal.myvaultplus.com/register" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: '#34E0A0', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '12px 12px 12px 24px', borderRadius: 100 }}>
+                Get Started
+                <span style={{ width: 30, height: 30, borderRadius: '50%', background: '#07251C', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M19 5H9M19 5v10" stroke="#34E0A0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                </span>
+              </a>
+            </div>
+          </div>
+
+          <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 1100, margin: '52px auto 0', perspective: '1000px', height: 190, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+            {[
+              { rotate: -12, translateY: -12, scale: 0.88, zIndex: 2, offsetX: -10, bg: '#fff', w: 185, inner: (<div style={{ padding: 16 }}><div style={{ fontSize: 9, fontWeight: 700, color: '#0E8567', marginBottom: 8 }}>ACCEPTANCE</div><div style={{ fontSize: 12, color: '#41584E', lineHeight: 1.5 }}>By registering, you agree to these Terms of Use.</div></div>) },
+              { rotate: 0, translateY: 0, scale: 1, zIndex: 5, offsetX: 0, bg: '#07251C', w: 200, inner: (<div style={{ padding: 18 }}><div style={{ fontSize: 9, fontWeight: 700, color: '#34E0A0', marginBottom: 10 }}>TERMS</div><div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 15, fontWeight: 700, color: '#fff' }}>Updated June 2026</div><div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>10 sections</div></div>) },
+              { rotate: 12, translateY: -12, scale: 0.88, zIndex: 2, offsetX: 10, bg: '#fff', w: 185, inner: (<div style={{ padding: 16 }}><div style={{ fontSize: 9, fontWeight: 700, color: '#0E8567', marginBottom: 8 }}>GOVERNING LAW</div><div style={{ fontSize: 12, color: '#41584E', lineHeight: 1.5 }}>Federal Republic of Nigeria</div></div>) },
+            ].map((card, i) => (
+              <div key={i} style={{ position: 'absolute', bottom: 0, left: '50%', transform: `translateX(calc(-50% + ${(i - 1) * 210 + card.offsetX}px)) translateY(${card.translateY}px) rotate(${card.rotate}deg) scale(${card.scale})`, transformOrigin: 'bottom center', zIndex: card.zIndex, boxShadow: '0 16px 48px rgba(0,0,0,0.14)', borderRadius: 16, overflow: 'hidden', background: card.bg, width: card.w }}>
+                {card.inner}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '28px 32px 52px' }}>
+            <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13.5, margin: 0 }}>
+              Last updated: June 2026 · Governed by the laws of the Federal Republic of Nigeria
+            </p>
+          </div>
+        </section>
+      </div>
+
+      {/* Terms prose */}
+      <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#fff' }}>
+        <section style={{ maxWidth: 820, margin: '0 auto', padding: '88px 56px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 56 }}>
+            {sections.map((section) => (
+              <div key={section.id} id={section.id}>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 12 }}>
+                  — {section.label}
+                </div>
+                <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 22, color: '#07251C', margin: '0 0 16px', letterSpacing: '-0.01em' }}>
+                  {section.label}
+                </h2>
+                {section.content.split('\n\n').map((para, idx) => (
+                  <p key={idx} style={{ color: '#41584E', fontSize: 15, lineHeight: 1.75, margin: '0 0 14px', whiteSpace: 'pre-line' }}>{para}</p>
+                ))}
+              </div>
+            ))}
+          </div>
+          <p style={{ color: '#7A8C84', fontSize: 13, marginTop: 64 }}>
+            Last updated: June 2026 · These Terms are governed by the laws of the Federal Republic of Nigeria.
+          </p>
+        </section>
+      </div>
+
+      <FinalCTA />
+      <Footer />
+    </div>
+  )
+}
