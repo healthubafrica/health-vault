@@ -3,6 +3,7 @@ import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
 import HeroMarquee from '@/components/HeroMarquee'
+import { Ambulance, MessageCircle } from 'lucide-react'
 
 const steps = [
   { num: '1', title: 'One Tap', desc: 'Press the DispatchCare™ button from any screen in the MyHealth Vault+™ portal or app.' },
@@ -34,7 +35,7 @@ export default function DispatchCarePage() {
 
       <div style={{ margin: '16px 16px 24px', borderRadius: 28, overflow: 'hidden' }}>
         <section style={{ position: 'relative', background: '#041E14', overflow: 'hidden', minHeight: '88vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <Image src="https://images.unsplash.com/photo-1589740896598-12c41b6de1f6?w=1920&h=1080&fit=crop&q=85" alt="Emergency medical dispatch" fill priority style={{ objectFit: 'cover', objectPosition: 'center' }} sizes="100vw" />
+          <Image src="https://images.unsplash.com/photo-1587745416684-47953f16f02f?w=1920&h=1080&fit=crop&q=85" alt="Emergency medical dispatch" fill priority style={{ objectFit: 'cover', objectPosition: 'center' }} sizes="100vw" />
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, rgba(10,20,15,0.85) 0%, rgba(7,37,28,0.70) 50%, rgba(10,15,12,0.88) 100%)', pointerEvents: 'none' }} />
 
           <div style={{ position: 'relative', maxWidth: 760, width: '100%', margin: '0 auto', padding: '120px 32px 0', textAlign: 'center', zIndex: 1 }}>
@@ -57,7 +58,6 @@ export default function DispatchCarePage() {
               </a>
             </div>
           </div>
-
           <HeroMarquee marginTop={80} />
         </section>
       </div>
@@ -110,10 +110,10 @@ export default function DispatchCarePage() {
               <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, lineHeight: 1.65, margin: '0 0 24px' }}>For immediate life-threatening emergencies, use the DispatchCare™ button in your Vault, or contact us directly:</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <a href="tel:+2341234567890" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#FF5C5C', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 14, padding: '14px 24px', borderRadius: 100 }}>
-                  🚑 Call Emergency Line
+                  <Ambulance size={18} strokeWidth={2} color="#fff" /> Call Emergency Line
                 </a>
                 <a href="https://wa.me/2341234567890" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#34E0A0', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 14, padding: '14px 24px', borderRadius: 100 }}>
-                  💬 WhatsApp Operations
+                  <MessageCircle size={18} strokeWidth={2} color="#07251C" /> WhatsApp Operations
                 </a>
               </div>
             </div>

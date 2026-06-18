@@ -3,7 +3,7 @@ import Image from 'next/image'
 const checkItems = [
   'Secure health records, always accessible',
   'Book care in 4 steps or fewer',
-  'Emergency dispatch — one tap, any screen',
+  'Emergency dispatch: one tap, any screen',
   'Specialist second opinions via Expert Review™',
 ]
 
@@ -182,8 +182,7 @@ export default function About() {
               Onboard in under 3 minutes
             </div>
             <p style={{ color: '#41584E', fontSize: 14, lineHeight: 1.6, margin: 0 }}>
-              Register, access your portal, and start using Health-Hub Africa® services immediately
-              — at no cost.
+              Register, access your portal, and start using Health-Hub Africa® services immediately, at no cost.
             </p>
           </div>
         </div>

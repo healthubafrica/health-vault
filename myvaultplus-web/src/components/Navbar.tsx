@@ -8,25 +8,25 @@ const services = [
   {
     name: 'TeleCare™',
     desc: 'Remote video/phone consultations',
-    href: '/services',
+    href: '/services/telecare',
     img: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=160&h=100&fit=crop&q=80',
   },
   {
     name: 'MinuteCare™',
     desc: 'Same-day clinic fast-track',
-    href: '/services',
+    href: '/services/minutecare',
     img: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=160&h=100&fit=crop&q=80',
   },
   {
     name: 'CareTest™',
     desc: 'Lab tests & diagnostic bookings',
-    href: '/services',
+    href: '/services/caretest',
     img: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=160&h=100&fit=crop&q=80',
   },
   {
     name: 'HealthConsult™',
     desc: 'Personalised preventive care',
-    href: '/services',
+    href: '/services/healthconsult',
     img: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=160&h=100&fit=crop&q=80',
   },
   {
@@ -39,12 +39,12 @@ const services = [
     name: 'DispatchCare™',
     desc: 'Emergency medical dispatch',
     href: '/dispatchcare',
-    img: 'https://images.unsplash.com/photo-1589740896598-12c41b6de1f6?w=160&h=100&fit=crop&q=80',
+    img: 'https://images.unsplash.com/photo-1587745416684-47953f16f02f?w=160&h=100&fit=crop&q=80',
   },
   {
     name: 'NeuroFlex™',
     desc: 'Specialist neurology service',
-    href: '/services',
+    href: '/services/neuroflex',
     img: 'https://images.unsplash.com/photo-1576671081837-49000212a370?w=160&h=100&fit=crop&q=80',
   },
 ]
@@ -57,13 +57,13 @@ const aboutLinks = [
 
 const mobileLinks = [
   { label: 'Home', href: '/' },
-  { label: 'TeleCare™', href: '/services' },
-  { label: 'MinuteCare™', href: '/services' },
-  { label: 'CareTest™', href: '/services' },
-  { label: 'HealthConsult™', href: '/services' },
+  { label: 'TeleCare™', href: '/services/telecare' },
+  { label: 'MinuteCare™', href: '/services/minutecare' },
+  { label: 'CareTest™', href: '/services/caretest' },
+  { label: 'HealthConsult™', href: '/services/healthconsult' },
   { label: 'Expert Review™', href: '/expert-review' },
   { label: 'DispatchCare™', href: '/dispatchcare' },
-  { label: 'NeuroFlex™', href: '/services' },
+  { label: 'NeuroFlex™', href: '/services/neuroflex' },
   { label: 'About', href: '/about' },
   { label: 'FAQ', href: '/faq' },
   { label: 'Corporate & HMO', href: '/corporate' },

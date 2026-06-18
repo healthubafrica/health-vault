@@ -95,7 +95,7 @@ export default function Hero() {
             margin: '0 auto 32px',
           }}
         >
-          MyHealth Vault+™ is your personal digital health portal — access records, book care, get
+          MyHealth Vault+™ is your personal digital health portal: access records, book care, get
           specialist second opinions, and activate emergency dispatch from one secure place.
         </p>
 
@@ -183,7 +183,7 @@ export default function Hero() {
           position: 'relative',
           zIndex: 1,
           width: '100%',
-          marginTop: 52,
+          marginTop: 120,
           overflow: 'hidden',
         }}
       >

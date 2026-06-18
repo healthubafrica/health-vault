@@ -1,5 +1,5 @@
 const items = [
-  { text: '"Your health records, your care services, your specialist opinions — one vault. Always accessible."', accent: false },
+  { text: '"Your health records, your care services, your specialist opinions: one vault. Always accessible."', accent: false },
   { text: 'HEALTH-HUB AFRICA®', accent: true },
   { text: 'MYHEALTH VAULT+™', accent: false },
   { text: 'HHA MIDDLEWARE', accent: false },

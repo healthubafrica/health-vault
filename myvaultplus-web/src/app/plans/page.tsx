@@ -16,14 +16,14 @@ const plans = [
   {
     iconBg: '#07251C', iconColor: '#34E0A0',
     badge: 'GROWTH PLAN', price: '₦4,900', priceSub: '/month',
-    desc: 'More care, more coverage — HealthConsult™ included plus 1 Expert Review/year.',
+    desc: 'More care, more coverage: HealthConsult™ included plus 1 Expert Review/year.',
     highlight: true, ctaHref: 'https://portal.myvaultplus.com/register',
     items: ['Everything in Starter', 'Expanded TeleCare™ sessions', 'HealthConsult™ plan included', '1 Expert Review™/year + discounts'],
   },
   {
     iconBg: '#34E0A0', iconColor: '#07251C',
     badge: 'ENTERPRISE PLAN', price: '₦9,900', priceSub: '/month',
-    desc: 'Complete Health Platform — priority everything, 2–4 Expert Reviews/year.',
+    desc: 'Complete Health Platform: priority everything, 2–4 Expert Reviews/year.',
     highlight: false, ctaHref: 'https://portal.myvaultplus.com/register',
     items: ['Everything in Growth', 'Priority TeleCare™ & DispatchCare™', '2–4 Expert Reviews™/year', 'NeuroFlex™ add-on available'],
   },
@@ -55,7 +55,7 @@ export default function PlansPage() {
               <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#34E0A0', letterSpacing: '-0.02em', lineHeight: 1.06 }}>Access More When You Need It.</span>
             </h1>
             <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 16, lineHeight: 1.65, maxWidth: 520, margin: '0 auto 32px' }}>
-              Every patient gets a free MyHealth Vault+™ account. Upgrade when you&apos;re ready — no commitment required.
+              Every patient gets a free MyHealth Vault+™ account. Upgrade when you&apos;re ready; no commitment required.
             </p>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
               <a href="/corporate" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', border: '1.5px solid rgba(255,255,255,0.55)', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '13px 26px', borderRadius: 100 }}>
@@ -69,7 +69,6 @@ export default function PlansPage() {
               </a>
             </div>
           </div>
-
           <HeroMarquee marginTop={80} />
         </section>
       </div>

@@ -22,21 +22,21 @@ const testimonials = [
     photo: 'https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=400&h=400&fit=crop&crop=faces&q=80',
     company: 'HealthBridge Nigeria',
     quote:
-      '"We found focus for a tricky diagnosis — cutting through the noise and getting truly advanced expert review responses."',
+      '"We found focus for a tricky diagnosis, cutting through the noise and getting truly helpful expert review responses."',
     name: 'Chiamaka Bello',
   },
   {
     photo: 'https://images.unsplash.com/photo-1523464862212-d6631d073194?w=400&h=400&fit=crop&crop=faces&q=80',
     company: 'Kano MedGroup',
     quote:
-      '"DispatchCare gave us simple, fast emergency access — removing all delays while building confidence in every critical moment."',
+      '"DispatchCare gave us simple, fast emergency access, removing all delays and building confidence when it mattered most."',
     name: 'Yusuf Ibrahim',
   },
   {
     photo: 'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=400&h=400&fit=crop&crop=faces&q=80',
     company: 'Port Harcourt Health Co.',
     quote:
-      '"From booking MinuteCare to getting my CareTest results in the Vault — everything was seamless and stress-free."',
+      '"From booking MinuteCare to getting my CareTest results in the Vault, everything was seamless and stress-free."',
     name: 'Ngozi Effiong',
   },
 ]

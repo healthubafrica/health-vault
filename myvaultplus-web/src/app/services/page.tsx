@@ -6,9 +6,9 @@ import Footer from '@/components/Footer'
 import HeroMarquee from '@/components/HeroMarquee'
 
 const smallServices = [
-  { name: 'MinuteCare™', desc: 'Fast-track walk-in clinic scheduling. Skip the queue and arrive at the right time.', href: '/services' },
-  { name: 'CareTest™', desc: 'Schedule diagnostic tests and lab work. Results linked directly to your Vault.', href: '/services' },
-  { name: 'HealthConsult™', desc: 'Personalised preventive care programmes and care plan consultations.', href: '/services' },
+  { name: 'MinuteCare™', desc: 'Fast-track walk-in clinic scheduling. Skip the queue and arrive at the right time.', href: '/services/minutecare' },
+  { name: 'CareTest™', desc: 'Schedule diagnostic tests and lab work. Results linked directly to your Vault.', href: '/services/caretest' },
+  { name: 'HealthConsult™', desc: 'Personalised preventive care programmes and care plan consultations.', href: '/services/healthconsult' },
 ]
 
 
@@ -28,7 +28,7 @@ export default function ServicesPage() {
               <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#34E0A0', letterSpacing: '-0.02em', lineHeight: 1.06 }}>One Platform.</span>
             </h1>
             <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 16, lineHeight: 1.65, maxWidth: 520, margin: '0 auto 32px' }}>
-              Seven interconnected services — from routine consultations to emergency dispatch and specialist second opinions.
+              Seven interconnected services, from routine consultations to emergency dispatch and specialist second opinions.
             </p>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
               <a href="/plans" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', border: '1.5px solid rgba(255,255,255,0.55)', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '13px 26px', borderRadius: 100 }}>
@@ -42,7 +42,6 @@ export default function ServicesPage() {
               </a>
             </div>
           </div>
-
           <HeroMarquee marginTop={80} />
         </section>
       </div>
@@ -67,7 +66,7 @@ export default function ServicesPage() {
               <div style={{ padding: '8px 8px 12px' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', background: 'rgba(52,224,160,0.18)', color: '#34E0A0', fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 100, letterSpacing: '0.04em', marginBottom: 10 }}>TeleCare™</span>
                 <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 18, color: '#fff', margin: '0 0 6px' }}>Remote Healthcare, Delivered to You</h3>
-                <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13.5, lineHeight: 1.55, margin: 0 }}>Consult with qualified providers via video — from anywhere in Nigeria.</p>
+                <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13.5, lineHeight: 1.55, margin: 0 }}>Consult with qualified providers via video, from anywhere in Nigeria.</p>
               </div>
             </div>
 
@@ -98,7 +97,7 @@ export default function ServicesPage() {
                   <svg width="21" height="21" viewBox="0 0 24 24" fill="none"><path d="M5 17h14l-1.5-5A4 4 0 0013.7 9h-3.4A4 4 0 006.5 12L5 17z" stroke="#FF5C5C" strokeWidth="2" strokeLinejoin="round" /><circle cx="8" cy="18" r="1.5" stroke="#FF5C5C" strokeWidth="2" /><circle cx="16" cy="18" r="1.5" stroke="#FF5C5C" strokeWidth="2" /></svg>
                 </span>
                 <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 19, margin: '14px 0 7px' }}>DispatchCare™</h3>
-                <p style={{ color: '#41584E', fontSize: 14, lineHeight: 1.6, margin: 0 }}>24/7 emergency medical dispatch — one tap sends your location to the HHA operations team.</p>
+                <p style={{ color: '#41584E', fontSize: 14, lineHeight: 1.6, margin: 0 }}>24/7 emergency medical dispatch. One tap sends your location to the HHA operations team.</p>
               </div>
               <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ height: 1, background: 'rgba(7,37,28,0.08)' }} />
@@ -138,7 +137,7 @@ export default function ServicesPage() {
             <div style={{ background: '#1A0C0C', borderRadius: 22, padding: 36 }}>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#FF5C5C', marginBottom: 16 }}>DispatchCare™</div>
               <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 24, color: '#fff', margin: '0 0 14px', lineHeight: 1.2 }}>Emergency response in seconds</h3>
-              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, lineHeight: 1.65, margin: '0 0 20px' }}>One tap sends your GPS location, generates a case ID, and alerts the HHA operations centre. Available on all plans — 24 hours a day, 7 days a week.</p>
+              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, lineHeight: 1.65, margin: '0 0 20px' }}>One tap sends your GPS location, generates a case ID, and alerts the HHA operations centre. Available on all plans, 24 hours a day, 7 days a week.</p>
               <Link href="/dispatchcare" style={{ color: '#FF5C5C', fontWeight: 600, fontSize: 14, textDecoration: 'none' }}>Learn about DispatchCare™ →</Link>
             </div>
           </div>
@@ -158,7 +157,7 @@ export default function ServicesPage() {
           <div style={{ background: '#fff', border: '1.5px solid #D4D4D4', borderRadius: 22, overflow: 'hidden', display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
             <div style={{ padding: '40px 40px 36px' }}>
               <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 22, color: '#07251C', margin: '0 0 16px' }}>Neurological care made accessible</h3>
-              <p style={{ color: '#41584E', fontSize: 15, lineHeight: 1.7, margin: '0 0 20px' }}>NeuroFlex™ connects patients with qualified neurologists and neurology specialists for consultations, second opinions, and follow-up care — all through the MyHealth Vault+™ platform.</p>
+              <p style={{ color: '#41584E', fontSize: 15, lineHeight: 1.7, margin: '0 0 20px' }}>NeuroFlex™ connects patients with qualified neurologists for consultations, second opinions, and follow-up care, all through the MyHealth Vault+™ platform.</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {['Qualified neurologists and specialists', 'Consultation and follow-up care', 'Integrated with your health records', 'Expert Review™ integration available'].map((b) => (
                   <div key={b} style={{ display: 'flex', gap: 8, fontSize: 14, color: '#27433A' }}><span style={{ color: '#0E8567', fontWeight: 700 }}>✓</span>{b}</div>

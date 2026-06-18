@@ -16,7 +16,7 @@ const reviewTypes = [
 
 const processSteps = [
   { num: '01', title: 'Submit Your Case', desc: 'Log in to your Vault, navigate to Expert Review™, and complete the case submission form with your query and relevant background.' },
-  { num: '02', title: 'Upload Documents', desc: 'Upload your medical documents — lab results, imaging reports, consultation notes, prescriptions, or any relevant files.' },
+  { num: '02', title: 'Upload Documents', desc: 'Upload your medical documents: lab results, imaging reports, consultation notes, prescriptions, or any relevant files.' },
   { num: '03', title: 'Under Review', desc: 'Your case is assigned to the appropriate specialist panel based on the clinical specialty required.' },
   { num: '04', title: 'Specialist Assigned', desc: 'A qualified specialist (or panel) accepts your case and begins a thorough clinical review of all submitted materials.' },
   { num: '05', title: 'Report Ready', desc: 'Your comprehensive Expert Review™ report is delivered as a PDF directly to your Vault, typically within 5–10 business days.' },
@@ -73,7 +73,6 @@ export default function ExpertReviewPage() {
               </a>
             </div>
           </div>
-
           <HeroMarquee marginTop={80} />
         </section>
       </div>
@@ -114,7 +113,7 @@ export default function ExpertReviewPage() {
               </div>
               <div style={{ padding: 24 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 8 }}>Clinical panel review</div>
-                <p style={{ color: '#41584E', fontSize: 14, lineHeight: 1.6, margin: 0 }}>Every case is reviewed by qualified, practising specialists — not algorithms.</p>
+                <p style={{ color: '#41584E', fontSize: 14, lineHeight: 1.6, margin: 0 }}>Every case is reviewed by qualified, practising specialists, not algorithms.</p>
               </div>
             </div>
             <div style={{ background: '#34E0A0', borderRadius: 24, padding: 28, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
