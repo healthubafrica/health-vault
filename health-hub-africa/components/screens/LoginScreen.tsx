@@ -35,7 +35,7 @@ function OtpStep({ email, initialPhone, onSuccess }: { email: string; initialPho
     setLocalError('')
     clearError()
     if (showPhoneInput && !/^\+[1-9]\d{1,14}$/.test(phone)) {
-      setLocalError('Phone number must be in E.164 format (e.g. +2348012345678)')
+      setLocalError('Kindly enter your phone number with the country code (for example +2348012345678).')
       return
     }
     try {
@@ -158,15 +158,15 @@ export function LoginScreen() {
 
     if (isSignUp) {
       if (password !== confirmPassword) {
-        setLocalError('Passwords do not match')
+        setLocalError("Your passwords don't match. Kindly check and try again.")
         return
       }
       if (!agreeTerms) {
-        setLocalError('You must agree to the Terms of Service and Privacy Policy')
+        setLocalError('Kindly accept the Terms of Service and Privacy Policy to continue.')
         return
       }
       if (phone && !/^\+[1-9]\d{1,14}$/.test(phone)) {
-        setLocalError('Phone number must be in E.164 format (e.g. +2348012345678)')
+        setLocalError('Kindly enter your phone number with the country code (for example +2348012345678).')
         return
       }
       try {
@@ -206,13 +206,13 @@ export function LoginScreen() {
     setLocalError('')
     clearError()
     if (newPassword !== confirmNewPassword) {
-      setLocalError('Passwords do not match')
+      setLocalError("Your passwords don't match. Kindly check and try again.")
       return
     }
     // SEC-003: strict password verification matching backend
     const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{12,}$/
     if (!PASSWORD_REGEX.test(newPassword)) {
-      setLocalError('Password must be at least 12 characters and include uppercase, lowercase, a number, and a special character')
+      setLocalError('Your password needs at least 12 characters with a mix of uppercase, lowercase, a number, and a symbol.')
       return
     }
     try {

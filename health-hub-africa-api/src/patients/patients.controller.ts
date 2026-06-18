@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { DeactivateAccountDto } from './dto/self-service.dto';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { UserRole } from '@prisma/client';
 import { PatientsService } from './patients.service';
 import { CreatePatientDto } from './dto/create-patient.dto';
@@ -70,8 +71,12 @@ export class PatientsController {
     return this.patientsService.remove(id, user);
   }
 
+  // Each export triggers a heavy background job (records, vitals, labs,
+  // appointments…) and an email. 3 per hour gives legitimate retries room
+  // while making "spam the export button" useless as an abuse vector.
   @Post('me/request-export')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 3_600_000, limit: 3 } })
   @ApiOperation({ summary: 'Request a full data export — emailed within 24 hours' })
   requestExport(@CurrentUser() user: JwtPayload) {
     return this.patientsService.requestExport(user);
@@ -84,8 +89,12 @@ export class PatientsController {
     return this.patientsService.selfDeactivate(user, dto.password);
   }
 
+  // Presign endpoints are cheap on our side but each one authorises an S3
+  // upload (egress + storage cost). 20/min gives normal users headroom for
+  // retries on flaky networks but blocks scripted abuse.
   @Post('me/profile-photo-upload-url')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @ApiOperation({ summary: 'Request a pre-signed S3 upload URL for a profile picture' })
   requestProfilePhotoUploadUrl(
     @Body() dto: RequestProfilePhotoUrlDto,

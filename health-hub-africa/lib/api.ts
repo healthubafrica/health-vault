@@ -3,6 +3,12 @@
 // localStorage so they survive page reloads and are not accessible to
 // third-party scripts injected via XSS.
 
+import {
+  friendlyApiError,
+  friendlyNetworkError,
+  friendlySessionExpired,
+} from './errorMessages'
+
 const BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000') + '/api/v1'
 
 const ACCESS_COOKIE = 'hha_at'   // access token  — samesite=strict
@@ -74,19 +80,26 @@ async function request<T>(
     }
     if (token) headers['Authorization'] = `Bearer ${token}`
 
-    const res = await fetch(`${BASE}${path}`, { ...options, headers })
+    let res: Response
+    try {
+      res = await fetch(`${BASE}${path}`, { ...options, headers })
+    } catch {
+      // Network / DNS / CORS preflight failure — fetch only throws here when
+      // the request never reached a response. Translate to friendly copy.
+      throw new ApiError(0, friendlyNetworkError())
+    }
 
     if (res.status === 401 && retry) {
       const refreshed = await attemptTokenRefresh()
       if (refreshed) return request<T>(path, options, false)
       clearTokens()
       if (typeof window !== 'undefined') window.location.href = '/login'
-      throw new Error('Session expired')
+      throw new ApiError(401, friendlySessionExpired())
     }
 
     if (!res.ok) {
-      const body = await res.json().catch(() => ({ message: 'Request failed' }))
-      throw new ApiError(res.status, body.message ?? 'Request failed')
+      const body = await res.json().catch(() => ({}))
+      throw new ApiError(res.status, friendlyApiError(res.status, body.message))
     }
 
     if (res.status === 204) return undefined as T
