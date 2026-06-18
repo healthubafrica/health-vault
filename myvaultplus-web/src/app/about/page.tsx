@@ -2,7 +2,7 @@ import Image from 'next/image'
 import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
-import HeroMarquee from '@/components/HeroMarquee'
+import HeroSplit from '@/components/HeroSplit'
 
 const checkItems = [
   'Secure health records, always accessible',
@@ -30,39 +30,47 @@ export default function AboutPage() {
     <div style={{ width: '100%', overflowX: 'hidden', background: '#F1F4EF' }}>
       <Navbar />
 
-      <div style={{ margin: '16px 16px 24px', borderRadius: 28, overflow: 'hidden' }}>
-        <section style={{ position: 'relative', background: '#041E14', overflow: 'hidden', minHeight: '88vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <Image src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=1920&h=1080&fit=crop&q=85" alt="Healthcare professional with patient" fill priority style={{ objectFit: 'cover', objectPosition: 'center' }} sizes="100vw" />
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, rgba(4,30,20,0.78) 0%, rgba(7,37,28,0.65) 50%, rgba(4,18,12,0.82) 100%)', pointerEvents: 'none' }} />
-
-          <div style={{ position: 'relative', maxWidth: 760, width: '100%', margin: '0 auto', padding: '120px 32px 0', textAlign: 'center', zIndex: 1 }}>
-            <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-space-grotesk), sans-serif' }}>
-              <span style={{ display: 'block', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.06 }}>
-                About MyHealth Vault+™
-              </span>
-              <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(28px, 4vw, 48px)', color: '#34E0A0', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
-                by Health-Hub Africa®
-              </span>
-            </h1>
-            <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 16, lineHeight: 1.65, maxWidth: 520, margin: '0 auto 32px' }}>
-              The patient-facing digital health portal — a secure, intelligent, and personalised digital home for healthcare in Africa.
-            </p>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <a href="/services" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', border: '1.5px solid rgba(255,255,255,0.55)', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '13px 26px', borderRadius: 100 }}>
-                Our Services
-              </a>
-              <a href="https://portal.myvaultplus.com/register" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: '#34E0A0', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '12px 12px 12px 24px', borderRadius: 100 }}>
-                Get Started
-                <span style={{ width: 30, height: 30, borderRadius: '50%', background: '#07251C', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M19 5H9M19 5v10" stroke="#34E0A0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      <HeroSplit
+        trustText="Nigeria's leading health portal · Launched 2023"
+        heading={
+          <>
+            <span style={{ display: 'block' }}>About MyHealth Vault+™</span>
+            <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', color: '#0E8567' }}>by Health-Hub Africa®</span>
+          </>
+        }
+        description="The patient-facing digital health portal — a secure, intelligent, and personalised digital home for healthcare in Africa."
+        secondaryCta={{ label: 'Our Services', href: '/services' }}
+        primaryCta={{ label: 'Get Started', href: 'https://portal.myvaultplus.com/register' }}
+        image="https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=1400&h=1800&fit=crop&q=85"
+        imageAlt="Healthcare professional with patient"
+        rightCards={
+          <div style={{ position: 'relative', width: 304, height: 420 }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, width: 260, background: '#07251C', borderRadius: 24, padding: 24, boxShadow: '0 24px 64px rgba(0,0,0,0.52)', transform: 'rotate(-4deg)' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#34E0A0', marginBottom: 12 }}>One Portal</div>
+              <p style={{ color: '#fff', fontSize: 14, lineHeight: 1.55, fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, margin: 0 }}>Healthcare that Combines Records, Specialists and Intelligent Care.</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                <span style={{ width: 26, height: 26, borderRadius: '50%', background: '#34E0A0', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#07251C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 </span>
-              </a>
+                <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12 }}>5,000+ Active Patients</span>
+              </div>
+            </div>
+            <div style={{ position: 'absolute', top: 158, left: 50, width: 232, background: '#fff', borderRadius: 22, padding: 20, boxShadow: '0 20px 48px rgba(0,0,0,0.38)', transform: 'rotate(3deg)' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 14 }}>Platform at a Glance</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div style={{ background: '#F7FAF7', borderRadius: 12, padding: '12px 10px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: '#07251C', fontFamily: 'var(--font-space-grotesk), sans-serif' }}>7</div>
+                  <div style={{ fontSize: 10, color: '#617870', marginTop: 2 }}>Services</div>
+                </div>
+                <div style={{ background: '#F7FAF7', borderRadius: 12, padding: '12px 10px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: '#07251C', fontFamily: 'var(--font-space-grotesk), sans-serif' }}>98%</div>
+                  <div style={{ fontSize: 10, color: '#617870', marginTop: 2 }}>Satisfaction</div>
+                </div>
+              </div>
             </div>
           </div>
-
-          <HeroMarquee marginTop={80} />
-        </section>
-      </div>
+        }
+      />
 
       {/* Section 1 — Bento */}
       <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#F7FAF7' }}>

@@ -1,8 +1,7 @@
-import Image from 'next/image'
 import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
-import HeroMarquee from '@/components/HeroMarquee'
+import HeroSplit from '@/components/HeroSplit'
 
 const sections = [
   {
@@ -110,35 +109,46 @@ export default function PrivacyPage() {
     <div style={{ width: '100%', overflowX: 'hidden', background: '#F1F4EF' }}>
       <Navbar />
 
-      <div style={{ margin: '16px 16px 24px', borderRadius: 28, overflow: 'hidden' }}>
-        <section style={{ position: 'relative', background: '#041E14', overflow: 'hidden', minHeight: '88vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <Image src="https://images.unsplash.com/photo-1614064641938-3bbee52942c7?w=1920&h=1080&fit=crop&q=85" alt="Data privacy and security" fill priority style={{ objectFit: 'cover', objectPosition: 'center' }} sizes="100vw" />
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, rgba(4,30,20,0.78) 0%, rgba(7,37,28,0.65) 50%, rgba(4,18,12,0.82) 100%)', pointerEvents: 'none' }} />
-
-          <div style={{ position: 'relative', maxWidth: 760, width: '100%', margin: '0 auto', padding: '120px 32px 0', textAlign: 'center', zIndex: 1 }}>
-            <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-space-grotesk), sans-serif' }}>
-              <span style={{ display: 'block', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.06 }}>Your Privacy.</span>
-              <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#34E0A0', letterSpacing: '-0.02em', lineHeight: 1.06 }}>Our Commitment.</span>
-            </h1>
-            <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 16, lineHeight: 1.65, maxWidth: 520, margin: '0 auto 32px' }}>
-              How we collect, use, and protect your personal health data at MyHealth Vault+™.
-            </p>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <a href="/terms" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', border: '1.5px solid rgba(255,255,255,0.55)', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '13px 26px', borderRadius: 100 }}>
-                View Terms
-              </a>
-              <a href="/contact" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: '#34E0A0', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '12px 12px 12px 24px', borderRadius: 100 }}>
-                Contact Us
-                <span style={{ width: 30, height: 30, borderRadius: '50%', background: '#07251C', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M19 5H9M19 5v10" stroke="#34E0A0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      <HeroSplit
+        trustText="NDPR 2019 Compliant · AES-256 Encrypted"
+        heading={
+          <>
+            <span style={{ display: 'block' }}>Your Privacy.</span>
+            <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', color: '#0E8567' }}>Our Commitment.</span>
+          </>
+        }
+        description="How we collect, use, and protect your personal health data at MyHealth Vault+™."
+        secondaryCta={{ label: 'View Terms', href: '/terms' }}
+        primaryCta={{ label: 'Contact Us', href: '/contact' }}
+        image="https://images.unsplash.com/photo-1614064641938-3bbee52942c7?w=1400&h=1800&fit=crop&q=85"
+        imageAlt="Data privacy and security"
+        rightCards={
+          <div style={{ position: 'relative', width: 304, height: 420 }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, width: 260, background: '#07251C', borderRadius: 24, padding: 24, boxShadow: '0 24px 64px rgba(0,0,0,0.52)', transform: 'rotate(-4deg)' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#34E0A0', marginBottom: 12 }}>Data Security</div>
+              <p style={{ color: '#fff', fontSize: 14, lineHeight: 1.55, fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, margin: 0 }}>AES-256 Encryption at Rest · TLS 1.3 in Transit.</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                <span style={{ width: 26, height: 26, borderRadius: '50%', background: '#34E0A0', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="#07251C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 </span>
-              </a>
+                <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12 }}>End-to-end protected</span>
+              </div>
+            </div>
+            <div style={{ position: 'absolute', top: 158, left: 50, width: 232, background: '#fff', borderRadius: 22, padding: 20, boxShadow: '0 20px 48px rgba(0,0,0,0.38)', transform: 'rotate(3deg)' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 14 }}>Your Rights (NDPR)</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {['Access', 'Rectify', 'Erase', 'Port'].map((right) => (
+                  <div key={right} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#34E0A0', flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, fontWeight: 500, color: '#27433A' }}>Right to {right}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #F0F2EF', fontSize: 10, color: '#617870' }}>NDPR 2019 · GDPR-aligned</div>
             </div>
           </div>
-
-          <HeroMarquee marginTop={80} />
-        </section>
-      </div>
+        }
+      />
 
       {/* Privacy prose */}
       <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#fff' }}>
