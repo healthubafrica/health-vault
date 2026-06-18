@@ -73,18 +73,20 @@ const mobileLinks = [
 ]
 
 export default function Navbar({ forceScrolled = false }: { forceScrolled?: boolean }) {
-  const [scrolled, setScrolled] = useState(forceScrolled)
+  const [scrolled, setScrolled] = useState(false)
   const [open, setOpen] = useState(false)
   const [megaMenu, setMegaMenu] = useState<null | 'services' | 'about'>(null)
 
   useEffect(() => {
-    const onScroll = () => setScrolled(forceScrolled || window.scrollY > 60)
+    const onScroll = () => setScrolled(window.scrollY > 60)
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
-  }, [forceScrolled])
+  }, [])
 
-  const textColor = scrolled ? '#07251C' : '#fff'
-  const subTextColor = scrolled ? '#27433A' : 'rgba(255,255,255,0.85)'
+  // forceScrolled: only dark text/logo on light-bg pages — layout stays unscrolled until real scroll
+  const isDark = scrolled || forceScrolled
+  const textColor = isDark ? '#07251C' : '#fff'
+  const subTextColor = isDark ? '#27433A' : 'rgba(255,255,255,0.85)'
 
   return (
     <>
@@ -126,7 +128,7 @@ export default function Navbar({ forceScrolled = false }: { forceScrolled?: bool
           style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}
         >
           <Image
-            src={scrolled ? '/logo.png' : '/logo-white.png'}
+            src={isDark ? '/logo.png' : '/logo-white.png'}
             alt="MyHealth Vault+ logo"
             width={140}
             height={36}
@@ -435,8 +437,8 @@ export default function Navbar({ forceScrolled = false }: { forceScrolled?: bool
           className="mobile-menu-btn"
           onClick={() => setOpen(!open)}
           style={{
-            background: scrolled ? 'none' : 'rgba(255,255,255,0.15)',
-            border: scrolled ? '1px solid rgba(7,37,28,0.15)' : '1px solid rgba(255,255,255,0.35)',
+            background: isDark ? 'none' : 'rgba(255,255,255,0.15)',
+            border: isDark ? '1px solid rgba(7,37,28,0.15)' : '1px solid rgba(255,255,255,0.35)',
             borderRadius: 8,
             padding: '8px 10px',
             cursor: 'pointer',
@@ -467,7 +469,7 @@ export default function Navbar({ forceScrolled = false }: { forceScrolled?: bool
       {open && (
         <div
           style={{
-            background: scrolled ? '#fff' : 'rgba(7,37,28,0.96)',
+            background: isDark ? '#fff' : 'rgba(7,37,28,0.96)',
             backdropFilter: 'blur(16px)',
             borderTop: '1px solid rgba(7,37,28,0.08)',
             padding: '20px 28px',
@@ -482,7 +484,7 @@ export default function Navbar({ forceScrolled = false }: { forceScrolled?: bool
               href={l.href}
               onClick={() => setOpen(false)}
               style={{
-                color: scrolled ? '#27433A' : 'rgba(255,255,255,0.88)',
+                color: isDark ? '#27433A' : 'rgba(255,255,255,0.88)',
                 textDecoration: 'none',
                 fontSize: 15,
                 fontWeight: 500,
