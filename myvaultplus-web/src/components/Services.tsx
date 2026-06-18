@@ -25,7 +25,7 @@ export default function Services() {
               fontWeight: 700,
               letterSpacing: '0.14em',
               textTransform: 'uppercase',
-              color: '#0E8567',
+              color: '#137333',
               marginBottom: 18,
             }}
           >
@@ -74,7 +74,7 @@ export default function Services() {
                 width: 28,
                 height: 28,
                 borderRadius: '50%',
-                background: '#34E0A0',
+                background: '#6DC43F',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -130,8 +130,8 @@ export default function Services() {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 6,
-                  background: 'rgba(52,224,160,0.18)',
-                  color: '#34E0A0',
+                  background: 'rgba(109,196,63,0.18)',
+                  color: '#6DC43F',
                   fontSize: 11,
                   fontWeight: 700,
                   padding: '5px 12px',
@@ -164,8 +164,8 @@ export default function Services() {
             iconBg="#EAF7F1"
             icon={
               <svg width="21" height="21" viewBox="0 0 24 24" fill="none">
-                <path d="M9 11l2 2 4-4" stroke="#0E8567" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" stroke="#0E8567" strokeWidth="2" strokeLinejoin="round" />
+                <path d="M9 11l2 2 4-4" stroke="#137333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" stroke="#137333" strokeWidth="2" strokeLinejoin="round" />
               </svg>
             }
             title="Expert Review™"
@@ -248,7 +248,7 @@ export default function Services() {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 6,
-                  color: '#0E8567',
+                  color: '#137333',
                   fontWeight: 600,
                   fontSize: 13.5,
                   textDecoration: 'none',
@@ -256,7 +256,7 @@ export default function Services() {
               >
                 Learn more
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                  <path d="M5 12h14M13 6l6 6-6 6" stroke="#0E8567" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M5 12h14M13 6l6 6-6 6" stroke="#137333" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </Link>
             </div>
@@ -325,7 +325,7 @@ function ServiceCard({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
           {bullets.map((b) => (
             <div key={b} style={{ display: 'flex', gap: 8, fontSize: 13, color: '#27433A' }}>
-              <span style={{ color: '#0E8567', fontWeight: 700 }}>✓</span>
+              <span style={{ color: '#137333', fontWeight: 700 }}>✓</span>
               {b}
             </div>
           ))}
@@ -336,7 +336,7 @@ function ServiceCard({
             display: 'inline-flex',
             alignItems: 'center',
             gap: 6,
-            color: '#0E8567',
+            color: '#137333',
             fontWeight: 600,
             fontSize: 13.5,
             textDecoration: 'none',
@@ -345,7 +345,7 @@ function ServiceCard({
         >
           Learn more
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-            <path d="M5 12h14M13 6l6 6-6 6" stroke="#0E8567" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M5 12h14M13 6l6 6-6 6" stroke="#137333" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </Link>
       </div>

@@ -244,7 +244,7 @@ export default function Testimonials() {
                     fontFamily: 'Georgia, serif',
                     fontSize: 36,
                     lineHeight: 1,
-                    color: '#34E0A0',
+                    color: '#6DC43F',
                     marginBottom: 6,
                   }}
                 >

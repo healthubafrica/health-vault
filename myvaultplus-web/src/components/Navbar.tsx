@@ -262,7 +262,7 @@ export default function Navbar({ forceScrolled = false }: { forceScrolled?: bool
                     <Link
                       href="/services"
                       style={{
-                        color: '#0E8567',
+                        color: '#137333',
                         fontSize: 13,
                         fontWeight: 600,
                         textDecoration: 'none',
@@ -394,7 +394,7 @@ export default function Navbar({ forceScrolled = false }: { forceScrolled?: bool
               display: 'flex',
               alignItems: 'center',
               gap: 9,
-              background: scrolled ? '#07251C' : '#34E0A0',
+              background: scrolled ? '#07251C' : '#6DC43F',
               color: scrolled ? '#fff' : '#07251C',
               textDecoration: 'none',
               fontWeight: 700,
@@ -411,7 +411,7 @@ export default function Navbar({ forceScrolled = false }: { forceScrolled?: bool
                 width: 26,
                 height: 26,
                 borderRadius: '50%',
-                background: scrolled ? '#34E0A0' : '#07251C',
+                background: scrolled ? '#6DC43F' : '#07251C',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -422,7 +422,7 @@ export default function Navbar({ forceScrolled = false }: { forceScrolled?: bool
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
                 <path
                   d="M5 19L19 5M19 5H9M19 5v10"
-                  stroke={scrolled ? '#07251C' : '#34E0A0'}
+                  stroke={scrolled ? '#07251C' : '#6DC43F'}
                   strokeWidth="2.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -499,7 +499,7 @@ export default function Navbar({ forceScrolled = false }: { forceScrolled?: bool
             style={{
               display: 'block',
               textAlign: 'center',
-              background: '#34E0A0',
+              background: '#6DC43F',
               color: '#07251C',
               textDecoration: 'none',
               fontWeight: 700,

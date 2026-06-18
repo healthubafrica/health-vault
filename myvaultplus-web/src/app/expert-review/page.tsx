@@ -56,7 +56,7 @@ export default function ExpertReviewPage() {
           <div style={{ position: 'relative', maxWidth: 760, width: '100%', margin: '0 auto', padding: '120px 32px 0', textAlign: 'center', zIndex: 1 }}>
             <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-manrope), sans-serif' }}>
               <span style={{ display: 'block', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.06 }}>A Second Opinion</span>
-              <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#34E0A0', letterSpacing: '-0.02em', lineHeight: 1.06 }}>Changes Everything.</span>
+              <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#6DC43F', letterSpacing: '-0.02em', lineHeight: 1.06 }}>Changes Everything.</span>
             </h1>
             <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 16, lineHeight: 1.65, maxWidth: 520, margin: '0 auto 32px' }}>
               Expert Review™ connects you with a panel of qualified specialists for second opinions on any diagnosis, treatment plan, or lab result.
@@ -65,10 +65,10 @@ export default function ExpertReviewPage() {
               <a href="/plans" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', border: '1.5px solid rgba(255,255,255,0.55)', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '13px 26px', borderRadius: 100 }}>
                 View Plans
               </a>
-              <a href="https://portal.myvaultplus.com/register" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: '#34E0A0', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '12px 12px 12px 24px', borderRadius: 100 }}>
+              <a href="https://portal.myvaultplus.com/register" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: '#6DC43F', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '12px 12px 12px 24px', borderRadius: 100 }}>
                 Submit a Case
                 <span style={{ width: 30, height: 30, borderRadius: '50%', background: '#07251C', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M19 5H9M19 5v10" stroke="#34E0A0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M19 5H9M19 5v10" stroke="#6DC43F" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 </span>
               </a>
             </div>
@@ -81,7 +81,7 @@ export default function ExpertReviewPage() {
       <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#F7FAF7' }}>
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 18 }}>— Expert Review™</div>
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 18 }}>— Expert Review™</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
               When you need more than{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>one opinion.</em>
@@ -90,21 +90,21 @@ export default function ExpertReviewPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.3fr 1fr', gridTemplateRows: '1fr 1fr', gap: 16, minHeight: 380 }}>
             <div style={{ gridRow: '1 / 3', background: '#07251C', borderRadius: 24, padding: 32, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#34E0A0', marginBottom: 18 }}>How It Works</div>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#6DC43F', marginBottom: 18 }}>How It Works</div>
                 <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 22, lineHeight: 1.2, color: '#fff', margin: '0 0 20px' }}>From submission to specialist report in 5–10 days.</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {bentoCheckItems.map((item) => (
                     <div key={item} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                      <span style={{ width: 24, height: 24, borderRadius: 7, background: 'rgba(52,224,160,0.16)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4L19 7" stroke="#34E0A0" strokeWidth="2.5" strokeLinecap="round" /></svg>
+                      <span style={{ width: 24, height: 24, borderRadius: 7, background: 'rgba(109,196,63,0.16)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4L19 7" stroke="#6DC43F" strokeWidth="2.5" strokeLinecap="round" /></svg>
                       </span>
                       <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13.5 }}>{item}</span>
                     </div>
                   ))}
                 </div>
               </div>
-              <div style={{ background: 'rgba(52,224,160,0.08)', border: '1px solid rgba(52,224,160,0.2)', borderRadius: 14, padding: 14 }}>
-                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Available on <span style={{ color: '#34E0A0', fontWeight: 700 }}>all plans</span> · Pay-per-use on Free</div>
+              <div style={{ background: 'rgba(109,196,63,0.08)', border: '1px solid rgba(109,196,63,0.2)', borderRadius: 14, padding: 14 }}>
+                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Available on <span style={{ color: '#6DC43F', fontWeight: 700 }}>all plans</span> · Pay-per-use on Free</div>
               </div>
             </div>
             <div style={{ gridRow: '1 / 3', background: '#F7FAF7', border: '1px solid rgba(7,37,28,0.08)', borderRadius: 24, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -112,11 +112,11 @@ export default function ExpertReviewPage() {
                 <Image src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=800&h=600&fit=crop&q=80" alt="Specialist reviewing patient case" fill style={{ objectFit: 'cover' }} sizes="400px" />
               </div>
               <div style={{ padding: 24 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 8 }}>Clinical panel review</div>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#137333', marginBottom: 8 }}>Clinical panel review</div>
                 <p style={{ color: '#41584E', fontSize: 14, lineHeight: 1.6, margin: 0 }}>Every case is reviewed by qualified, practising specialists, not algorithms.</p>
               </div>
             </div>
-            <div style={{ background: '#34E0A0', borderRadius: 24, padding: 28, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+            <div style={{ background: '#6DC43F', borderRadius: 24, padding: 28, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#0A4E3C' }}>Specialist Fields</div>
               <div>
                 <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontSize: 52, fontWeight: 700, color: '#07251C', letterSpacing: '-0.03em', lineHeight: 1 }}>18+</div>
@@ -124,7 +124,7 @@ export default function ExpertReviewPage() {
               </div>
             </div>
             <div style={{ background: '#07251C', borderRadius: 24, padding: 28, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#34E0A0' }}>Turnaround</div>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#6DC43F' }}>Turnaround</div>
               <div>
                 <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontSize: 36, fontWeight: 700, color: '#fff', letterSpacing: '-0.03em', lineHeight: 1 }}>5–10</div>
                 <div style={{ fontSize: 13.5, fontWeight: 600, color: 'rgba(255,255,255,0.65)', marginTop: 6 }}>Business days</div>
@@ -138,7 +138,7 @@ export default function ExpertReviewPage() {
       <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#EBEBEB' }}>
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 18 }}>— Review Types</div>
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 18 }}>— Review Types</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
               Seven kinds of{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>expert review.</em>
@@ -164,16 +164,16 @@ export default function ExpertReviewPage() {
       <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#07251C' }}>
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#34E0A0', marginBottom: 18 }}>— Process</div>
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#6DC43F', marginBottom: 18 }}>— Process</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640, color: '#fff' }}>
               How Expert Review™{' '}
-              <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, color: '#34E0A0' }}>works.</em>
+              <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, color: '#6DC43F' }}>works.</em>
             </h2>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 40 }}>
             {processSteps.map((step) => (
               <div key={step.num} style={{ background: '#0C3328', borderRadius: 18, padding: '24px 32px', display: 'grid', gridTemplateColumns: '64px 1fr', gap: 24, alignItems: 'start' }}>
-                <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontSize: 32, fontWeight: 700, color: '#34E0A0', letterSpacing: '-0.02em', lineHeight: 1 }}>{step.num}</div>
+                <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontSize: 32, fontWeight: 700, color: '#6DC43F', letterSpacing: '-0.02em', lineHeight: 1 }}>{step.num}</div>
                 <div>
                   <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 18, color: '#fff', marginBottom: 6 }}>{step.title}</div>
                   <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', lineHeight: 1.65 }}>{step.desc}</div>
@@ -183,7 +183,7 @@ export default function ExpertReviewPage() {
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
             {['Submitted', 'Documents Uploaded', 'Under Review', 'Specialist Assigned', 'Report Ready'].map((status, i) => (
-              <span key={status} style={{ fontSize: 12, fontWeight: 600, padding: '7px 16px', borderRadius: 100, background: i === 4 ? '#34E0A0' : 'rgba(52,224,160,0.12)', color: i === 4 ? '#07251C' : '#34E0A0', border: i === 4 ? 'none' : '1px solid rgba(52,224,160,0.25)' }}>{status}</span>
+              <span key={status} style={{ fontSize: 12, fontWeight: 600, padding: '7px 16px', borderRadius: 100, background: i === 4 ? '#6DC43F' : 'rgba(109,196,63,0.12)', color: i === 4 ? '#07251C' : '#6DC43F', border: i === 4 ? 'none' : '1px solid rgba(109,196,63,0.25)' }}>{status}</span>
             ))}
           </div>
         </section>
@@ -194,18 +194,18 @@ export default function ExpertReviewPage() {
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'start' }}>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 18 }}>— Specialist Fields</div>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 18 }}>— Specialist Fields</div>
               <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(22px, 2.5vw, 32px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 0 24px' }}>
                 18+ clinical specialties
               </h2>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {specialties.map((s) => (
-                  <span key={s} style={{ fontSize: 13, fontWeight: 500, padding: '6px 14px', borderRadius: 100, background: '#EAF7F1', color: '#0E8567', border: '1px solid rgba(14,133,103,0.2)' }}>{s}</span>
+                  <span key={s} style={{ fontSize: 13, fontWeight: 500, padding: '6px 14px', borderRadius: 100, background: '#EAF7F1', color: '#137333', border: '1px solid rgba(19,115,51,0.2)' }}>{s}</span>
                 ))}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 18 }}>— Pricing</div>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 18 }}>— Pricing</div>
               <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(22px, 2.5vw, 32px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 0 24px' }}>
                 Pay-per-review pricing
               </h2>
@@ -213,7 +213,7 @@ export default function ExpertReviewPage() {
                 {pricing.map((p) => (
                   <div key={p.type} style={{ background: '#fff', border: '1.5px solid #D4D4D4', borderRadius: 16, padding: '18px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 15, color: '#07251C' }}>{p.type}</div>
-                    <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 700, fontSize: 15, color: '#0E8567', whiteSpace: 'nowrap', marginLeft: 16 }}>{p.price}</div>
+                    <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 700, fontSize: 15, color: '#137333', whiteSpace: 'nowrap', marginLeft: 16 }}>{p.price}</div>
                   </div>
                 ))}
               </div>

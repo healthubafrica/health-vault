@@ -126,7 +126,7 @@ export default async function BlogPostPage({ params }: Props) {
                   width: 6,
                   height: 6,
                   borderRadius: '50%',
-                  background: '#34E0A0',
+                  background: '#6DC43F',
                   display: 'inline-block',
                   flexShrink: 0,
                 }}
@@ -137,7 +137,7 @@ export default async function BlogPostPage({ params }: Props) {
                   fontWeight: 700,
                   letterSpacing: '0.12em',
                   textTransform: 'uppercase',
-                  color: '#34E0A0',
+                  color: '#6DC43F',
                 }}
               >
                 {post.date}
@@ -265,7 +265,7 @@ export default async function BlogPostPage({ params }: Props) {
                 width: 6,
                 height: 6,
                 borderRadius: '50%',
-                background: '#34E0A0',
+                background: '#6DC43F',
                 display: 'inline-block',
               }}
             />
@@ -275,7 +275,7 @@ export default async function BlogPostPage({ params }: Props) {
                 fontWeight: 700,
                 letterSpacing: '0.14em',
                 textTransform: 'uppercase',
-                color: '#34E0A0',
+                color: '#6DC43F',
               }}
             >
               Blog and Articles
@@ -330,7 +330,7 @@ export default async function BlogPostPage({ params }: Props) {
                   width: 26,
                   height: 26,
                   borderRadius: '50%',
-                  background: '#34E0A0',
+                  background: '#6DC43F',
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',

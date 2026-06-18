@@ -2,7 +2,7 @@ import Link from 'next/link'
 
 const plans = [
   {
-    iconBg: '#34E0A0',
+    iconBg: '#6DC43F',
     iconColor: '#07251C',
     iconPath: 'M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z',
     badge: 'STARTER PLAN',
@@ -20,7 +20,7 @@ const plans = [
   },
   {
     iconBg: '#07251C',
-    iconColor: '#34E0A0',
+    iconColor: '#6DC43F',
     iconPath: 'M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z',
     badge: 'GROWTH PLAN',
     desc: 'More care, more coverage: HealthConsult™ included plus 1 Expert Review/year.',
@@ -36,7 +36,7 @@ const plans = [
     ],
   },
   {
-    iconBg: '#34E0A0',
+    iconBg: '#6DC43F',
     iconColor: '#07251C',
     iconPath: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
     badge: 'ENTERPRISE PLAN',
@@ -133,7 +133,7 @@ export default function Plans() {
                 width: 28,
                 height: 28,
                 borderRadius: '50%',
-                background: '#34E0A0',
+                background: '#6DC43F',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -166,7 +166,7 @@ export default function Plans() {
             <div
               key={plan.badge}
               style={{
-                background: plan.highlight ? '#34E0A0' : '#fff',
+                background: plan.highlight ? '#6DC43F' : '#fff',
                 border: plan.highlight ? 'none' : '1.5px solid #D4D4D4',
                 borderRadius: 20,
                 padding: 28,
@@ -281,7 +281,7 @@ export default function Plans() {
                       <svg width="9" height="9" viewBox="0 0 24 24" fill="none">
                         <path
                           d="M5 12l4 4L19 7"
-                          stroke="#34E0A0"
+                          stroke="#6DC43F"
                           strokeWidth="3"
                           strokeLinecap="round"
                           strokeLinejoin="round"
@@ -300,7 +300,7 @@ export default function Plans() {
                   display: 'block',
                   textAlign: 'center',
                   background: '#07251C',
-                  color: plan.highlight ? '#34E0A0' : '#fff',
+                  color: plan.highlight ? '#6DC43F' : '#fff',
                   textDecoration: 'none',
                   fontWeight: 700,
                   fontSize: 12,
@@ -338,7 +338,7 @@ export default function Plans() {
           <Link
             href="/corporate"
             style={{
-              color: '#0E8567',
+              color: '#137333',
               fontWeight: 600,
               fontSize: 14.5,
               textDecoration: 'none',
@@ -352,7 +352,7 @@ export default function Plans() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
               <path
                 d="M5 12h14M13 6l6 6-6 6"
-                stroke="#0E8567"
+                stroke="#137333"
                 strokeWidth="2.2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
