@@ -1,4 +1,8 @@
+'use client'
+import { motion, useInView, useReducedMotion } from 'framer-motion'
+import { useRef } from 'react'
 import Image from 'next/image'
+import { EASE_OUT, cardVariant, staggerContainer } from '@/lib/motion'
 
 const checkItems = [
   'Secure health records, always accessible',
@@ -8,10 +12,23 @@ const checkItems = [
 ]
 
 export default function About() {
+  const ref = useRef(null)
+  const inView = useInView(ref, { once: true, amount: 0.1 })
+  const reduced = useReducedMotion()
+
+  const initial = reduced ? 'visible' : 'hidden'
+  const animate = inView ? 'visible' : 'hidden'
+
   return (
     <section style={{ maxWidth: 1280, margin: '0 auto', padding: '104px 32px' }}>
       {/* Section header */}
-      <div style={{ textAlign: 'center', marginBottom: 56 }}>
+      <motion.div
+        ref={ref}
+        style={{ textAlign: 'center', marginBottom: 56 }}
+        initial={{ opacity: 0, y: 24 }}
+        animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
+        transition={{ duration: 0.5, ease: EASE_OUT }}
+      >
         <div
           style={{
             fontSize: 12,
@@ -46,10 +63,13 @@ export default function About() {
             simpler and more accessible.
           </em>
         </h2>
-      </div>
+      </motion.div>
 
       {/* Bento grid */}
-      <div
+      <motion.div
+        variants={staggerContainer(0.08)}
+        initial={initial}
+        animate={animate}
         style={{
           display: 'grid',
           gridTemplateColumns: '1.4fr 1.3fr 1fr',
@@ -59,7 +79,9 @@ export default function About() {
         }}
       >
         {/* Left — large dark card */}
-        <div
+        <motion.div
+          variants={cardVariant}
+          whileHover={!reduced ? { y: -5, transition: { duration: 0.18, ease: EASE_OUT } } : undefined}
           style={{
             gridRow: '1 / 3',
             background: '#07251C',
@@ -145,10 +167,12 @@ export default function About() {
               Patient ID · Instant on registration
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Middle — photo card */}
-        <div
+        <motion.div
+          variants={cardVariant}
+          whileHover={!reduced ? { y: -5, transition: { duration: 0.18, ease: EASE_OUT } } : undefined}
           style={{
             gridRow: '1 / 3',
             background: '#F7FAF7',
@@ -185,10 +209,12 @@ export default function About() {
               Register, access your portal, and start using Health-Hub Africa® services immediately, at no cost.
             </p>
           </div>
-        </div>
+        </motion.div>
 
         {/* Top-right accent card */}
-        <div
+        <motion.div
+          variants={cardVariant}
+          whileHover={!reduced ? { y: -5, transition: { duration: 0.18, ease: EASE_OUT } } : undefined}
           style={{
             background: '#6DC43F',
             borderRadius: 24,
@@ -226,10 +252,12 @@ export default function About() {
               Clinical fields in Expert Review™
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Bottom-right dark card */}
-        <div
+        <motion.div
+          variants={cardVariant}
+          whileHover={!reduced ? { y: -5, transition: { duration: 0.18, ease: EASE_OUT } } : undefined}
           style={{
             background: '#07251C',
             borderRadius: 24,
@@ -267,8 +295,8 @@ export default function About() {
               Healthcare services, one portal
             </div>
           </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </section>
   )
 }

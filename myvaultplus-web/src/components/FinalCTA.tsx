@@ -1,12 +1,29 @@
+'use client'
+import { motion, useInView, useReducedMotion } from 'framer-motion'
+import { useRef } from 'react'
 import Image from 'next/image'
+import { EASE_OUT } from '@/lib/motion'
 
 export default function FinalCTA() {
+  const ref = useRef(null)
+  const inView = useInView(ref, { once: true, amount: 0.2 })
+  const reduced = useReducedMotion()
+
+  const ani = (delay = 0) =>
+    reduced
+      ? {}
+      : {
+          initial: { opacity: 0, y: 20 },
+          animate: inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 },
+          transition: { duration: 0.5, ease: EASE_OUT, delay },
+        }
+
   return (
     <section
+      ref={ref}
       style={{
         position: 'relative',
         overflow: 'hidden',
-        /* Card-style with rounded corners and outer margin like the template */
         margin: '0 24px 24px',
         borderRadius: 28,
         minHeight: 340,
@@ -43,7 +60,8 @@ export default function FinalCTA() {
         }}
       >
         {/* Trust badge */}
-        <div
+        <motion.div
+          {...ani(0)}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -51,7 +69,6 @@ export default function FinalCTA() {
             marginBottom: 20,
           }}
         >
-          {/* Avatar stack */}
           <div style={{ display: 'flex' }}>
             {[
               'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=64&h=64&fit=crop&crop=faces&q=80',
@@ -78,9 +95,10 @@ export default function FinalCTA() {
           <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: 500 }}>
             Trusted by 5,000+ patients
           </span>
-        </div>
+        </motion.div>
 
-        <h2
+        <motion.h2
+          {...ani(0.12)}
           style={{
             fontFamily: 'var(--font-manrope), sans-serif',
             fontWeight: 700,
@@ -102,9 +120,10 @@ export default function FinalCTA() {
           >
             with intelligent patient experience
           </em>
-        </h2>
+        </motion.h2>
 
-        <p
+        <motion.p
+          {...ani(0.22)}
           style={{
             color: 'rgba(255,255,255,0.75)',
             fontSize: 16,
@@ -115,10 +134,13 @@ export default function FinalCTA() {
         >
           Join thousands of patients across Nigeria who have secured their health records, simplified
           their care, and put specialist expertise within reach.
-        </p>
+        </motion.p>
 
-        <a
+        <motion.a
+          {...ani(0.32)}
           href="https://portal.myvaultplus.com/register"
+          whileHover={!reduced ? { scale: 1.03, transition: { duration: 0.15 } } : undefined}
+          whileTap={!reduced ? { scale: 0.97 } : undefined}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -157,7 +179,7 @@ export default function FinalCTA() {
               />
             </svg>
           </span>
-        </a>
+        </motion.a>
       </div>
     </section>
   )

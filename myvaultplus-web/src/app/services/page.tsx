@@ -4,6 +4,8 @@ import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
 import HeroMarquee from '@/components/HeroMarquee'
+import AnimatedSection from '@/components/AnimatedSection'
+import AnimatedCard from '@/components/AnimatedCard'
 
 const smallServices = [
   { name: 'MinuteCare™', desc: 'Fast-track walk-in clinic scheduling. Skip the queue and arrive at the right time.', href: '/services/minutecare' },
@@ -112,15 +114,15 @@ export default function ServicesPage() {
           </div>
 
           {/* Row 2 */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginTop: 16 }}>
+          <AnimatedSection stagger style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginTop: 16 }}>
             {smallServices.map((svc) => (
-              <div key={svc.name} style={{ background: '#fff', border: '1px solid rgba(7,37,28,0.09)', borderRadius: 20, padding: '24px 26px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <AnimatedCard key={svc.name} style={{ background: '#fff', border: '1px solid rgba(7,37,28,0.09)', borderRadius: 20, padding: '24px 26px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 17, color: '#07251C' }}>{svc.name}</div>
                 <p style={{ color: '#41584E', fontSize: 14, lineHeight: 1.6, margin: 0, flex: 1 }}>{svc.desc}</p>
                 <Link href={svc.href} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#137333', fontWeight: 600, fontSize: 13.5, textDecoration: 'none' }}>Learn more →</Link>
-              </div>
+              </AnimatedCard>
             ))}
-          </div>
+          </AnimatedSection>
         </section>
       </div>
 

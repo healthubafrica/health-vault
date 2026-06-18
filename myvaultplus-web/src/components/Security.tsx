@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import { motion, useInView, useReducedMotion } from 'framer-motion'
 import Image from 'next/image'
+import { EASE_OUT } from '@/lib/motion'
 
 const items = [
   {
@@ -29,13 +31,22 @@ const items = [
 
 export default function Security() {
   const [hovered, setHovered] = useState(0)
+  const headerRef = useRef(null)
+  const inView = useInView(headerRef, { once: true, amount: 0.2 })
+  const reduced = useReducedMotion()
 
   return (
     <section style={{ background: '#F7FAF7' }}>
       <div style={{ maxWidth: 1280, margin: '0 auto', padding: '104px 32px' }}>
 
         {/* ── Header ── */}
-        <div style={{ textAlign: 'center', marginBottom: 64 }}>
+        <motion.div
+          ref={headerRef}
+          style={{ textAlign: 'center', marginBottom: 64 }}
+          initial={{ opacity: 0, y: 24 }}
+          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
+          transition={{ duration: 0.5, ease: EASE_OUT }}
+        >
           <div
             style={{
               display: 'inline-flex',
@@ -139,7 +150,7 @@ export default function Security() {
               </svg>
             </span>
           </a>
-        </div>
+        </motion.div>
 
         {/* ── Outer gray wrapper ── */}
         <div

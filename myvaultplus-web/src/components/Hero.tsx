@@ -1,6 +1,10 @@
+'use client'
+import { motion, useReducedMotion } from 'framer-motion'
 import Image from 'next/image'
+import { EASE_OUT } from '@/lib/motion'
 
 export default function Hero() {
+  const reduced = useReducedMotion()
   return (
     /* Outer wrapper: margin + border-radius gives the card look */
     <div style={{ margin: '16px 16px 0', borderRadius: 28, overflow: 'hidden' }}>
@@ -50,7 +54,10 @@ export default function Hero() {
         }}
       >
         {/* Headline */}
-        <h1
+        <motion.h1
+          initial={reduced ? false : { opacity: 0, y: 28 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: EASE_OUT, delay: 0.1 }}
           style={{
             margin: '0 0 18px',
             lineHeight: 1.06,
@@ -84,9 +91,12 @@ export default function Hero() {
           >
             secure and within reach
           </span>
-        </h1>
+        </motion.h1>
 
-        <p
+        <motion.p
+          initial={reduced ? false : { opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: EASE_OUT, delay: 0.24 }}
           style={{
             color: 'rgba(255,255,255,0.78)',
             fontSize: 16,
@@ -97,10 +107,13 @@ export default function Hero() {
         >
           MyHealth Vault+™ is your personal digital health portal: access records, book care, get
           specialist second opinions, and activate emergency dispatch from one secure place.
-        </p>
+        </motion.p>
 
         {/* CTA row */}
-        <div
+        <motion.div
+          initial={reduced ? false : { opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: EASE_OUT, delay: 0.36 }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -174,11 +187,14 @@ export default function Hero() {
               </svg>
             </span>
           </a>
-        </div>
+        </motion.div>
       </div>
 
       {/* ── Marquee dashboard cards ── */}
-      <div
+      <motion.div
+        initial={reduced ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.6, ease: EASE_OUT, delay: 0.1 }}
         style={{
           position: 'relative',
           zIndex: 1,
@@ -467,7 +483,7 @@ export default function Hero() {
             </div>,
           ])}
         </div>
-      </div>
+      </motion.div>
     </section>
     </div>
   )

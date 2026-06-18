@@ -4,6 +4,8 @@ import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
 import HeroMarquee from '@/components/HeroMarquee'
+import AnimatedSection from '@/components/AnimatedSection'
+import AnimatedCard from '@/components/AnimatedCard'
 
 const plans = [
   {
@@ -84,9 +86,9 @@ export default function PlansPage() {
             </h2>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, alignItems: 'stretch' }}>
+          <AnimatedSection stagger style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, alignItems: 'stretch' }}>
             {plans.map((plan) => (
-              <div key={plan.badge} style={{ background: plan.highlight ? '#6DC43F' : '#fff', border: plan.highlight ? 'none' : '1.5px solid #D4D4D4', borderRadius: 20, padding: 28, display: 'flex', flexDirection: 'column' }}>
+              <AnimatedCard key={plan.badge} style={{ background: plan.highlight ? '#6DC43F' : '#fff', border: plan.highlight ? 'none' : '1.5px solid #D4D4D4', borderRadius: 20, padding: 28, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ width: 40, height: 40, borderRadius: 11, background: plan.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, flexShrink: 0 }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" stroke={plan.iconColor} strokeWidth="2" strokeLinejoin="round" /></svg>
                 </div>
@@ -109,9 +111,9 @@ export default function PlansPage() {
                 <a href={plan.ctaHref} style={{ display: 'block', textAlign: 'center', background: '#07251C', color: plan.highlight ? '#6DC43F' : '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', padding: 14, borderRadius: 100 }}>
                   Get Started
                 </a>
-              </div>
+              </AnimatedCard>
             ))}
-          </div>
+          </AnimatedSection>
 
           <div style={{ marginTop: 20, background: '#F7FAF7', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 16, padding: '20px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
             <p style={{ margin: 0, color: '#27433A', fontSize: 15, maxWidth: 620 }}>Corporate and HMO plans available for employers, estates, schools, and government organisations.</p>

@@ -1,7 +1,9 @@
 'use client'
 
 import { useRef } from 'react'
+import { motion, useInView, useReducedMotion } from 'framer-motion'
 import Image from 'next/image'
+import { EASE_OUT } from '@/lib/motion'
 
 const testimonials = [
   {
@@ -46,6 +48,9 @@ const GAP = 16
 
 export default function Testimonials() {
   const trackRef = useRef<HTMLDivElement>(null)
+  const headerRef = useRef(null)
+  const inView = useInView(headerRef, { once: true, amount: 0.2 })
+  const reduced = useReducedMotion()
 
   const scroll = (dir: 'prev' | 'next') => {
     if (!trackRef.current) return
@@ -58,7 +63,11 @@ export default function Testimonials() {
       <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 32px' }}>
 
         {/* ── Header row ── */}
-        <div
+        <motion.div
+          ref={headerRef}
+          initial={{ opacity: 0, y: 24 }}
+          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
+          transition={{ duration: 0.5, ease: EASE_OUT }}
           style={{
             display: 'flex',
             alignItems: 'flex-end',
@@ -156,7 +165,7 @@ export default function Testimonials() {
               </button>
             ))}
           </div>
-        </div>
+        </motion.div>
 
         {/* ── Scrollable card track ── */}
         <div

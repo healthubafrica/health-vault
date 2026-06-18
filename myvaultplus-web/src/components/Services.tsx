@@ -1,5 +1,9 @@
+'use client'
+import { motion, useInView, useReducedMotion } from 'framer-motion'
+import { useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { EASE_OUT, cardVariant, staggerContainer } from '@/lib/motion'
 
 const ArrowRight = ({ color = '#07251C' }: { color?: string }) => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
@@ -8,6 +12,12 @@ const ArrowRight = ({ color = '#07251C' }: { color?: string }) => (
 )
 
 export default function Services() {
+  const ref = useRef(null)
+  const inView = useInView(ref, { once: true, amount: 0.08 })
+  const reduced = useReducedMotion()
+  const initial = reduced ? 'visible' : 'hidden'
+  const animate = inView ? 'visible' : 'hidden'
+
   return (
     <section
       style={{
@@ -16,9 +26,14 @@ export default function Services() {
         borderBottom: '1px solid rgba(7,37,28,0.07)',
       }}
     >
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '104px 32px' }}>
+      <div ref={ref} style={{ maxWidth: 1280, margin: '0 auto', padding: '104px 32px' }}>
         {/* Section header */}
-        <div style={{ textAlign: 'center', marginBottom: 48 }}>
+        <motion.div
+          style={{ textAlign: 'center', marginBottom: 48 }}
+          initial={{ opacity: 0, y: 24 }}
+          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
+          transition={{ duration: 0.5, ease: EASE_OUT }}
+        >
           <div
             style={{
               fontSize: 12,
@@ -53,47 +68,59 @@ export default function Services() {
               intelligent access.
             </em>
           </h2>
-          <Link
-            href="/services"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 10,
-              background: '#07251C',
-              color: '#fff',
-              textDecoration: 'none',
-              fontWeight: 600,
-              fontSize: 14,
-              padding: '10px 11px 10px 22px',
-              borderRadius: 100,
-            }}
+          <motion.div
+            whileHover={!reduced ? { scale: 1.03, transition: { duration: 0.15 } } : undefined}
+            whileTap={!reduced ? { scale: 0.97 } : undefined}
+            style={{ display: 'inline-block' }}
           >
-            View All Services
-            <span
+            <Link
+              href="/services"
               style={{
-                width: 28,
-                height: 28,
-                borderRadius: '50%',
-                background: '#6DC43F',
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
-                justifyContent: 'center',
+                gap: 10,
+                background: '#07251C',
+                color: '#fff',
+                textDecoration: 'none',
+                fontWeight: 600,
+                fontSize: 14,
+                padding: '10px 11px 10px 22px',
+                borderRadius: 100,
               }}
             >
-              <ArrowRight />
-            </span>
-          </Link>
-        </div>
+              View All Services
+              <span
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: '50%',
+                  background: '#6DC43F',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <ArrowRight />
+              </span>
+            </Link>
+          </motion.div>
+        </motion.div>
 
-        {/* Grid */}
-        <div
+        {/* Grid row 1 */}
+        <motion.div
+          variants={staggerContainer(0.08)}
+          initial={initial}
+          animate={animate}
           style={{
             display: 'grid',
             gridTemplateColumns: '1.1fr 1fr 1fr',
             gap: 16,
           }}
         >
-          <div
+          {/* TeleCare image card */}
+          <motion.div
+            variants={cardVariant}
+            whileHover={!reduced ? { y: -5, transition: { duration: 0.18, ease: EASE_OUT } } : undefined}
             style={{
               background: '#07251C',
               borderRadius: 22,
@@ -104,7 +131,6 @@ export default function Services() {
               gap: 16,
             }}
           >
-            {/* Inset image — padded away from card edges, own border-radius */}
             <div
               style={{
                 position: 'relative',
@@ -123,7 +149,6 @@ export default function Services() {
               />
             </div>
 
-            {/* Text sits below the image, inside the same padding */}
             <div style={{ padding: '8px 8px 12px' }}>
               <span
                 style={{
@@ -157,9 +182,9 @@ export default function Services() {
                 Consult with qualified providers via video — from anywhere in Nigeria.
               </p>
             </div>
-          </div>
+          </motion.div>
 
-          {/* Feature card — Expert Review */}
+          {/* Expert Review */}
           <ServiceCard
             iconBg="#EAF7F1"
             icon={
@@ -172,9 +197,10 @@ export default function Services() {
             desc="Get a specialist second opinion on any diagnosis, treatment plan, or lab result — reviewed by a qualified clinical panel."
             bullets={['18+ specialist fields', 'Full document upload', 'PDF report to your Vault']}
             href="/expert-review"
+            reduced={reduced ?? false}
           />
 
-          {/* Feature card — DispatchCare */}
+          {/* DispatchCare */}
           <ServiceCard
             iconBg="rgba(255,92,92,0.1)"
             icon={
@@ -188,11 +214,15 @@ export default function Services() {
             desc="24/7 emergency medical dispatch — one tap from any screen sends your location to the HHA operations team."
             bullets={['Auto-detects your location', 'Instant case ID + SMS alert', 'Available on all plans']}
             href="/dispatchcare"
+            reduced={reduced ?? false}
           />
-        </div>
+        </motion.div>
 
-        {/* Services row 2 — smaller 3-column grid */}
-        <div
+        {/* Grid row 2 — smaller cards */}
+        <motion.div
+          variants={staggerContainer(0.07)}
+          initial={initial}
+          animate={animate}
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(3, 1fr)',
@@ -217,8 +247,10 @@ export default function Services() {
               href: '/services',
             },
           ].map((svc) => (
-            <div
+            <motion.div
               key={svc.name}
+              variants={cardVariant}
+              whileHover={!reduced ? { y: -5, transition: { duration: 0.18, ease: EASE_OUT } } : undefined}
               style={{
                 background: '#fff',
                 border: '1px solid rgba(7,37,28,0.09)',
@@ -259,9 +291,9 @@ export default function Services() {
                   <path d="M5 12h14M13 6l6 6-6 6" stroke="#137333" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </Link>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </div>
     </section>
   )
@@ -274,6 +306,7 @@ function ServiceCard({
   desc,
   bullets,
   href,
+  reduced,
 }: {
   iconBg: string
   icon: React.ReactNode
@@ -281,9 +314,12 @@ function ServiceCard({
   desc: string
   bullets: string[]
   href: string
+  reduced: boolean
 }) {
   return (
-    <div
+    <motion.div
+      variants={cardVariant}
+      whileHover={!reduced ? { y: -5, transition: { duration: 0.18, ease: EASE_OUT } } : undefined}
       style={{
         background: '#fff',
         border: '1px solid rgba(7,37,28,0.09)',
@@ -349,6 +385,6 @@ function ServiceCard({
           </svg>
         </Link>
       </div>
-    </div>
+    </motion.div>
   )
 }

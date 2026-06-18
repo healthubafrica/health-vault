@@ -4,6 +4,8 @@ import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
 import HeroMarquee from '@/components/HeroMarquee'
+import AnimatedSection from '@/components/AnimatedSection'
+import AnimatedCard from '@/components/AnimatedCard'
 import { Clock, GraduationCap, Video, Pill, Share2, FileText } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -161,50 +163,50 @@ export default function TeleCarePage() {
       {/* ── Features ── */}
       <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#fff' }}>
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
-          <div style={{ textAlign: 'center', marginBottom: 56 }}>
+          <AnimatedSection style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 14 }}>— What You Get</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 14px', maxWidth: 560, color: '#07251C' }}>
               Everything a clinic visit gives you,{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic' }}>from your phone.</em>
             </h2>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+          </AnimatedSection>
+          <AnimatedSection stagger style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
             {features.map((f) => {
               const Icon = f.icon
               return (
-                <div key={f.title} style={{ background: '#F7FAF7', border: '1px solid rgba(7,37,28,0.07)', borderRadius: 20, padding: '28px 26px' }}>
+                <AnimatedCard key={f.title} style={{ background: '#F7FAF7', border: '1px solid rgba(7,37,28,0.07)', borderRadius: 20, padding: '28px 26px' }}>
                   <span style={{ width: 44, height: 44, borderRadius: 12, background: '#EAF7F1', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
                     <Icon size={22} strokeWidth={1.8} color="#137333" />
                   </span>
                   <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 16.5, color: '#07251C', margin: '0 0 10px' }}>{f.title}</h3>
                   <p style={{ color: '#41584E', fontSize: 14, lineHeight: 1.65, margin: 0 }}>{f.desc}</p>
-                </div>
+                </AnimatedCard>
               )
             })}
-          </div>
+          </AnimatedSection>
         </section>
       </div>
 
       {/* ── How it works ── */}
       <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#07251C' }}>
         <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
-          <div style={{ textAlign: 'center', marginBottom: 56 }}>
+          <AnimatedSection style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#6DC43F', marginBottom: 14 }}>— How It Works</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto', maxWidth: 520, color: '#fff' }}>
               From booking to prescription{' '}
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', color: '#6DC43F' }}>in four steps.</em>
             </h2>
-          </div>
+          </AnimatedSection>
           <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 24, padding: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+            <AnimatedSection stagger style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
               {steps.map((s) => (
-                <div key={s.num} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(109,196,63,0.12)', borderRadius: 18, padding: '32px 28px' }}>
+                <AnimatedCard key={s.num} hoverLift={false} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(109,196,63,0.12)', borderRadius: 18, padding: '32px 28px' }}>
                   <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontSize: 34, fontWeight: 700, color: '#6DC43F', letterSpacing: '-0.02em', marginBottom: 14 }}>{s.num}</div>
                   <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 17, color: '#fff', margin: '0 0 10px' }}>{s.title}</h3>
                   <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, lineHeight: 1.65, margin: 0 }}>{s.desc}</p>
-                </div>
+                </AnimatedCard>
               ))}
-            </div>
+            </AnimatedSection>
           </div>
         </section>
       </div>

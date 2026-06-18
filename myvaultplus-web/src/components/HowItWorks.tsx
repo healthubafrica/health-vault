@@ -1,8 +1,24 @@
+'use client'
+import { motion, useInView, useReducedMotion } from 'framer-motion'
+import { useRef } from 'react'
+import { EASE_OUT, cardVariant, staggerContainer } from '@/lib/motion'
+
 export default function HowItWorks() {
+  const ref = useRef(null)
+  const inView = useInView(ref, { once: true, amount: 0.08 })
+  const reduced = useReducedMotion()
+  const initial = reduced ? 'visible' : 'hidden'
+  const animate = inView ? 'visible' : 'hidden'
+
   return (
-    <section style={{ maxWidth: 1280, margin: '0 auto', padding: '104px 32px' }}>
+    <section ref={ref} style={{ maxWidth: 1280, margin: '0 auto', padding: '104px 32px' }}>
       {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: 60 }}>
+      <motion.div
+        style={{ textAlign: 'center', marginBottom: 60 }}
+        initial={{ opacity: 0, y: 24 }}
+        animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
+        transition={{ duration: 0.5, ease: EASE_OUT }}
+      >
         <div
           style={{
             display: 'inline-flex',
@@ -55,7 +71,7 @@ export default function HowItWorks() {
           We help Nigerians access better healthcare, not by replacing human doctors,
           but by amplifying them with technology that is always within reach.
         </p>
-      </div>
+      </motion.div>
 
       {/* Outer container — grey wrapper, same spec as Security section */}
       <div
@@ -65,7 +81,10 @@ export default function HowItWorks() {
           padding: 16,
         }}
       >
-        <div
+        <motion.div
+          variants={staggerContainer(0.1)}
+          initial={initial}
+          animate={animate}
           style={{
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
@@ -456,17 +475,18 @@ export default function HowItWorks() {
               <Highlight>HHA operations team</Highlight> in seconds. Available on all plans, always.
             </p>
           </GridCard>
-        </div>
+        </motion.div>
       </div>
     </section>
   )
 }
 
 function GridCard({ children }: { children: React.ReactNode }) {
-  // suppress unused prop warnings — kept in signature for backwards compat
-  void 0
+  const reduced = useReducedMotion()
   return (
-    <div
+    <motion.div
+      variants={cardVariant}
+      whileHover={!reduced ? { y: -5, transition: { duration: 0.18, ease: EASE_OUT } } : undefined}
       style={{
         padding: '40px 40px 36px',
         background: '#fff',
@@ -474,7 +494,7 @@ function GridCard({ children }: { children: React.ReactNode }) {
       }}
     >
       {children}
-    </div>
+    </motion.div>
   )
 }
 

@@ -1,4 +1,8 @@
+'use client'
+import { motion, useInView, useReducedMotion } from 'framer-motion'
+import { useRef } from 'react'
 import Link from 'next/link'
+import { EASE_OUT, cardVariant, staggerContainer } from '@/lib/motion'
 
 const plans = [
   {
@@ -55,11 +59,22 @@ const plans = [
 ]
 
 export default function Plans() {
+  const ref = useRef(null)
+  const inView = useInView(ref, { once: true, amount: 0.08 })
+  const reduced = useReducedMotion()
+  const initial = reduced ? 'visible' : 'hidden'
+  const animate = inView ? 'visible' : 'hidden'
+
   return (
     <section style={{ background: '#fff' }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '104px 32px' }}>
+      <div ref={ref} style={{ maxWidth: 1280, margin: '0 auto', padding: '104px 32px' }}>
         {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 60 }}>
+        <motion.div
+          style={{ textAlign: 'center', marginBottom: 60 }}
+          initial={{ opacity: 0, y: 24 }}
+          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
+          transition={{ duration: 0.5, ease: EASE_OUT }}
+        >
           <div
             style={{
               display: 'inline-flex',
@@ -109,9 +124,10 @@ export default function Plans() {
             Whether you&apos;re just starting or managing your full health journey, we offer plans
             that grow with you.
           </p>
-          {/* CTA */}
-          <a
+          <motion.a
             href="https://portal.myvaultplus.com/register"
+            whileHover={!reduced ? { scale: 1.03, transition: { duration: 0.15 } } : undefined}
+            whileTap={!reduced ? { scale: 0.97 } : undefined}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -150,11 +166,14 @@ export default function Plans() {
                 />
               </svg>
             </span>
-          </a>
-        </div>
+          </motion.a>
+        </motion.div>
 
         {/* Plan cards */}
-        <div
+        <motion.div
+          variants={staggerContainer(0.08)}
+          initial={initial}
+          animate={animate}
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(3, 1fr)',
@@ -163,8 +182,10 @@ export default function Plans() {
           }}
         >
           {plans.map((plan) => (
-            <div
+            <motion.div
               key={plan.badge}
+              variants={cardVariant}
+              whileHover={!reduced ? { y: -6, transition: { duration: 0.18, ease: EASE_OUT } } : undefined}
               style={{
                 background: plan.highlight ? '#6DC43F' : '#fff',
                 border: plan.highlight ? 'none' : '1.5px solid #D4D4D4',
@@ -206,7 +227,7 @@ export default function Plans() {
                   fontSize: 11,
                   fontWeight: 700,
                   letterSpacing: '0.1em',
-                  color: plan.highlight ? '#07251C' : '#07251C',
+                  color: '#07251C',
                   marginBottom: 10,
                 }}
               >
@@ -294,8 +315,9 @@ export default function Plans() {
               </div>
 
               {/* CTA button */}
-              <a
+              <motion.a
                 href={plan.ctaHref}
+                whileHover={!reduced ? { opacity: 0.9, transition: { duration: 0.12 } } : undefined}
                 style={{
                   display: 'block',
                   textAlign: 'center',
@@ -311,13 +333,16 @@ export default function Plans() {
                 }}
               >
                 Get Started
-              </a>
-            </div>
+              </motion.a>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
 
         {/* Corporate note */}
-        <div
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
+          transition={{ duration: 0.5, ease: EASE_OUT, delay: 0.35 }}
           style={{
             marginTop: 20,
             background: '#F7FAF7',
@@ -359,7 +384,7 @@ export default function Plans() {
               />
             </svg>
           </Link>
-        </div>
+        </motion.div>
       </div>
     </section>
   )

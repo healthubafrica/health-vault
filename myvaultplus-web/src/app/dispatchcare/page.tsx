@@ -3,6 +3,8 @@ import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
 import HeroMarquee from '@/components/HeroMarquee'
+import AnimatedSection from '@/components/AnimatedSection'
+import AnimatedCard from '@/components/AnimatedCard'
 import { Ambulance, MessageCircle } from 'lucide-react'
 
 const steps = [
@@ -73,15 +75,15 @@ export default function DispatchCarePage() {
             </h2>
           </div>
           <div style={{ background: '#DEDEDE', borderRadius: 28, padding: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+            <AnimatedSection stagger style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
               {steps.map((step) => (
-                <div key={step.num} style={{ padding: '32px 24px 28px', background: '#fff', borderRadius: 18 }}>
+                <AnimatedCard key={step.num} hoverLift={false} style={{ padding: '32px 24px 28px', background: '#fff', borderRadius: 18 }}>
                   <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontSize: 32, fontWeight: 700, color: '#6DC43F', letterSpacing: '-0.02em', marginBottom: 14 }}>{step.num}</div>
                   <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 17, color: '#07251C', margin: '0 0 8px', letterSpacing: '-0.01em' }}>{step.title}</h3>
                   <p style={{ color: '#5A7068', fontSize: 13.5, lineHeight: 1.6, margin: 0 }}>{step.desc}</p>
-                </div>
+                </AnimatedCard>
               ))}
-            </div>
+            </AnimatedSection>
           </div>
         </section>
       </div>

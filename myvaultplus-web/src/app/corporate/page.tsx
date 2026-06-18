@@ -3,6 +3,8 @@ import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
 import HeroMarquee from '@/components/HeroMarquee'
+import AnimatedSection from '@/components/AnimatedSection'
+import AnimatedCard from '@/components/AnimatedCard'
 import { Users, Building2, Zap, Shield, Ambulance, Brain, BarChart3, UserCog, Pill, Home, GraduationCap, Landmark } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -77,20 +79,20 @@ export default function CorporatePage() {
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>organisation gets.</em>
             </h2>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+          <AnimatedSection stagger style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
             {features.map((feat) => {
               const Icon = feat.icon
               return (
-                <div key={feat.title} style={{ background: '#fff', border: '1px solid rgba(7,37,28,0.09)', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <AnimatedCard key={feat.title} style={{ background: '#fff', border: '1px solid rgba(7,37,28,0.09)', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <span style={{ width: 44, height: 44, borderRadius: 12, background: '#EAF7F1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Icon size={22} strokeWidth={1.8} color="#137333" />
                   </span>
                   <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 15, color: '#07251C', margin: 0 }}>{feat.title}</h3>
                   <p style={{ color: '#41584E', fontSize: 13.5, lineHeight: 1.55, margin: 0 }}>{feat.desc}</p>
-                </div>
+                </AnimatedCard>
               )
             })}
-          </div>
+          </AnimatedSection>
         </section>
       </div>
 
@@ -104,20 +106,20 @@ export default function CorporatePage() {
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, color: '#6DC43F' }}>organisations that care.</em>
             </h2>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+          <AnimatedSection stagger style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
             {audiences.map((aud) => {
               const Icon = aud.icon
               return (
-                <div key={aud.name} style={{ background: '#0C3328', borderRadius: 18, padding: '28px 20px', display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'center', alignItems: 'center' }}>
+                <AnimatedCard key={aud.name} style={{ background: '#0C3328', borderRadius: 18, padding: '28px 20px', display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'center', alignItems: 'center' }}>
                   <span style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(109,196,63,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Icon size={24} strokeWidth={1.8} color="#6DC43F" />
                   </span>
                   <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 15, color: '#fff' }}>{aud.name}</div>
                   <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.55)', lineHeight: 1.5 }}>{aud.desc}</div>
-                </div>
+                </AnimatedCard>
               )
             })}
-          </div>
+          </AnimatedSection>
         </section>
       </div>
 
