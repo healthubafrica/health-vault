@@ -23,17 +23,21 @@ export default function HeroSplit({
   rightCards,
 }: HeroSplitProps) {
   return (
-    <div style={{ margin: '16px 16px 24px', borderRadius: 28, overflow: 'hidden' }}>
+    <div className="page-card-first">
       <style>{`
         @media (max-width: 768px) {
           .hero-split-grid { grid-template-columns: 1fr !important; }
           .hero-split-right { min-height: 420px !important; }
+          .hero-split-left { padding: 40px 24px 48px !important; }
+        }
+        @media (max-width: 480px) {
+          .hero-split-left { padding: 32px 16px 40px !important; }
         }
       `}</style>
       <div className="hero-split-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: '88vh' }}>
 
         {/* ── Left panel ─────────────────────────────────── */}
-        <div style={{
+        <div className="hero-split-left" style={{
           background: '#F7FAF7',
           padding: '56px 56px 72px',
           display: 'flex',

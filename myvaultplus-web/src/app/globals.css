@@ -109,3 +109,101 @@ body {
 @media (min-width: 1024px) {
   .mobile-menu-btn { display: none !important; }
 }
+
+/* ── Responsive grid utilities ──────────────────────────── */
+.rg-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.rg-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.rg-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.rg-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+.rg-2-asymm { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; }
+
+/* ── Section layout ─────────────────────────────────────── */
+.section-inner     { max-width: 1280px; margin: 0 auto; padding: 88px 56px; }
+.section-inner-sm  { max-width: 900px;  margin: 0 auto; padding: 88px 56px; }
+.section-inner-lg  { max-width: 1280px; margin: 0 auto; padding: 104px 32px; }
+.hero-content      { max-width: 760px; width: 100%; margin: 0 auto; padding: 120px 32px 0; text-align: center; position: relative; z-index: 1; }
+
+/* ── Page card wrappers (the rounded sections with margin) ─ */
+.page-card       { margin: 0 24px 24px; border-radius: 28px; overflow: hidden; }
+.page-card-first { margin: 16px 16px 24px; border-radius: 28px; overflow: hidden; }
+
+/* ── Tablet ─────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .rg-3 { grid-template-columns: repeat(2, 1fr); }
+  .rg-4 { grid-template-columns: repeat(2, 1fr); }
+  .rg-5 { grid-template-columns: repeat(3, 1fr); }
+  .section-inner, .section-inner-sm, .section-inner-lg { padding: 72px 40px; }
+}
+
+/* ── Mobile ─────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .rg-2, .rg-3, .rg-4, .rg-5, .rg-2-asymm { grid-template-columns: 1fr; }
+  .section-inner, .section-inner-sm, .section-inner-lg { padding: 56px 20px; }
+  .page-card, .page-card-first { margin: 0 12px 16px; border-radius: 20px; }
+  .hero-content { padding: 88px 20px 0; }
+}
+
+@media (max-width: 480px) {
+  .section-inner, .section-inner-sm, .section-inner-lg { padding: 48px 16px; }
+  .page-card, .page-card-first { margin: 0 8px 12px; border-radius: 16px; }
+  .hero-content { padding: 72px 16px 0; }
+}
+
+/* ── About bento grid ───────────────────────────────────── */
+.about-bento {
+  display: grid;
+  grid-template-columns: 1.4fr 1.3fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 16px;
+  min-height: 380px;
+}
+@media (max-width: 1024px) {
+  .about-bento { grid-template-columns: 1fr 1fr; grid-template-rows: auto; min-height: unset; }
+}
+@media (max-width: 768px) {
+  .about-bento { grid-template-columns: 1fr; min-height: unset; }
+}
+
+/* ── Security accordion (JS-driven columns, force collapse on mobile) ── */
+.security-grid {
+  background: #DEDEDE;
+  border-radius: 28px;
+  padding: 16px;
+  gap: 12px;
+  transition: grid-template-columns 0.44s cubic-bezier(0.4,0,0.2,1);
+}
+@media (max-width: 768px) {
+  .security-grid { display: flex !important; flex-direction: column; }
+  .security-card  { height: auto !important; }
+  .security-img   { display: none !important; }
+}
+
+/* ── FinalCTA inner padding ─────────────────────────────── */
+.finalcta-inner { max-width: 1280px; margin: 0 auto; padding: 72px 64px; position: relative; z-index: 1; }
+@media (max-width: 768px) { .finalcta-inner { padding: 56px 24px; } }
+@media (max-width: 480px) { .finalcta-inner { padding: 48px 16px; } }
+
+/* ── Footer inner grid ──────────────────────────────────── */
+.footer-grid { display: grid; grid-template-columns: 1.6fr repeat(4, 1fr); gap: 40px; }
+@media (max-width: 1024px) { .footer-grid { grid-template-columns: 1fr 1fr; gap: 32px; } }
+@media (max-width: 768px)  { .footer-grid { grid-template-columns: 1fr 1fr; gap: 24px; } }
+@media (max-width: 480px)  { .footer-grid { grid-template-columns: 1fr; gap: 20px; } }
+
+/* ── Services top bento grid ────────────────────────────── */
+.services-bento { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 16px; }
+@media (max-width: 1024px) { .services-bento { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 768px)  { .services-bento { grid-template-columns: 1fr; } }
+
+/* ── Blog connected sections ─────────────────────────────── */
+.blog-header { margin: 16px 16px 0; border-radius: 28px 28px 0 0; overflow: hidden; }
+.blog-mid    { margin: 0 16px 0; overflow: hidden; }
+.blog-footer { margin: 0 16px 24px; border-radius: 0 0 28px 28px; overflow: hidden; }
+.blog-featured-inner { max-width: 1280px; margin: 0 auto; padding: 64px 56px; }
+@media (max-width: 1024px) { .blog-featured-inner { padding: 56px 40px; } }
+@media (max-width: 768px)  {
+  .blog-header, .blog-mid, .blog-footer { margin-left: 8px; margin-right: 8px; }
+  .blog-header { border-radius: 20px 20px 0 0; }
+  .blog-footer { border-radius: 0 0 20px 20px; }
+  .blog-featured-inner { padding: 48px 20px; }
+}
+@media (max-width: 480px)  { .blog-featured-inner { padding: 40px 16px; } }

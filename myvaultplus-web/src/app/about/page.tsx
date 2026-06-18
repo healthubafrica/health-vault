@@ -73,8 +73,8 @@ export default function AboutPage() {
       />
 
       {/* Section 1 — Bento */}
-      <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#F7FAF7' }}>
-        <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
+      <div className="page-card" style={{ background: '#F7FAF7' }}>
+        <section className="section-inner">
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 18 }}>— About MyVault+</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
@@ -131,8 +131,8 @@ export default function AboutPage() {
       </div>
 
       {/* Section 2 — Layers */}
-      <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#EBEBEB' }}>
-        <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
+      <div className="page-card" style={{ background: '#EBEBEB' }}>
+        <section className="section-inner">
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 18 }}>— Infrastructure</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
@@ -141,7 +141,7 @@ export default function AboutPage() {
             </h2>
           </div>
           <div style={{ background: '#DEDEDE', borderRadius: 28, padding: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            <div className="rg-3" style={{ gap: 12 }}>
               {layers.map((layer) => (
                 <div key={layer.num} style={{ padding: '40px 36px 36px', background: '#fff', borderRadius: 18 }}>
                   <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontSize: 36, fontWeight: 700, color: '#6DC43F', letterSpacing: '-0.02em', marginBottom: 16 }}>{layer.num}</div>
@@ -155,8 +155,8 @@ export default function AboutPage() {
       </div>
 
       {/* Section 3 — Pillars */}
-      <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#fff' }}>
-        <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
+      <div className="page-card" style={{ background: '#fff' }}>
+        <section className="section-inner">
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 18 }}>— Pillars</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
@@ -164,7 +164,7 @@ export default function AboutPage() {
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>for.</em>
             </h2>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div className="rg-2">
             {pillars.map((pillar) => (
               <div key={pillar.title} style={{ background: '#fff', border: '1px solid rgba(7,37,28,0.09)', borderRadius: 20, padding: 28, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <span style={{ width: 44, height: 44, borderRadius: 12, background: '#EAF7F1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -179,8 +179,8 @@ export default function AboutPage() {
       </div>
 
       {/* Section 4 — Organisation */}
-      <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#07251C' }}>
-        <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
+      <div className="page-card" style={{ background: '#07251C' }}>
+        <section className="section-inner">
           <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 48, alignItems: 'start' }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#6DC43F', marginBottom: 18 }}>— Organisation</div>

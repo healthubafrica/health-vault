@@ -52,23 +52,19 @@ export default function Footer() {
   return (
     /* ── Same card treatment as FinalCTA: margin:24px on all sides, borderRadius:28 ── */
     <footer
+      className="page-card"
       style={{
-        margin: '0 24px 24px',
-        borderRadius: 28,
         background: '#0C0C0C',
-        overflow: 'hidden',
         color: '#fff',
       }}
     >
       {/* ── Main grid ── */}
       <div
+        className="footer-grid"
         style={{
           maxWidth: 1280,
           margin: '0 auto',
           padding: '64px 56px 0',
-          display: 'grid',
-          gridTemplateColumns: '1.8fr 1fr 1fr 1fr 1fr',
-          gap: 40,
           alignItems: 'start',
         }}
       >

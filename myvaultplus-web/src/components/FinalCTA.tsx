@@ -21,11 +21,10 @@ export default function FinalCTA() {
   return (
     <section
       ref={ref}
+      className="page-card"
       style={{
         position: 'relative',
         overflow: 'hidden',
-        margin: '0 24px 24px',
-        borderRadius: 28,
         minHeight: 340,
       }}
     >
@@ -50,15 +49,7 @@ export default function FinalCTA() {
       />
 
       {/* Content */}
-      <div
-        style={{
-          position: 'relative',
-          zIndex: 1,
-          maxWidth: 1280,
-          margin: '0 auto',
-          padding: '72px 64px',
-        }}
-      >
+      <div className="finalcta-inner">
         {/* Trust badge */}
         <motion.div
           {...ani(0)}

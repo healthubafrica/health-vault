@@ -2,7 +2,7 @@
 import { motion, useInView, useReducedMotion } from 'framer-motion'
 import { useRef } from 'react'
 import Link from 'next/link'
-import { EASE_OUT, cardVariant, staggerContainer } from '@/lib/motion'
+import { EASE_OUT, cardVariant, staggerContainer, labelVariant, headingVariant, bodyVariant } from '@/lib/motion'
 
 const plans = [
   {
@@ -67,15 +67,16 @@ export default function Plans() {
 
   return (
     <section style={{ background: '#fff' }}>
-      <div ref={ref} style={{ maxWidth: 1280, margin: '0 auto', padding: '104px 32px' }}>
-        {/* Header */}
+      <div ref={ref} className="section-inner-lg">
+        {/* Header — per-element stagger */}
         <motion.div
           style={{ textAlign: 'center', marginBottom: 60 }}
-          initial={{ opacity: 0, y: 24 }}
-          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
-          transition={{ duration: 0.5, ease: EASE_OUT }}
+          variants={staggerContainer(0.14)}
+          initial={initial}
+          animate={animate}
         >
-          <div
+          <motion.div
+            variants={labelVariant}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -98,8 +99,9 @@ export default function Plans() {
               }}
             />
             Pricing
-          </div>
-          <h2
+          </motion.div>
+          <motion.h2
+            variants={headingVariant}
             style={{
               fontFamily: 'var(--font-manrope), sans-serif',
               fontWeight: 700,
@@ -111,8 +113,9 @@ export default function Plans() {
             }}
           >
             Flexible Plans Built for Every Stage of Growth
-          </h2>
-          <p
+          </motion.h2>
+          <motion.p
+            variants={bodyVariant}
             style={{
               color: '#5A7068',
               fontSize: 15,
@@ -123,50 +126,52 @@ export default function Plans() {
           >
             Whether you&apos;re just starting or managing your full health journey, we offer plans
             that grow with you.
-          </p>
-          <motion.a
-            href="https://portal.myvaultplus.com/register"
-            whileHover={!reduced ? { scale: 1.03, transition: { duration: 0.15 } } : undefined}
-            whileTap={!reduced ? { scale: 0.97 } : undefined}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 10,
-              background: '#07251C',
-              color: '#fff',
-              textDecoration: 'none',
-              fontWeight: 700,
-              fontSize: 12,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              padding: '11px 11px 11px 22px',
-              borderRadius: 100,
-            }}
-          >
-            Get Started
-            <span
+          </motion.p>
+          <motion.div variants={bodyVariant} style={{ display: 'inline-block' }}>
+            <motion.a
+              href="https://portal.myvaultplus.com/register"
+              whileHover={!reduced ? { scale: 1.05, transition: { duration: 0.18 } } : undefined}
+              whileTap={!reduced ? { scale: 0.97 } : undefined}
               style={{
-                width: 28,
-                height: 28,
-                borderRadius: '50%',
-                background: '#6DC43F',
                 display: 'inline-flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
+                gap: 10,
+                background: '#07251C',
+                color: '#fff',
+                textDecoration: 'none',
+                fontWeight: 700,
+                fontSize: 12,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                padding: '11px 11px 11px 22px',
+                borderRadius: 100,
               }}
             >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M5 19L19 5M19 5H9M19 5v10"
-                  stroke="#07251C"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-          </motion.a>
+              Get Started
+              <span
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: '50%',
+                  background: '#6DC43F',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M5 19L19 5M19 5H9M19 5v10"
+                    stroke="#07251C"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+            </motion.a>
+          </motion.div>
         </motion.div>
 
         {/* Plan cards */}
@@ -174,12 +179,8 @@ export default function Plans() {
           variants={staggerContainer(0.08)}
           initial={initial}
           animate={animate}
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 16,
-            alignItems: 'stretch',
-          }}
+          className="rg-3"
+          style={{ alignItems: 'stretch' }}
         >
           {plans.map((plan) => (
             <motion.div

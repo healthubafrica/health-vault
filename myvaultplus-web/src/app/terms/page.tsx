@@ -160,7 +160,7 @@ export default function TermsPage() {
       />
 
       {/* Terms prose */}
-      <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#fff' }}>
+      <div className="page-card" style={{ background: '#fff' }}>
         <section style={{ maxWidth: 820, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 56 }}>
             {sections.map((section) => (

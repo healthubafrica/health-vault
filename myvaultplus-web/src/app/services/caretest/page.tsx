@@ -91,7 +91,7 @@ export default function CareTestPage() {
       <Navbar />
 
       {/* ── Hero ── */}
-      <div style={{ margin: '16px 16px 24px', borderRadius: 28, overflow: 'hidden' }}>
+      <div className="page-card-first">
         <section
           style={{
             position: 'relative',
@@ -121,17 +121,7 @@ export default function CareTestPage() {
             }}
           />
 
-          <div
-            style={{
-              position: 'relative',
-              maxWidth: 760,
-              width: '100%',
-              margin: '0 auto',
-              padding: '120px 32px 0',
-              textAlign: 'center',
-              zIndex: 1,
-            }}
-          >
+          <div className="hero-content">
             <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-manrope), sans-serif' }}>
               <span style={{ display: 'block', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.06 }}>Lab Tests.</span>
               <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#6DC43F', letterSpacing: '-0.02em', lineHeight: 1.1 }}>Booked in Seconds.</span>
@@ -155,8 +145,8 @@ export default function CareTestPage() {
       </div>
 
       {/* ── Features ── */}
-      <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#fff' }}>
-        <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
+      <div className="page-card" style={{ background: '#fff' }}>
+        <section className="section-inner">
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 14 }}>— What You Get</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 14px', maxWidth: 560, color: '#07251C' }}>
@@ -164,7 +154,7 @@ export default function CareTestPage() {
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic' }}>fully digital.</em>
             </h2>
           </div>
-          <AnimatedSection stagger style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+          <AnimatedSection stagger className="rg-3" style={{ gap: 20 }}>
             {features.map((f) => {
               const Icon = f.icon
               return (
@@ -182,8 +172,8 @@ export default function CareTestPage() {
       </div>
 
       {/* ── Popular tests ── */}
-      <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#F7FAF7' }}>
-        <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
+      <div className="page-card" style={{ background: '#F7FAF7' }}>
+        <section className="section-inner">
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 14 }}>— Test Catalogue</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto', maxWidth: 520, color: '#07251C' }}>
@@ -205,8 +195,8 @@ export default function CareTestPage() {
       </div>
 
       {/* ── How it works ── */}
-      <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#07251C' }}>
-        <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
+      <div className="page-card" style={{ background: '#07251C' }}>
+        <section className="section-inner">
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#6DC43F', marginBottom: 14 }}>— How It Works</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto', maxWidth: 520, color: '#fff' }}>
@@ -215,7 +205,7 @@ export default function CareTestPage() {
             </h2>
           </div>
           <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 24, padding: 16 }}>
-            <AnimatedSection stagger style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+            <AnimatedSection stagger className="rg-4" style={{ gap: 12 }}>
               {steps.map((s) => (
                 <AnimatedCard key={s.num} hoverLift={false} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(109,196,63,0.12)', borderRadius: 18, padding: '32px 28px' }}>
                   <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontSize: 34, fontWeight: 700, color: '#6DC43F', letterSpacing: '-0.02em', marginBottom: 14 }}>{s.num}</div>
@@ -229,8 +219,8 @@ export default function CareTestPage() {
       </div>
 
       {/* ── Plans ── */}
-      <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#EBEBEB' }}>
-        <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
+      <div className="page-card" style={{ background: '#EBEBEB' }}>
+        <section className="section-inner">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 56, alignItems: 'center' }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 14 }}>— Pricing</div>

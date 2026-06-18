@@ -350,13 +350,7 @@ export default async function BlogPostPage({ params }: Props) {
           </div>
 
           {/* 3-card grid with image + text overlay */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 16,
-            }}
-          >
+          <div className="rg-3">
             {related.map((rPost) => (
               <Link
                 key={rPost.slug}

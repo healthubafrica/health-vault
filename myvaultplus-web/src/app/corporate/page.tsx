@@ -40,12 +40,12 @@ export default function CorporatePage() {
     <div style={{ width: '100%', overflowX: 'hidden', background: '#F1F4EF' }}>
       <Navbar />
 
-      <div style={{ margin: '16px 16px 24px', borderRadius: 28, overflow: 'hidden' }}>
+      <div className="page-card-first">
         <section style={{ position: 'relative', background: '#041E14', overflow: 'hidden', minHeight: '88vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <Image src="https://images.unsplash.com/photo-1504813184591-01572f98c85f?w=1920&h=1080&fit=crop&q=85" alt="Corporate healthcare" fill priority style={{ objectFit: 'cover', objectPosition: 'center' }} sizes="100vw" />
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, rgba(4,30,20,0.78) 0%, rgba(7,37,28,0.65) 50%, rgba(4,18,12,0.82) 100%)', pointerEvents: 'none' }} />
 
-          <div style={{ position: 'relative', maxWidth: 760, width: '100%', margin: '0 auto', padding: '120px 32px 0', textAlign: 'center', zIndex: 1 }}>
+          <div className="hero-content">
             <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-manrope), sans-serif' }}>
               <span style={{ display: 'block', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.06 }}>Healthcare Benefits</span>
               <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#6DC43F', letterSpacing: '-0.02em', lineHeight: 1.06 }}>That Actually Work.</span>
@@ -70,8 +70,8 @@ export default function CorporatePage() {
       </div>
 
       {/* Section 1 — Features grid */}
-      <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#fff' }}>
-        <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
+      <div className="page-card" style={{ background: '#fff' }}>
+        <section className="section-inner">
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 18 }}>— What&apos;s Included</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
@@ -79,7 +79,7 @@ export default function CorporatePage() {
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>organisation gets.</em>
             </h2>
           </div>
-          <AnimatedSection stagger style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+          <AnimatedSection stagger className="rg-4">
             {features.map((feat) => {
               const Icon = feat.icon
               return (
@@ -97,8 +97,8 @@ export default function CorporatePage() {
       </div>
 
       {/* Section 2 — Who this is for */}
-      <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#07251C' }}>
-        <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
+      <div className="page-card" style={{ background: '#07251C' }}>
+        <section className="section-inner">
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#6DC43F', marginBottom: 18 }}>— Who It&apos;s For</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640, color: '#fff' }}>
@@ -106,7 +106,7 @@ export default function CorporatePage() {
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, color: '#6DC43F' }}>organisations that care.</em>
             </h2>
           </div>
-          <AnimatedSection stagger style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+          <AnimatedSection stagger className="rg-5" style={{ gap: 12 }}>
             {audiences.map((aud) => {
               const Icon = aud.icon
               return (
@@ -124,8 +124,8 @@ export default function CorporatePage() {
       </div>
 
       {/* Section 3 — Why bento */}
-      <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#F7FAF7' }}>
-        <section style={{ maxWidth: 1280, margin: '0 auto', padding: '88px 56px' }}>
+      <div className="page-card" style={{ background: '#F7FAF7' }}>
+        <section className="section-inner">
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 18 }}>— Benefits</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
@@ -181,7 +181,7 @@ export default function CorporatePage() {
       </div>
 
       {/* Section 4 — Enquiry form */}
-      <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#EBEBEB' }}>
+      <div className="page-card" style={{ background: '#EBEBEB' }}>
         <section style={{ maxWidth: 900, margin: '0 auto', padding: '88px 56px' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 18 }}>— Enquire</div>
