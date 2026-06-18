@@ -68,3 +68,7 @@ secret-input.json
 /AWS-ARCHITECTURE.md
 health-hub-africa-api/prepare-deployment.js
 health-hub-africa-api/prepare-task-def.js
+
+# Claude Code internal state
+.claude/
+.playwright-mcp/

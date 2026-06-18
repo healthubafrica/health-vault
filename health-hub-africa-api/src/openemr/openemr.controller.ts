@@ -78,10 +78,10 @@ export class OpenemrController {
       await this.openemrService.exchangeCodeForTokens(code, BACKEND_CALLBACK_URI, state);
       res.status(HttpStatus.OK).send(`<!DOCTYPE html>
 <html lang="en">
-  <head><meta charset="utf-8"><title>OpenEMR Connected – MyHealth Vault+</title></head>
+  <head><meta charset="utf-8"><title>Clinical Platform Connected – MyHealth Vault+</title></head>
   <body style="font-family:sans-serif;text-align:center;padding:60px;background:#f0fdf4">
-    <h1 style="color:#16a34a">&#10003; OpenEMR OAuth2 Setup Complete</h1>
-    <p style="color:#166534">MyHealth Vault+ is now connected to OpenEMR. You can close this tab.</p>
+    <h1 style="color:#16a34a">&#10003; Clinical Platform OAuth2 Setup Complete</h1>
+    <p style="color:#166534">MyHealth Vault+ is now connected to the Clinical Platform. You can close this tab.</p>
   </body>
 </html>`);
     } catch (err: unknown) {

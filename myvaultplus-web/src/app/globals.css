@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --forest: #07251C;
+  --green: #0E8567;
+  --mint: #34E0A0;
+  --mint-dark: #34BC93;
+  --bg-light: #F7FAF7;
+  --dark-deep: #052018;
+  --dark-mid: #0C3328;
+  --text-mid: #27433A;
+  --text-soft: #41584E;
+  --text-muted: #7A8C84;
+  --text-faint: #5b6b63;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+body {
+  background: #fff;
+  color: var(--forest);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: #34E0A0;
+  color: #07251C;
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@keyframes floatY {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-12px); }
+}
+
+@keyframes floatYslow {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-8px); }
+}
+
+@keyframes pulse-ring {
+  0%   { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
+  100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; }
+}
+
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+}
+
+.animate-float {
+  animation: floatY 8s ease-in-out infinite;
+}
+
+.animate-float-slow {
+  animation: floatYslow 9s ease-in-out infinite;
+}
+
+.animate-float-delay-08 {
+  animation: floatY 8s ease-in-out infinite 0.8s;
+}
+
+.animate-float-delay-14 {
+  animation: floatY 8.5s ease-in-out infinite 1.4s;
+}
+
+.animate-float-slow-delay-2 {
+  animation: floatYslow 9s ease-in-out infinite 2s;
+}
+
+.animate-float-slow-delay-1 {
+  animation: floatYslow 9.5s ease-in-out infinite 1s;
+}
+
+.pulse-ring {
+  animation: pulse-ring 2s ease-out infinite;
+}
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-slide-in {
+  animation: fadeSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Mobile nav */
+@media (max-width: 1023px) {
+  .nav-links-desktop { display: none; }
+}
+
+@media (min-width: 1024px) {
+  .mobile-menu-btn { display: none !important; }
+}

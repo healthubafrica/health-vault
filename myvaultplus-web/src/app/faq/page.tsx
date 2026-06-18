@@ -1,0 +1,191 @@
+import Image from 'next/image'
+import Navbar from '@/components/Navbar'
+import FinalCTA from '@/components/FinalCTA'
+import Footer from '@/components/Footer'
+
+const faqGroups = [
+  {
+    group: 'Getting Started',
+    items: [
+      { q: 'What is MyHealth Vault+™?', a: 'MyHealth Vault+™ is your personal digital health portal — a secure, intelligent platform built by Health-Hub Africa® that gives you access to your health records, healthcare bookings, specialist second opinions, and emergency dispatch from one place.' },
+      { q: 'How do I register?', a: 'Visit portal.myvaultplus.com/register, enter your details, verify your phone number or email, and your account is ready in under 3 minutes. You will receive a unique Patient ID (HHA-XXXXXXXX) immediately on registration.' },
+      { q: 'Is it free?', a: 'Yes — every patient gets a free Starter account with core portal access, their unique Patient ID, and limited health record viewing. Paid services such as TeleCare™ and Expert Review™ are available on a pay-per-use basis or via subscription plans.' },
+      { q: 'What is a Patient ID?', a: 'Your Patient ID is a unique identifier (format: HHA-CITY-YEAR-NNNN) assigned to you at registration. It serves as your universal health identifier across all Health-Hub Africa® services and partner facilities.' },
+      { q: 'Which services are available?', a: 'Seven services are available: TeleCare™ (remote consultations), Expert Review™ (specialist second opinions), DispatchCare™ (emergency dispatch), MinuteCare™ (fast-track clinic), CareTest™ (lab bookings), HealthConsult™ (preventive care), and NeuroFlex™ (neurology).' },
+    ],
+  },
+  {
+    group: 'Account & Records',
+    items: [
+      { q: 'How are my records stored?', a: 'Your health records are stored on secure, encrypted servers compliant with Nigeria Data Protection Regulation (NDPR) 2019. All data is encrypted at rest and in transit using industry-standard protocols.' },
+      { q: 'Who can see my records?', a: 'Only you — and clinicians or specialists you explicitly authorise — can access your health records. Health-Hub Africa® staff do not access individual patient records except where required by law or for platform support with your consent.' },
+      { q: 'Can I download my records?', a: 'Yes. You can download your health records, lab results, Expert Review™ reports, and consultation summaries directly from your Vault at any time in PDF or standard formats.' },
+      { q: 'What happens if I lose access?', a: 'Contact our support team via WhatsApp, phone, or email. We will verify your identity and restore access securely. Your data is never deleted unless you explicitly request account closure.' },
+    ],
+  },
+  {
+    group: 'Services',
+    items: [
+      { q: 'How do I book TeleCare™?', a: 'Log in to your Vault, navigate to Services → TeleCare™, choose your date and time, and confirm your booking in 4 steps or fewer. You will receive a confirmation with the video link and reminders.' },
+      { q: 'What is Expert Review™?', a: 'Expert Review™ connects you with a qualified specialist panel to review any diagnosis, treatment plan, lab result, or medical document. Submit your case documents, and receive a comprehensive PDF report within 5–10 business days.' },
+      { q: 'How does DispatchCare™ work?', a: 'Tap the DispatchCare™ button from any screen in the Vault. The system auto-detects your GPS location, generates a case ID, sends an SMS alert, and notifies the HHA operations team who will coordinate emergency response and call you back immediately.' },
+      { q: 'What is NeuroFlex™?', a: 'NeuroFlex™ is a specialist neurology service available within MyHealth Vault+™. It connects patients with qualified neurologists for consultations, second opinions, and follow-up care, integrated with your existing health records.' },
+    ],
+  },
+  {
+    group: 'Plans & Billing',
+    items: [
+      { q: "What's the difference between plans?", a: 'The Starter (Free) plan gives portal access and pay-per-use services. The Growth plan (₦4,900/month) adds TeleCare™ sessions and HealthConsult™. The Enterprise plan (₦9,900/month) adds priority access, 2–4 Expert Reviews/year, and NeuroFlex™. Corporate plans are customised for organisations.' },
+      { q: 'Can I upgrade?', a: 'Yes — you can upgrade or downgrade your plan at any time from your account settings. Upgrades take effect immediately; downgrades take effect at the start of the next billing cycle.' },
+      { q: 'How is billing handled?', a: 'Billing is monthly via card payment, bank transfer, or supported mobile money. All transactions are processed securely. Receipts are emailed and stored in your Vault.' },
+      { q: 'Are there corporate plans?', a: 'Yes — Health-Hub Africa® offers tailored corporate and HMO plans for employers, estates, schools, and government institutions. Visit our Corporate page or email enquiries@myvaultplus.com for details.' },
+    ],
+  },
+  {
+    group: 'Support',
+    items: [
+      { q: 'How do I contact support?', a: 'You can reach us via WhatsApp (+234 XXX XXX XXXX), phone, or email (support@myvaultplus.com). You can also use the contact form on our Contact page. Our team is available 7 days a week.' },
+      { q: 'What is the response time?', a: 'WhatsApp and phone support typically respond within 30 minutes. Email support typically responds within 2 business hours. Complex queries may take longer but will be acknowledged immediately.' },
+    ],
+  },
+]
+
+export default function FAQPage() {
+  return (
+    <div style={{ width: '100%', overflowX: 'hidden', background: '#F1F4EF' }}>
+      <Navbar />
+
+      <div style={{ margin: '16px 16px 24px', borderRadius: 28, overflow: 'hidden' }}>
+        <section style={{ position: 'relative', background: '#041E14', overflow: 'hidden', minHeight: '88vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Image src="https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=1920&h=1080&fit=crop&q=85" alt="FAQ — patient support" fill priority style={{ objectFit: 'cover', objectPosition: 'center' }} sizes="100vw" />
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, rgba(4,30,20,0.78) 0%, rgba(7,37,28,0.65) 50%, rgba(4,18,12,0.82) 100%)', pointerEvents: 'none' }} />
+
+          <div style={{ position: 'relative', maxWidth: 760, width: '100%', margin: '0 auto', padding: '120px 32px 0', textAlign: 'center', zIndex: 1 }}>
+            <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-space-grotesk), sans-serif' }}>
+              <span style={{ display: 'block', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.06 }}>Frequently Asked</span>
+              <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#34E0A0', letterSpacing: '-0.02em', lineHeight: 1.06 }}>Questions.</span>
+            </h1>
+            <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 16, lineHeight: 1.65, maxWidth: 520, margin: '0 auto 32px' }}>
+              Everything you need to know about MyHealth Vault+™ and Health-Hub Africa® services.
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <a href="/contact" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', border: '1.5px solid rgba(255,255,255,0.55)', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '13px 26px', borderRadius: 100 }}>
+                Contact Support
+              </a>
+              <a href="https://portal.myvaultplus.com/register" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: '#34E0A0', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '12px 12px 12px 24px', borderRadius: 100 }}>
+                Get Started
+                <span style={{ width: 30, height: 30, borderRadius: '50%', background: '#07251C', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M19 5H9M19 5v10" stroke="#34E0A0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                </span>
+              </a>
+            </div>
+          </div>
+
+          <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 1100, margin: '52px auto 0', perspective: '1000px', height: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+            {[
+              { rotate: -12, translateY: -12, scale: 0.88, zIndex: 2, offsetX: -10, bg: '#fff', w: 190, inner: (<div style={{ padding: 16 }}><div style={{ fontSize: 9, fontWeight: 700, color: '#0E8567', marginBottom: 10 }}>GETTING STARTED</div>{['What is MyHealth Vault+™?', 'How do I register?', 'Is it free?'].map((q) => (<div key={q} style={{ fontSize: 10, color: '#41584E', marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid #F1F4EF' }}>{q}</div>))}</div>) },
+              { rotate: 0, translateY: 0, scale: 1, zIndex: 5, offsetX: 0, bg: '#07251C', w: 200, inner: (<div style={{ padding: 18 }}><div style={{ fontSize: 9, fontWeight: 700, color: '#34E0A0', marginBottom: 10 }}>FAQS</div><div style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontSize: 44, fontWeight: 700, color: '#fff', letterSpacing: '-0.03em', lineHeight: 1 }}>19</div><div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 6 }}>Across 5 categories</div></div>) },
+              { rotate: 12, translateY: -12, scale: 0.88, zIndex: 2, offsetX: 10, bg: '#fff', w: 180, inner: (<div style={{ padding: 16 }}><div style={{ fontSize: 9, fontWeight: 700, color: '#0E8567', marginBottom: 8 }}>SUPPORT</div><div style={{ fontSize: 12, fontWeight: 600, color: '#07251C', marginBottom: 4 }}>Fast response</div><div style={{ fontSize: 11, color: '#41584E' }}>Under 2 hours · 7 days/week</div></div>) },
+            ].map((card, i) => (
+              <div key={i} style={{ position: 'absolute', bottom: 0, left: '50%', transform: `translateX(calc(-50% + ${(i - 1) * 210 + card.offsetX}px)) translateY(${card.translateY}px) rotate(${card.rotate}deg) scale(${card.scale})`, transformOrigin: 'bottom center', zIndex: card.zIndex, boxShadow: '0 16px 48px rgba(0,0,0,0.14)', borderRadius: 16, overflow: 'hidden', background: card.bg, width: card.w }}>
+                {card.inner}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '28px 32px 52px' }}>
+            <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13.5, margin: 0 }}>
+              Can&apos;t find your answer? Contact our support team directly.
+            </p>
+          </div>
+        </section>
+      </div>
+
+      {/* FAQ accordion */}
+      <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#fff' }}>
+        <section style={{ maxWidth: 860, margin: '0 auto', padding: '80px 48px' }}>
+          <div style={{ textAlign: 'center', marginBottom: 52 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#0E8567', marginBottom: 16 }}>· FAQ</div>
+            <h2 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 700, fontSize: 'clamp(26px, 3vw, 38px)', lineHeight: 1.1, letterSpacing: '-0.025em', margin: '0 auto 14px', maxWidth: 560, color: '#07251C' }}>
+              Frequently asked{' '}
+              <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, color: '#0E8567' }}>questions</em>
+            </h2>
+            <p style={{ color: '#617870', fontSize: 15, lineHeight: 1.6, margin: '0 auto', maxWidth: 460 }}>
+              Everything you need to know about MyHealth Vault+™ in one place.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {faqGroups.map((group) => (
+              <div key={group.group}>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#0E8567', padding: '20px 4px 10px' }}>
+                  {group.group}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {group.items.map((item) => (
+                    <details key={item.q}>
+                      <summary style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 20,
+                        background: '#F2F2F2',
+                        borderRadius: 16,
+                        padding: '18px 18px 18px 24px',
+                        fontFamily: 'var(--font-space-grotesk), sans-serif',
+                        fontWeight: 600,
+                        fontSize: 15.5,
+                        color: '#07251C',
+                        cursor: 'pointer',
+                        listStyle: 'none',
+                      }}>
+                        <span>{item.q}</span>
+                        <span style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: '50%',
+                          background: '#fff',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          fontSize: 22,
+                          fontWeight: 300,
+                          lineHeight: 1,
+                          color: '#07251C',
+                          boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+                        }}>+</span>
+                      </summary>
+                      <div style={{ padding: '14px 24px 18px', borderRadius: '0 0 16px 16px', background: '#F8F8F8', marginTop: -4 }}>
+                        <p style={{ color: '#41584E', fontSize: 14.5, lineHeight: 1.7, margin: 0 }}>{item.a}</p>
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      {/* Still have questions */}
+      <div style={{ margin: '0 24px 24px', borderRadius: 28, overflow: 'hidden', background: '#07251C' }}>
+        <section style={{ maxWidth: 1100, margin: '0 auto', padding: '88px 56px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 32, alignItems: 'center' }}>
+            <div>
+              <h3 style={{ fontFamily: 'var(--font-space-grotesk), sans-serif', fontWeight: 600, fontSize: 26, color: '#fff', margin: '0 0 12px' }}>Still have questions?</h3>
+              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 15, lineHeight: 1.6, margin: 0 }}>Our support team is available 7 days a week — WhatsApp, phone, or email.</p>
+            </div>
+            <div style={{ display: 'flex', gap: 12, flexShrink: 0, flexWrap: 'wrap' }}>
+              <a href="https://wa.me/2341234567890" style={{ display: 'inline-flex', alignItems: 'center', background: '#fff', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '12px 22px', borderRadius: 100 }}>WhatsApp Support</a>
+              <a href="mailto:support@myvaultplus.com" style={{ display: 'inline-flex', alignItems: 'center', background: '#34E0A0', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '12px 22px', borderRadius: 100 }}>Email Support</a>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <FinalCTA />
+      <Footer />
+    </div>
+  )
+}
