@@ -7,6 +7,13 @@ import { FormInput } from '@/components/ui/FormInput'
 import { Button } from '@/components/ui/Button'
 import { ShieldCheck, Eye, EyeOff } from 'lucide-react'
 
+function safeRedirectTarget(raw: string | null): string {
+  if (!raw) return '/overview'
+  // Allow only same-origin relative paths; reject protocol-relative and absolute URLs
+  if (!raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\')) return '/overview'
+  return raw
+}
+
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -17,7 +24,7 @@ function LoginForm() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      router.replace(searchParams.get('from') ?? '/overview')
+      router.replace(safeRedirectTarget(searchParams.get('from')))
     }
   }, [isAuthenticated, router, searchParams])
 
@@ -26,7 +33,7 @@ function LoginForm() {
     clearError()
     try {
       await login(email, password)
-      router.replace(searchParams.get('from') ?? '/overview')
+      router.replace(safeRedirectTarget(searchParams.get('from')))
     } catch {
       // error already set in store
     }

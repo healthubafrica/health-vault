@@ -3,7 +3,6 @@ import { friendlyApiError, friendlyNetworkError, friendlySessionExpired } from '
 const BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000') + '/api/v1'
 
 const ACCESS_COOKIE = 'hha_at'
-const REFRESH_COOKIE = 'hha_rt'
 
 // ── Cookie helpers ────────────────────────────────────────────────────────
 
@@ -13,26 +12,14 @@ function getCookie(name: string): string | null {
   return match ? decodeURIComponent(match[1]) : null
 }
 
-function setCookie(name: string, value: string, maxAgeSeconds: number) {
-  if (typeof document === 'undefined') return
-  const secure = location.protocol === 'https:' ? '; Secure' : ''
-  document.cookie =
-    `${name}=${encodeURIComponent(value)}; Max-Age=${maxAgeSeconds}; Path=/; SameSite=Strict${secure}`
-}
-
 function deleteCookie(name: string) {
   if (typeof document === 'undefined') return
   document.cookie = `${name}=; Max-Age=0; Path=/; SameSite=Strict`
 }
 
-export function saveTokens(access: string, refresh: string) {
-  setCookie(ACCESS_COOKIE, access, 900)
-  setCookie(REFRESH_COOKIE, refresh, 604800)
-}
-
+// Clears the JS-readable access token; hha_rt is HttpOnly and cleared server-side by /api/auth/logout
 export function clearTokens() {
   deleteCookie(ACCESS_COOKIE)
-  deleteCookie(REFRESH_COOKIE)
 }
 
 // ── Core fetch wrapper ────────────────────────────────────────────────────
@@ -101,18 +88,31 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
   return promise
 }
 
-async function attemptTokenRefresh(): Promise<boolean> {
-  const refresh = getCookie(REFRESH_COOKIE)
-  if (!refresh) return false
+// ── BFF route handler helper (same-origin Next.js /api/auth/* routes) ────
+
+async function bffFetch<T>(path: string, body?: Record<string, unknown>): Promise<T> {
+  let res: Response
   try {
-    const res = await fetch(`${BASE}/auth/refresh`, {
+    res = await fetch(path, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-refresh-token': refresh },
+      headers: { 'Content-Type': 'application/json' },
+      ...(body ? { body: JSON.stringify(body) } : {}),
     })
-    if (!res.ok) return false
-    const data = (await res.json()) as { accessToken: string; refreshToken: string }
-    saveTokens(data.accessToken, data.refreshToken)
-    return true
+  } catch {
+    throw new ApiError(0, friendlyNetworkError())
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, friendlyApiError(res.status, (data as { message?: string }).message))
+  }
+  if (res.status === 204) return undefined as T
+  return res.json() as Promise<T>
+}
+
+async function attemptTokenRefresh(): Promise<boolean> {
+  try {
+    const res = await fetch('/api/auth/refresh', { method: 'POST' })
+    return res.ok
   } catch {
     return false
   }
@@ -139,14 +139,11 @@ export interface User {
 
 export const auth = {
   login: (email: string, password: string) =>
-    request<{ accessToken: string; refreshToken: string; expiresIn: number }>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    }),
+    bffFetch<{ accessToken: string }>('/api/auth/login', { email, password }),
 
   me: () => request<{ data: User }>('/auth/me'),
 
-  logout: () => request<void>('/auth/logout', { method: 'POST' }),
+  logout: () => bffFetch<void>('/api/auth/logout'),
 
   forgotPassword: (email: string) =>
     request<{ message: string }>('/auth/forgot-password', {
