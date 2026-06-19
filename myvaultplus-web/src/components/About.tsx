@@ -27,7 +27,7 @@ export default function About() {
         style={{ textAlign: 'center', marginBottom: 56 }}
         initial={{ opacity: 0, y: 24 }}
         animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
-        transition={{ duration: 0.5, ease: EASE_OUT }}
+        transition={{ duration: 0.9, ease: EASE_OUT }}
       >
         <div
           style={{

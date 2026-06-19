@@ -56,7 +56,7 @@ export default function Hero() {
         <motion.h1
           initial={reduced ? false : { opacity: 0, y: 72, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 1.0, ease: EASE_OUT, delay: 0.08 }}
+          transition={{ duration: 1.3, ease: EASE_OUT, delay: 0.08 }}
           style={{
             margin: '0 0 18px',
             lineHeight: 1.06,
