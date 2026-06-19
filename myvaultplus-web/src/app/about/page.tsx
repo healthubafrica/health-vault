@@ -82,7 +82,7 @@ export default function AboutPage() {
               <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>simpler and more accessible.</em>
             </h2>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.3fr 1fr', gridTemplateRows: '1fr 1fr', gap: 16, minHeight: 380 }}>
+          <div className="about-bento">
             <div style={{ gridRow: '1 / 3', background: '#07251C', borderRadius: 24, padding: 32, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#6DC43F', marginBottom: 18 }}>One Portal</div>
