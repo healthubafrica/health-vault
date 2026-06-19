@@ -2,7 +2,7 @@
 import { motion, useInView, useReducedMotion } from 'framer-motion'
 import { useRef } from 'react'
 import Link from 'next/link'
-import { EASE_OUT, cardVariant, staggerContainer, labelVariant, headingVariant, bodyVariant } from '@/lib/motion'
+import { EASE_OUT, zoomOutCard, staggerContainer, labelVariant, headingVariant, bodyVariant } from '@/lib/motion'
 
 const plans = [
   {
@@ -185,7 +185,7 @@ export default function Plans() {
           {plans.map((plan) => (
             <motion.div
               key={plan.badge}
-              variants={cardVariant}
+              variants={zoomOutCard}
               whileHover={!reduced ? { y: -6, transition: { duration: 0.18, ease: EASE_OUT } } : undefined}
               style={{
                 background: plan.highlight ? '#6DC43F' : '#fff',
