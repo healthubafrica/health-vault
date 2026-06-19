@@ -7,6 +7,7 @@ import HowItWorks from '@/components/HowItWorks'
 import Plans from '@/components/Plans'
 import Security from '@/components/Security'
 import Testimonials from '@/components/Testimonials'
+import HomepageBlog from '@/components/HomepageBlog'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
 
@@ -23,6 +24,7 @@ export default function HomePage() {
         <Plans />
         <Security />
         <Testimonials />
+        <HomepageBlog />
         <FinalCTA />
       </main>
       <Footer />

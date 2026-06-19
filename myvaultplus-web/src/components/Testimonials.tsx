@@ -170,8 +170,11 @@ export default function Testimonials() {
         </motion.div>
 
         {/* ── Scrollable card track ── */}
-        <div
+        <motion.div
           ref={trackRef}
+          initial={reduced ? {} : { opacity: 0, x: 80 }}
+          animate={inView ? { opacity: 1, x: 0 } : {}}
+          transition={{ duration: 1.05, ease: EASE_OUT, delay: 0.35 }}
           style={{
             display: 'flex',
             gap: GAP,
@@ -285,7 +288,7 @@ export default function Testimonials() {
               </div>
             </div>
           ))}
-        </div>
+        </motion.div>
       </div>
 
       {/* Hide scrollbar globally for this component */}
