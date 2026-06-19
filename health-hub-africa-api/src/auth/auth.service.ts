@@ -45,14 +45,44 @@ export class AuthService {
   // ── Registration ─────────────────────────────────────────────────────────
 
   async register(dto: RegisterDto, ipAddress?: string) {
+    const phone = dto.phoneNumber ?? dto.phone;
+
     // Check duplicate email
     const existingEmail = await this.prisma.user.findUnique({
       where: { email: dto.email },
+      select: { id: true, email: true, isVerified: true },
     });
-    if (existingEmail) throw new ConflictException('Email already registered');
+
+    if (existingEmail) {
+      if (existingEmail.isVerified) {
+        // Fully registered account — they should log in instead.
+        throw new ConflictException('Email already registered');
+      }
+
+      // Unverified account: the user started registration but never confirmed
+      // their email. Refresh their credentials and resend the OTP so they can
+      // complete the flow without having to contact support.
+      const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+      await this.prisma.$transaction([
+        this.prisma.user.update({
+          where: { id: existingEmail.id },
+          data: {
+            passwordHash,
+            ...(phone ? { phone } : {}),
+          },
+        }),
+        // Invalidate any outstanding OTP tokens so only the new one is valid.
+        this.prisma.verificationToken.updateMany({
+          where: { userId: existingEmail.id, usedAt: null },
+          data: { usedAt: new Date() },
+        }),
+      ]);
+
+      await this.sendEmailOtp(existingEmail.email, existingEmail.id, 'email');
+      return { message: 'Registration successful. Check your email for OTP.' };
+    }
 
     // Check duplicate phone (phone has a unique index)
-    const phone = dto.phoneNumber ?? dto.phone;
     if (phone) {
       const existingPhone = await this.prisma.user.findUnique({
         where: { phone },
