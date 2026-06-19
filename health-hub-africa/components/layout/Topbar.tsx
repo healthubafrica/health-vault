@@ -1,11 +1,12 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
-import { Bell, PanelRightOpen, Search } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import { Bell, PanelRightOpen, Search, LogOut } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
 import { Avatar } from '@/components/ui/Avatar'
 import { patients, subscriptions } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
+import { useAuthStore } from '@/lib/stores/authStore'
 
 const BREADCRUMBS: Record<string, string[]> = {
   '/dashboard': ['MyHealth Vault+™', 'Dashboard'],
@@ -26,6 +27,13 @@ export function Topbar() {
   const crumbs = BREADCRUMBS[pathname] ?? ['MyHealth Vault+™']
   const { data: profileRes } = useApi(() => patients.getMyProfile())
   const { data: subRes } = useApi(() => subscriptions.getMy())
+  const logout = useAuthStore((s) => s.logout)
+  const router = useRouter()
+
+  const handleLogout = async () => {
+    await logout()
+    router.push('/')
+  }
 
   const profile = profileRes?.data
   const displayName = profile ? `${profile.firstName} ${profile.lastName}` : 'User'
@@ -103,6 +111,15 @@ export function Topbar() {
           className="flex lg:hidden items-center justify-center w-9 h-9 rounded-full bg-[var(--color-bg)] text-gray-500 hover:text-gray-800 transition-colors"
         >
           <PanelRightOpen size={15} />
+        </button>
+
+        {/* Sign Out — mobile only (sidebar handles desktop) */}
+        <button
+          aria-label="Sign out"
+          onClick={handleLogout}
+          className="flex md:hidden items-center justify-center w-9 h-9 rounded-full bg-[var(--color-bg)] text-gray-500 hover:text-red-500 transition-colors"
+        >
+          <LogOut size={15} />
         </button>
       </div>
     </header>

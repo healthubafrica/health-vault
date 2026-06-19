@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { motion } from 'framer-motion'
 import {
@@ -22,8 +22,10 @@ import {
   Siren,
   ChevronLeft,
   ChevronRight,
+  LogOut,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/lib/stores/authStore'
 
 const NAV_ITEMS = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
@@ -43,6 +45,13 @@ export function Sidebar() {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(true) // Collapsed by default
+  const logout = useAuthStore((s) => s.logout)
+  const router = useRouter()
+
+  const handleLogout = async () => {
+    await logout()
+    router.push('/')
+  }
 
   // Avoid hydration mismatch
   useEffect(() => {
@@ -187,6 +196,25 @@ export function Sidebar() {
           {isCollapsed && (
             <span className="pointer-events-none absolute left-full ml-3 px-2 py-1 rounded-md bg-gray-900 text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
               {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+            </span>
+          )}
+        </button>
+
+        {/* Sign Out Button */}
+        <button
+          onClick={handleLogout}
+          aria-label="Sign out"
+          title={isCollapsed ? "Sign Out" : undefined}
+          className={cn(
+            "group relative flex items-center rounded-2xl text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-900/20 transition-all duration-150 cursor-pointer",
+            isCollapsed ? "justify-center w-11 h-11" : "justify-start gap-3 w-full h-11 px-3.5"
+          )}
+        >
+          <LogOut size={18} strokeWidth={1.8} />
+          {!isCollapsed && <span className="text-xs font-bold">Sign Out</span>}
+          {isCollapsed && (
+            <span className="pointer-events-none absolute left-full ml-3 px-2 py-1 rounded-md bg-gray-900 text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
+              Sign Out
             </span>
           )}
         </button>
