@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { auth, saveTokens, clearTokens, type User } from '@/lib/api'
+import { auth, clearTokens, type User } from '@/lib/api'
 
 interface AuthState {
   user: User | null
@@ -27,8 +27,7 @@ export const useAuthStore = create<AuthState>()(
       login: async (email, password) => {
         set({ isLoading: true, error: null })
         try {
-          const res = await auth.login(email, password)
-          saveTokens(res.accessToken, res.refreshToken)
+          await auth.login(email, password)
           const meRes = await auth.me()
           const user = meRes.data
           const adminRoles = ['super_admin', 'admin', 'coordinator']
@@ -61,9 +60,8 @@ export const useAuthStore = create<AuthState>()(
         try {
           await auth.logout()
         } catch {
-          // clear locally regardless
+          clearTokens()
         }
-        clearTokens()
         set({ user: null, isAuthenticated: false })
       },
 
