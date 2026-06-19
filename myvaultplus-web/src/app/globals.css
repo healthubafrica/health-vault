@@ -157,11 +157,40 @@ body {
   gap: 16px;
   min-height: 380px;
 }
+/* Tablet: 2-col, reset any inline grid-row spans */
 @media (max-width: 1024px) {
-  .about-bento { grid-template-columns: 1fr 1fr; grid-template-rows: auto; min-height: unset; }
+  .about-bento {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto;
+    min-height: unset;
+  }
+  .about-bento > * { grid-row: auto !important; }
+  /* keep dark+image cards full-width at tablet */
+  .about-bento > *:nth-child(1),
+  .about-bento > *:nth-child(2) { grid-column: 1 / -1; }
 }
+/* Mobile: 2-col so stat cards sit side-by-side, content cards span both */
 @media (max-width: 768px) {
-  .about-bento { grid-template-columns: 1fr; min-height: unset; }
+  .about-bento {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto;
+    min-height: unset;
+  }
+  .about-bento > * { grid-row: auto !important; }
+  .about-bento > *:nth-child(1) { grid-column: 1 / -1; }
+  .about-bento > *:nth-child(2) { grid-column: 1 / -1; min-height: 300px; }
+  .about-bento > *:nth-child(3),
+  .about-bento > *:nth-child(4) { min-height: 130px; }
+}
+/* Very small: all stacked */
+@media (max-width: 480px) {
+  .about-bento {
+    grid-template-columns: 1fr;
+  }
+  .about-bento > *:nth-child(1),
+  .about-bento > *:nth-child(2),
+  .about-bento > *:nth-child(3),
+  .about-bento > *:nth-child(4) { grid-column: auto; }
 }
 
 /* ── Security accordion (JS-driven columns, force collapse on mobile) ── */
