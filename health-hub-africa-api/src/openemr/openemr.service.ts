@@ -52,6 +52,41 @@ export class OpenemrService implements OnModuleInit {
       { patientId: '', operation: 'sync_labs' },
       { repeat: { cron: '*/15 * * * *' }, removeOnComplete: 10 },
     );
+
+    // Recovery: re-enqueue any patients whose OpenEMR sync never completed.
+    // This covers Bull jobs that were lost (Redis flush, deployment gap) or
+    // failed all retry attempts. The processor safely deduplicates by searching
+    // OpenEMR via HHA identifier before creating a new record.
+    await this.recoverUnsyncedPatients();
+  }
+
+  private async recoverUnsyncedPatients(): Promise<void> {
+    try {
+      const unsynced = await this.prisma.patient.findMany({
+        where: { openemrPatientUuid: null },
+        select: { id: true },
+        take: 200,
+      });
+
+      if (unsynced.length === 0) return;
+
+      this.logger.warn(`Startup recovery: re-enqueueing ${unsynced.length} patient(s) with no OpenEMR UUID`);
+
+      for (let i = 0; i < unsynced.length; i++) {
+        await this.syncQueue.add(
+          'sync-patient',
+          { patientId: unsynced[i].id, operation: 'create_patient' },
+          {
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 5000 },
+            delay: i * 500, // stagger by 500 ms each to avoid hammering OpenEMR
+          },
+        );
+      }
+    } catch (err) {
+      // Non-fatal — log and continue startup
+      this.logger.error(`Startup patient recovery failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   // ── Enqueue Sync Jobs ──────────────────────────────────────────────────────
