@@ -15,7 +15,7 @@ export default function FinalCTA() {
       : {
           initial: { opacity: 0, y: 20 },
           animate: inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 },
-          transition: { duration: 0.5, ease: EASE_OUT, delay },
+          transition: { duration: 0.9, ease: EASE_OUT, delay },
         }
 
   return (

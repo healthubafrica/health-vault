@@ -343,7 +343,7 @@ export default function Plans() {
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
-          transition={{ duration: 0.5, ease: EASE_OUT, delay: 0.35 }}
+          transition={{ duration: 0.9, ease: EASE_OUT, delay: 0.35 }}
           style={{
             marginTop: 20,
             background: '#F7FAF7',
