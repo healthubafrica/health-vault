@@ -29,39 +29,39 @@ export const slideRight = {
 
 // Per-element section-header variants — used inside a staggerContainer parent
 export const labelVariant = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: EASE_OUT } },
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.9, ease: EASE_OUT } },
 }
 export const headingVariant = {
-  hidden: { opacity: 0, y: 48 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.85, ease: EASE_OUT } },
+  hidden: { opacity: 0, y: 56 },
+  visible: { opacity: 1, y: 0, transition: { duration: 1.1, ease: EASE_OUT } },
 }
 export const bodyVariant = {
-  hidden: { opacity: 0, y: 30 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: EASE_OUT } },
+  hidden: { opacity: 0, y: 36 },
+  visible: { opacity: 1, y: 0, transition: { duration: 1.0, ease: EASE_OUT } },
 }
 
 // Stagger container — propagates staggerChildren to child motion elements
-export const staggerContainer = (stagger = 0.1) => ({
+export const staggerContainer = (stagger = 0.15) => ({
   hidden: {},
-  visible: { transition: { staggerChildren: stagger, delayChildren: 0.05 } },
+  visible: { transition: { staggerChildren: stagger, delayChildren: 0.1 } },
 })
 
 // Card child variant — scale + lift on entrance
 export const cardVariant = {
-  hidden: { opacity: 0, y: 56, scale: 0.94 },
+  hidden: { opacity: 0, y: 64, scale: 0.94 },
   visible: {
     opacity: 1,
     y: 0,
     scale: 1,
-    transition: { duration: 0.75, ease: EASE_OUT },
+    transition: { duration: 1.0, ease: EASE_OUT },
   },
 }
 
 // Transition presets
 export const transition = {
-  slow: { duration: 0.85, ease: EASE_OUT },
-  normal: { duration: 0.65, ease: EASE_OUT },
-  fast: { duration: 0.2, ease: EASE_OUT },
-  spring: { type: 'spring' as const, stiffness: 220, damping: 22 },
+  slow: { duration: 1.1, ease: EASE_OUT },
+  normal: { duration: 0.85, ease: EASE_OUT },
+  fast: { duration: 0.25, ease: EASE_OUT },
+  spring: { type: 'spring' as const, stiffness: 180, damping: 22 },
 }
