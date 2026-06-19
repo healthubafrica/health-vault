@@ -16,7 +16,6 @@ export default function Hero() {
         minHeight: '92vh',
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center',
       }}
     >
       {/* Full-bleed background photo */}
@@ -40,16 +39,25 @@ export default function Hero() {
         }}
       />
 
-      {/* ── Hero text block ── */}
+      {/* ── Hero text block — flex:1 centers it in the space above the marquee ── */}
       <div
         style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '100%',
           position: 'relative',
+          zIndex: 1,
+          paddingTop: 'clamp(72px,10vw,112px)',
+        }}
+      >
+      <div
+        style={{
           maxWidth: 760,
           width: '100%',
-          margin: '0 auto',
-          padding: 'clamp(100px,15vw,180px) clamp(16px,4vw,32px) 0',
+          padding: '0 clamp(16px,4vw,32px)',
           textAlign: 'center',
-          zIndex: 1,
         }}
       >
         {/* Headline */}
@@ -188,6 +196,7 @@ export default function Hero() {
           </a>
         </motion.div>
       </div>
+      </div>
 
       {/* ── Marquee dashboard cards ── */}
       <motion.div
@@ -198,7 +207,6 @@ export default function Hero() {
           position: 'relative',
           zIndex: 1,
           width: '100%',
-          marginTop: 120,
           overflow: 'hidden',
         }}
       >
