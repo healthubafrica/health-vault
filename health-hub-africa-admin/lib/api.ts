@@ -266,7 +266,7 @@ export interface ImportProviderResult {
   imported: number
   skipped: number
   total: number
-  providers: Array<{ email: string; firstName: string; lastName: string; tempPassword?: string; status: 'imported' | 'skipped' }>
+  providers: Array<{ email: string; firstName: string; lastName: string; tempPassword?: string; status: 'imported' | 'skipped'; reason?: string }>
 }
 
 // ── Admin: Clinical Queue ─────────────────────────────────────────────────

@@ -878,45 +878,52 @@ export class AdminService {
     const practitioners = await this.openemrService.fetchPractitioners();
     let imported = 0;
     let skipped = 0;
-    const results: Array<{ email: string; tempPassword?: string; firstName: string; lastName: string; status: 'imported' | 'skipped' }> = [];
+    const results: Array<{
+      email: string;
+      tempPassword?: string;
+      firstName: string;
+      lastName: string;
+      status: 'imported' | 'skipped';
+      reason?: string;
+    }> = [];
 
     for (const p of practitioners) {
-      const existing = await this.prisma.provider.findUnique({
+      const email = p.email ?? `provider.${p.openemrId.slice(0, 8)}@hha.internal`;
+
+      // Skip if already linked to an OpenEMR practitioner
+      const existingByOemr = await this.prisma.provider.findUnique({
         where: { openemrProviderUuid: p.openemrId },
       });
-      if (existing) {
+      if (existingByOemr) {
         skipped++;
-        results.push({ email: p.email ?? '', firstName: p.firstName, lastName: p.lastName, status: 'skipped' });
+        results.push({ email, firstName: p.firstName, lastName: p.lastName, status: 'skipped', reason: 'already_linked' });
         continue;
       }
 
-      const tempPassword = `HHA${randomBytes(4).toString('hex').toUpperCase()}!`;
+      // Reject silently binding an existing HHA account — surface the conflict
+      // to the admin instead. An existing account may belong to a patient or
+      // coordinator who shares the same email address; auto-linking would grant
+      // them provider access without any explicit consent or verification step.
+      const existingUser = await this.prisma.user.findUnique({ where: { email } });
+      if (existingUser) {
+        skipped++;
+        results.push({ email, firstName: p.firstName, lastName: p.lastName, status: 'skipped', reason: 'email_conflict' });
+        continue;
+      }
+
+      // Use 18 bytes of CSPRNG output (~144 bits of entropy)
+      const tempPassword = randomBytes(18).toString('base64url');
       const passwordHash = await bcrypt.hash(tempPassword, 10);
-      const email = p.email ?? `provider.${p.openemrId.slice(0, 8)}@hha.internal`;
 
       try {
         await this.prisma.$transaction(async (tx) => {
-          const existingUser = await tx.user.findUnique({ where: { email } });
-
-          let userId: string;
-          if (existingUser) {
-            const existingProvider = await tx.provider.findUnique({ where: { userId: existingUser.id } });
-            if (existingProvider) {
-              skipped++;
-              results.push({ email, firstName: p.firstName, lastName: p.lastName, status: 'skipped' });
-              return;
-            }
-            userId = existingUser.id;
-          } else {
-            const user = await tx.user.create({
-              data: { email, passwordHash, role: UserRole.provider, isVerified: true },
-            });
-            userId = user.id;
-          }
+          const user = await tx.user.create({
+            data: { email, passwordHash, role: UserRole.provider, isVerified: true },
+          });
 
           await tx.provider.create({
             data: {
-              userId,
+              userId: user.id,
               firstName: p.firstName,
               lastName: p.lastName,
               title: p.title,
@@ -930,7 +937,7 @@ export class AdminService {
         });
       } catch {
         skipped++;
-        results.push({ email, firstName: p.firstName, lastName: p.lastName, status: 'skipped' });
+        results.push({ email, firstName: p.firstName, lastName: p.lastName, status: 'skipped', reason: 'db_error' });
       }
     }
 
