@@ -269,6 +269,31 @@ export interface ImportProviderResult {
   providers: Array<{ email: string; firstName: string; lastName: string; tempPassword?: string; status: 'imported' | 'skipped'; reason?: string }>
 }
 
+// ── Provider: TeleCare Sessions ──────────────────────────────────────────
+
+export type ProviderSessionStatus = 'scheduled' | 'active' | 'in_progress' | 'completed' | 'cancelled' | 'missed'
+
+export interface ProviderSession {
+  id: string
+  hhaRef: string
+  status: ProviderSessionStatus
+  scheduledAt: string
+  startedAt?: string | null
+  endedAt?: string | null
+  durationSeconds?: number | null
+  meetingUrl?: string | null
+  recordingUrl?: string | null
+  patient?: { firstName: string; lastName: string } | null
+  provider?: { firstName: string; lastName: string; title: string } | null
+  notes?: unknown
+}
+
+export interface LiveKitJoinInfo {
+  token: string
+  serverUrl: string
+  roomName: string
+}
+
 // ── Admin: Clinical Queue ─────────────────────────────────────────────────
 
 export interface ClinicalQueueItem {
@@ -383,6 +408,19 @@ export const adminApi = {
   openemr: {
     recoverAll: () =>
       request<{ enqueued: number }>('/openemr/recover-all', { method: 'POST' }),
+  },
+
+  // Provider-scoped (uses /telecare endpoints, not /admin — scoped by JWT)
+  providerTelecare: {
+    sessions: () =>
+      request<{ data: ProviderSession[] }>('/telecare/sessions'),
+    joinToken: (sessionId: string) =>
+      request<LiveKitJoinInfo>(`/telecare/sessions/${sessionId}/token`, { method: 'POST' }),
+    updateStatus: (sessionId: string, status: string, extra?: { startedAt?: string; endedAt?: string }) =>
+      request<void>(`/telecare/sessions/${sessionId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status, ...extra }),
+      }),
   },
 
   subscriptions: {
