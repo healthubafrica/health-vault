@@ -232,7 +232,8 @@ export interface AuditLog {
 
 export interface AdminPatient {
   id: string; hhaPatientId: string; firstName: string; lastName: string
-  email: string; phone?: string; openemrSyncStatus: string
+  email: string; phone?: string
+  openemrSyncStatus: string; openemrPatientUuid?: string | null
   subscriptionPlan?: string; subscriptionStatus?: string; createdAt: string
 }
 
