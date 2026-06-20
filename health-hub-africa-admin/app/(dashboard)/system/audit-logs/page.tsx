@@ -33,7 +33,7 @@ export default function AuditLogsPage() {
   const filtered = search
     ? logs.filter(
         (l) =>
-          l.userEmail.includes(search) ||
+          (l.userEmail ?? '').includes(search) ||
           l.action.includes(search) ||
           l.resource.includes(search),
       )
