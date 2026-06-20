@@ -30,7 +30,7 @@ export const useAuthStore = create<AuthState>()(
           await auth.login(email, password)
           const meRes = await auth.me()
           const user = meRes.data
-          const adminRoles = ['super_admin', 'admin', 'coordinator']
+          const adminRoles = ['super_admin', 'admin', 'coordinator', 'provider']
           if (!adminRoles.includes(user.role)) {
             clearTokens()
             set({ isLoading: false, error: "You don't have permission to access the admin panel." })

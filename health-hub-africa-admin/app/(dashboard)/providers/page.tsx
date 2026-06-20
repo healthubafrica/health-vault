@@ -1,19 +1,23 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { adminApi, type AdminProvider } from '@/lib/api'
+import { adminApi, type AdminProvider, type ImportProviderResult } from '@/lib/api'
 import { Card } from '@/components/ui/Card'
 import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
 import { SkeletonCard } from '@/components/ui/Skeleton'
 import { FormInput } from '@/components/ui/FormInput'
-import { RefreshCw, Search, Star, Users } from 'lucide-react'
+import { RefreshCw, Search, Star, Users, Download, X, Copy } from 'lucide-react'
+import { useAuthStore } from '@/lib/stores/authStore'
 
 function getInitials(first: string, last: string): string {
   return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase()
 }
 
 export default function ProvidersPage() {
+  const { user: authUser } = useAuthStore()
+  const isSuperAdmin = authUser?.role === 'super_admin'
+
   const [providers, setProviders] = useState<AdminProvider[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -21,6 +25,9 @@ export default function ProvidersPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [toggling, setToggling] = useState<string | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<ImportProviderResult | null>(null)
+  const [importError, setImportError] = useState<string | null>(null)
   const limit = 20
 
   const load = useCallback(async () => {
@@ -62,6 +69,21 @@ export default function ProvidersPage() {
     }
   }, [])
 
+  const handleImport = useCallback(async () => {
+    setImporting(true)
+    setImportError(null)
+    setImportResult(null)
+    try {
+      const res = await adminApi.providers.importFromOpenemr()
+      setImportResult(res)
+      if (res.imported > 0) setTimeout(load, 1500)
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Import failed')
+    } finally {
+      setImporting(false)
+    }
+  }, [load])
+
   const totalPages = Math.ceil(total / limit)
 
   return (
@@ -75,10 +97,18 @@ export default function ProvidersPage() {
             {total.toLocaleString()} healthcare providers
           </p>
         </div>
-        <Button variant="secondary" size="sm" onClick={load}>
-          <RefreshCw className="w-3.5 h-3.5" />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          {isSuperAdmin && (
+            <Button variant="primary" size="sm" loading={importing} onClick={handleImport}>
+              <Download className="w-3.5 h-3.5" />
+              Import from OpenEMR
+            </Button>
+          )}
+          <Button variant="secondary" size="sm" onClick={load}>
+            <RefreshCw className="w-3.5 h-3.5" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -87,6 +117,69 @@ export default function ProvidersPage() {
           style={{ background: 'var(--color-error-bg)', color: 'var(--color-emergency)' }}
         >
           {error}
+        </div>
+      )}
+
+      {importError && (
+        <div
+          className="mb-4 px-4 py-3 rounded-xl text-sm"
+          style={{ background: 'var(--color-error-bg)', color: 'var(--color-emergency)' }}
+        >
+          Import failed: {importError}
+        </div>
+      )}
+
+      {importResult && (
+        <div
+          className="mb-5 rounded-2xl border overflow-hidden"
+          style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface)' }}
+        >
+          <div className="flex items-center justify-between px-5 py-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
+            <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+              Import complete — {importResult.imported} imported, {importResult.skipped} skipped of {importResult.total} practitioners
+            </p>
+            <button onClick={() => setImportResult(null)} className="opacity-50 hover:opacity-100 transition-opacity">
+              <X className="w-4 h-4" style={{ color: 'var(--color-text)' }} />
+            </button>
+          </div>
+          {importResult.providers.filter((p) => p.status === 'imported').length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b" style={{ borderColor: 'var(--color-border)' }}>
+                    {['Name', 'Email', 'Temp Password', ''].map((h) => (
+                      <th key={h} className="text-left px-4 py-2 font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {importResult.providers.filter((p) => p.status === 'imported').map((p, i) => (
+                    <tr key={i} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                      <td className="px-4 py-2.5" style={{ color: 'var(--color-text)' }}>{p.firstName} {p.lastName}</td>
+                      <td className="px-4 py-2.5 font-mono" style={{ color: 'var(--color-text-muted)' }}>{p.email}</td>
+                      <td className="px-4 py-2.5 font-mono" style={{ color: 'var(--color-text)' }}>{p.tempPassword ?? '—'}</td>
+                      <td className="px-4 py-2.5">
+                        {p.tempPassword && (
+                          <button
+                            onClick={() => navigator.clipboard.writeText(`Email: ${p.email}\nPassword: ${p.tempPassword}`)}
+                            className="opacity-50 hover:opacity-100 transition-opacity"
+                            title="Copy credentials"
+                          >
+                            <Copy className="w-3.5 h-3.5" style={{ color: 'var(--color-text-muted)' }} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="px-5 py-2.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            Share the temp password with each provider. They can change it after first login.
+          </p>
         </div>
       )}
 
