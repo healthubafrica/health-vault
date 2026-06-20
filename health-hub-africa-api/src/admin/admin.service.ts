@@ -97,6 +97,8 @@ export class AdminService {
             hhaPatientId: true,
             firstName: true,
             lastName: true,
+            openemrSyncStatus: true,
+            openemrPatientUuid: true,
             subscriptions: {
               orderBy: { startedAt: 'desc' },
               take: 1,
@@ -153,7 +155,8 @@ export class AdminService {
               hhaPatientId: patient.hhaPatientId,
               firstName: patient.firstName,
               lastName: patient.lastName,
-              openemrSyncStatus: 'unknown',
+              openemrSyncStatus: patient.openemrSyncStatus,
+              openemrPatientUuid: patient.openemrPatientUuid ?? null,
             }
           : undefined,
       },

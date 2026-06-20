@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { FormInput } from '@/components/ui/FormInput'
 import { formatDate } from '@/lib/utils'
-import { RefreshCw, Search } from 'lucide-react'
+import { RefreshCw, Search, RotateCcw } from 'lucide-react'
 
 function syncStatusVariant(status: string): 'success' | 'warning' | 'emergency' | 'neutral' {
   if (status === 'synced') return 'success'
@@ -29,6 +29,8 @@ export default function PatientsPage() {
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [syncing, setSyncing] = useState(false)
+  const [syncBanner, setSyncBanner] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const limit = 20
 
   const load = useCallback(async () => {
@@ -46,6 +48,25 @@ export default function PatientsPage() {
       setLoading(false)
     }
   }, [page, search])
+
+  const triggerSync = useCallback(async () => {
+    setSyncing(true)
+    setSyncBanner(null)
+    try {
+      const res = await adminApi.openemr.recoverAll()
+      setSyncBanner({
+        type: 'success',
+        msg: res.enqueued === 0
+          ? 'All patients are already synced to OpenEMR.'
+          : `${res.enqueued} patient${res.enqueued !== 1 ? 's' : ''} queued for sync. Refresh in a moment to see progress.`,
+      })
+      if (res.enqueued > 0) setTimeout(load, 4000)
+    } catch (err) {
+      setSyncBanner({ type: 'error', msg: err instanceof Error ? err.message : 'Sync trigger failed' })
+    } finally {
+      setSyncing(false)
+    }
+  }, [load])
 
   useEffect(() => {
     const t = setTimeout(load, search ? 350 : 0)
@@ -65,11 +86,29 @@ export default function PatientsPage() {
             {total.toLocaleString()} total patients
           </p>
         </div>
-        <Button variant="secondary" size="sm" onClick={load}>
-          <RefreshCw className="w-3.5 h-3.5" />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="sm" loading={syncing} onClick={triggerSync}>
+            <RotateCcw className="w-3.5 h-3.5" />
+            Sync Unsynced
+          </Button>
+          <Button variant="secondary" size="sm" onClick={load}>
+            <RefreshCw className="w-3.5 h-3.5" />
+            Refresh
+          </Button>
+        </div>
       </div>
+
+      {syncBanner && (
+        <div
+          className="mb-4 px-4 py-3 rounded-xl text-sm"
+          style={{
+            background: syncBanner.type === 'success' ? 'var(--color-success-bg, #f0fdf4)' : 'var(--color-error-bg)',
+            color: syncBanner.type === 'success' ? '#166534' : 'var(--color-emergency)',
+          }}
+        >
+          {syncBanner.msg}
+        </div>
+      )}
 
       {error && (
         <div

@@ -181,6 +181,7 @@ export interface AdminUser {
     firstName: string
     lastName: string
     openemrSyncStatus: string
+    openemrPatientUuid?: string | null
   }
 }
 
@@ -370,6 +371,11 @@ export const adminApi = {
       const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : ''
       return request<{ data: AdminPatient[]; meta: { total: number; page: number; limit: number } }>(`/admin/patients${qs}`)
     },
+  },
+
+  openemr: {
+    recoverAll: () =>
+      request<{ enqueued: number }>('/openemr/recover-all', { method: 'POST' }),
   },
 
   subscriptions: {
