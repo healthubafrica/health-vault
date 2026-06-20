@@ -158,6 +158,44 @@ export class OpenemrService implements OnModuleInit {
     this.logger.log(`Enqueued OpenEMR sync for provider ${providerId}`);
   }
 
+  async fetchPractitioners(): Promise<Array<{
+    openemrId: string;
+    firstName: string;
+    lastName: string;
+    title: string;
+    email: string | null;
+    specialty: string;
+  }>> {
+    const token = await this.getAccessToken();
+    const response = await this.callOpenemr(token, 'GET', '/fhir/Practitioner?_count=200');
+
+    const entries = (response.entry as Record<string, unknown>[] | undefined) ?? [];
+
+    return entries.flatMap((entry) => {
+      const resource = (entry.resource ?? {}) as Record<string, unknown>;
+      const id = resource.id as string | undefined;
+      if (!id) return [];
+
+      const nameArr = (resource.name as Record<string, unknown>[] | undefined) ?? [];
+      const name = (nameArr[0] ?? {}) as Record<string, unknown>;
+      const given = (name.given as string[] | undefined) ?? [];
+      const prefix = (name.prefix as string[] | undefined) ?? [];
+      const telecom = (resource.telecom as Array<{ system: string; value: string }> | undefined) ?? [];
+      const qualifications = (resource.qualification as Array<{ code?: { text?: string } }> | undefined) ?? [];
+
+      const email = telecom.find((t) => t.system === 'email')?.value ?? null;
+
+      return [{
+        openemrId: id,
+        firstName: given[0] ?? 'Unknown',
+        lastName: (name.family as string | undefined) ?? 'Unknown',
+        title: prefix[0] ?? 'Dr.',
+        email,
+        specialty: qualifications[0]?.code?.text ?? 'General Practice',
+      }];
+    });
+  }
+
   async enqueueLabOrderSync(patientId: string, labOrderId: string) {
     await this.syncQueue.add(
       'sync-labs',

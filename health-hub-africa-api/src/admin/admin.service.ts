@@ -9,6 +9,8 @@ import { DispatchStatus, UserRole } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import Redis from 'ioredis';
+import * as bcrypt from 'bcryptjs';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import {
@@ -16,7 +18,7 @@ import {
   UpdateUserStatusDto,
   CreateFacilityDto,
 } from './dto/admin.dto';
-import { OPENEMR_SYNC_QUEUE, SyncJobData } from '../openemr/openemr.service';
+import { OPENEMR_SYNC_QUEUE, OpenemrService, SyncJobData } from '../openemr/openemr.service';
 
 export const ADMIN_REDIS = Symbol('ADMIN_REDIS');
 
@@ -37,6 +39,7 @@ export class AdminService {
     private readonly prisma: PrismaService,
     @InjectQueue(OPENEMR_SYNC_QUEUE) private readonly openemrQueue: Queue<SyncJobData>,
     @Inject(ADMIN_REDIS) private readonly redis: Redis,
+    private readonly openemrService: OpenemrService,
   ) {}
 
   // ── Users ─────────────────────────────────────────────────────────────────
@@ -869,6 +872,69 @@ export class AdminService {
     }));
 
     return { data, meta: { total, page, limit } };
+  }
+
+  async importProvidersFromOpenemr() {
+    const practitioners = await this.openemrService.fetchPractitioners();
+    let imported = 0;
+    let skipped = 0;
+    const results: Array<{ email: string; tempPassword?: string; firstName: string; lastName: string; status: 'imported' | 'skipped' }> = [];
+
+    for (const p of practitioners) {
+      const existing = await this.prisma.provider.findUnique({
+        where: { openemrProviderUuid: p.openemrId },
+      });
+      if (existing) {
+        skipped++;
+        results.push({ email: p.email ?? '', firstName: p.firstName, lastName: p.lastName, status: 'skipped' });
+        continue;
+      }
+
+      const tempPassword = `HHA${randomBytes(4).toString('hex').toUpperCase()}!`;
+      const passwordHash = await bcrypt.hash(tempPassword, 10);
+      const email = p.email ?? `provider.${p.openemrId.slice(0, 8)}@hha.internal`;
+
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          const existingUser = await tx.user.findUnique({ where: { email } });
+
+          let userId: string;
+          if (existingUser) {
+            const existingProvider = await tx.provider.findUnique({ where: { userId: existingUser.id } });
+            if (existingProvider) {
+              skipped++;
+              results.push({ email, firstName: p.firstName, lastName: p.lastName, status: 'skipped' });
+              return;
+            }
+            userId = existingUser.id;
+          } else {
+            const user = await tx.user.create({
+              data: { email, passwordHash, role: UserRole.provider, isVerified: true },
+            });
+            userId = user.id;
+          }
+
+          await tx.provider.create({
+            data: {
+              userId,
+              firstName: p.firstName,
+              lastName: p.lastName,
+              title: p.title,
+              specialty: p.specialty,
+              openemrProviderUuid: p.openemrId,
+            },
+          });
+
+          imported++;
+          results.push({ email, tempPassword, firstName: p.firstName, lastName: p.lastName, status: 'imported' });
+        });
+      } catch {
+        skipped++;
+        results.push({ email, firstName: p.firstName, lastName: p.lastName, status: 'skipped' });
+      }
+    }
+
+    return { imported, skipped, total: practitioners.length, providers: results };
   }
 
   async toggleProviderAvailability(id: string, available: boolean) {

@@ -262,6 +262,13 @@ export interface AdminProvider {
   totalPatients: number; rating?: string; licenseNumber?: string; createdAt: string
 }
 
+export interface ImportProviderResult {
+  imported: number
+  skipped: number
+  total: number
+  providers: Array<{ email: string; firstName: string; lastName: string; tempPassword?: string; status: 'imported' | 'skipped' }>
+}
+
 // ── Admin: Clinical Queue ─────────────────────────────────────────────────
 
 export interface ClinicalQueueItem {
@@ -400,6 +407,8 @@ export const adminApi = {
     },
     toggleAvailability: (id: string, available: boolean) =>
       request<void>(`/admin/providers/${id}/availability`, { method: 'PATCH', body: JSON.stringify({ available }) }),
+    importFromOpenemr: () =>
+      request<ImportProviderResult>('/admin/providers/import-from-openemr', { method: 'POST' }),
   },
 
   clinicalQueue: {
