@@ -524,6 +524,13 @@ export class OpenemrProcessor {
     this.logger.log(`Provider ${providerId} synced → OpenEMR Practitioner: ${openemrUuid}`);
   }
 
+  // ── Scheduled Recovery ───────────────────────────────────────────────────
+
+  @Process({ name: 'recover-unsynced' })
+  async handleRecoverUnsynced() {
+    await this.openemrService.recoverUnsyncedPatients();
+  }
+
   // ── Retry ────────────────────────────────────────────────────────────────
 
   @Process({ name: 'retry' })

@@ -26,6 +26,18 @@ export class OpenemrController {
     return this.openemrService.retryFailed(id);
   }
 
+  @Post('recover-all')
+  @Roles(UserRole.super_admin)
+  @ApiOperation({
+    summary: 'Re-enqueue all patients with no OpenEMR UUID (super_admin only)',
+    description:
+      'Triggers immediate recovery for every patient whose sync never completed. ' +
+      'Safe to call multiple times — the processor deduplicates against OpenEMR via HHA identifier.',
+  })
+  recoverAll() {
+    return this.openemrService.recoverUnsyncedPatients();
+  }
+
   // ── One-time OAuth2 Setup ──────────────────────────────────────────────────
 
   @Get('auth/init')
