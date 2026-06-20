@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { DispatchStatus, UserRole } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { PrismaService } from '../prisma/prisma.service';
@@ -207,21 +207,40 @@ export class AdminService {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
+    const safe = <T>(promise: Promise<T>, fallback: T): Promise<T> =>
+      promise.catch(() => fallback);
+
+    const ACTIVE_DISPATCH_STATUSES: DispatchStatus[] = [
+      DispatchStatus.requested,
+      DispatchStatus.triaged,
+      DispatchStatus.unit_assigned,
+      DispatchStatus.en_route,
+      DispatchStatus.on_scene,
+    ];
+
     const [kpi, totalUsers, newUsersToday, appointmentsToday, activeDispatch, openemrSyncErrors] =
       await Promise.all([
-        this.prisma.operationalKpi.findFirst({ orderBy: { snapshotAt: 'desc' } }),
+        safe(this.prisma.operationalKpi.findFirst({ orderBy: { snapshotAt: 'desc' } }), null),
         this.prisma.user.count({ where: { isActive: true } }),
         this.prisma.user.count({ where: { createdAt: { gte: todayStart } } }),
-        this.prisma.appointment.count({
-          where: {
-            scheduledAt: {
-              gte: todayStart,
-              lt: new Date(todayStart.getTime() + 86_400_000),
+        safe(
+          this.prisma.appointment.count({
+            where: {
+              scheduledAt: {
+                gte: todayStart,
+                lt: new Date(todayStart.getTime() + 86_400_000),
+              },
             },
-          },
-        }),
-        this.prisma.dispatchRequest.count({ where: { status: { in: ['requested', 'assigned'] as any } } }),
-        this.prisma.integrationError.count({ where: { resolvedAt: null } }),
+          }),
+          0,
+        ),
+        safe(
+          this.prisma.dispatchRequest.count({
+            where: { status: { in: ACTIVE_DISPATCH_STATUSES } },
+          }),
+          0,
+        ),
+        safe(this.prisma.integrationError.count({ where: { resolvedAt: null } }), 0),
       ]);
 
     return {
@@ -242,10 +261,9 @@ export class AdminService {
 
   async getAnalyticsRevenue(period = '30d') {
     const since = this.periodToDate(period);
-    const records = await this.prisma.revenueSummary.findMany({
-      where: { reportDate: { gte: since } },
-      orderBy: { reportDate: 'asc' },
-    });
+    const records = await this.prisma.revenueSummary
+      .findMany({ where: { reportDate: { gte: since } }, orderBy: { reportDate: 'asc' } })
+      .catch(() => []);
 
     return {
       data: records.map((r) => ({
@@ -258,10 +276,9 @@ export class AdminService {
 
   async getAnalyticsUsage(period = '30d') {
     const since = this.periodToDate(period);
-    const records = await this.prisma.serviceUsageDaily.findMany({
-      where: { reportDate: { gte: since } },
-      orderBy: { reportDate: 'asc' },
-    });
+    const records = await this.prisma.serviceUsageDaily
+      .findMany({ where: { reportDate: { gte: since } }, orderBy: { reportDate: 'asc' } })
+      .catch(() => []);
 
     // Pivot: one row per date, each service type becomes a column
     const byDate = new Map<string, { appointments: number; telecare: number; dispatch: number; labOrders: number; expertReviews: number }>();
