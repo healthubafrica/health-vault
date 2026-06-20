@@ -40,24 +40,29 @@ async function main() {
   }
   console.log(`✓ ${stridePhases.length} STRIDE phases seeded`);
 
-  // ── Super admin user (development only) ───────────────────────────────────
+  // ── Admin users (development only) ───────────────────────────────────────
   if (process.env.NODE_ENV !== 'production') {
-    const adminEmail = 'admin@healthhubafrica.com';
-    const existing = await prisma.user.findUnique({ where: { email: adminEmail } });
+    const devAdmins = [
+      { email: 'admin@healthhubafrica.com', password: 'Admin@123!', role: UserRole.super_admin },
+      { email: 'healthubafrica@gmail.com', password: 'Admin@123!', role: UserRole.admin },
+    ];
 
-    if (!existing) {
-      const passwordHash = await bcrypt.hash('Admin@123!', 12);
-      await prisma.user.create({
-        data: {
-          email: adminEmail,
-          passwordHash,
-          role: UserRole.super_admin,
-          isVerified: true,
-        },
-      });
-      console.log(`✓ Super admin created: ${adminEmail} / Admin@123!`);
-    } else {
-      console.log(`✓ Super admin already exists: ${adminEmail}`);
+    for (const admin of devAdmins) {
+      const existing = await prisma.user.findUnique({ where: { email: admin.email } });
+      if (!existing) {
+        const passwordHash = await bcrypt.hash(admin.password, 12);
+        await prisma.user.create({
+          data: { email: admin.email, passwordHash, role: admin.role, isVerified: true },
+        });
+        console.log(`✓ Admin created: ${admin.email} / ${admin.password}`);
+      } else {
+        // Ensure existing accounts are verified and have the correct role
+        await prisma.user.update({
+          where: { email: admin.email },
+          data: { isVerified: true, isActive: true, role: admin.role },
+        });
+        console.log(`✓ Admin updated: ${admin.email}`);
+      }
     }
   }
 

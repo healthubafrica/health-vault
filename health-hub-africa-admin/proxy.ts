@@ -3,7 +3,14 @@ import type { NextRequest } from 'next/server'
 
 const ACCESS_COOKIE = 'hha_at'
 
-const PUBLIC_PATHS = ['/login', '/_next', '/favicon.ico']
+const PUBLIC_PATHS = [
+  '/login',
+  '/_next',
+  '/favicon.ico',
+  '/api/auth/login',
+  '/api/auth/logout',
+  '/api/auth/refresh',
+]
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl

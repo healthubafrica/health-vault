@@ -30,6 +30,7 @@ async function bootstrap() {
   const config = app.get(ConfigService);
   const port = config.get<number>('PORT', 4000);
   const frontendUrl = config.get<string>('FRONTEND_URL', 'http://localhost:3000');
+  const adminUrl = config.get<string>('ADMIN_URL', 'http://localhost:3001');
   const isProd = config.get('NODE_ENV') === 'production';
 
   // ── Security headers ────────────────────────────────────────────────────
@@ -67,10 +68,13 @@ async function bootstrap() {
     }
   };
 
-  const prodOrigins = buildCorsOrigins(frontendUrl);
+  const prodOrigins = [
+    ...buildCorsOrigins(frontendUrl),
+    ...buildCorsOrigins(adminUrl),
+  ];
 
   app.enableCors({
-    origin: isProd ? prodOrigins : [...prodOrigins, 'http://localhost:3000'],
+    origin: isProd ? prodOrigins : [...prodOrigins, 'http://localhost:3000', 'http://localhost:3001'],
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-refresh-token'],
