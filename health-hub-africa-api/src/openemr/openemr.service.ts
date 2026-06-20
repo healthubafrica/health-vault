@@ -52,24 +52,35 @@ export class OpenemrService implements OnModuleInit {
   async onModuleInit() {
     await this.loadRefreshTokenFromRedis();
 
+    // Clear and re-register all scheduled jobs so cron expressions stay consistent
+    // across deployments without accumulating duplicate repeatables.
     const repeatables = await this.syncQueue.getRepeatableJobs();
-    for (const r of repeatables.filter(j => j.name === 'pull-lab-results')) {
+    for (const r of repeatables.filter(j =>
+      j.name === 'pull-lab-results' || j.name === 'recover-unsynced',
+    )) {
       await this.syncQueue.removeRepeatableByKey(r.key);
     }
+
     await this.syncQueue.add(
       'pull-lab-results',
       { patientId: '', operation: 'sync_labs' },
       { repeat: { cron: '*/15 * * * *' }, removeOnComplete: 10 },
     );
 
-    // Recovery: re-enqueue any patients whose OpenEMR sync never completed.
-    // This covers Bull jobs that were lost (Redis flush, deployment gap) or
-    // failed all retry attempts. The processor safely deduplicates by searching
-    // OpenEMR via HHA identifier before creating a new record.
+    // Scheduled recovery: every 30 minutes re-enqueue any patient whose sync
+    // never completed (no openemrPatientUuid). This handles patients who joined
+    // while OpenEMR was offline or whose Bull jobs exhausted retries.
+    await this.syncQueue.add(
+      'recover-unsynced',
+      { patientId: '', operation: 'create_patient' },
+      { repeat: { cron: '*/30 * * * *' }, removeOnComplete: 5 },
+    );
+
+    // One-time startup pass — catches patients missed before this deploy.
     await this.recoverUnsyncedPatients();
   }
 
-  private async recoverUnsyncedPatients(): Promise<void> {
+  async recoverUnsyncedPatients(): Promise<{ enqueued: number }> {
     try {
       const unsynced = await this.prisma.patient.findMany({
         where: { openemrPatientUuid: null },
@@ -77,24 +88,29 @@ export class OpenemrService implements OnModuleInit {
         take: 200,
       });
 
-      if (unsynced.length === 0) return;
+      if (unsynced.length === 0) {
+        this.logger.log('Recovery: all patients are synced to OpenEMR');
+        return { enqueued: 0 };
+      }
 
-      this.logger.warn(`Startup recovery: re-enqueueing ${unsynced.length} patient(s) with no OpenEMR UUID`);
+      this.logger.warn(`Recovery: re-enqueueing ${unsynced.length} patient(s) with no OpenEMR UUID`);
 
       for (let i = 0; i < unsynced.length; i++) {
         await this.syncQueue.add(
           'sync-patient',
           { patientId: unsynced[i].id, operation: 'create_patient' },
           {
-            attempts: 3,
+            attempts: 5,
             backoff: { type: 'exponential', delay: 5000 },
-            delay: i * 500, // stagger by 500 ms each to avoid hammering OpenEMR
+            delay: i * 500,
           },
         );
       }
+
+      return { enqueued: unsynced.length };
     } catch (err) {
-      // Non-fatal — log and continue startup
-      this.logger.error(`Startup patient recovery failed: ${err instanceof Error ? err.message : String(err)}`);
+      this.logger.error(`Recovery failed: ${err instanceof Error ? err.message : String(err)}`);
+      return { enqueued: 0 };
     }
   }
 
