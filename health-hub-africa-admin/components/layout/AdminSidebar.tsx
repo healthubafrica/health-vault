@@ -22,6 +22,13 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldCheck,
+  UserCircle,
+  CreditCard,
+  DollarSign,
+  Stethoscope,
+  Flag,
+  Bell,
+  Activity,
 } from 'lucide-react'
 
 interface NavItem {
@@ -38,16 +45,23 @@ const NAV: NavItem[] = [
   { label: 'Users', href: '/users', icon: Users, roles: ['admin', 'super_admin'], group: 'Management' },
   { label: 'Analytics', href: '/analytics', icon: BarChart3, roles: ['admin', 'super_admin'], group: 'Management' },
   { label: 'Facilities', href: '/facilities', icon: Building2, roles: ['admin', 'super_admin'], group: 'Management' },
+  { label: 'Patients', href: '/patients', icon: UserCircle, roles: ['admin', 'super_admin'], group: 'Management' },
+  { label: 'Providers', href: '/providers', icon: Stethoscope, roles: ['admin', 'super_admin'], group: 'Management' },
+  { label: 'Subscriptions', href: '/subscriptions', icon: CreditCard, roles: ['admin', 'super_admin'], group: 'Management' },
+  { label: 'Payments', href: '/payments', icon: DollarSign, roles: ['admin', 'super_admin'], group: 'Management' },
 
   { label: 'Appointments', href: '/operations/appointments', icon: CalendarCheck, roles: ['admin', 'super_admin'], group: 'Operations' },
   { label: 'TeleCare', href: '/operations/telecare', icon: Video, roles: ['admin', 'super_admin'], group: 'Operations' },
   { label: 'Expert Review', href: '/operations/expert-review', icon: FileSearch, group: 'Operations' },
   { label: 'Dispatch', href: '/operations/dispatch', icon: Ambulance, roles: ['admin', 'super_admin'], group: 'Operations' },
   { label: 'Lab Orders', href: '/operations/labs', icon: FlaskConical, roles: ['admin', 'super_admin'], group: 'Operations' },
+  { label: 'Clinical Queue', href: '/clinical-queue', icon: Activity, roles: ['admin', 'super_admin'], group: 'Operations' },
 
   { label: 'OpenEMR Sync', href: '/system/sync', icon: RefreshCw, roles: ['admin', 'super_admin'], group: 'System' },
   { label: 'Errors', href: '/system/errors', icon: AlertCircle, roles: ['admin', 'super_admin'], group: 'System' },
   { label: 'Audit Logs', href: '/system/audit-logs', icon: ScrollText, roles: ['super_admin'], group: 'System' },
+  { label: 'Feature Flags', href: '/feature-flags', icon: Flag, roles: ['super_admin'], group: 'System' },
+  { label: 'Notifications', href: '/notifications', icon: Bell, roles: ['admin', 'super_admin'], group: 'System' },
 
   { label: 'Support', href: '/support', icon: HeadphonesIcon, group: 'Other' },
 ]

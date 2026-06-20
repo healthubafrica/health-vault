@@ -228,6 +228,68 @@ export interface AuditLog {
   meta?: Record<string, unknown>
 }
 
+// ── Admin: Patients ───────────────────────────────────────────────────────
+
+export interface AdminPatient {
+  id: string; hhaPatientId: string; firstName: string; lastName: string
+  email: string; phone?: string; openemrSyncStatus: string
+  subscriptionPlan?: string; subscriptionStatus?: string; createdAt: string
+}
+
+// ── Admin: Subscriptions ──────────────────────────────────────────────────
+
+export interface AdminSubscription {
+  id: string; patientId: string; patientName: string; hhaPatientId: string
+  planName: string; tier: string; status: string; startedAt: string
+  expiresAt: string; autoRenew: boolean; cancelledAt?: string
+}
+
+// ── Admin: Payments ───────────────────────────────────────────────────────
+
+export interface AdminPayment {
+  id: string; hhaRef: string; patientId: string; patientName: string
+  amountKobo: number; currency: string; status: string; gateway: string
+  description: string; paidAt?: string; createdAt: string
+}
+
+// ── Admin: Providers ──────────────────────────────────────────────────────
+
+export interface AdminProvider {
+  id: string; userId: string; firstName: string; lastName: string
+  title: string; specialty: string; email: string; isAvailable: boolean
+  totalPatients: number; rating?: string; licenseNumber?: string; createdAt: string
+}
+
+// ── Admin: Clinical Queue ─────────────────────────────────────────────────
+
+export interface ClinicalQueueItem {
+  id: string; type: 'teleconsult' | 'expert_review'; patientName: string
+  providerName?: string; status: string; createdAt: string; waitMinutes: number
+}
+
+// ── Admin: Feature Flags ──────────────────────────────────────────────────
+
+export interface FeatureFlag {
+  key: string; label: string; description: string; enabled: boolean
+}
+
+// ── Admin: Notifications ──────────────────────────────────────────────────
+
+export interface NotificationDelivery {
+  id: string; channel: string; recipient: string; subject?: string
+  status: string; sentAt?: string; failedAt?: string; failureReason?: string; createdAt: string
+}
+
+// ── Admin: Audit Log Detail ───────────────────────────────────────────────
+
+export interface AuditLogDetail {
+  id: string; userId?: string; userEmail: string; userRole?: string
+  action: string; resource: string; resourceId?: string; severity: string
+  metadata?: unknown; ipAddress?: string; userAgent?: string
+  patient?: { id: string; name: string; hhaPatientId: string }
+  createdAt: string
+}
+
 // ── Admin: Facility ───────────────────────────────────────────────────────
 
 export interface Facility {
@@ -282,6 +344,7 @@ export const adminApi = {
         : ''
       return request<{ data: AuditLog[]; meta: { total: number } }>(`/admin/audit-logs${qs}`)
     },
+    get: (id: string) => request<{ data: AuditLogDetail }>(`/admin/audit-logs/${id}`),
   },
 
   facilities: {
@@ -299,6 +362,55 @@ export const adminApi = {
       }),
     delete: (id: string) =>
       request<void>(`/admin/facilities/${id}`, { method: 'DELETE' }),
+  },
+
+  patients: {
+    list: (params?: { search?: string; page?: number; limit?: number }) => {
+      const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : ''
+      return request<{ data: AdminPatient[]; meta: { total: number; page: number; limit: number } }>(`/admin/patients${qs}`)
+    },
+  },
+
+  subscriptions: {
+    list: (params?: { status?: string; page?: number; limit?: number }) => {
+      const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : ''
+      return request<{ data: AdminSubscription[]; meta: { total: number } }>(`/admin/subscriptions${qs}`)
+    },
+    cancel: (id: string) => request<void>(`/admin/subscriptions/${id}/cancel`, { method: 'PATCH' }),
+  },
+
+  payments: {
+    list: (params?: { status?: string; search?: string; page?: number; limit?: number }) => {
+      const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : ''
+      return request<{ data: AdminPayment[]; meta: { total: number } }>(`/admin/payments${qs}`)
+    },
+  },
+
+  providers: {
+    list: (params?: { search?: string; page?: number; limit?: number }) => {
+      const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : ''
+      return request<{ data: AdminProvider[]; meta: { total: number } }>(`/admin/providers${qs}`)
+    },
+    toggleAvailability: (id: string, available: boolean) =>
+      request<void>(`/admin/providers/${id}/availability`, { method: 'PATCH', body: JSON.stringify({ available }) }),
+  },
+
+  clinicalQueue: {
+    get: () => request<{ teleconsults: ClinicalQueueItem[]; expertReviews: ClinicalQueueItem[]; total: number }>('/admin/clinical-queue'),
+  },
+
+  featureFlags: {
+    list: () => request<{ data: FeatureFlag[] }>('/admin/feature-flags'),
+    set: (key: string, enabled: boolean) =>
+      request<{ data: FeatureFlag[] }>(`/admin/feature-flags/${key}`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
+  },
+
+  notifications: {
+    list: (params?: { channel?: string; status?: string; page?: number; limit?: number }) => {
+      const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : ''
+      return request<{ data: NotificationDelivery[]; meta: { total: number } }>(`/admin/notifications${qs}`)
+    },
+    resend: (id: string) => request<{ message: string }>(`/admin/notifications/${id}/resend`, { method: 'POST' }),
   },
 
   system: {
