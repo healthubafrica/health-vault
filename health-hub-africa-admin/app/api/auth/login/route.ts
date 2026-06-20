@@ -12,11 +12,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: 'email and password are required' }, { status: 400 })
   }
 
-  const upstream = await fetch(`${BACKEND}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: body.email, password: body.password }),
-  })
+  let upstream: Response
+  try {
+    upstream = await fetch(`${BACKEND}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: body.email, password: body.password }),
+    })
+  } catch {
+    return NextResponse.json({ message: 'API unavailable — check that the backend is running' }, { status: 503 })
+  }
 
   const data = await upstream.json().catch(() => ({}))
 

@@ -40,9 +40,15 @@ export class AdminController {
     );
   }
 
+  @Get('users/:id')
+  @ApiOperation({ summary: 'Get a single user with full profile' })
+  getUser(@Param('id') id: string) {
+    return this.adminService.getUser(id);
+  }
+
   @Patch('users/:id/role')
   @Roles(UserRole.super_admin)
-  @ApiOperation({ summary: 'Change a user\'s role (super_admin only)' })
+  @ApiOperation({ summary: "Change a user's role (super_admin only)" })
   updateUserRole(
     @Param('id') id: string,
     @Body() dto: UpdateUserRoleDto,
@@ -72,6 +78,148 @@ export class AdminController {
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 50,
       userId,
+    );
+  }
+
+  // ── Analytics ─────────────────────────────────────────────────────────────
+
+  @Get('analytics/summary')
+  @ApiOperation({ summary: 'Get operational KPI summary' })
+  getAnalyticsSummary() {
+    return this.adminService.getAnalyticsSummary();
+  }
+
+  @Get('analytics/revenue')
+  @ApiOperation({ summary: 'Get revenue data for a period (e.g. ?period=30d)' })
+  getAnalyticsRevenue(@Query('period') period?: string) {
+    return this.adminService.getAnalyticsRevenue(period);
+  }
+
+  @Get('analytics/usage')
+  @ApiOperation({ summary: 'Get service usage data for a period' })
+  getAnalyticsUsage(@Query('period') period?: string) {
+    return this.adminService.getAnalyticsUsage(period);
+  }
+
+  // ── System ────────────────────────────────────────────────────────────────
+
+  @Get('system/health')
+  @ApiOperation({ summary: 'Check system and integration health' })
+  getSystemHealth() {
+    return this.adminService.getSystemHealth();
+  }
+
+  @Get('system/sync-queue')
+  @ApiOperation({ summary: 'List OpenEMR sync queue items' })
+  getSyncQueue(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.adminService.getSyncQueue(
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+      status,
+    );
+  }
+
+  @Get('system/errors')
+  @ApiOperation({ summary: 'List integration errors' })
+  getIntegrationErrors(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('resolved') resolved?: string,
+  ) {
+    return this.adminService.getIntegrationErrors(
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+      resolved !== undefined ? resolved === 'true' : undefined,
+    );
+  }
+
+  @Post('system/errors/:id/retry')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Increment retry count on an integration error' })
+  retryIntegrationError(@Param('id') id: string) {
+    return this.adminService.retryIntegrationError(id);
+  }
+
+  @Post('system/sync-queue/:id/retry')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Re-enqueue a failed OpenEMR sync queue item' })
+  retrySyncQueueItem(@Param('id') id: string) {
+    return this.adminService.retrySyncQueueItem(id);
+  }
+
+  // ── Operations ────────────────────────────────────────────────────────────
+
+  @Get('operations/appointments')
+  @ApiOperation({ summary: 'List appointments' })
+  listAppointments(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.adminService.listAppointments(
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+      status,
+    );
+  }
+
+  @Get('operations/telecare')
+  @ApiOperation({ summary: 'List telecare sessions' })
+  listTelecareSessions(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.adminService.listTelecareSessions(
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+      status,
+    );
+  }
+
+  @Get('operations/dispatch')
+  @ApiOperation({ summary: 'List emergency dispatch requests' })
+  listDispatchRequests(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.adminService.listDispatchRequests(
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+      status,
+    );
+  }
+
+  @Get('operations/labs')
+  @ApiOperation({ summary: 'List lab orders' })
+  listLabOrders(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.adminService.listLabOrders(
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+      status,
+    );
+  }
+
+  @Get('operations/expert-review')
+  @ApiOperation({ summary: 'List expert review cases' })
+  listExpertReviewCases(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.adminService.listExpertReviewCases(
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+      status,
     );
   }
 

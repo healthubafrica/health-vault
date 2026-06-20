@@ -303,6 +303,8 @@ export const adminApi = {
 
   system: {
     syncQueue: () => request<{ data: unknown[] }>('/admin/system/sync-queue'),
+    retrySyncItem: (id: string) =>
+      request<{ message: string }>(`/admin/system/sync-queue/${id}/retry`, { method: 'POST' }),
     errors: () => request<{ data: unknown[] }>('/admin/system/errors'),
     retryError: (id: string) =>
       request<{ message: string }>(`/admin/system/errors/${id}/retry`, { method: 'POST' }),

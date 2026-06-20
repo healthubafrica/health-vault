@@ -30,6 +30,10 @@ class EnvironmentVariables {
   @IsUrl({ require_tld: false })
   FRONTEND_URL: string;
 
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  ADMIN_URL?: string;
+
   @IsString()
   @IsNotEmpty()
   DATABASE_URL: string;
