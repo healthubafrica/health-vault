@@ -177,6 +177,15 @@ export default function ProvidersPage() {
               </table>
             </div>
           )}
+          {importResult.providers.filter((p) => p.reason === 'email_conflict').length > 0 && (
+            <div className="px-5 py-3 border-t text-xs" style={{ borderColor: 'var(--color-border)', color: 'var(--color-emergency)' }}>
+              <strong>Email conflicts (manual action needed):</strong>{' '}
+              {importResult.providers.filter((p) => p.reason === 'email_conflict').map((p) => p.email).join(', ')}
+              <span className="block mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                These OpenEMR practitioners share an email with an existing HHA account. Resolve manually in Users before re-importing.
+              </span>
+            </div>
+          )}
           <p className="px-5 py-2.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>
             Share the temp password with each provider. They can change it after first login.
           </p>
