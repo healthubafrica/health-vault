@@ -302,6 +302,14 @@ export class AdminController {
     );
   }
 
+  @Post('providers/import-from-openemr')
+  @Roles(UserRole.super_admin)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Import providers from OpenEMR Practitioner resources (super_admin only)' })
+  importProvidersFromOpenemr() {
+    return this.adminService.importProvidersFromOpenemr();
+  }
+
   @Patch('providers/:id/availability')
   @ApiOperation({ summary: "Toggle a provider's availability" })
   toggleProviderAvailability(

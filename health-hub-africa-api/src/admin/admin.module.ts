@@ -4,10 +4,11 @@ import { ConfigService } from '@nestjs/config';
 import { AdminService, ADMIN_REDIS } from './admin.service';
 import { AdminController } from './admin.controller';
 import { OPENEMR_SYNC_QUEUE } from '../openemr/openemr.service';
+import { OpenemrModule } from '../openemr/openemr.module';
 import { createRedisClient } from '../common/redis/redis.factory';
 
 @Module({
-  imports: [BullModule.registerQueue({ name: OPENEMR_SYNC_QUEUE })],
+  imports: [BullModule.registerQueue({ name: OPENEMR_SYNC_QUEUE }), OpenemrModule],
   providers: [
     {
       provide: ADMIN_REDIS,
