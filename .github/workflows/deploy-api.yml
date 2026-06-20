@@ -6,6 +6,7 @@ on:
     paths:
       - 'health-hub-africa-api/**'
       - '.github/workflows/deploy-api.yml'
+  workflow_dispatch:
 
 env:
   AWS_REGION:      af-south-1
