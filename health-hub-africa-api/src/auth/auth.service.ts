@@ -465,11 +465,6 @@ export class AuthService {
     ipAddress?: string,
     userAgent?: string,
   ) {
-    const accessToken = this.jwt.sign(payload, {
-      secret: this.config.getOrThrow('JWT_SECRET'),
-      expiresIn: this.config.get<number>('JWT_EXPIRY', 900),
-    });
-
     const refreshPayload = { sub: payload.sub, email: payload.email };
     const refreshToken = this.jwt.sign(refreshPayload, {
       secret: this.config.getOrThrow('JWT_REFRESH_SECRET'),
@@ -481,7 +476,9 @@ export class AuthService {
         (this.config.get<number>('JWT_REFRESH_EXPIRY', 604800) * 1000),
     );
 
-    await this.prisma.userSession.create({
+    // Create the session first so we can embed its ID in the access token,
+    // which allows the logout endpoint to revoke the exact session.
+    const session = await this.prisma.userSession.create({
       data: {
         userId: payload.sub,
         refreshToken,
@@ -490,6 +487,14 @@ export class AuthService {
         expiresAt,
       },
     });
+
+    const accessToken = this.jwt.sign(
+      { ...payload, sessionId: session.id },
+      {
+        secret: this.config.getOrThrow('JWT_SECRET'),
+        expiresIn: this.config.get<number>('JWT_EXPIRY', 900),
+      },
+    );
 
     return {
       accessToken,

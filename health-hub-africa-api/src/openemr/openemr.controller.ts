@@ -4,7 +4,6 @@ import { UserRole } from '@prisma/client';
 import { Response } from 'express';
 import { OpenemrService } from './openemr.service';
 import { Public, Roles } from '../common/decorators/roles.decorator';
-import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 
 const BACKEND_CALLBACK_URI = 'https://api.myvaultplus.com/api/v1/openemr/auth/callback';
 
@@ -17,8 +16,8 @@ export class OpenemrController {
 
   @Get('queue')
   @ApiOperation({ summary: 'View pending/failed sync queue items (admin only)' })
-  findQueueItems(@CurrentUser() user: JwtPayload) {
-    return this.openemrService.findQueueItems(user);
+  findQueueItems() {
+    return this.openemrService.findQueueItems();
   }
 
   @Post('queue/:id/retry')
