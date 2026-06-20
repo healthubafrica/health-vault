@@ -10,7 +10,7 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { formatDate, formatDateTime } from '@/lib/utils'
-import { ArrowLeft, Shield, ToggleLeft, ToggleRight } from 'lucide-react'
+import { ArrowLeft, Shield, ToggleLeft, ToggleRight, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ReactNode } from 'react'
 
@@ -41,6 +41,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
   const [loading, setLoading] = useState(true)
   const [rolePending, setRolePending] = useState(false)
   const [statusPending, setStatusPending] = useState(false)
+  const [syncPending, setSyncPending] = useState(false)
   const [selectedRole, setSelectedRole] = useState('')
 
   useEffect(() => {
@@ -82,6 +83,26 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
       toast.error(e instanceof Error ? e.message : 'Failed to update status')
     } finally {
       setStatusPending(false)
+    }
+  }
+
+  const handleSync = async () => {
+    setSyncPending(true)
+    try {
+      const res = await adminApi.openemr.recoverAll()
+      toast.success(
+        res.enqueued === 0
+          ? 'Patient is already synced to OpenEMR.'
+          : `Sync queued. Refresh in a few seconds to see the updated status.`,
+      )
+      // Reload user after a short delay so the updated status is visible
+      if (res.enqueued > 0) setTimeout(() => {
+        adminApi.users.get(id).then((r) => setUser(r.data)).catch(() => null)
+      }, 4000)
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Sync trigger failed')
+    } finally {
+      setSyncPending(false)
     }
   }
 
@@ -237,7 +258,15 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
       {/* Patient record */}
       {user.patient && (
         <Card className="mb-4">
-          <CardTitle>Patient Record</CardTitle>
+          <div className="flex items-center justify-between mb-3">
+            <CardTitle className="mb-0">Patient Record</CardTitle>
+            {user.patient.openemrSyncStatus !== 'synced' && (
+              <Button variant="secondary" size="sm" loading={syncPending} onClick={handleSync}>
+                <RotateCcw className="w-3.5 h-3.5" />
+                Sync Now
+              </Button>
+            )}
+          </div>
           <dl className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-sm">
             <InfoRow label="HHA ID" value={user.patient.hhaPatientId} mono />
             <InfoRow
@@ -247,9 +276,16 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
             <InfoRow
               label="OpenEMR sync"
               value={
-                <Pill variant={SYNC_PILL[user.patient.openemrSyncStatus] ?? 'neutral'}>
-                  {user.patient.openemrSyncStatus}
-                </Pill>
+                <div className="flex flex-col items-end gap-0.5">
+                  <Pill variant={SYNC_PILL[user.patient.openemrSyncStatus] ?? 'neutral'}>
+                    {user.patient.openemrSyncStatus}
+                  </Pill>
+                  {user.patient.openemrPatientUuid && (
+                    <span className="font-mono text-[10px]" style={{ color: 'var(--color-text-faint)' }}>
+                      {user.patient.openemrPatientUuid.slice(0, 8)}…
+                    </span>
+                  )}
+                </div>
               }
             />
           </dl>
