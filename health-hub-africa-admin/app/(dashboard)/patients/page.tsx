@@ -155,9 +155,16 @@ export default function PatientsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <Pill variant={syncStatusVariant(p.openemrSyncStatus)}>
-                        {p.openemrSyncStatus}
-                      </Pill>
+                      <div className="flex flex-col gap-0.5">
+                        <Pill variant={syncStatusVariant(p.openemrSyncStatus)}>
+                          {p.openemrSyncStatus}
+                        </Pill>
+                        {p.openemrPatientUuid && (
+                          <span className="font-mono text-[10px]" style={{ color: 'var(--color-text-faint)' }}>
+                            {p.openemrPatientUuid.slice(0, 8)}…
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-xs" style={{ color: 'var(--color-text-muted)' }}>
                       {formatDate(p.createdAt)}

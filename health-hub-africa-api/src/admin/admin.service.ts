@@ -724,6 +724,7 @@ export class AdminService {
       email: r.user.email,
       phone: r.user.phone,
       openemrSyncStatus: r.openemrSyncStatus,
+      openemrPatientUuid: r.openemrPatientUuid,
       subscriptionPlan: r.subscriptions[0]?.plan.name ?? null,
       subscriptionStatus: r.subscriptions[0]?.status ?? null,
       createdAt: r.createdAt,
