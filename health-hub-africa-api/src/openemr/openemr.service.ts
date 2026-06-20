@@ -4,11 +4,18 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { randomBytes } from 'crypto';
 import type { Redis } from 'ioredis';
+import {
+  SecretsManagerClient,
+  GetSecretValueCommand,
+  UpdateSecretCommand,
+} from '@aws-sdk/client-secrets-manager';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 
 export const OPENEMR_SYNC_QUEUE = 'openemr-sync';
 export const OPENEMR_REDIS = Symbol('OPENEMR_REDIS');
+
+const OPENEMR_SECRET_NAME = 'hha/openemr-refresh-token';
 
 const REDIS_REFRESH_KEY = 'openemr:refresh_token';
 const REDIS_STATE_PREFIX = 'openemr:oauth_state:';
@@ -29,6 +36,7 @@ export interface SyncJobData {
 @Injectable()
 export class OpenemrService implements OnModuleInit {
   private readonly logger = new Logger(OpenemrService.name);
+  private readonly secrets: SecretsManagerClient;
   readonly openemrBase: string;
 
   constructor(
@@ -38,6 +46,7 @@ export class OpenemrService implements OnModuleInit {
     @Inject(OPENEMR_REDIS) private readonly redis: Redis,
   ) {
     this.openemrBase = config.getOrThrow('OPENEMR_BASE_URL');
+    this.secrets = new SecretsManagerClient({ region: config.get('AWS_REGION', 'af-south-1') });
   }
 
   async onModuleInit() {
@@ -143,7 +152,7 @@ export class OpenemrService implements OnModuleInit {
 
   // ── Sync Queue Items (for admin monitoring) ────────────────────────────────
 
-  async findQueueItems(currentUser: JwtPayload) {
+  async findQueueItems() {
     return this.prisma.openemrSyncQueue.findMany({
       where: { status: { in: ['pending', 'failed'] } },
       orderBy: { createdAt: 'desc' },
@@ -219,10 +228,11 @@ export class OpenemrService implements OnModuleInit {
   //   1. Admin calls GET /openemr/auth/init to get the authorization URL
   //   2. Admin logs in to OpenEMR in a browser, gets redirected with ?code=...
   //   3. Admin calls POST /openemr/auth/exchange with the code
-  //   4. Backend stores the refresh_token in Redis for use across restarts
+  //   4. Backend stores the refresh_token in Redis (fast) AND Secrets Manager
+  //      (durable fallback) so it survives Redis flushes and ECS task replacements.
   //
   // After setup, access tokens are refreshed silently using the stored
-  // refresh_token. The refresh_token is updated in Redis on every rotation.
+  // refresh_token. The refresh_token is updated in both stores on every rotation.
 
   private cachedToken: { value: string; expiresAt: number } | null = null;
   private refreshToken: string | null = null;
@@ -244,28 +254,60 @@ export class OpenemrService implements OnModuleInit {
   }
 
   private async loadRefreshTokenFromRedis(): Promise<void> {
+    // Try Redis first (fast path)
     try {
       const stored = await this.redis.get(REDIS_REFRESH_KEY);
       if (stored) {
         this.refreshToken = stored;
         this.logger.log('OpenEMR refresh token loaded from Redis');
+        return;
+      }
+    } catch (err) {
+      this.logger.error(`Failed to read OpenEMR refresh token from Redis: ${err}`);
+    }
+
+    // Fallback: load from Secrets Manager (survives Redis flushes / ECS replacements)
+    try {
+      const result = await this.secrets.send(
+        new GetSecretValueCommand({ SecretId: OPENEMR_SECRET_NAME }),
+      );
+      const parsed = JSON.parse(result.SecretString ?? '{}') as { refresh_token?: string };
+      if (parsed.refresh_token) {
+        this.refreshToken = parsed.refresh_token;
+        // Warm up Redis so future startups stay on the fast path
+        await this.redis.set(REDIS_REFRESH_KEY, parsed.refresh_token).catch(() => null);
+        this.logger.log('OpenEMR refresh token restored from Secrets Manager');
       } else {
         this.logger.warn(
-          'No OpenEMR refresh token in Redis. ' +
-          'Complete one-time setup: GET /openemr/auth/init → POST /openemr/auth/exchange',
+          'No OpenEMR refresh token found. ' +
+          'Complete one-time setup: GET /openemr/auth/init → visit URL → POST /openemr/auth/exchange',
         );
       }
     } catch (err) {
-      this.logger.error(`Failed to load OpenEMR refresh token from Redis: ${err}`);
+      this.logger.error(`Failed to load OpenEMR refresh token from Secrets Manager: ${err}`);
     }
   }
 
   private async saveRefreshToken(token: string): Promise<void> {
     this.refreshToken = token;
+
+    // Persist to Redis (fast, used by all running containers)
     try {
       await this.redis.set(REDIS_REFRESH_KEY, token);
     } catch (err) {
       this.logger.error(`Failed to persist OpenEMR refresh token to Redis: ${err}`);
+    }
+
+    // Persist to Secrets Manager (durable fallback across Redis restarts / ECS replacements)
+    try {
+      await this.secrets.send(
+        new UpdateSecretCommand({
+          SecretId: OPENEMR_SECRET_NAME,
+          SecretString: JSON.stringify({ refresh_token: token }),
+        }),
+      );
+    } catch (err) {
+      this.logger.error(`Failed to persist OpenEMR refresh token to Secrets Manager: ${err}`);
     }
   }
 
