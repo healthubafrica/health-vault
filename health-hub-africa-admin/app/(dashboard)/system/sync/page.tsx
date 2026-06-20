@@ -53,7 +53,7 @@ export default function SyncPage() {
   const handleRetry = async (id: string) => {
     setRetrying(id)
     try {
-      await adminApi.system.retryError(id)
+      await adminApi.system.retrySyncItem(id)
       toast.success('Retry queued')
       await load()
     } catch (e: unknown) {
