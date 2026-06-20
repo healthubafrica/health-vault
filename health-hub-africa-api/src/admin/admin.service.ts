@@ -174,17 +174,29 @@ export class AdminService {
 
   async getAuditLogs(page = 1, limit = 50, userId?: string) {
     const skip = (page - 1) * limit;
-    const where: any = userId ? { actorId: userId } : {};
+    const where = userId ? { actorId: userId } : {};
 
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.auditLog.findMany({
         where,
         skip,
         take: limit,
         orderBy: { occurredAt: 'desc' },
+        include: { actor: { select: { email: true } } },
       }),
       this.prisma.auditLog.count({ where }),
     ]);
+
+    const data = rows.map((r) => ({
+      id: r.id,
+      userId: r.actorId ?? null,
+      userEmail: r.actor?.email ?? '(system)',
+      action: r.action,
+      resource: r.resourceType,
+      resourceId: r.resourceId ?? null,
+      ipAddress: r.ipAddress ?? null,
+      createdAt: r.occurredAt,
+    }));
 
     return { data, meta: { total, page, limit } };
   }

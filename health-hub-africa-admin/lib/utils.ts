@@ -27,7 +27,8 @@ export function formatDateTime(date: string | Date) {
   })
 }
 
-export function truncate(str: string, max: number) {
+export function truncate(str: string | null | undefined, max: number) {
+  if (!str) return '—'
   return str.length > max ? str.slice(0, max) + '…' : str
 }
 
