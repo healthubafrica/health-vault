@@ -69,6 +69,16 @@ secret-input.json
 health-hub-africa-api/prepare-deployment.js
 health-hub-africa-api/prepare-task-def.js
 
+# Local dev ops scripts — contain RDS hostnames, EC2 instance IDs
+health-hub-africa-api/tunnel-db.ps1
+health-hub-africa-api/get-logs.ps1
+health-hub-africa-api/get-logs.py
+health-hub-africa-api/temp-query.js
+
+# Log output files
+health-hub-africa-api/logs-*.json
+health-hub-africa-api/logs-*.txt
+
 # Claude Code internal state
 .claude/
 .playwright-mcp/
