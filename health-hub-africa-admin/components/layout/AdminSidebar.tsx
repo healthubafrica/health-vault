@@ -42,6 +42,9 @@ interface NavItem {
 const NAV: NavItem[] = [
   { label: 'Overview', href: '/overview', icon: LayoutDashboard },
 
+  // Provider-only section
+  { label: 'My Sessions', href: '/provider/telecare', icon: Video, roles: ['provider'], group: 'Clinical' },
+
   { label: 'Users', href: '/users', icon: Users, roles: ['admin', 'super_admin'], group: 'Management' },
   { label: 'Analytics', href: '/analytics', icon: BarChart3, roles: ['admin', 'super_admin'], group: 'Management' },
   { label: 'Facilities', href: '/facilities', icon: Building2, roles: ['admin', 'super_admin'], group: 'Management' },
@@ -75,7 +78,7 @@ export function AdminSidebar() {
     (item) => !item.roles || (user?.role && item.roles.includes(user.role)),
   )
 
-  const groups = ['', 'Management', 'Operations', 'System', 'Other']
+  const groups = ['', 'Clinical', 'Management', 'Operations', 'System', 'Other']
 
   return (
     <aside

@@ -119,8 +119,12 @@ export class TelecareService {
 
     return this.prisma.telecareSession.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
-      include: { notes: true },
+      orderBy: { scheduledAt: 'asc' },
+      include: {
+        notes: true,
+        patient: { select: { firstName: true, lastName: true } },
+        provider: { select: { firstName: true, lastName: true, title: true } },
+      },
     });
   }
 
