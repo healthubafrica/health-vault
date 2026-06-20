@@ -272,6 +272,15 @@ export class OpenemrProcessor {
         },
       });
 
+      // Mirror final failure onto the patient record so the admin Patients page
+      // shows 'failed' instead of the default 'pending'.
+      if (isFinalAttempt) {
+        await this.prisma.patient.update({
+          where: { id: patientId },
+          data: { openemrSyncStatus: 'failed' },
+        }).catch(() => null);
+      }
+
       throw error;
     }
   }
