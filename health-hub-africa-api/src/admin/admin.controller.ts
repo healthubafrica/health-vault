@@ -81,6 +81,13 @@ export class AdminController {
     );
   }
 
+  @Get('audit-logs/:id')
+  @Roles(UserRole.super_admin)
+  @ApiOperation({ summary: 'Get a single audit log entry with full detail including metadata' })
+  getAuditLog(@Param('id') id: string) {
+    return this.adminService.getAuditLog(id);
+  }
+
   // ── Analytics ─────────────────────────────────────────────────────────────
 
   @Get('analytics/summary')
@@ -221,6 +228,139 @@ export class AdminController {
       limit ? parseInt(limit, 10) : 20,
       status,
     );
+  }
+
+  // ── Patients ──────────────────────────────────────────────────────────────
+
+  @Get('patients')
+  @ApiOperation({ summary: 'List patients with subscription info' })
+  listPatients(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.adminService.listPatients(
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+      search,
+    );
+  }
+
+  // ── Subscriptions ─────────────────────────────────────────────────────────
+
+  @Get('subscriptions')
+  @ApiOperation({ summary: 'List patient subscriptions' })
+  listSubscriptions(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.adminService.listSubscriptions(
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+      status,
+    );
+  }
+
+  @Patch('subscriptions/:id/cancel')
+  @ApiOperation({ summary: 'Cancel a patient subscription' })
+  cancelSubscription(@Param('id') id: string) {
+    return this.adminService.cancelSubscription(id);
+  }
+
+  // ── Payments ──────────────────────────────────────────────────────────────
+
+  @Get('payments')
+  @ApiOperation({ summary: 'List payments' })
+  listPayments(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.adminService.listPayments(
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+      status,
+      search,
+    );
+  }
+
+  // ── Providers ─────────────────────────────────────────────────────────────
+
+  @Get('providers')
+  @ApiOperation({ summary: 'List providers' })
+  listProviders(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.adminService.listProviders(
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+      search,
+    );
+  }
+
+  @Patch('providers/:id/availability')
+  @ApiOperation({ summary: "Toggle a provider's availability" })
+  toggleProviderAvailability(
+    @Param('id') id: string,
+    @Body('available') available: boolean,
+  ) {
+    return this.adminService.toggleProviderAvailability(id, available);
+  }
+
+  // ── Clinical Queue ────────────────────────────────────────────────────────
+
+  @Get('clinical-queue')
+  @ApiOperation({ summary: 'Get active teleconsults and expert review cases' })
+  getClinicalQueue() {
+    return this.adminService.getClinicalQueue();
+  }
+
+  // ── Feature Flags ─────────────────────────────────────────────────────────
+
+  @Get('feature-flags')
+  @Roles(UserRole.super_admin)
+  @ApiOperation({ summary: 'List all feature flags (super_admin only)' })
+  getFeatureFlags() {
+    return this.adminService.getFeatureFlags();
+  }
+
+  @Patch('feature-flags/:key')
+  @Roles(UserRole.super_admin)
+  @ApiOperation({ summary: 'Set a feature flag value (super_admin only)' })
+  setFeatureFlag(
+    @Param('key') key: string,
+    @Body('enabled') enabled: boolean,
+  ) {
+    return this.adminService.setFeatureFlag(key, enabled);
+  }
+
+  // ── Notifications ─────────────────────────────────────────────────────────
+
+  @Get('notifications')
+  @ApiOperation({ summary: 'List notification delivery records' })
+  listNotifications(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('channel') channel?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.adminService.listNotifications(
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+      channel,
+      status,
+    );
+  }
+
+  @Post('notifications/:id/resend')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Requeue a failed notification for delivery' })
+  resendNotification(@Param('id') id: string) {
+    return this.adminService.resendNotification(id);
   }
 
   // ── Facilities ─────────────────────────────────────────────────────────────

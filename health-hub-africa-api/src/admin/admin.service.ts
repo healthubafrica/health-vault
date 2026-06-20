@@ -1,11 +1,14 @@
 import {
+  BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { DispatchStatus, UserRole } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
+import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import {
@@ -15,11 +18,25 @@ import {
 } from './dto/admin.dto';
 import { OPENEMR_SYNC_QUEUE, SyncJobData } from '../openemr/openemr.service';
 
+export const ADMIN_REDIS = Symbol('ADMIN_REDIS');
+
+const DEFAULT_FLAGS: Record<string, { label: string; description: string; defaultValue: boolean }> = {
+  teleconsult_enabled: { label: 'TeleCare', description: 'Enable teleconsult booking for patients', defaultValue: true },
+  dispatch_enabled: { label: 'DispatchCare', description: 'Enable emergency dispatch service', defaultValue: true },
+  expert_review_enabled: { label: 'Expert Review', description: 'Enable expert review case submissions', defaultValue: true },
+  lab_orders_enabled: { label: 'Lab Orders', description: 'Enable lab test ordering', defaultValue: true },
+  neuroflex_enabled: { label: 'NeuroFlex', description: 'Enable NeuroFlex AI health screening', defaultValue: false },
+  patient_registration_open: { label: 'Patient Registration', description: 'Allow new patient signups', defaultValue: true },
+};
+
+const FLAGS_REDIS_KEY = 'admin:feature-flags';
+
 @Injectable()
 export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue(OPENEMR_SYNC_QUEUE) private readonly openemrQueue: Queue<SyncJobData>,
+    @Inject(ADMIN_REDIS) private readonly redis: Redis,
   ) {}
 
   // ── Users ─────────────────────────────────────────────────────────────────
@@ -199,6 +216,38 @@ export class AdminService {
     }));
 
     return { data, meta: { total, page, limit } };
+  }
+
+  async getAuditLog(id: string) {
+    const row = await this.prisma.auditLog.findUnique({
+      where: { id },
+      include: {
+        actor: { select: { id: true, email: true, role: true } },
+        patient: { select: { id: true, firstName: true, lastName: true, hhaPatientId: true } },
+      },
+    });
+
+    if (!row) throw new NotFoundException('Audit log entry not found');
+
+    return {
+      data: {
+        id: row.id,
+        userId: row.actorId ?? null,
+        userEmail: row.actor?.email ?? '(system)',
+        userRole: row.actor?.role ?? null,
+        action: row.action,
+        resource: row.resourceType,
+        resourceId: row.resourceId ?? null,
+        severity: row.severity,
+        metadata: row.metadata,
+        ipAddress: row.ipAddress ?? null,
+        userAgent: row.userAgent ?? null,
+        patient: row.patient
+          ? { id: row.patient.id, name: `${row.patient.firstName} ${row.patient.lastName}`, hhaPatientId: row.patient.hhaPatientId }
+          : null,
+        createdAt: row.occurredAt,
+      },
+    };
   }
 
   // ── Analytics ─────────────────────────────────────────────────────────────
@@ -633,6 +682,328 @@ export class AdminService {
       );
     }
     return { message: 'Facility deleted' };
+  }
+
+  // ── Patients ──────────────────────────────────────────────────────────────
+
+  async listPatients(page = 1, limit = 20, search?: string) {
+    const skip = (page - 1) * limit;
+    const where: any = search
+      ? {
+          OR: [
+            { firstName: { contains: search, mode: 'insensitive' } },
+            { lastName: { contains: search, mode: 'insensitive' } },
+            { user: { email: { contains: search, mode: 'insensitive' } } },
+          ],
+        }
+      : {};
+
+    const [rows, total] = await Promise.all([
+      this.prisma.patient.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: { select: { email: true, phone: true } },
+          subscriptions: {
+            take: 1,
+            orderBy: { createdAt: 'desc' },
+            include: { plan: { select: { name: true } } },
+          },
+        },
+      }),
+      this.prisma.patient.count({ where }),
+    ]);
+
+    const data = rows.map((r) => ({
+      id: r.id,
+      hhaPatientId: r.hhaPatientId,
+      firstName: r.firstName,
+      lastName: r.lastName,
+      email: r.user.email,
+      phone: r.user.phone,
+      openemrSyncStatus: r.openemrSyncStatus,
+      subscriptionPlan: r.subscriptions[0]?.plan.name ?? null,
+      subscriptionStatus: r.subscriptions[0]?.status ?? null,
+      createdAt: r.createdAt,
+    }));
+
+    return { data, meta: { total, page, limit } };
+  }
+
+  // ── Subscriptions ─────────────────────────────────────────────────────────
+
+  async listSubscriptions(page = 1, limit = 20, status?: string) {
+    const skip = (page - 1) * limit;
+    const where: any = status ? { status } : {};
+
+    const [rows, total] = await Promise.all([
+      this.prisma.patientSubscription.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          patient: { select: { firstName: true, lastName: true, hhaPatientId: true } },
+          plan: { select: { name: true, tier: true } },
+        },
+      }),
+      this.prisma.patientSubscription.count({ where }),
+    ]);
+
+    const data = rows.map((r) => ({
+      id: r.id,
+      patientId: r.patientId,
+      patientName: `${r.patient.firstName} ${r.patient.lastName}`.trim(),
+      hhaPatientId: r.patient.hhaPatientId,
+      planName: r.plan.name,
+      tier: String(r.plan.tier),
+      status: String(r.status),
+      startedAt: r.startedAt,
+      expiresAt: r.expiresAt,
+      autoRenew: r.autoRenew,
+      cancelledAt: r.cancelledAt,
+    }));
+
+    return { data, meta: { total } };
+  }
+
+  async cancelSubscription(id: string) {
+    return this.prisma.patientSubscription.update({
+      where: { id },
+      data: { status: 'cancelled' as any, cancelledAt: new Date(), autoRenew: false },
+    });
+  }
+
+  // ── Payments ──────────────────────────────────────────────────────────────
+
+  async listPayments(page = 1, limit = 20, status?: string, search?: string) {
+    const skip = (page - 1) * limit;
+    const conditions: any[] = [];
+    if (status) conditions.push({ status });
+    if (search) {
+      conditions.push({
+        OR: [
+          { hhaRef: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+        ],
+      });
+    }
+    const where: any = conditions.length > 0 ? { AND: conditions } : {};
+
+    const [rows, total] = await Promise.all([
+      this.prisma.payment.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: { patient: { select: { firstName: true, lastName: true } } },
+      }),
+      this.prisma.payment.count({ where }),
+    ]);
+
+    const data = rows.map((r) => ({
+      id: r.id,
+      hhaRef: r.hhaRef,
+      patientId: r.patientId,
+      patientName: `${r.patient.firstName} ${r.patient.lastName}`.trim(),
+      amountKobo: r.amountKobo,
+      currency: r.currency,
+      status: String(r.status),
+      gateway: String(r.gateway),
+      description: r.description,
+      paidAt: r.paidAt,
+      createdAt: r.createdAt,
+    }));
+
+    return { data, meta: { total, page, limit } };
+  }
+
+  // ── Providers ─────────────────────────────────────────────────────────────
+
+  async listProviders(page = 1, limit = 20, search?: string) {
+    const skip = (page - 1) * limit;
+    const where: any = {
+      deletedAt: null,
+      ...(search
+        ? {
+            OR: [
+              { firstName: { contains: search, mode: 'insensitive' } },
+              { lastName: { contains: search, mode: 'insensitive' } },
+              { specialty: { contains: search, mode: 'insensitive' } },
+              { user: { email: { contains: search, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+    };
+
+    const [rows, total] = await Promise.all([
+      this.prisma.provider.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: { user: { select: { email: true } } },
+      }),
+      this.prisma.provider.count({ where }),
+    ]);
+
+    const data = rows.map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      firstName: r.firstName,
+      lastName: r.lastName,
+      title: r.title,
+      specialty: r.specialty,
+      email: r.user.email,
+      isAvailable: r.isAvailable,
+      totalPatients: r.totalPatients,
+      rating: r.rating ? Number(r.rating) : null,
+      licenseNumber: r.licenseNumber,
+      createdAt: r.createdAt,
+    }));
+
+    return { data, meta: { total, page, limit } };
+  }
+
+  async toggleProviderAvailability(id: string, available: boolean) {
+    return this.prisma.provider.update({
+      where: { id },
+      data: { isAvailable: available },
+    });
+  }
+
+  // ── Clinical Queue ────────────────────────────────────────────────────────
+
+  async getClinicalQueue() {
+    const [rawTeleconsults, rawExpertReviews] = await Promise.all([
+      this.prisma.telecareSession
+        .findMany({
+          where: { status: { in: ['waiting', 'active', 'in_progress'] as any[] } },
+          include: {
+            patient: { select: { firstName: true, lastName: true } },
+            provider: { select: { firstName: true, lastName: true } },
+          },
+          orderBy: { createdAt: 'asc' },
+        })
+        .catch(() => []),
+      this.prisma.expertReviewCase
+        .findMany({
+          where: { status: { in: ['submitted', 'under_review', 'in_review'] as any[] } },
+          include: {
+            patient: { select: { firstName: true, lastName: true } },
+          },
+          orderBy: { createdAt: 'asc' },
+        })
+        .catch(() => []),
+    ]);
+
+    const teleconsults = rawTeleconsults.map((r) => ({
+      id: r.id,
+      type: 'teleconsult' as const,
+      patientName: `${r.patient.firstName} ${r.patient.lastName}`.trim(),
+      providerName: r.provider
+        ? `${r.provider.firstName} ${r.provider.lastName}`.trim()
+        : null,
+      status: String(r.status),
+      createdAt: r.createdAt,
+      waitMinutes: Math.floor((Date.now() - new Date(r.createdAt).getTime()) / 60000),
+    }));
+
+    const expertReviews = rawExpertReviews.map((r) => ({
+      id: r.id,
+      type: 'expert_review' as const,
+      patientName: `${r.patient.firstName} ${r.patient.lastName}`.trim(),
+      providerName: null,
+      status: String(r.status),
+      createdAt: r.createdAt,
+      waitMinutes: Math.floor((Date.now() - new Date(r.createdAt).getTime()) / 60000),
+    }));
+
+    return {
+      teleconsults,
+      expertReviews,
+      total: teleconsults.length + expertReviews.length,
+    };
+  }
+
+  // ── Feature Flags ─────────────────────────────────────────────────────────
+
+  async getFeatureFlags() {
+    const raw = await this.redis.get(FLAGS_REDIS_KEY).catch(() => null);
+    const overrides: Record<string, boolean> = raw ? JSON.parse(raw) : {};
+
+    return Object.entries(DEFAULT_FLAGS).map(([key, def]) => ({
+      key,
+      label: def.label,
+      description: def.description,
+      enabled: overrides[key] ?? def.defaultValue,
+    }));
+  }
+
+  async setFeatureFlag(key: string, enabled: boolean) {
+    if (!(key in DEFAULT_FLAGS)) {
+      throw new BadRequestException(`Unknown feature flag: ${key}`);
+    }
+
+    const raw = await this.redis.get(FLAGS_REDIS_KEY).catch(() => null);
+    const overrides: Record<string, boolean> = raw ? JSON.parse(raw) : {};
+    overrides[key] = enabled;
+    await this.redis.set(FLAGS_REDIS_KEY, JSON.stringify(overrides));
+
+    return Object.entries(DEFAULT_FLAGS).map(([k, def]) => ({
+      key: k,
+      label: def.label,
+      description: def.description,
+      enabled: overrides[k] ?? def.defaultValue,
+    }));
+  }
+
+  // ── Notifications ─────────────────────────────────────────────────────────
+
+  async listNotifications(page = 1, limit = 20, channel?: string, status?: string) {
+    const skip = (page - 1) * limit;
+    const conditions: any[] = [];
+    if (channel) conditions.push({ channel });
+    if (status) conditions.push({ status });
+    const where: any = conditions.length > 0 ? { AND: conditions } : {};
+
+    const [rows, total] = await Promise.all([
+      this.prisma.notificationDelivery.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.notificationDelivery.count({ where }),
+    ]);
+
+    const data = rows.map((r) => ({
+      id: r.id,
+      channel: r.channel,
+      recipient: r.recipient,
+      subject: r.subject,
+      status: r.status,
+      sentAt: r.sentAt,
+      failedAt: r.failedAt,
+      failureReason: r.failureReason,
+      createdAt: r.createdAt,
+    }));
+
+    return { data, meta: { total, page, limit } };
+  }
+
+  async resendNotification(id: string) {
+    try {
+      await this.prisma.notificationDelivery.update({
+        where: { id },
+        data: { status: 'queued', failedAt: null, failureReason: null },
+      });
+      return { message: 'Requeued for delivery' };
+    } catch {
+      throw new NotFoundException('Notification delivery record not found');
+    }
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
