@@ -237,12 +237,38 @@ export class OpenemrProcessor {
           }
         }
       } else {
-        await this.openemrService['callOpenemr'](
-          token, 'PUT', `/fhir/Patient/${patient.openemrPatientUuid}`,
-          { ...fhirPatient, id: patient.openemrPatientUuid },
-          patientId,
-        );
-        openemrUuid = patient.openemrPatientUuid!;
+        try {
+          await this.openemrService['callOpenemr'](
+            token, 'PUT', `/fhir/Patient/${patient.openemrPatientUuid}`,
+            { ...fhirPatient, id: patient.openemrPatientUuid },
+            patientId,
+          );
+          openemrUuid = patient.openemrPatientUuid!;
+        } catch (putError: unknown) {
+          const msg = putError instanceof Error ? putError.message : String(putError);
+          // PUT 404 means the patient was deleted directly in OpenEMR — stale UUID.
+          // Clear the stale UUID and re-create the patient record.
+          if (!msg.includes('OpenEMR 404:')) throw putError;
+          this.logger.warn(
+            `PUT 404 for patient ${patientId} (UUID ${patient.openemrPatientUuid}) — re-creating in OpenEMR`,
+          );
+          await this.prisma.patient.update({
+            where: { id: patientId },
+            data: { openemrPatientUuid: null },
+          });
+          const created = await this.openemrService['callOpenemr'](
+            token, 'POST', '/fhir/Patient', fhirPatient, patientId,
+          );
+          const raw = created as Record<string, unknown>;
+          openemrUuid = (raw.uuid ?? raw.id) as string;
+          if (!openemrUuid) {
+            this.logger.error(
+              `OpenEMR re-create POST returned no uuid/id. Response: ${JSON.stringify(created).slice(0, 500)}`,
+            );
+            throw new Error('OpenEMR FHIR Patient re-create returned no uuid field.');
+          }
+          this.logger.log(`Patient ${patientId} re-created in OpenEMR → new UUID: ${openemrUuid}`);
+        }
       }
 
       await this.prisma.patient.update({

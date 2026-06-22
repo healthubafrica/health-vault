@@ -2,14 +2,15 @@
 
 import { useRef } from 'react'
 import { motion, useInView, useReducedMotion } from 'framer-motion'
-import Image from 'next/image'
 import Link from 'next/link'
 import { EASE_OUT, staggerContainer, labelVariant, headingVariant, bodyVariant, slideUpCard } from '@/lib/motion'
-import { getRecentPosts } from '@/lib/blog'
+import { formatBlogDate, FALLBACK_COVER_IMAGE, type CmsBlogPost } from '@/lib/cms'
 
-const posts = getRecentPosts(undefined, 3)
+interface HomepageBlogProps {
+  posts?: CmsBlogPost[]
+}
 
-export default function HomepageBlog() {
+export default function HomepageBlog({ posts = [] }: HomepageBlogProps) {
   const ref = useRef(null)
   const inView = useInView(ref, { once: true, amount: 0.08 })
   const reduced = useReducedMotion()
@@ -173,12 +174,18 @@ export default function HomepageBlog() {
                     background: '#0a2a1c',
                   }}
                 >
-                  <Image
-                    src={post.image}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={post.coverImageUrl ?? FALLBACK_COVER_IMAGE}
                     alt={post.title}
-                    fill
-                    style={{ objectFit: 'cover', objectPosition: 'center' }}
-                    sizes="(max-width: 768px) 100vw, 420px"
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      objectPosition: 'center',
+                    }}
                   />
 
                   {/* Gradient overlay */}
@@ -247,7 +254,7 @@ export default function HomepageBlog() {
                     letterSpacing: '0.04em',
                   }}
                 >
-                  {post.date}
+                  {formatBlogDate(post.publishedAt)}
                 </p>
               </Link>
             </motion.div>

@@ -2,51 +2,17 @@
 
 import { useRef } from 'react'
 import { motion, useInView, useReducedMotion } from 'framer-motion'
-import Image from 'next/image'
 import { EASE_OUT, staggerContainer, labelVariant, headingVariant, bodyVariant } from '@/lib/motion'
-
-const testimonials = [
-  {
-    photo: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=400&h=400&fit=crop&crop=faces&q=80',
-    company: 'Lagos Family Care',
-    quote:
-      '"MyHealth Vault+ brought clarity to managing my family\'s health records, breaking down every barrier and delivering real peace of mind."',
-    name: 'Adaeze Okonkwo',
-  },
-  {
-    photo: 'https://images.unsplash.com/photo-1506634572416-48cdfe530110?w=400&h=400&fit=crop&crop=faces&q=80',
-    company: 'Abuja Tech Innovations',
-    quote:
-      '"Their TeleCare service resolved a difficult health situation quickly, opening new paths and connecting me with the right specialist."',
-    name: 'Emeka Nwosu',
-  },
-  {
-    photo: 'https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=400&h=400&fit=crop&crop=faces&q=80',
-    company: 'HealthBridge Nigeria',
-    quote:
-      '"We found focus for a tricky diagnosis, cutting through the noise and getting truly helpful expert review responses."',
-    name: 'Chiamaka Bello',
-  },
-  {
-    photo: 'https://images.unsplash.com/photo-1523464862212-d6631d073194?w=400&h=400&fit=crop&crop=faces&q=80',
-    company: 'Kano MedGroup',
-    quote:
-      '"DispatchCare gave us simple, fast emergency access, removing all delays and building confidence when it mattered most."',
-    name: 'Yusuf Ibrahim',
-  },
-  {
-    photo: 'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=400&h=400&fit=crop&crop=faces&q=80',
-    company: 'Port Harcourt Health Co.',
-    quote:
-      '"From booking MinuteCare to getting my CareTest results in the Vault, everything was seamless and stress-free."',
-    name: 'Ngozi Effiong',
-  },
-]
+import type { CmsTestimonial } from '@/lib/cms'
 
 const CARD_W = 300
 const GAP = 16
 
-export default function Testimonials() {
+interface TestimonialsProps {
+  testimonials?: CmsTestimonial[]
+}
+
+export default function Testimonials({ testimonials = [] }: TestimonialsProps) {
   const trackRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef(null)
   const inView = useInView(headerRef, { once: true, amount: 0.2 })
@@ -169,126 +135,165 @@ export default function Testimonials() {
           </div>
         </motion.div>
 
-        {/* ── Scrollable card track ── */}
-        <motion.div
-          ref={trackRef}
-          initial={reduced ? {} : { opacity: 0, x: 80 }}
-          animate={inView ? { opacity: 1, x: 0 } : {}}
-          transition={{ duration: 1.05, ease: EASE_OUT, delay: 0.35 }}
-          style={{
-            display: 'flex',
-            gap: GAP,
-            overflowX: 'auto',
-            scrollSnapType: 'x mandatory',
-            scrollbarWidth: 'none',
-            /* pull slightly outside so cards bleed to edges */
-            marginLeft: -4,
-            marginRight: -4,
-            paddingLeft: 4,
-            paddingRight: 4,
-            paddingBottom: 4,
-          }}
-        >
-          {testimonials.map((t, i) => (
-            <div
-              key={i}
-              style={{
-                flexShrink: 0,
-                width: CARD_W,
-                scrollSnapAlign: 'start',
-                borderRadius: 20,
-                overflow: 'hidden',
-                position: 'relative',
-                background: '#1a1a1a',
-                aspectRatio: '3/4',
-              }}
-            >
-              {/* Full card photo */}
-              <Image
-                src={t.photo}
-                alt={t.name}
-                fill
-                style={{ objectFit: 'cover', objectPosition: 'center top' }}
-                sizes="300px"
-              />
-
-              {/* Dark gradient overlay — bottom half only for readability */}
+        {/* ── Card track or founding-member CTA ── */}
+        {testimonials.length > 0 ? (
+          <motion.div
+            ref={trackRef}
+            initial={reduced ? {} : { opacity: 0, x: 80 }}
+            animate={inView ? { opacity: 1, x: 0 } : {}}
+            transition={{ duration: 1.05, ease: EASE_OUT, delay: 0.35 }}
+            style={{
+              display: 'flex',
+              gap: GAP,
+              overflowX: 'auto',
+              scrollSnapType: 'x mandatory',
+              scrollbarWidth: 'none',
+              marginLeft: -4,
+              marginRight: -4,
+              paddingLeft: 4,
+              paddingRight: 4,
+              paddingBottom: 4,
+            }}
+          >
+            {testimonials.map((t) => (
               <div
+                key={t.id}
                 style={{
-                  position: 'absolute',
-                  inset: 0,
-                  background:
-                    'linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.10) 40%, rgba(0,0,0,0.78) 100%)',
-                }}
-              />
-
-              {/* Company logo area — top left */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 18,
-                  left: 18,
-                  background: 'rgba(255,255,255,0.15)',
-                  backdropFilter: 'blur(8px)',
-                  borderRadius: 8,
-                  padding: '5px 12px',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: '#fff',
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
+                  flexShrink: 0,
+                  width: CARD_W,
+                  scrollSnapAlign: 'start',
+                  borderRadius: 20,
+                  overflow: 'hidden',
+                  position: 'relative',
+                  background: '#1a1a1a',
+                  aspectRatio: '3/4',
                 }}
               >
-                {t.company}
-              </div>
-
-              {/* Quote + name — bottom */}
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  padding: '0 20px 22px',
-                }}
-              >
-                {/* Quote mark */}
+                {t.authorPhotoUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={t.authorPhotoUrl}
+                    alt={t.authorName}
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      objectPosition: 'center top',
+                    }}
+                  />
+                )}
                 <div
                   style={{
-                    fontFamily: 'Georgia, serif',
-                    fontSize: 36,
-                    lineHeight: 1,
-                    color: '#6DC43F',
-                    marginBottom: 6,
+                    position: 'absolute',
+                    inset: 0,
+                    background: t.authorPhotoUrl
+                      ? 'linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.10) 40%, rgba(0,0,0,0.78) 100%)'
+                      : 'linear-gradient(160deg, #0E4A30 0%, #07251C 100%)',
                   }}
-                >
-                  ❝
+                />
+                {t.authorCompany && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 18,
+                      left: 18,
+                      background: 'rgba(255,255,255,0.15)',
+                      backdropFilter: 'blur(8px)',
+                      borderRadius: 8,
+                      padding: '5px 12px',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#fff',
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {t.authorCompany}
+                  </div>
+                )}
+                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 20px 22px' }}>
+                  <div style={{ fontFamily: 'Georgia, serif', fontSize: 36, lineHeight: 1, color: '#6DC43F', marginBottom: 6 }}>❝</div>
+                  <p style={{ fontSize: 13, lineHeight: 1.6, color: '#fff', margin: '0 0 10px', fontWeight: 400 }}>{t.quote}</p>
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', margin: 0, fontWeight: 500 }}>
+                    — {t.authorName}
+                    {t.authorTitle ? `, ${t.authorTitle}` : ''}
+                  </p>
                 </div>
-                <p
-                  style={{
-                    fontSize: 13,
-                    lineHeight: 1.6,
-                    color: '#fff',
-                    margin: '0 0 10px',
-                    fontWeight: 400,
-                  }}
-                >
-                  {t.quote}
-                </p>
-                <p
-                  style={{
-                    fontSize: 12,
-                    color: 'rgba(255,255,255,0.6)',
-                    margin: 0,
-                    fontWeight: 500,
-                  }}
-                >
-                  — {t.name}
-                </p>
               </div>
+            ))}
+          </motion.div>
+        ) : (
+          <motion.div
+            initial={reduced ? {} : { opacity: 0, y: 24 }}
+            animate={inView ? { opacity: 1, y: 0 } : {}}
+            transition={{ duration: 0.85, ease: EASE_OUT, delay: 0.3 }}
+            style={{
+              background: '#07251C',
+              borderRadius: 24,
+              padding: 'clamp(40px, 6vw, 72px) clamp(24px, 6vw, 72px)',
+              textAlign: 'center',
+            }}
+          >
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#6DC43F', marginBottom: 18 }}>
+              Founding Members Programme
             </div>
-          ))}
-        </motion.div>
+            <h3
+              style={{
+                fontFamily: 'var(--font-manrope), sans-serif',
+                fontWeight: 700,
+                fontSize: 'clamp(24px, 3.5vw, 40px)',
+                lineHeight: 1.1,
+                letterSpacing: '-0.02em',
+                color: '#fff',
+                margin: '0 auto 18px',
+                maxWidth: 560,
+              }}
+            >
+              Help us build the future of healthcare access across Africa.
+            </h3>
+            <p style={{ color: 'rgba(255,255,255,0.58)', fontSize: 15, lineHeight: 1.65, maxWidth: 480, margin: '0 auto 32px' }}>
+              Create your FREE account today and join our founding members — patients who are shaping
+              the MyHealth Vault+™ experience from day one.
+            </p>
+            <a
+              href="https://portal.myvaultplus.com/register"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 10,
+                background: '#6DC43F',
+                color: '#07251C',
+                textDecoration: 'none',
+                fontWeight: 700,
+                fontSize: 13,
+                letterSpacing: '0.07em',
+                textTransform: 'uppercase',
+                padding: '13px 13px 13px 26px',
+                borderRadius: 100,
+              }}
+            >
+              Create Your FREE Health Passport
+              <span
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: '50%',
+                  background: '#07251C',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                  <path d="M5 19L19 5M19 5H9M19 5v10" stroke="#6DC43F" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+            </a>
+          </motion.div>
+        )}
       </div>
 
       {/* Hide scrollbar globally for this component */}

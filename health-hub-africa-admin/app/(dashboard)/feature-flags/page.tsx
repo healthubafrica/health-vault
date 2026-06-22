@@ -20,7 +20,7 @@ export default function FeatureFlagsPage() {
     setError(null)
     try {
       const res = await adminApi.featureFlags.list()
-      setFlags(res.data)
+      setFlags(res)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load feature flags')
     } finally {
@@ -35,7 +35,7 @@ export default function FeatureFlagsPage() {
     setFlags((prev) => prev.map((f) => f.key === key ? { ...f, enabled: !current } : f))
     try {
       const res = await adminApi.featureFlags.set(key, !current)
-      setFlags(res.data)
+      setFlags(res)
     } catch (err) {
       setFlags((prev) => prev.map((f) => f.key === key ? { ...f, enabled: current } : f))
       setError(err instanceof Error ? err.message : 'Failed to update flag')

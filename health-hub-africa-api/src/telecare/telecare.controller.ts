@@ -1,11 +1,14 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
+import { SessionStatus, UserRole } from '@prisma/client';
 import { TelecareService } from './telecare.service';
 import {
   CreateTelecareSessionDto,
   UpdateSessionDto,
   CreateSessionNoteDto,
+  CreateOnDemandSessionDto,
+  TransferSessionDto,
+  CreateShiftDto,
 } from './dto/create-session.dto';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
@@ -28,8 +31,60 @@ export class TelecareController {
 
   @Get('sessions')
   @ApiOperation({ summary: 'List telecare sessions (scoped to current user)' })
-  async findSessions(@CurrentUser() user: JwtPayload) {
-    return { data: await this.telecareService.findSessions(user) };
+  async findSessions(
+    @CurrentUser() user: JwtPayload,
+    @Query('status') status?: SessionStatus,
+  ) {
+    return { data: await this.telecareService.findSessions(user, status) };
+  }
+
+  @Post('on-demand')
+  @Roles(UserRole.admin, UserRole.super_admin, UserRole.coordinator)
+  @ApiOperation({ summary: 'Create an on-demand waiting session' })
+  createOnDemandSession(
+    @Body() dto: CreateOnDemandSessionDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.telecareService.createOnDemandSession(dto, user);
+  }
+
+  @Get('metrics')
+  @Roles(UserRole.provider)
+  @ApiOperation({ summary: 'Get provider performance metrics' })
+  getProviderMetrics(@CurrentUser() user: JwtPayload) {
+    return this.telecareService.getProviderMetrics(user);
+  }
+
+  @Patch('availability')
+  @Roles(UserRole.provider)
+  @ApiOperation({ summary: 'Set provider online/offline availability' })
+  setAvailability(@Body() body: { isAvailable: boolean }, @CurrentUser() user: JwtPayload) {
+    return this.telecareService.setAvailability(body.isAvailable, user);
+  }
+
+  @Post('sessions/:id/accept')
+  @Roles(UserRole.provider)
+  @ApiOperation({ summary: 'Provider accepts a waiting session' })
+  acceptSession(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.telecareService.acceptSession(id, user);
+  }
+
+  @Post('sessions/:id/decline')
+  @Roles(UserRole.provider)
+  @ApiOperation({ summary: 'Provider declines a waiting session' })
+  declineSession(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.telecareService.declineSession(id, user);
+  }
+
+  @Post('sessions/:id/transfer')
+  @Roles(UserRole.provider, UserRole.admin, UserRole.super_admin)
+  @ApiOperation({ summary: 'Transfer an active session to another provider' })
+  transferSession(
+    @Param('id') id: string,
+    @Body() dto: TransferSessionDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.telecareService.transferSession(id, dto, user);
   }
 
   @Get('sessions/:id')
@@ -60,5 +115,33 @@ export class TelecareController {
   @ApiOperation({ summary: 'Generate a LiveKit token for the session' })
   getLivekitToken(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.telecareService.getLivekitToken(id, user);
+  }
+
+  @Get('shifts')
+  @Roles(UserRole.provider)
+  @ApiOperation({ summary: 'List my telecare availability shifts' })
+  listShifts(@CurrentUser() user: JwtPayload) {
+    return this.telecareService.listShifts(user);
+  }
+
+  @Post('shifts')
+  @Roles(UserRole.provider)
+  @ApiOperation({ summary: 'Add a telecare availability shift' })
+  createShift(@Body() dto: CreateShiftDto, @CurrentUser() user: JwtPayload) {
+    return this.telecareService.createShift(dto, user);
+  }
+
+  @Delete('shifts/:id')
+  @Roles(UserRole.provider)
+  @ApiOperation({ summary: 'Remove a telecare availability shift' })
+  deleteShift(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.telecareService.deleteShift(id, user);
+  }
+
+  @Get('available-providers')
+  @Roles(UserRole.provider, UserRole.admin, UserRole.super_admin, UserRole.coordinator)
+  @ApiOperation({ summary: 'List currently available providers (for transfer)' })
+  getAvailableProviders() {
+    return this.telecareService.getAvailableProviders();
   }
 }

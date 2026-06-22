@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SupportService } from './support.service';
 import { CreateTicketDto, AddMessageDto, UpdateTicketStatusDto } from './dto/create-ticket.dto';
@@ -18,8 +18,8 @@ export class SupportController {
 
   @Get('tickets')
   @ApiOperation({ summary: 'List tickets (own for patients, all for admin/coordinator)' })
-  findAll(@CurrentUser() user: JwtPayload) {
-    return this.supportService.findAll(user);
+  findAll(@CurrentUser() user: JwtPayload, @Query('status') status?: string) {
+    return this.supportService.findAll(user, status);
   }
 
   @Get('tickets/:id')

@@ -258,16 +258,20 @@ export class OpenemrService implements OnModuleInit {
       const text = await res.text().catch(() => '');
       this.logger.error(`OpenEMR ${method} ${path} → ${res.status}: ${text.slice(0, 300)}`);
 
-      await this.prisma.integrationError.create({
-        data: {
-          service: 'OpenEMR',
-          endpoint: path,
-          method,
-          errorCode: String(res.status),
-          errorMessage: text.slice(0, 500),
-          patientId: patientId ?? null,
-        },
-      });
+      // GET 404s are routine existence checks (e.g. "does this patient exist?"),
+      // not integration failures worth tracking in the error log.
+      if (method !== 'GET') {
+        await this.prisma.integrationError.create({
+          data: {
+            service: 'OpenEMR',
+            endpoint: path,
+            method,
+            errorCode: String(res.status),
+            errorMessage: text.slice(0, 500),
+            patientId: patientId ?? null,
+          },
+        });
+      }
 
       throw new Error(`OpenEMR ${res.status}: ${text.slice(0, 200)}`);
     }

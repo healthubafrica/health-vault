@@ -9,16 +9,17 @@ const plans = [
     iconBg: '#6DC43F',
     iconColor: '#07251C',
     iconPath: 'M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z',
-    badge: 'STARTER PLAN',
-    desc: 'Your Health Vault at no cost. Core portal access with pay-per-use services.',
-    price: '₦0',
-    priceSub: '/month',
+    badge: 'BASIC PLAN',
+    desc: 'Your Health Passport at no cost. Core portal access with pay-per-use services.',
+    price: 'Free',
+    priceSub: 'forever',
     highlight: false,
     ctaHref: 'https://portal.myvaultplus.com/register',
     items: [
+      'Health Passport included',
       'Patient portal access',
       'Unique Patient ID (HHA-XXXXXXXX)',
-      'Limited health record viewing',
+      'Basic health record storage',
       'TeleCare™ & Expert Review™ pay-per-use',
     ],
   },
@@ -26,15 +27,15 @@ const plans = [
     iconBg: '#07251C',
     iconColor: '#6DC43F',
     iconPath: 'M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z',
-    badge: 'GROWTH PLAN',
-    desc: 'More care, more coverage: HealthConsult™ included plus 1 Expert Review/year.',
+    badge: 'SILVER PLAN',
+    desc: 'More care, more coverage: TeleCare™ sessions included plus 1 Expert Review/year.',
     price: '₦4,900',
     priceSub: '/month',
     highlight: true,
     ctaHref: '/plans',
     items: [
-      'Everything in Starter',
-      'Expanded TeleCare™ sessions',
+      'Everything in Basic',
+      'Monthly TeleCare™ sessions included',
       'HealthConsult™ plan included',
       '1 Expert Review™/year + discounts',
     ],
@@ -43,17 +44,36 @@ const plans = [
     iconBg: '#6DC43F',
     iconColor: '#07251C',
     iconPath: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
-    badge: 'ENTERPRISE PLAN',
-    desc: 'Complete Health Platform: priority everything, 2–4 Expert Reviews/year.',
+    badge: 'GOLD PLAN',
+    desc: 'Complete Health Platform: priority access, family plan, and 2–4 Expert Reviews/year.',
     price: '₦9,900',
     priceSub: '/month',
     highlight: false,
     ctaHref: '/plans',
     items: [
-      'Everything in Growth',
+      'Everything in Silver',
       'Priority TeleCare™ & DispatchCare™',
+      'Family plan support',
       '2–4 Expert Reviews™/year',
       'NeuroFlex™ add-on available',
+    ],
+  },
+  {
+    iconBg: '#07251C',
+    iconColor: '#6DC43F',
+    iconPath: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+    badge: 'CONCIERGE PLAN',
+    desc: 'White-glove health management for organisations, corporates, and high-care individuals.',
+    price: 'Custom',
+    priceSub: 'pricing',
+    highlight: false,
+    ctaHref: '/corporate',
+    items: [
+      'Everything in Gold',
+      'Unlimited Expert Reviews™',
+      'Dedicated care coordinator',
+      'Unlimited TeleCare™ sessions',
+      'International record sharing',
     ],
   },
 ]
@@ -179,8 +199,12 @@ export default function Plans() {
           variants={staggerContainer(0.08)}
           initial={initial}
           animate={animate}
-          className="rg-3"
-          style={{ alignItems: 'stretch' }}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: 24,
+            alignItems: 'stretch',
+          }}
         >
           {plans.map((plan) => (
             <motion.div
@@ -333,7 +357,7 @@ export default function Plans() {
                   borderRadius: 100,
                 }}
               >
-                Get Started
+                {plan.badge === 'CONCIERGE PLAN' ? 'Schedule a Demo' : 'Get Started'}
               </motion.a>
             </motion.div>
           ))}

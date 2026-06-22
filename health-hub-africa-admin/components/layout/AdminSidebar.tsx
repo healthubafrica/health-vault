@@ -29,6 +29,9 @@ import {
   Flag,
   Bell,
   Activity,
+  CalendarClock,
+  Newspaper,
+  MessageSquareQuote,
 } from 'lucide-react'
 
 interface NavItem {
@@ -44,6 +47,7 @@ const NAV: NavItem[] = [
 
   // Provider-only section
   { label: 'My Sessions', href: '/provider/telecare', icon: Video, roles: ['provider'], group: 'Clinical' },
+  { label: 'My Shifts', href: '/provider/shifts', icon: CalendarClock, roles: ['provider'], group: 'Clinical' },
 
   { label: 'Users', href: '/users', icon: Users, roles: ['admin', 'super_admin'], group: 'Management' },
   { label: 'Analytics', href: '/analytics', icon: BarChart3, roles: ['admin', 'super_admin'], group: 'Management' },
@@ -66,6 +70,9 @@ const NAV: NavItem[] = [
   { label: 'Feature Flags', href: '/feature-flags', icon: Flag, roles: ['super_admin'], group: 'System' },
   { label: 'Notifications', href: '/notifications', icon: Bell, roles: ['admin', 'super_admin'], group: 'System' },
 
+  { label: 'Blog Posts', href: '/content/blog', icon: Newspaper, roles: ['admin', 'super_admin'], group: 'Content' },
+  { label: 'Testimonials', href: '/content/testimonials', icon: MessageSquareQuote, roles: ['admin', 'super_admin'], group: 'Content' },
+
   { label: 'Support', href: '/support', icon: HeadphonesIcon, group: 'Other' },
 ]
 
@@ -78,7 +85,7 @@ export function AdminSidebar() {
     (item) => !item.roles || (user?.role && item.roles.includes(user.role)),
   )
 
-  const groups = ['', 'Clinical', 'Management', 'Operations', 'System', 'Other']
+  const groups = ['', 'Clinical', 'Management', 'Operations', 'Content', 'System', 'Other']
 
   return (
     <aside

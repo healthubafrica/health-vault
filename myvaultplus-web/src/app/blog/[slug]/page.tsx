@@ -1,42 +1,41 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import Image from 'next/image'
 import Link from 'next/link'
+import DOMPurify from 'isomorphic-dompurify'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-import { getPostBySlug, getRelatedPosts, getAllSlugs } from '@/lib/blog'
+import { fetchBlogPostBySlug, fetchBlogPosts, formatBlogDate, FALLBACK_COVER_IMAGE } from '@/lib/cms'
 
 interface Props {
   params: Promise<{ slug: string }>
 }
 
-export async function generateStaticParams() {
-  return getAllSlugs().map((slug) => ({ slug }))
-}
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const post = getPostBySlug(slug)
+  const post = await fetchBlogPostBySlug(slug)
   if (!post) return {}
   return {
-    title: `${post.title} — MyHealth Vault+™`,
-    description: post.excerpt,
+    title: `${post.seoTitle ?? post.title} — MyHealth Vault+™`,
+    description: post.seoDescription ?? post.excerpt,
     openGraph: {
       title: post.title,
       description: post.excerpt,
-      images: [{ url: post.image }],
+      images: post.coverImageUrl ? [{ url: post.coverImageUrl }] : undefined,
       type: 'article',
-      publishedTime: post.dateISO,
+      publishedTime: post.publishedAt ?? undefined,
     },
   }
 }
 
 export default async function BlogPostPage({ params }: Props) {
   const { slug } = await params
-  const post = getPostBySlug(slug)
+  const post = await fetchBlogPostBySlug(slug)
   if (!post) notFound()
 
-  const related = getRelatedPosts(post.slug, 3)
+  const { data: allPosts } = await fetchBlogPosts({ limit: 4 })
+  const related = allPosts.filter((p) => p.slug !== post.slug).slice(0, 3)
+  const coverImage = post.coverImageUrl ?? FALLBACK_COVER_IMAGE
+  const sanitizedBody = DOMPurify.sanitize(post.bodyHtml)
 
   return (
     <div style={{ width: '100%', overflowX: 'hidden', background: '#F1F4EF' }}>
@@ -52,13 +51,19 @@ export default async function BlogPostPage({ params }: Props) {
             padding: '140px 0 72px',
           }}
         >
-          <Image
-            src={post.image}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={coverImage}
             alt={post.title}
-            fill
-            priority
-            style={{ objectFit: 'cover', objectPosition: 'center', opacity: 0.18 }}
-            sizes="100vw"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              objectPosition: 'center',
+              opacity: 0.18,
+            }}
           />
           <div
             style={{
@@ -140,7 +145,8 @@ export default async function BlogPostPage({ params }: Props) {
                   color: '#6DC43F',
                 }}
               >
-                {post.date}
+                {formatBlogDate(post.publishedAt)}
+                {post.readMinutes ? ` · ${post.readMinutes} min read` : ''}
               </span>
             </div>
 
@@ -191,12 +197,11 @@ export default async function BlogPostPage({ params }: Props) {
               aspectRatio: '16/9',
             }}
           >
-            <Image
-              src={post.image}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={coverImage}
               alt={post.title}
-              fill
-              style={{ objectFit: 'cover' }}
-              sizes="(max-width: 1100px) 100vw, 1060px"
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
           </div>
         </div>
@@ -205,223 +210,201 @@ export default async function BlogPostPage({ params }: Props) {
       {/* ── Article body ── */}
       <div style={{ margin: '0 16px 0', background: '#fff' }}>
         <div
+          className="blog-article-body"
           style={{
             maxWidth: 760,
             margin: '0 auto',
             padding: '0 40px 88px',
+            color: '#41584E',
+            fontSize: 15.5,
+            lineHeight: 1.78,
           }}
-        >
-          {post.sections.map((section, i) => (
-            <div key={i} style={{ marginBottom: i < post.sections.length - 1 ? 48 : 0 }}>
-              <h2
-                style={{
-                  fontFamily: 'var(--font-manrope), sans-serif',
-                  fontWeight: 700,
-                  fontSize: 'clamp(18px, 2vw, 24px)',
-                  letterSpacing: '-0.015em',
-                  lineHeight: 1.25,
-                  color: '#07251C',
-                  margin: '0 0 14px',
-                }}
-              >
-                {section.heading}
-              </h2>
-              <p
-                style={{
-                  color: '#41584E',
-                  fontSize: 15.5,
-                  lineHeight: 1.78,
-                  margin: 0,
-                }}
-              >
-                {section.body}
-              </p>
-            </div>
-          ))}
-        </div>
+          dangerouslySetInnerHTML={{ __html: sanitizedBody }}
+        />
       </div>
 
       {/* ── Related articles ── */}
-      <div
-        style={{
-          margin: '0 16px 24px',
-          borderRadius: '0 0 28px 28px',
-          overflow: 'hidden',
-          background: '#07251C',
-        }}
-      >
-        <section style={{ maxWidth: 1280, margin: '0 auto', padding: '72px 56px 88px' }}>
-          {/* Header row */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              marginBottom: 14,
-            }}
-          >
-            <span
+      {related.length > 0 && (
+        <div
+          style={{
+            margin: '0 16px 24px',
+            borderRadius: '0 0 28px 28px',
+            overflow: 'hidden',
+            background: '#07251C',
+          }}
+        >
+          <section style={{ maxWidth: 1280, margin: '0 auto', padding: '72px 56px 88px' }}>
+            {/* Header row */}
+            <div
               style={{
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background: '#6DC43F',
-                display: 'inline-block',
-              }}
-            />
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                color: '#6DC43F',
-              }}
-            >
-              Blog and Articles
-            </span>
-          </div>
-
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: 24,
-              marginBottom: 48,
-              flexWrap: 'wrap',
-            }}
-          >
-            <h2
-              style={{
-                fontFamily: 'var(--font-manrope), sans-serif',
-                fontWeight: 600,
-                fontSize: 'clamp(24px, 3vw, 40px)',
-                letterSpacing: '-0.03em',
-                lineHeight: 1.08,
-                color: '#fff',
-                margin: 0,
-              }}
-            >
-              Latest insights and trends
-            </h2>
-            <Link
-              href="/blog"
-              style={{
-                display: 'inline-flex',
+                display: 'flex',
                 alignItems: 'center',
-                gap: 10,
-                background: 'rgba(255,255,255,0.1)',
-                border: '1px solid rgba(255,255,255,0.2)',
-                color: '#fff',
-                textDecoration: 'none',
-                fontWeight: 700,
-                fontSize: 11.5,
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                padding: '11px 11px 11px 20px',
-                borderRadius: 100,
-                flexShrink: 0,
+                gap: 8,
+                marginBottom: 14,
               }}
             >
-              View All
               <span
                 style={{
-                  width: 26,
-                  height: 26,
+                  width: 6,
+                  height: 6,
                   borderRadius: '50%',
                   background: '#6DC43F',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  display: 'inline-block',
+                }}
+              />
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                  color: '#6DC43F',
                 }}
               >
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M5 19L19 5M19 5H9M19 5v10"
-                    stroke="#07251C"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                Blog and Articles
               </span>
-            </Link>
-          </div>
+            </div>
 
-          {/* 3-card grid with image + text overlay */}
-          <div className="rg-3">
-            {related.map((rPost) => (
-              <Link
-                key={rPost.slug}
-                href={`/blog/${rPost.slug}`}
-                style={{ textDecoration: 'none', display: 'block' }}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 24,
+                marginBottom: 48,
+                flexWrap: 'wrap',
+              }}
+            >
+              <h2
+                style={{
+                  fontFamily: 'var(--font-manrope), sans-serif',
+                  fontWeight: 600,
+                  fontSize: 'clamp(24px, 3vw, 40px)',
+                  letterSpacing: '-0.03em',
+                  lineHeight: 1.08,
+                  color: '#fff',
+                  margin: 0,
+                }}
               >
-                <div
+                Latest insights and trends
+              </h2>
+              <Link
+                href="/blog"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  background: 'rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  color: '#fff',
+                  textDecoration: 'none',
+                  fontWeight: 700,
+                  fontSize: 11.5,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  padding: '11px 11px 11px 20px',
+                  borderRadius: 100,
+                  flexShrink: 0,
+                }}
+              >
+                View All
+                <span
                   style={{
-                    position: 'relative',
-                    borderRadius: 18,
-                    overflow: 'hidden',
-                    aspectRatio: '3/4',
+                    width: 26,
+                    height: 26,
+                    borderRadius: '50%',
+                    background: '#6DC43F',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                   }}
                 >
-                  <Image
-                    src={rPost.image}
-                    alt={rPost.title}
-                    fill
-                    style={{ objectFit: 'cover' }}
-                    sizes="(max-width: 768px) 100vw, 33vw"
-                  />
-                  {/* Dark gradient overlay */}
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M5 19L19 5M19 5H9M19 5v10"
+                      stroke="#07251C"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+              </Link>
+            </div>
+
+            {/* 3-card grid with image + text overlay */}
+            <div className="rg-3">
+              {related.map((rPost) => (
+                <Link
+                  key={rPost.slug}
+                  href={`/blog/${rPost.slug}`}
+                  style={{ textDecoration: 'none', display: 'block' }}
+                >
                   <div
                     style={{
-                      position: 'absolute',
-                      inset: 0,
-                      background:
-                        'linear-gradient(to top, rgba(4,18,12,0.92) 0%, rgba(4,18,12,0.4) 50%, rgba(4,18,12,0.05) 100%)',
-                    }}
-                  />
-                  {/* Text at bottom */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      padding: '24px 22px',
+                      position: 'relative',
+                      borderRadius: 18,
+                      overflow: 'hidden',
+                      aspectRatio: '3/4',
                     }}
                   >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={rPost.coverImageUrl ?? FALLBACK_COVER_IMAGE}
+                      alt={rPost.title}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                    {/* Dark gradient overlay */}
                     <div
                       style={{
-                        fontSize: 11,
-                        color: 'rgba(255,255,255,0.55)',
-                        fontWeight: 600,
-                        letterSpacing: '0.06em',
-                        marginBottom: 8,
+                        position: 'absolute',
+                        inset: 0,
+                        background:
+                          'linear-gradient(to top, rgba(4,18,12,0.92) 0%, rgba(4,18,12,0.4) 50%, rgba(4,18,12,0.05) 100%)',
                       }}
-                    >
-                      {rPost.date}
-                    </div>
-                    <h3
+                    />
+                    {/* Text at bottom */}
+                    <div
                       style={{
-                        fontFamily: 'var(--font-manrope), sans-serif',
-                        fontWeight: 600,
-                        fontSize: 16,
-                        color: '#fff',
-                        margin: 0,
-                        lineHeight: 1.4,
-                        letterSpacing: '-0.01em',
+                        position: 'absolute',
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        padding: '24px 22px',
                       }}
                     >
-                      {rPost.title}
-                    </h3>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: 'rgba(255,255,255,0.55)',
+                          fontWeight: 600,
+                          letterSpacing: '0.06em',
+                          marginBottom: 8,
+                        }}
+                      >
+                        {formatBlogDate(rPost.publishedAt)}
+                      </div>
+                      <h3
+                        style={{
+                          fontFamily: 'var(--font-manrope), sans-serif',
+                          fontWeight: 600,
+                          fontSize: 16,
+                          color: '#fff',
+                          margin: 0,
+                          lineHeight: 1.4,
+                          letterSpacing: '-0.01em',
+                        }}
+                      >
+                        {rPost.title}
+                      </h3>
+                    </div>
                   </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
 
       <Footer />
     </div>

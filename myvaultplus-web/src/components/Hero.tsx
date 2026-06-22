@@ -13,19 +13,24 @@ export default function Hero() {
         position: 'relative',
         background: '#041E14',
         overflow: 'hidden',
-        minHeight: '92vh',
+        minHeight: 'clamp(560px, 92vh, 960px)',
         display: 'flex',
         flexDirection: 'column',
       }}
     >
       {/* Full-bleed background photo */}
-      <Image
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
         src="https://images.unsplash.com/photo-1684607631667-7502878ad293?w=1920&h=1080&fit=crop&q=85"
         alt="Healthcare professional in surgical mask and gloves"
-        fill
-        priority
-        style={{ objectFit: 'cover', objectPosition: 'center' }}
-        sizes="100vw"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          objectPosition: 'center',
+        }}
       />
 
       {/* Dark overlay so text stays legible */}
@@ -39,7 +44,7 @@ export default function Hero() {
         }}
       />
 
-      {/* ── Hero text block — flex:1 centers it in the space above the marquee ── */}
+      {/* ── Hero text block ── */}
       <div
         style={{
           flex: 1,
@@ -49,7 +54,7 @@ export default function Hero() {
           width: '100%',
           position: 'relative',
           zIndex: 1,
-          paddingTop: 'clamp(72px,10vw,112px)',
+          paddingTop: 'clamp(44px,10vw,112px)',
         }}
       >
       <div
@@ -66,7 +71,7 @@ export default function Hero() {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 1.3, ease: EASE_OUT, delay: 0.08 }}
           style={{
-            margin: '0 0 18px',
+            margin: '0 0 clamp(10px,3vw,18px)',
             lineHeight: 1.06,
             fontFamily: 'var(--font-manrope), sans-serif',
           }}
@@ -74,15 +79,16 @@ export default function Hero() {
           <span
             style={{
               display: 'block',
-              fontWeight: 700,
-              fontSize: 'clamp(32px, 5.5vw, 58px)',
-              color: '#fff',
+              fontWeight: 600,
+              fontSize: 'clamp(11px, 2.2vw, 26px)',
+              color: 'rgba(255,255,255,0.75)',
               textShadow: '0 2px 20px rgba(0,0,0,0.18)',
-              letterSpacing: '-0.03em',
-              lineHeight: 1.06,
+              letterSpacing: '0.01em',
+              lineHeight: 1.3,
+              marginBottom: 4,
             }}
           >
-            Your health records,
+            MyHealth Vault+™ Health Passport
           </span>
           <span
             style={{
@@ -90,13 +96,13 @@ export default function Hero() {
               fontFamily: 'var(--font-playfair-display), serif',
               fontStyle: 'italic',
               fontWeight: 700,
-              fontSize: 'clamp(32px, 5.5vw, 58px)',
+              fontSize: 'clamp(24px, 6vw, 64px)',
               color: '#6DC43F',
               letterSpacing: '-0.02em',
               lineHeight: 1.06,
             }}
           >
-            secure and within reach
+            One Patient. One Record. Anywhere.
           </span>
         </motion.h1>
 
@@ -106,14 +112,14 @@ export default function Hero() {
           transition={{ duration: 0.85, ease: EASE_OUT, delay: 0.28 }}
           style={{
             color: 'rgba(255,255,255,0.78)',
-            fontSize: 16,
-            lineHeight: 1.65,
+            fontSize: 'clamp(13px, 3.5vw, 16px)',
+            lineHeight: 1.6,
             maxWidth: 520,
-            margin: '0 auto 32px',
+            margin: '0 auto clamp(18px, 5vw, 32px)',
           }}
         >
-          MyHealth Vault+™ is your personal digital health portal: access records, book care, get
-          specialist second opinions, and activate emergency dispatch from one secure place.
+          Your lifelong digital health record that travels with you across providers, hospitals,
+          employers, HMOs, and countries. Store, access, and share your medical history anywhere.
         </motion.p>
 
         {/* CTA row */}
@@ -121,6 +127,7 @@ export default function Hero() {
           initial={reduced ? false : { opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.78, ease: EASE_OUT, delay: 0.46 }}
+          className="hero-cta-row"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -129,9 +136,9 @@ export default function Hero() {
             flexWrap: 'wrap',
           }}
         >
-          {/* Outline / ghost button */}
+          {/* Ghost button */}
           <a
-            href="/services"
+            href="#how-it-works"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -149,10 +156,10 @@ export default function Hero() {
               borderRadius: 100,
             }}
           >
-            View Services
+            See How It Works
           </a>
 
-          {/* Primary lime-green pill */}
+          {/* Primary pill */}
           <a
             href="https://portal.myvaultplus.com/register"
             style={{
@@ -170,7 +177,7 @@ export default function Hero() {
               borderRadius: 100,
             }}
           >
-            Get Started
+            Create Free Account
             <span
               style={{
                 width: 30,
@@ -223,6 +230,24 @@ export default function Hero() {
             animation: heroMarquee 38s linear infinite;
           }
           .hero-marquee-track:hover { animation-play-state: paused; }
+
+          @media (max-width: 480px) {
+            .hero-cta-row { gap: 8px !important; }
+            .hero-cta-row a {
+              font-size: 10px !important;
+              padding: 10px 16px !important;
+              letter-spacing: 0.05em !important;
+            }
+            .hero-cta-row a span { width: 24px !important; height: 24px !important; }
+            .hero-marquee-track {
+              gap: 10px !important;
+              padding-bottom: 24px !important;
+            }
+            .hero-marquee-track > div {
+              transform: scale(0.82);
+              transform-origin: top left;
+            }
+          }
         `}</style>
 
         <div className="hero-marquee-track">
@@ -265,17 +290,11 @@ export default function Hero() {
               <div style={{ marginTop: 16, fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>MyHealth Vault+™ · Health-Hub Africa®</div>
             </div>,
 
-            /* 4 — Satisfaction % */
-            <div key="satisfaction" style={{ background: '#fff', borderRadius: 18, padding: '18px 20px', width: 175, flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#07251C' }}>Patient Satisfaction</div>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 17l10-10M17 17V7H7" stroke="#6DC43F" strokeWidth="2" strokeLinecap="round"/></svg>
-              </div>
-              <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 44, fontWeight: 700, color: '#07251C', letterSpacing: '-0.04em', lineHeight: 1 }}>98<span style={{ fontSize: 22, color: '#137333' }}>%</span></div>
-              <div style={{ fontSize: 10, color: '#7A8C84', marginTop: 6 }}>In the past 30 days</div>
-              <div style={{ marginTop: 10, height: 3, background: '#F1F4EF', borderRadius: 3 }}>
-                <div style={{ width: '98%', height: '100%', background: 'linear-gradient(90deg,#137333,#6DC43F)', borderRadius: 3 }} />
-              </div>
+            /* 4 — Founding Member Program */
+            <div key="founding" style={{ background: '#07251C', borderRadius: 18, padding: '18px 20px', width: 200, flexShrink: 0 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#6DC43F', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Founding Member Program</div>
+              <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 14, fontWeight: 700, color: '#fff', lineHeight: 1.35, marginBottom: 14 }}>Be among the first to experience the future of connected healthcare in Africa.</div>
+              <div style={{ background: '#6DC43F', borderRadius: 100, padding: '6px 14px', display: 'inline-block', fontSize: 10, fontWeight: 700, color: '#07251C' }}>Join Before Launch</div>
             </div>,
 
             /* 5 — Appointment */
@@ -297,42 +316,37 @@ export default function Hero() {
               </div>
             </div>,
 
-            /* 6 — Big mint stat */
-            <div key="stat" style={{ background: '#6DC43F', borderRadius: 18, padding: '20px 22px', width: 158, flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 148 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#07251C', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Active Patients</div>
-              <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 52, fontWeight: 700, color: '#07251C', letterSpacing: '-0.04em', lineHeight: 1 }}>4.9k<span style={{ fontSize: 28 }}>+</span></div>
-              <div style={{ fontSize: 10, color: 'rgba(7,37,28,0.6)' }}>Across Nigeria · 2026</div>
+            /* 6 — Early Access */
+            <div key="earlyaccess" style={{ background: '#6DC43F', borderRadius: 18, padding: '20px 22px', width: 158, flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 148 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#07251C', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Early Access</div>
+              <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 20, fontWeight: 700, color: '#07251C', letterSpacing: '-0.02em', lineHeight: 1.2 }}>Now Accepting Registrations</div>
+              <div style={{ fontSize: 10, color: 'rgba(7,37,28,0.6)' }}>Health Passport · 2026</div>
             </div>,
 
-            /* 7 — Lab results */
+            /* 7 — Laboratory Services */
             <div key="lab" style={{ background: '#fff', borderRadius: 18, padding: '16px 18px', width: 200, flexShrink: 0 }}>
               <div style={{ fontSize: 9, fontWeight: 700, color: '#137333', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>CareTest™</div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#07251C', marginBottom: 14 }}>Lab Results</div>
-              {[['Haemoglobin','72%','#137333'],['Glucose','48%','#F5A623'],['WBC Count','60%','#6DC43F']].map(([label, pct, color]) => (
-                <div key={label} style={{ marginBottom: 9 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#617870', marginBottom: 4 }}>
-                    <span>{label}</span><span style={{ fontWeight: 600, color: '#07251C' }}>{pct}</span>
-                  </div>
-                  <div style={{ height: 4, background: '#F1F4EF', borderRadius: 4 }}>
-                    <div style={{ width: pct, height: '100%', background: color, borderRadius: 4 }} />
-                  </div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#07251C', marginBottom: 12 }}>Laboratory Services</div>
+              {['Complete Blood Count','Blood Chemistry','Diabetes Screening','Cholesterol Panel','Kidney Function'].map((svc) => (
+                <div key={svc} style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 7 }}>
+                  <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#EAF7F1', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg width="7" height="7" viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4L19 7" stroke="#137333" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </span>
+                  <span style={{ fontSize: 10, color: '#617870' }}>{svc}</span>
                 </div>
               ))}
             </div>,
 
-            /* 8 — DispatchCare alert */
+            /* 8 — How DispatchCare Works */
             <div key="dispatch" style={{ background: '#0D0D0D', borderRadius: 18, padding: '18px 20px', width: 185, flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14 }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#FF5C5C', boxShadow: '0 0 0 3px rgba(255,92,92,0.25)' }} />
-                <div style={{ fontSize: 9, fontWeight: 700, color: '#FF5C5C', letterSpacing: '0.1em', textTransform: 'uppercase' }}>DispatchCare™</div>
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 3 }}>Emergency Active</div>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginBottom: 14 }}>DC-2026-004419 · 2 min ago</div>
-              <div style={{ background: 'linear-gradient(135deg,#137333,#063C2C)', borderRadius: 10, padding: '10px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="#6DC43F"/></svg>
-                <span style={{ fontSize: 10, color: '#6DC43F', fontWeight: 600 }}>Location detected</span>
-              </div>
-              <div style={{ background: 'rgba(255,92,92,0.15)', borderRadius: 8, padding: '6px 10px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: '#FF5C5C' }}>HHA team alerted</div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#6DC43F', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>DispatchCare™</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', marginBottom: 12 }}>How It Works</div>
+              {[['1','Patient requests help'],['2','Location identified'],['3','Team activated'],['4','Care dispatched'],['5','Patient updated']].map(([n, step]) => (
+                <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
+                  <span style={{ width: 17, height: 17, borderRadius: '50%', background: '#6DC43F', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#07251C', flexShrink: 0 }}>{n}</span>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>{step}</span>
+                </div>
+              ))}
             </div>,
 
             /* 9 — Expert Review with doctor photo */
@@ -400,16 +414,10 @@ export default function Hero() {
               </div>
               <div style={{ marginTop: 16, fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>MyHealth Vault+™ · Health-Hub Africa®</div>
             </div>,
-            <div key="satisfaction2" style={{ background: '#fff', borderRadius: 18, padding: '18px 20px', width: 175, flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#07251C' }}>Patient Satisfaction</div>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 17l10-10M17 17V7H7" stroke="#6DC43F" strokeWidth="2" strokeLinecap="round"/></svg>
-              </div>
-              <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 44, fontWeight: 700, color: '#07251C', letterSpacing: '-0.04em', lineHeight: 1 }}>98<span style={{ fontSize: 22, color: '#137333' }}>%</span></div>
-              <div style={{ fontSize: 10, color: '#7A8C84', marginTop: 6 }}>In the past 30 days</div>
-              <div style={{ marginTop: 10, height: 3, background: '#F1F4EF', borderRadius: 3 }}>
-                <div style={{ width: '98%', height: '100%', background: 'linear-gradient(90deg,#137333,#6DC43F)', borderRadius: 3 }} />
-              </div>
+            <div key="founding2" style={{ background: '#07251C', borderRadius: 18, padding: '18px 20px', width: 200, flexShrink: 0 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#6DC43F', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Founding Member Program</div>
+              <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 14, fontWeight: 700, color: '#fff', lineHeight: 1.35, marginBottom: 14 }}>Be among the first to experience the future of connected healthcare in Africa.</div>
+              <div style={{ background: '#6DC43F', borderRadius: 100, padding: '6px 14px', display: 'inline-block', fontSize: 10, fontWeight: 700, color: '#07251C' }}>Join Before Launch</div>
             </div>,
             <div key="appt2" style={{ background: '#fff', borderRadius: 18, padding: '16px 18px', width: 200, flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
@@ -428,37 +436,32 @@ export default function Hero() {
                 <span style={{ fontSize: 10, fontWeight: 700, color: '#137333' }}>Confirmed</span>
               </div>
             </div>,
-            <div key="stat2" style={{ background: '#6DC43F', borderRadius: 18, padding: '20px 22px', width: 158, flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 148 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#07251C', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Active Patients</div>
-              <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 52, fontWeight: 700, color: '#07251C', letterSpacing: '-0.04em', lineHeight: 1 }}>4.9k<span style={{ fontSize: 28 }}>+</span></div>
-              <div style={{ fontSize: 10, color: 'rgba(7,37,28,0.6)' }}>Across Nigeria · 2026</div>
+            <div key="earlyaccess2" style={{ background: '#6DC43F', borderRadius: 18, padding: '20px 22px', width: 158, flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 148 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#07251C', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Early Access</div>
+              <div style={{ fontFamily: 'var(--font-manrope)', fontSize: 20, fontWeight: 700, color: '#07251C', letterSpacing: '-0.02em', lineHeight: 1.2 }}>Now Accepting Registrations</div>
+              <div style={{ fontSize: 10, color: 'rgba(7,37,28,0.6)' }}>Health Passport · 2026</div>
             </div>,
             <div key="lab2" style={{ background: '#fff', borderRadius: 18, padding: '16px 18px', width: 200, flexShrink: 0 }}>
               <div style={{ fontSize: 9, fontWeight: 700, color: '#137333', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>CareTest™</div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#07251C', marginBottom: 14 }}>Lab Results</div>
-              {[['Haemoglobin','72%','#137333'],['Glucose','48%','#F5A623'],['WBC Count','60%','#6DC43F']].map(([label, pct, color]) => (
-                <div key={label} style={{ marginBottom: 9 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#617870', marginBottom: 4 }}>
-                    <span>{label}</span><span style={{ fontWeight: 600, color: '#07251C' }}>{pct}</span>
-                  </div>
-                  <div style={{ height: 4, background: '#F1F4EF', borderRadius: 4 }}>
-                    <div style={{ width: pct, height: '100%', background: color, borderRadius: 4 }} />
-                  </div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#07251C', marginBottom: 12 }}>Laboratory Services</div>
+              {['Complete Blood Count','Blood Chemistry','Diabetes Screening','Cholesterol Panel','Kidney Function'].map((svc) => (
+                <div key={svc} style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 7 }}>
+                  <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#EAF7F1', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg width="7" height="7" viewBox="0 0 24 24" fill="none"><path d="M5 12l4 4L19 7" stroke="#137333" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </span>
+                  <span style={{ fontSize: 10, color: '#617870' }}>{svc}</span>
                 </div>
               ))}
             </div>,
             <div key="dispatch2" style={{ background: '#0D0D0D', borderRadius: 18, padding: '18px 20px', width: 185, flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14 }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#FF5C5C', boxShadow: '0 0 0 3px rgba(255,92,92,0.25)' }} />
-                <div style={{ fontSize: 9, fontWeight: 700, color: '#FF5C5C', letterSpacing: '0.1em', textTransform: 'uppercase' }}>DispatchCare™</div>
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 3 }}>Emergency Active</div>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginBottom: 14 }}>DC-2026-004419 · 2 min ago</div>
-              <div style={{ background: 'linear-gradient(135deg,#137333,#063C2C)', borderRadius: 10, padding: '10px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="#6DC43F"/></svg>
-                <span style={{ fontSize: 10, color: '#6DC43F', fontWeight: 600 }}>Location detected</span>
-              </div>
-              <div style={{ background: 'rgba(255,92,92,0.15)', borderRadius: 8, padding: '6px 10px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: '#FF5C5C' }}>HHA team alerted</div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#6DC43F', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>DispatchCare™</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', marginBottom: 12 }}>How It Works</div>
+              {[['1','Patient requests help'],['2','Location identified'],['3','Team activated'],['4','Care dispatched'],['5','Patient updated']].map(([n, step]) => (
+                <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
+                  <span style={{ width: 17, height: 17, borderRadius: '50%', background: '#6DC43F', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#07251C', flexShrink: 0 }}>{n}</span>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>{step}</span>
+                </div>
+              ))}
             </div>,
             <div key="review2" style={{ background: '#fff', borderRadius: 18, overflow: 'hidden', width: 185, flexShrink: 0 }}>
               <div style={{ height: 88, position: 'relative', background: '#E8F0EC' }}>

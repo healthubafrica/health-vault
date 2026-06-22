@@ -52,13 +52,32 @@ export class SupportService {
     });
   }
 
-  async findAll(currentUser: JwtPayload) {
+  async findAll(currentUser: JwtPayload, status?: string) {
     const isAdmin = ADMIN_ROLES.includes(currentUser.role as UserRole);
+    const statusFilter = status ? { status } : {};
 
     return this.prisma.supportTicket.findMany({
-      where: isAdmin ? {} : { submittedBy: currentUser.sub },
-      orderBy: { createdAt: 'desc' },
-      include: { messages: { orderBy: { createdAt: 'desc' }, take: 1 } },
+      where: isAdmin
+        ? statusFilter
+        : { submittedBy: currentUser.sub, ...statusFilter },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        submitter: {
+          select: {
+            email: true,
+            patient: { select: { firstName: true, lastName: true } },
+            provider: { select: { firstName: true, lastName: true } },
+          },
+        },
+        assignee: {
+          select: {
+            email: true,
+            patient: { select: { firstName: true, lastName: true } },
+            provider: { select: { firstName: true, lastName: true } },
+          },
+        },
+        _count: { select: { messages: true } },
+      },
     });
   }
 
