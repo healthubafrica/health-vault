@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { adminApi, type AdminSupportTicket } from '@/lib/api'
 import { Card } from '@/components/ui/Card'
 import { FilterTabs } from '@/components/ui/FilterTabs'
 import { Pill } from '@/components/ui/Pill'
@@ -8,7 +9,8 @@ import { Button } from '@/components/ui/Button'
 import { Avatar } from '@/components/ui/Avatar'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { formatDateTime } from '@/lib/utils'
-import { RefreshCw, MessageSquare } from 'lucide-react'
+import { RefreshCw, MessageSquare, ExternalLink } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 type TicketStatus = 'open' | 'in_progress' | 'waiting' | 'resolved' | 'closed'
 type TicketPriority = 'urgent' | 'high' | 'medium' | 'low'
@@ -52,12 +54,44 @@ export default function SupportPage() {
   const [page, setPage] = useState(1)
   const limit = 25
 
+  const router = useRouter()
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      // Support tickets endpoint not yet in adminApi — placeholder fetch
-      const _params = { status: statusTab !== 'All' ? statusTab : undefined, page, limit }
-      void _params
+      const status = statusTab !== 'All' ? statusTab : undefined
+      const raw = await adminApi.support.list(status)
+      const mapped: SupportTicket[] = raw.map((t: AdminSupportTicket) => {
+        const submitterName = t.submitter.patient
+          ? `${t.submitter.patient.firstName} ${t.submitter.patient.lastName}`
+          : t.submitter.provider
+            ? `${t.submitter.provider.firstName} ${t.submitter.provider.lastName}`
+            : undefined
+        const assigneeName = t.assignee
+          ? (t.assignee.patient
+              ? `${t.assignee.patient.firstName} ${t.assignee.patient.lastName}`
+              : t.assignee.provider
+                ? `${t.assignee.provider.firstName} ${t.assignee.provider.lastName}`
+                : t.assignee.email)
+          : undefined
+        return {
+          id: t.id,
+          subject: t.subject,
+          userEmail: t.submitter.email,
+          userName: submitterName,
+          assigneeName,
+          category: t.category,
+          status: t.status as TicketStatus,
+          priority: (t.priority === 'normal' ? 'medium' : t.priority) as TicketPriority,
+          createdAt: t.createdAt,
+          updatedAt: t.updatedAt,
+          messageCount: t._count.messages,
+        }
+      })
+      setTotal(mapped.length)
+      const start = (page - 1) * limit
+      setTickets(mapped.slice(start, start + limit))
+    } catch {
       setTickets([])
       setTotal(0)
     } finally {
@@ -137,6 +171,7 @@ export default function SupportPage() {
                 tickets.map((t) => (
                   <tr
                     key={t.id}
+                    onClick={() => router.push(`/support/${t.id}`)}
                     className="border-b last:border-b-0 cursor-pointer hover:bg-[var(--color-bg)] transition-colors"
                     style={{ borderColor: 'var(--color-border)' }}
                   >

@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsDateString } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsDateString, IsInt, Min, Max, IsBoolean } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TelecareSessionStatus } from '../../common/enums';
 
@@ -38,6 +38,48 @@ export class UpdateSessionDto {
   @IsOptional()
   @IsString()
   recordingUrl?: string;
+}
+
+export class CreateOnDemandSessionDto {
+  @ApiProperty()
+  @IsString()
+  patientId: string;
+
+  @ApiProperty()
+  @IsString()
+  providerId: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}
+
+export class TransferSessionDto {
+  @ApiProperty()
+  @IsString()
+  toProviderId: string;
+}
+
+export class CreateShiftDto {
+  @ApiProperty()
+  @IsInt()
+  @Min(0)
+  @Max(6)
+  dayOfWeek: number;
+
+  @ApiProperty()
+  @IsString()
+  startTime: string;
+
+  @ApiProperty()
+  @IsString()
+  endTime: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isTelecare?: boolean;
 }
 
 export class CreateSessionNoteDto {

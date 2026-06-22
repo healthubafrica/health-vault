@@ -1,45 +1,176 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useRef } from 'react'
 import { motion, useInView, useReducedMotion } from 'framer-motion'
-import Image from 'next/image'
-import { EASE_OUT, staggerContainer, labelVariant, headingVariant, bodyVariant } from '@/lib/motion'
+import { staggerContainer, labelVariant, headingVariant, bodyVariant } from '@/lib/motion'
 
-const items = [
+const rowOne = [
   {
     icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
-    titleColor: '#137333',
-    title: 'Zero PHI on Your Device',
-    desc: 'Records are never stored or cached locally; they are delivered only to your authenticated session on protected servers.',
+    titleColor: '#6DC43F',
+    title: 'NDPR Compliance',
+    desc: "Fully compliant with Nigeria's Data Protection Regulation. Your health data is handled according to Nigerian law and patient rights.",
     photo: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=600&h=600&fit=crop&q=80',
   },
   {
     icon: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z',
-    titleColor: '#1D4ED8',
-    title: 'End-to-End Protected',
-    desc: 'Every request encrypted end-to-end. HTTPS/TLS on all connections, no exceptions.',
+    titleColor: '#6DC43F',
+    title: 'HIPAA-Aligned Practices',
+    desc: 'Built to meet HIPAA standards for the protection of protected health information (PHI), following international best practices.',
     photo: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=600&h=600&fit=crop&q=80',
   },
   {
-    icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
-    titleColor: '#B45309',
-    title: 'Clinically Governed',
-    desc: 'FHIR R4-compliant infrastructure governed by Health-Hub Africa® clinical standards. Accurate, structured, auditable.',
+    icon: 'M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+    titleColor: '#6DC43F',
+    title: 'FHIR Interoperability',
+    desc: 'FHIR R4-compliant infrastructure enables seamless, secure exchange of records across hospitals, labs, specialists, and HMOs.',
     photo: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=600&h=600&fit=crop&q=80',
   },
 ]
 
+const rowTwo = [
+  {
+    icon: 'M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4',
+    titleColor: '#6DC43F',
+    title: 'Encrypted Data Storage',
+    desc: 'All health records encrypted at rest and in transit. No data is stored or cached locally — delivered only to your authenticated session.',
+    photo: 'https://images.unsplash.com/photo-1516841273335-e39b37888115?w=600&h=600&fit=crop&q=80',
+  },
+  {
+    icon: 'M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z',
+    titleColor: '#6DC43F',
+    title: 'Secure Record Sharing',
+    desc: 'Share your medical history with providers, employers, HMOs, or specialists via controlled, time-limited, consent-based access.',
+    photo: 'https://images.unsplash.com/photo-1551190822-a9333d879b1f?w=600&h=600&fit=crop&q=80',
+  },
+]
+
+function TrustCard({ item }: { item: (typeof rowOne)[0] }) {
+  return (
+    <div
+      className="security-card"
+      style={{
+        position: 'relative',
+        borderRadius: 18,
+        overflow: 'hidden',
+        height: 300,
+      }}
+    >
+      {/* Background photo — always present */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={item.photo}
+        alt={item.title}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          objectPosition: 'center',
+        }}
+      />
+
+      {/* Dark overlay — lifts on hover via CSS */}
+      <div className="security-overlay" />
+
+      {/* Content layer */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          padding: 26,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          zIndex: 1,
+        }}
+      >
+        {/* Icon badge */}
+        <div
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 10,
+            background: 'rgba(109,196,63,0.25)',
+            border: '1px solid rgba(109,196,63,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            backdropFilter: 'blur(6px)',
+          }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path
+              d={item.icon}
+              stroke="#6DC43F"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
+
+        {/* Title + description */}
+        <div>
+          <h3
+            style={{
+              fontFamily: 'var(--font-manrope), sans-serif',
+              fontWeight: 700,
+              fontSize: 17,
+              margin: '0 0 8px',
+              color: '#fff',
+              letterSpacing: '-0.01em',
+              lineHeight: 1.25,
+            }}
+          >
+            {item.title}
+          </h3>
+          <p
+            style={{
+              fontSize: 13,
+              lineHeight: 1.65,
+              color: 'rgba(255,255,255,0.78)',
+              margin: 0,
+            }}
+          >
+            {item.desc}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Security() {
-  const [hovered, setHovered] = useState(0)
   const headerRef = useRef(null)
   const inView = useInView(headerRef, { once: true, amount: 0.2 })
   const reduced = useReducedMotion()
 
   return (
     <section style={{ background: '#F7FAF7' }}>
+      <style>{`
+        .security-overlay {
+          position: absolute;
+          inset: 0;
+          background: rgba(4, 18, 12, 0.82);
+          transition: background 0.38s ease;
+          z-index: 0;
+        }
+        .security-card:hover .security-overlay {
+          background: rgba(4, 18, 12, 0.44);
+        }
+        @media (max-width: 768px) {
+          .security-grid { display: flex !important; flex-direction: column; padding: 12px; }
+          .security-grid > div { display: flex !important; flex-direction: column !important; max-width: 100% !important; gap: 10px !important; }
+          .security-card { height: 220px !important; }
+        }
+      `}</style>
+
       <div className="section-inner-lg">
 
-        {/* ── Header — per-element stagger ── */}
+        {/* Header */}
         <motion.div
           ref={headerRef}
           style={{ textAlign: 'center', marginBottom: 64 }}
@@ -61,15 +192,7 @@ export default function Security() {
               marginBottom: 20,
             }}
           >
-            <span
-              style={{
-                width: 5,
-                height: 5,
-                borderRadius: '50%',
-                background: '#07251C',
-                display: 'inline-block',
-              }}
-            />
+            <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#07251C', display: 'inline-block' }} />
             Security &amp; Trust
           </motion.div>
 
@@ -87,26 +210,14 @@ export default function Security() {
             }}
           >
             Comprehensive protection and clinically{' '}
-            <em
-              style={{
-                fontFamily: 'var(--font-playfair-display), serif',
-                fontStyle: 'italic',
-                fontWeight: 700,
-              }}
-            >
+            <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>
               governed infrastructure
             </em>
           </motion.h2>
 
           <motion.p
             variants={bodyVariant}
-            style={{
-              color: '#5A7068',
-              fontSize: 15,
-              maxWidth: 460,
-              margin: '0 auto 28px',
-              lineHeight: 1.65,
-            }}
+            style={{ color: '#5A7068', fontSize: 15, maxWidth: 460, margin: '0 auto 28px', lineHeight: 1.65 }}
           >
             Whether you&apos;re checking results or sharing records with a specialist, your data
             stays encrypted and never exposed.
@@ -146,144 +257,39 @@ export default function Security() {
                 }}
               >
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M5 19L19 5M19 5H9M19 5v10"
-                    stroke="#07251C"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
+                  <path d="M5 19L19 5M19 5H9M19 5v10" stroke="#07251C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </span>
             </motion.a>
           </motion.div>
         </motion.div>
 
-        {/* ── Outer gray wrapper ── */}
-        <div
-          className="security-grid"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: items.map((_, i) => (hovered === i ? '2fr' : '1fr')).join(' '),
-          }}
-          onMouseLeave={() => setHovered(0)}
-        >
-          {items.map((item, i) => {
-            const isActive = hovered === i
-            return (
-              /*
-               * CARD — flex ROW:
-               *   [left col: icon (top) + text (bottom)]   [right: square image]
-               *
-               * Card height is driven by the image size + card padding.
-               * Both the left column and the image share the same vertical space,
-               * so they are always on the same line.
-               */
-              <div
-                key={i}
-                className="security-card"
-                onMouseEnter={() => setHovered(i)}
-                style={{
-                  background: '#fff',
-                  borderRadius: 18,
-                  overflow: 'hidden',
-                  cursor: 'default',
-                  display: 'flex',
-                  flexDirection: 'row',
-                  alignItems: 'stretch',
-                  padding: 28,
-                  gap: isActive ? 20 : 0,
-                  transition: 'gap 0.44s cubic-bezier(0.4, 0, 0.2, 1)',
-                  height: 316,
-                }}
-              >
-                {/* ── Left column: icon at top, title+desc at bottom ── */}
-                <div
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  {/* Icon badge */}
-                  <div
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 10,
-                      background: '#6DC43F',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                      <path
-                        d={item.icon}
-                        stroke="#07251C"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
+        {/* ── Grey outer wrapper ── */}
+        <div className="security-grid" style={{ display: 'flex', flexDirection: 'column' }}>
 
-                  {/* Title + desc — bottom of left column */}
-                  <div>
-                    <h3
-                      style={{
-                        fontFamily: 'var(--font-manrope), sans-serif',
-                        fontWeight: 600,
-                        fontSize: 18,
-                        margin: '0 0 8px',
-                        color: item.titleColor,
-                        letterSpacing: '-0.01em',
-                        lineHeight: 1.25,
-                      }}
-                    >
-                      {item.title}
-                    </h3>
-                    <p
-                      style={{
-                        fontSize: 13,
-                        lineHeight: 1.65,
-                        color: '#5A7068',
-                        margin: 0,
-                      }}
-                    >
-                      {item.desc}
-                    </p>
-                  </div>
-                </div>
+          {/* Row 1 — 3 columns */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            {rowOne.map((item) => (
+              <TrustCard key={item.title} item={item} />
+            ))}
+          </div>
 
-                {/* ── Right: square image, inset, animates in on hover ── */}
-                <div
-                  className="security-img"
-                  style={{
-                    flexShrink: 0,
-                    width: isActive ? 260 : 0,
-                    height: 260,
-                    alignSelf: 'center',
-                    overflow: 'hidden',
-                    borderRadius: 14,
-                    position: 'relative',
-                    transition: 'width 0.44s cubic-bezier(0.4, 0, 0.2, 1)',
-                  }}
-                >
-                  <Image
-                    src={item.photo}
-                    alt={item.title}
-                    fill
-                    style={{ objectFit: 'cover', objectPosition: 'center' }}
-                    sizes="260px"
-                  />
-                </div>
-              </div>
-            )
-          })}
+          {/* Row 2 — 2 columns centred at ⅔ width */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, 1fr)',
+              gap: 12,
+              maxWidth: 'calc(66.667% - 4px)',
+              margin: '0 auto',
+              width: '100%',
+            }}
+          >
+            {rowTwo.map((item) => (
+              <TrustCard key={item.title} item={item} />
+            ))}
+          </div>
+
         </div>
       </div>
     </section>

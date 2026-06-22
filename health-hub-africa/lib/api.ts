@@ -584,3 +584,9 @@ export const dispatch = {
 
   get: (id: string) => request<{ data: DispatchCase }>(`/dispatch/${id}`),
 }
+
+// ── Feature Flags ─────────────────────────────────────────────────────────
+
+export const features = {
+  getFlags: () => request<Record<string, boolean>>('/admin/features'),
+}
