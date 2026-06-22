@@ -4,17 +4,19 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, User, CalendarDays, Truck, Cpu } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useFeatureFlags } from '@/lib/hooks/useFeatureFlags'
 
 const BOTTOM_NAV = [
   { icon: LayoutDashboard, label: 'Home', href: '/dashboard' },
   { icon: CalendarDays, label: 'Appts', href: '/appointments' },
-  { icon: Truck, label: 'Dispatch', href: '/dispatch' },
+  { icon: Truck, label: 'Dispatch', href: '/dispatch', flag: 'dispatch_enabled' },
   { icon: User, label: 'Profile', href: '/profile' },
-  { icon: Cpu, label: 'AI', href: '/stride' },
+  { icon: Cpu, label: 'AI', href: '/stride', flag: 'neuroflex_enabled' },
 ]
 
 export function MobileBottomNav() {
   const pathname = usePathname()
+  const { isEnabled } = useFeatureFlags()
 
   return (
     <nav
@@ -22,7 +24,7 @@ export function MobileBottomNav() {
       className="md:hidden fixed bottom-0 inset-x-0 flex items-center justify-around h-16 border-t z-40 safe-bottom"
       style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
     >
-      {BOTTOM_NAV.map(({ icon: Icon, label, href }) => {
+      {BOTTOM_NAV.filter(({ flag }) => !flag || isEnabled(flag)).map(({ icon: Icon, label, href }) => {
         const active = pathname === href
         return (
           <Link

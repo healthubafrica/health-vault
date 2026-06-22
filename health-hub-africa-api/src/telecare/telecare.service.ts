@@ -1,9 +1,10 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { SessionStatus, UserRole } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { AccessToken } from 'livekit-server-sdk';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,6 +13,9 @@ import {
   CreateTelecareSessionDto,
   UpdateSessionDto,
   CreateSessionNoteDto,
+  CreateOnDemandSessionDto,
+  TransferSessionDto,
+  CreateShiftDto,
 } from './dto/create-session.dto';
 
 @Injectable()
@@ -106,7 +110,7 @@ export class TelecareService {
     return `${prefix}${String(seq).padStart(4, '0')}`;
   }
 
-  async findSessions(currentUser: JwtPayload) {
+  async findSessions(currentUser: JwtPayload, status?: SessionStatus) {
     const where: any = {};
 
     if (currentUser.patientId) {
@@ -117,14 +121,143 @@ export class TelecareService {
       this.requireProviderOrAdmin(currentUser);
     }
 
+    if (status) where.status = status;
+
     return this.prisma.telecareSession.findMany({
       where,
       orderBy: { scheduledAt: 'asc' },
       include: {
         notes: true,
-        patient: { select: { firstName: true, lastName: true } },
+        patient: {
+          select: {
+            firstName: true,
+            lastName: true,
+            dateOfBirth: true,
+            gender: true,
+            openemrPatientUuid: true,
+            subscriptions: {
+              where: { status: 'active' },
+              orderBy: { startedAt: 'desc' },
+              take: 1,
+              select: { plan: { select: { name: true, tier: true } } },
+            },
+          },
+        },
         provider: { select: { firstName: true, lastName: true, title: true } },
       },
+    });
+  }
+
+  async createOnDemandSession(dto: CreateOnDemandSessionDto, currentUser: JwtPayload) {
+    this.requireProviderOrAdmin(currentUser);
+    return this.prisma.telecareSession.create({
+      data: {
+        hhaRef: await this.generateSessionRef(),
+        patientId: dto.patientId,
+        providerId: dto.providerId,
+        scheduledAt: new Date(),
+        status: SessionStatus.waiting,
+        platform: 'HHA Native',
+      },
+    });
+  }
+
+  async acceptSession(id: string, currentUser: JwtPayload) {
+    if (!currentUser.providerId) throw new ForbiddenException('Provider access required');
+    const session = await this.prisma.telecareSession.findUnique({ where: { id } });
+    if (!session) throw new NotFoundException('Telecare session not found');
+    if (session.providerId !== currentUser.providerId)
+      throw new ForbiddenException('Session not assigned to you');
+    if (session.status !== SessionStatus.waiting)
+      throw new BadRequestException('Session is not in waiting state');
+
+    return this.prisma.telecareSession.update({
+      where: { id },
+      data: { status: SessionStatus.active, startedAt: new Date() },
+    });
+  }
+
+  async declineSession(id: string, currentUser: JwtPayload) {
+    if (!currentUser.providerId) throw new ForbiddenException('Provider access required');
+    const session = await this.prisma.telecareSession.findUnique({ where: { id } });
+    if (!session) throw new NotFoundException('Telecare session not found');
+    if (session.providerId !== currentUser.providerId)
+      throw new ForbiddenException('Session not assigned to you');
+    if (session.status !== SessionStatus.waiting)
+      throw new BadRequestException('Session is not in waiting state');
+
+    return this.prisma.telecareSession.update({
+      where: { id },
+      data: { status: SessionStatus.cancelled },
+    });
+  }
+
+  async transferSession(id: string, dto: TransferSessionDto, currentUser: JwtPayload) {
+    this.requireProviderOrAdmin(currentUser);
+    const session = await this.prisma.telecareSession.findUnique({ where: { id } });
+    if (!session) throw new NotFoundException('Telecare session not found');
+
+    const adminRoles: UserRole[] = [UserRole.admin, UserRole.super_admin, UserRole.coordinator];
+    const isAdmin = adminRoles.includes(currentUser.role as UserRole);
+    if (!isAdmin && session.providerId !== currentUser.providerId) {
+      throw new ForbiddenException('Session not assigned to you');
+    }
+
+    if (!['active', 'in_progress'].includes(session.status))
+      throw new BadRequestException('Only active sessions can be transferred');
+
+    const targetProvider = await this.prisma.provider.findUnique({
+      where: { id: dto.toProviderId },
+      select: { id: true },
+    });
+    if (!targetProvider) throw new NotFoundException('Target provider not found');
+
+    return this.prisma.telecareSession.update({
+      where: { id },
+      data: {
+        providerId: dto.toProviderId,
+        status: SessionStatus.waiting,
+        startedAt: null,
+      },
+    });
+  }
+
+  async listShifts(currentUser: JwtPayload) {
+    if (!currentUser.providerId) throw new ForbiddenException('Provider access required');
+    return this.prisma.providerAvailability.findMany({
+      where: { providerId: currentUser.providerId, isTelecare: true },
+      orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+    });
+  }
+
+  async createShift(dto: CreateShiftDto, currentUser: JwtPayload) {
+    if (!currentUser.providerId) throw new ForbiddenException('Provider access required');
+    const toTime = (t: string) => new Date(`1970-01-01T${t}:00.000Z`);
+    return this.prisma.providerAvailability.create({
+      data: {
+        providerId: currentUser.providerId,
+        dayOfWeek: dto.dayOfWeek,
+        startTime: toTime(dto.startTime),
+        endTime: toTime(dto.endTime),
+        isTelecare: dto.isTelecare ?? true,
+      },
+    });
+  }
+
+  async deleteShift(id: string, currentUser: JwtPayload) {
+    if (!currentUser.providerId) throw new ForbiddenException('Provider access required');
+    const shift = await this.prisma.providerAvailability.findUnique({ where: { id } });
+    if (!shift) throw new NotFoundException('Shift not found');
+    if (shift.providerId !== currentUser.providerId)
+      throw new ForbiddenException('Not your shift');
+    return this.prisma.providerAvailability.delete({ where: { id } });
+  }
+
+  async getAvailableProviders() {
+    return this.prisma.provider.findMany({
+      where: { isAvailable: true, deletedAt: null },
+      select: { id: true, firstName: true, lastName: true, title: true, specialty: true },
+      orderBy: { firstName: 'asc' },
     });
   }
 
@@ -190,6 +323,37 @@ export class TelecareService {
         plan,
       },
     });
+  }
+
+  async setAvailability(isAvailable: boolean, currentUser: JwtPayload) {
+    if (!currentUser.providerId) throw new ForbiddenException('Provider access required');
+    return this.prisma.provider.update({
+      where: { id: currentUser.providerId },
+      data: { isAvailable },
+      select: { id: true, isAvailable: true },
+    });
+  }
+
+  async getProviderMetrics(currentUser: JwtPayload) {
+    if (!currentUser.providerId) throw new ForbiddenException('Provider access required');
+    const providerId = currentUser.providerId;
+
+    const [total, completed, missed, cancelled] = await Promise.all([
+      this.prisma.telecareSession.count({ where: { providerId } }),
+      this.prisma.telecareSession.count({ where: { providerId, status: SessionStatus.completed } }),
+      this.prisma.telecareSession.count({ where: { providerId, status: SessionStatus.missed } }),
+      this.prisma.telecareSession.count({ where: { providerId, status: SessionStatus.cancelled } }),
+    ]);
+
+    const durations = await this.prisma.telecareSession.findMany({
+      where: { providerId, status: SessionStatus.completed, durationSeconds: { not: null } },
+      select: { durationSeconds: true },
+    });
+    const avgDurationSeconds = durations.length
+      ? Math.round(durations.reduce((sum, s) => sum + (s.durationSeconds ?? 0), 0) / durations.length)
+      : null;
+
+    return { total, completed, missed, cancelled, avgDurationSeconds };
   }
 
   private assertAccess(

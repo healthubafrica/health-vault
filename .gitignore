@@ -66,6 +66,7 @@ secret-input.json
 
 # Internal AWS architecture/deployment docs & scripts — contain account IDs and ARNs
 /AWS-ARCHITECTURE.md
+/PLATFORM_STATUS.md
 health-hub-africa-api/prepare-deployment.js
 health-hub-africa-api/prepare-task-def.js
 

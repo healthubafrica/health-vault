@@ -129,6 +129,31 @@ body {
   padding: 20px;
 }
 
+/* ─── Rich Text Editor (TipTap) ──────────────────────────────────────────── */
+.rte-content .tiptap {
+  outline: none;
+  color: var(--color-text);
+}
+.rte-content p { margin: 0 0 0.85em; }
+.rte-content h2 { font-size: 1.25em; font-weight: 700; margin: 1.2em 0 0.5em; }
+.rte-content h3 { font-size: 1.1em; font-weight: 700; margin: 1em 0 0.5em; }
+.rte-content ul, .rte-content ol { padding-left: 1.4em; margin: 0 0 0.85em; }
+.rte-content blockquote {
+  border-left: 3px solid var(--color-success);
+  padding-left: 12px;
+  color: var(--color-text-muted);
+  margin: 0 0 0.85em;
+}
+.rte-content a { color: var(--color-success); text-decoration: underline; }
+.rte-content img { max-width: 100%; border-radius: 12px; margin: 0.5em 0; }
+.rte-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--color-text-faint);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
 /* ─── Reduced Motion ─────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *,

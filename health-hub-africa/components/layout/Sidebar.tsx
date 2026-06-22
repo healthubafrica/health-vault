@@ -26,18 +26,19 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/lib/stores/authStore'
+import { useFeatureFlags } from '@/lib/hooks/useFeatureFlags'
 
 const NAV_ITEMS = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
   { icon: User, label: 'Profile', href: '/profile' },
   { icon: CalendarDays, label: 'Appointments', href: '/appointments' },
   { icon: FolderOpen, label: 'Records', href: '/records' },
-  { icon: FlaskConical, label: 'CareTest™ Labs', href: '/labs' },
-  { icon: Video, label: 'TeleCare™', href: '/telecare' },
-  { icon: Truck, label: 'DispatchCare™', href: '/dispatch' },
+  { icon: FlaskConical, label: 'CareTest™ Labs', href: '/labs', flag: 'lab_orders_enabled' },
+  { icon: Video, label: 'TeleCare™', href: '/telecare', flag: 'teleconsult_enabled' },
+  { icon: Truck, label: 'DispatchCare™', href: '/dispatch', flag: 'dispatch_enabled' },
   { icon: CreditCard, label: 'Subscriptions', href: '/subscriptions' },
   { icon: Receipt, label: 'Payments', href: '/payments' },
-  { icon: Cpu, label: 'STRIDE™ AI', href: '/stride' },
+  { icon: Cpu, label: 'STRIDE™ AI', href: '/stride', flag: 'neuroflex_enabled' },
 ]
 
 export function Sidebar() {
@@ -47,6 +48,7 @@ export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(true) // Collapsed by default
   const logout = useAuthStore((s) => s.logout)
   const router = useRouter()
+  const { isEnabled } = useFeatureFlags()
 
   const handleLogout = async () => {
     await logout()
@@ -98,7 +100,7 @@ export function Sidebar() {
 
       {/* Nav Link List */}
       <nav className={cn("flex-1 flex flex-col gap-1 py-2 overflow-y-auto no-scrollbar transition-all duration-300", isCollapsed ? "items-center px-2" : "px-3")}>
-        {NAV_ITEMS.map(({ icon: Icon, label, href }) => {
+        {NAV_ITEMS.filter(({ flag }) => !flag || isEnabled(flag)).map(({ icon: Icon, label, href }) => {
           const active = pathname === href
           return (
             <Link
@@ -219,8 +221,8 @@ export function Sidebar() {
           )}
         </button>
 
-        {/* Emergency Siren button */}
-        <div className="relative mt-1">
+        {/* Emergency Siren button — only shown when dispatch is enabled */}
+        {isEnabled('dispatch_enabled') && <div className="relative mt-1">
           <Link
             href="/dispatch"
             aria-label="Emergency dispatch"
@@ -243,7 +245,7 @@ export function Sidebar() {
               transition={{ duration: 1.4, repeat: Infinity, delay, ease: 'easeOut' }}
             />
           ))}
-        </div>
+        </div>}
 
       </div>
     </aside>

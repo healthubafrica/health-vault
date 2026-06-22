@@ -9,8 +9,6 @@ const navCols = [
     links: [
       { label: 'Patient Portal', href: 'https://portal.myvaultplus.com' },
       { label: 'Clinical Platform', href: 'https://clinical.myvaultplus.com' },
-      { label: 'Admin Portal', href: 'https://admin.myvaultplus.com' },
-      { label: 'API Docs', href: 'https://api.myvaultplus.com' },
     ],
   },
   {
@@ -273,26 +271,6 @@ export default function Footer() {
           flexWrap: 'wrap',
         }}
       >
-        <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
-          {[
-            { label: 'Style Guide', href: '#' },
-            { label: 'Changelog', href: '#' },
-            { label: 'Licensing', href: '/terms' },
-          ].map((l) => (
-            <Link
-              key={l.label}
-              href={l.href}
-              style={{
-                color: 'rgba(255,255,255,0.3)',
-                fontSize: 12.5,
-                textDecoration: 'none',
-              }}
-            >
-              {l.label}
-            </Link>
-          ))}
-        </div>
-
         <p style={{ color: 'rgba(255,255,255,0.28)', fontSize: 12.5, margin: 0 }}>
           © 2026 Health-Hub Africa®. All rights reserved.
         </p>

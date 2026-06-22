@@ -273,6 +273,15 @@ export interface ImportProviderResult {
 
 export type ProviderSessionStatus = 'scheduled' | 'active' | 'in_progress' | 'completed' | 'cancelled' | 'missed'
 
+export interface SessionNote {
+  id: string
+  sessionId: string
+  chiefComplaint?: string | null
+  assessment?: string | null
+  plan?: string | null
+  createdAt: string
+}
+
 export interface ProviderSession {
   id: string
   hhaRef: string
@@ -283,9 +292,16 @@ export interface ProviderSession {
   durationSeconds?: number | null
   meetingUrl?: string | null
   recordingUrl?: string | null
-  patient?: { firstName: string; lastName: string } | null
+  patient?: {
+    firstName: string
+    lastName: string
+    dateOfBirth?: string | null
+    gender?: string | null
+    openemrPatientUuid?: string | null
+    subscriptions?: Array<{ plan: { name: string; tier: string } }> | null
+  } | null
   provider?: { firstName: string; lastName: string; title: string } | null
-  notes?: unknown
+  notes?: SessionNote[]
 }
 
 export interface LiveKitJoinInfo {
@@ -294,11 +310,59 @@ export interface LiveKitJoinInfo {
   roomName: string
 }
 
+export interface AvailableProvider {
+  id: string
+  firstName: string
+  lastName: string
+  title: string
+  specialty: string
+}
+
+export interface ProviderShift {
+  id: string
+  providerId: string
+  dayOfWeek: number
+  startTime: string
+  endTime: string
+  isTelecare: boolean
+  createdAt: string
+}
+
 // ── Admin: Clinical Queue ─────────────────────────────────────────────────
 
 export interface ClinicalQueueItem {
   id: string; type: 'teleconsult' | 'expert_review'; patientName: string
   providerName?: string; status: string; createdAt: string; waitMinutes: number
+}
+
+// ── Admin: Support Tickets ────────────────────────────────────────────────
+
+type NameRecord = { firstName: string; lastName: string } | null
+
+export interface AdminSupportTicket {
+  id: string
+  hhaRef: string
+  subject: string
+  category: string
+  status: string
+  priority: string
+  createdAt: string
+  updatedAt: string
+  submittedBy: string
+  submitter: { email: string; patient?: NameRecord; provider?: NameRecord }
+  assignee?: { email: string; patient?: NameRecord; provider?: NameRecord } | null
+  _count: { messages: number }
+}
+
+export interface SupportMessage {
+  id: string
+  senderId: string
+  body: string
+  createdAt: string
+}
+
+export interface AdminSupportTicketDetail extends AdminSupportTicket {
+  messages: SupportMessage[]
 }
 
 // ── Admin: Feature Flags ──────────────────────────────────────────────────
@@ -338,6 +402,43 @@ export interface Facility {
   email?: string
   isActive: boolean
   createdAt: string
+}
+
+// ── Admin: CMS ────────────────────────────────────────────────────────────
+
+export interface BlogPost {
+  id: string
+  title: string
+  slug: string
+  excerpt: string
+  bodyHtml: string
+  coverImageUrl?: string | null
+  category: string
+  tags: string[]
+  status: 'draft' | 'published'
+  publishedAt?: string | null
+  authorName: string
+  authorTitle?: string | null
+  seoTitle?: string | null
+  seoDescription?: string | null
+  readMinutes?: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Testimonial {
+  id: string
+  authorName: string
+  authorTitle?: string | null
+  authorCompany?: string | null
+  authorPhotoUrl?: string | null
+  quote: string
+  rating: number
+  isFeatured: boolean
+  status: 'draft' | 'published'
+  serviceType?: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 // ── Admin API namespace ───────────────────────────────────────────────────
@@ -421,6 +522,54 @@ export const adminApi = {
         method: 'PATCH',
         body: JSON.stringify({ status, ...extra }),
       }),
+    createNote: (dto: {
+      sessionId: string
+      subjectiveNotes: string
+      objectiveNotes?: string
+      assessment?: string
+      plan?: string
+      followUpInstructions?: string
+    }) =>
+      request<SessionNote>('/telecare/notes', {
+        method: 'POST',
+        body: JSON.stringify(dto),
+      }),
+    setAvailability: (isAvailable: boolean) =>
+      request<{ id: string; isAvailable: boolean }>('/telecare/availability', {
+        method: 'PATCH',
+        body: JSON.stringify({ isAvailable }),
+      }),
+    metrics: () =>
+      request<{
+        total: number
+        completed: number
+        missed: number
+        cancelled: number
+        avgDurationSeconds: number | null
+      }>('/telecare/metrics'),
+    waitingSessions: () =>
+      request<{ data: ProviderSession[] }>('/telecare/sessions?status=waiting'),
+    acceptSession: (id: string) =>
+      request<ProviderSession>(`/telecare/sessions/${id}/accept`, { method: 'POST' }),
+    declineSession: (id: string) =>
+      request<ProviderSession>(`/telecare/sessions/${id}/decline`, { method: 'POST' }),
+    transferSession: (id: string, toProviderId: string) =>
+      request<ProviderSession>(`/telecare/sessions/${id}/transfer`, {
+        method: 'POST',
+        body: JSON.stringify({ toProviderId }),
+      }),
+    availableProviders: () =>
+      request<AvailableProvider[]>('/telecare/available-providers'),
+    shifts: {
+      list: () => request<ProviderShift[]>('/telecare/shifts'),
+      create: (dto: { dayOfWeek: number; startTime: string; endTime: string }) =>
+        request<ProviderShift>('/telecare/shifts', {
+          method: 'POST',
+          body: JSON.stringify(dto),
+        }),
+      delete: (id: string) =>
+        request<void>(`/telecare/shifts/${id}`, { method: 'DELETE' }),
+    },
   },
 
   subscriptions: {
@@ -453,10 +602,24 @@ export const adminApi = {
     get: () => request<{ teleconsults: ClinicalQueueItem[]; expertReviews: ClinicalQueueItem[]; total: number }>('/admin/clinical-queue'),
   },
 
+  support: {
+    list: (status?: string) =>
+      request<AdminSupportTicket[]>(`/support/tickets${status ? `?status=${status}` : ''}`),
+    getTicket: (id: string) =>
+      request<AdminSupportTicketDetail>(`/support/tickets/${id}`),
+    updateStatus: (id: string, status: string, assignedToId?: string) =>
+      request<AdminSupportTicket>(`/support/tickets/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status, assignedToId }),
+      }),
+    addMessage: (id: string, message: string) =>
+      request(`/support/tickets/${id}/messages`, { method: 'POST', body: JSON.stringify({ message }) }),
+  },
+
   featureFlags: {
-    list: () => request<{ data: FeatureFlag[] }>('/admin/feature-flags'),
+    list: () => request<FeatureFlag[]>('/admin/feature-flags'),
     set: (key: string, enabled: boolean) =>
-      request<{ data: FeatureFlag[] }>(`/admin/feature-flags/${key}`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
+      request<FeatureFlag[]>(`/admin/feature-flags/${key}`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
   },
 
   notifications: {
@@ -502,6 +665,57 @@ export const adminApi = {
         ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString()
         : ''
       return request<{ data: unknown[]; meta: { total: number } }>(`/admin/operations/expert-review${qs}`)
+    },
+  },
+
+  cms: {
+    requestUploadUrl: (contentType: string, sizeBytes: number) =>
+      request<{ uploadUrl: string; objectKey: string; publicUrl: string }>('/admin/cms/upload-url', {
+        method: 'POST',
+        body: JSON.stringify({ contentType, sizeBytes }),
+      }),
+
+    blog: {
+      list: (params?: { status?: string; search?: string; page?: number; limit?: number }) => {
+        const qs = params
+          ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString()
+          : ''
+        return request<{ data: BlogPost[]; meta: { total: number; page: number; limit: number } }>(`/admin/cms/blog${qs}`)
+      },
+      get: (id: string) => request<{ data: BlogPost }>(`/admin/cms/blog/${id}`),
+      create: (data: Partial<BlogPost>) =>
+        request<{ data: BlogPost }>('/admin/cms/blog', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+      update: (id: string, data: Partial<BlogPost>) =>
+        request<{ data: BlogPost }>(`/admin/cms/blog/${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(data),
+        }),
+      delete: (id: string) =>
+        request<void>(`/admin/cms/blog/${id}`, { method: 'DELETE' }),
+    },
+
+    testimonials: {
+      list: (params?: { status?: string; page?: number; limit?: number }) => {
+        const qs = params
+          ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString()
+          : ''
+        return request<{ data: Testimonial[]; meta: { total: number; page: number; limit: number } }>(`/admin/cms/testimonials${qs}`)
+      },
+      create: (data: Partial<Testimonial>) =>
+        request<{ data: Testimonial }>('/admin/cms/testimonials', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }),
+      update: (id: string, data: Partial<Testimonial>) =>
+        request<{ data: Testimonial }>(`/admin/cms/testimonials/${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(data),
+        }),
+      delete: (id: string) =>
+        request<void>(`/admin/cms/testimonials/${id}`, { method: 'DELETE' }),
     },
   },
 }

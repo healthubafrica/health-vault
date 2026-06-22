@@ -173,6 +173,11 @@ enum ExpertReviewType {
   pathology_review
 }
 
+enum ContentStatus {
+  draft
+  published
+}
+
 // ─── Auth & Users ────────────────────────────────────────────────────────────
 
 model User {
@@ -204,6 +209,7 @@ model User {
   dispatchEvents        DispatchEvent[]
   erCasesCoordinator    ExpertReviewCase[]    @relation("ERCoordinator")
   erStatusEvents        ExpertReviewStatusEvent[]
+  blogPosts             BlogPost[]
 
   @@map("users")
 }
@@ -1318,4 +1324,52 @@ model OperationalKpi {
   createdAt             DateTime @default(now()) @map("created_at")
 
   @@map("operational_kpis")
+}
+
+// ─── CMS (Marketing Site Content) ────────────────────────────────────────────
+
+model BlogPost {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title           String
+  slug            String        @unique
+  excerpt         String
+  bodyHtml        String        @map("body_html")
+  coverImageUrl   String?       @map("cover_image_url")
+  category        String
+  tags            String[]      @default([])
+  status          ContentStatus @default(draft)
+  publishedAt     DateTime?     @map("published_at")
+  authorName      String        @map("author_name")
+  authorTitle     String?       @map("author_title")
+  seoTitle        String?       @map("seo_title")
+  seoDescription  String?       @map("seo_description")
+  readMinutes     Int?          @map("read_minutes") @db.SmallInt
+  createdById     String?       @map("created_by_id") @db.Uuid
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  deletedAt       DateTime?     @map("deleted_at")
+
+  createdBy User? @relation(fields: [createdById], references: [id])
+
+  @@index([status, publishedAt(sort: Desc)])
+  @@index([slug])
+  @@map("blog_posts")
+}
+
+model Testimonial {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  authorName     String        @map("author_name")
+  authorTitle    String?       @map("author_title")
+  authorCompany  String?       @map("author_company")
+  authorPhotoUrl String?       @map("author_photo_url")
+  quote          String
+  rating         Int           @default(5) @db.SmallInt
+  isFeatured     Boolean       @default(false) @map("is_featured")
+  status         ContentStatus @default(draft)
+  serviceType    ServiceType?  @map("service_type")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  @@index([status, isFeatured])
+  @@map("testimonials")
 }

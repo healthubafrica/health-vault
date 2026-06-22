@@ -11,7 +11,7 @@ export default function HowItWorks() {
   const animate = inView ? 'visible' : 'hidden'
 
   return (
-    <section ref={ref} className="section-inner-lg">
+    <section ref={ref} id="how-it-works" className="section-inner-lg">
       {/* Header — per-element stagger */}
       <motion.div
         style={{ textAlign: 'center', marginBottom: 60 }}

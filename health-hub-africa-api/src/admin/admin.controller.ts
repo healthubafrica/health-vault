@@ -14,7 +14,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { AdminService } from './admin.service';
 import { UpdateUserRoleDto, UpdateUserStatusDto, CreateFacilityDto } from './dto/admin.dto';
-import { Roles } from '../common/decorators/roles.decorator';
+import { Roles, Public } from '../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 
 @ApiTags('Admin')
@@ -328,6 +328,15 @@ export class AdminController {
   }
 
   // ── Feature Flags ─────────────────────────────────────────────────────────
+
+  @Public()
+  @Roles()
+  @Get('features')
+  @ApiOperation({ summary: 'Public: get feature flag states as a simple boolean map' })
+  async getPublicFeatures() {
+    const flags = await this.adminService.getFeatureFlags();
+    return Object.fromEntries(flags.map((f) => [f.key, f.enabled]));
+  }
 
   @Get('feature-flags')
   @Roles(UserRole.super_admin)
