@@ -1,84 +1,155 @@
 'use client'
+import { useState, useRef } from 'react'
 import { motion, useInView, useReducedMotion } from 'framer-motion'
-import { useRef } from 'react'
 import Link from 'next/link'
 import { EASE_OUT, zoomOutCard, staggerContainer, labelVariant, headingVariant, bodyVariant } from '@/lib/motion'
 
-const plans = [
+type BillingMode = 'monthly' | 'annual'
+
+interface PlanDef {
+  slug: string
+  iconBg: string
+  iconColor: string
+  iconPath: string
+  badge: string
+  displayBadge?: string
+  desc: string
+  monthlyKobo: number
+  annualKobo: number
+  launchAnnualKobo: number
+  highlight: boolean
+  ctaHref: string
+  ctaLabel: string
+  items: string[]
+  hasFamilyOption: boolean
+}
+
+const PLANS: PlanDef[] = [
   {
+    slug: 'free',
     iconBg: '#6DC43F',
     iconColor: '#07251C',
     iconPath: 'M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z',
-    badge: 'BASIC PLAN',
+    badge: 'FREE',
     desc: 'Your Health Passport at no cost. Core portal access with pay-per-use services.',
-    price: 'Free',
-    priceSub: 'forever',
+    monthlyKobo: 0,
+    annualKobo: 0,
+    launchAnnualKobo: 0,
     highlight: false,
     ctaHref: 'https://portal.myvaultplus.com/register',
+    ctaLabel: 'Create Free Account',
     items: [
-      'Health Passport included',
-      'Patient portal access',
-      'Unique Patient ID (HHA-XXXXXXXX)',
-      'Basic health record storage',
-      'TeleCare™ & Expert Review™ pay-per-use',
+      'Digital Health Passport',
+      'Personal Health Record Storage',
+      'Emergency Health Profile',
+      'Medication & Appointment Reminders',
+      'Access to Pay-Per-Use Services',
     ],
+    hasFamilyOption: false,
   },
   {
+    slug: 'basiccare',
+    iconBg: '#07251C',
+    iconColor: '#6DC43F',
+    iconPath: 'M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z',
+    badge: 'BASICCARE™',
+    desc: 'For individuals and young professionals. TeleCare, e-Prescriptions, and care navigation.',
+    monthlyKobo: 1_250_000,
+    annualKobo: 14_900_000,
+    launchAnnualKobo: 9_900_000,
+    highlight: false,
+    ctaHref: '/plans',
+    ctaLabel: 'Choose BasicCare™',
+    items: [
+      'Everything in FREE',
+      '2 TeleCare™ Consultations Annually',
+      'e-Prescriptions',
+      'Care Navigation Support',
+      'Discounted CareTest™ Services',
+      '3% No Claim Discount',
+    ],
+    hasFamilyOption: false,
+  },
+  {
+    slug: 'silvercare',
     iconBg: '#07251C',
     iconColor: '#6DC43F',
     iconPath: 'M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z',
-    badge: 'SILVER PLAN',
-    desc: 'More care, more coverage: TeleCare™ sessions included plus 1 Expert Review/year.',
-    price: '₦4,900',
-    priceSub: '/month',
+    badge: 'SILVERCARE™',
+    displayBadge: 'MOST POPULAR',
+    desc: 'Comprehensive for individuals and families. 12 TeleCare sessions, wellness assessments, and more.',
+    monthlyKobo: 2_490_000,
+    annualKobo: 29_900_000,
+    launchAnnualKobo: 24_900_000,
     highlight: true,
     ctaHref: '/plans',
+    ctaLabel: 'Choose SilverCare™',
     items: [
-      'Everything in Basic',
-      'Monthly TeleCare™ sessions included',
-      'HealthConsult™ plan included',
-      '1 Expert Review™/year + discounts',
+      'Everything in BasicCare™',
+      '12 TeleCare™ Consultations Annually',
+      '2 Specialist Second Opinions',
+      'Annual Wellness Assessment',
+      'Chronic Disease Monitoring',
+      '5% No Claim Discount',
     ],
+    hasFamilyOption: true,
   },
   {
+    slug: 'goldcare',
     iconBg: '#6DC43F',
     iconColor: '#07251C',
     iconPath: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
-    badge: 'GOLD PLAN',
-    desc: 'Complete Health Platform: priority access, family plan, and 2–4 Expert Reviews/year.',
-    price: '₦9,900',
-    priceSub: '/month',
+    badge: 'GOLDCARE™',
+    displayBadge: 'BEST VALUE',
+    desc: 'Executive-grade. Dedicated care coordinator, comprehensive screening, and TravelSafe™ Nigeria.',
+    monthlyKobo: 4_990_000,
+    annualKobo: 59_900_000,
+    launchAnnualKobo: 49_900_000,
     highlight: false,
     ctaHref: '/plans',
+    ctaLabel: 'Choose GoldCare™',
     items: [
-      'Everything in Silver',
-      'Priority TeleCare™ & DispatchCare™',
-      'Family plan support',
-      '2–4 Expert Reviews™/year',
-      'NeuroFlex™ add-on available',
+      'Everything in SilverCare™',
+      'Dedicated Care Coordinator',
+      'Executive Health Review',
+      'Priority DispatchCare™ Response',
+      'TravelSafe™ Nigeria',
+      '7% No Claim Discount',
     ],
+    hasFamilyOption: true,
   },
   {
+    slug: 'conciergcare',
     iconBg: '#07251C',
     iconColor: '#6DC43F',
     iconPath: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
-    badge: 'CONCIERGE PLAN',
-    desc: 'White-glove health management for organisations, corporates, and high-care individuals.',
-    price: 'Custom',
-    priceSub: 'pricing',
+    badge: 'CONCIERGCARE™',
+    desc: 'White-glove health management. Dedicated Relationship Manager, TravelSafe™ Global.',
+    monthlyKobo: 12_500_000,
+    annualKobo: 150_000_000,
+    launchAnnualKobo: 99_900_000,
     highlight: false,
-    ctaHref: '/corporate',
+    ctaHref: '/plans',
+    ctaLabel: 'Choose ConciergeCare™',
     items: [
-      'Everything in Gold',
-      'Unlimited Expert Reviews™',
-      'Dedicated care coordinator',
-      'Unlimited TeleCare™ sessions',
-      'International record sharing',
+      'Dedicated Relationship Manager',
+      'Concierge Care Coordination',
+      'Priority Clinical Access',
+      'Quarterly Health Reviews',
+      'TravelSafe™ Global',
+      'Enhanced Family Coordination',
     ],
+    hasFamilyOption: true,
   },
 ]
 
+function formatKobo(kobo: number): string {
+  if (kobo === 0) return 'Free'
+  return '₦' + (kobo / 100).toLocaleString('en-NG', { maximumFractionDigits: 0 })
+}
+
 export default function Plans() {
+  const [billing, setBilling] = useState<BillingMode>('monthly')
   const ref = useRef(null)
   const inView = useInView(ref, { once: true, amount: 0.08 })
   const reduced = useReducedMotion()
@@ -192,6 +263,56 @@ export default function Plans() {
               </span>
             </motion.a>
           </motion.div>
+
+          {/* Founding Member Banner */}
+          <motion.div
+            variants={bodyVariant}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 10,
+              background: 'linear-gradient(90deg, #07251C 0%, #0A4E3C 100%)',
+              border: '1.5px solid #6DC43F',
+              borderRadius: 100,
+              padding: '8px 18px 8px 12px',
+              marginTop: 24,
+              marginBottom: 8,
+            }}
+          >
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#6DC43F', display: 'inline-block', flexShrink: 0 }} />
+            <span style={{ color: '#fff', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em' }}>
+              Founding Member Pricing — Available to the First 1,000 Members
+            </span>
+          </motion.div>
+
+          {/* Billing Toggle */}
+          <motion.div
+            variants={bodyVariant}
+            style={{ display: 'flex', alignItems: 'center', gap: 0, background: '#F0F4F0', borderRadius: 100, padding: 4, marginTop: 16, marginBottom: 4 }}
+          >
+            {(['monthly', 'annual'] as BillingMode[]).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setBilling(mode)}
+                style={{
+                  padding: '8px 22px',
+                  borderRadius: 100,
+                  border: 'none',
+                  background: billing === mode ? '#07251C' : 'transparent',
+                  color: billing === mode ? '#fff' : '#27433A',
+                  fontFamily: 'var(--font-manrope), sans-serif',
+                  fontWeight: 700,
+                  fontSize: 12,
+                  letterSpacing: '0.07em',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  transition: 'background 0.18s, color 0.18s',
+                }}
+              >
+                {mode === 'monthly' ? 'Monthly' : 'Annual (Save up to 20%)'}
+              </button>
+            ))}
+          </motion.div>
         </motion.div>
 
         {/* Plan cards */}
@@ -206,9 +327,9 @@ export default function Plans() {
             alignItems: 'stretch',
           }}
         >
-          {plans.map((plan) => (
+          {PLANS.map((plan) => (
             <motion.div
-              key={plan.badge}
+              key={plan.slug}
               variants={zoomOutCard}
               whileHover={!reduced ? { y: -6, transition: { duration: 0.18, ease: EASE_OUT } } : undefined}
               style={{
@@ -259,6 +380,13 @@ export default function Plans() {
                 {plan.badge}
               </div>
 
+              {/* Display badge chip */}
+              {plan.displayBadge && (
+                <div style={{ display: 'inline-flex', alignItems: 'center', background: '#6DC43F', color: '#07251C', fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', padding: '3px 10px', borderRadius: 100, marginBottom: 8 }}>
+                  {plan.displayBadge}
+                </div>
+              )}
+
               {/* Description */}
               <p
                 style={{
@@ -273,27 +401,28 @@ export default function Plans() {
 
               {/* Price */}
               <div style={{ marginBottom: 26 }}>
-                <span
-                  style={{
-                    fontFamily: 'var(--font-manrope), sans-serif',
-                    fontWeight: 700,
-                    fontSize: 38,
-                    letterSpacing: '-0.03em',
-                    color: '#07251C',
-                  }}
-                >
-                  {plan.price}
-                </span>
-                <span
-                  style={{
-                    fontSize: 15,
-                    fontWeight: 500,
-                    color: plan.highlight ? '#0A4E3C' : '#7A8C84',
-                    marginLeft: 5,
-                  }}
-                >
-                  {plan.priceSub}
-                </span>
+                {billing === 'annual' && plan.launchAnnualKobo > 0 && plan.monthlyKobo > 0 ? (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                      <span style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 700, fontSize: 32, letterSpacing: '-0.03em', color: '#07251C' }}>
+                        {formatKobo(plan.launchAnnualKobo)}
+                      </span>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: plan.highlight ? '#0A4E3C' : '#7A8C84' }}>/year</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#888', textDecoration: 'line-through', marginTop: 2 }}>
+                      {formatKobo(plan.annualKobo)}/year regular
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    <span style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 700, fontSize: 38, letterSpacing: '-0.03em', color: '#07251C' }}>
+                      {formatKobo(plan.monthlyKobo)}
+                    </span>
+                    {plan.monthlyKobo > 0 && (
+                      <span style={{ fontSize: 15, fontWeight: 500, color: plan.highlight ? '#0A4E3C' : '#7A8C84' }}>/month</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Features */}
@@ -357,7 +486,7 @@ export default function Plans() {
                   borderRadius: 100,
                 }}
               >
-                {plan.badge === 'CONCIERGE PLAN' ? 'Schedule a Demo' : 'Get Started'}
+                {plan.ctaLabel}
               </motion.a>
             </motion.div>
           ))}
