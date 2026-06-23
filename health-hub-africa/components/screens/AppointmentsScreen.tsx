@@ -43,7 +43,7 @@ export function AppointmentsScreen() {
   const [tab, setTab] = useState('All')
 
   // Booking form state
-  const [serviceType, setServiceType] = useState(SERVICE_TYPES[0].value)
+  const [serviceType, setServiceType] = useState<string>(SERVICE_TYPES[0].value)
   const [scheduledAt, setScheduledAt] = useState('')
   const [reason, setReason] = useState('')
   const [isBooking, setIsBooking] = useState(false)
