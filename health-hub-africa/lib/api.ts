@@ -372,7 +372,7 @@ export interface Appointment {
   reason?: string
   isTelecare: boolean
   meetingUrl?: string
-  provider: { firstName: string; lastName: string; specialty: string; title: string }
+  provider?: { firstName: string; lastName: string; specialty: string; title: string } | null
 }
 
 export const appointments = {
@@ -492,6 +492,11 @@ export interface SubscriptionPlan {
   priceKobo: number
   billingPeriod: string
   features: string[]
+  annualPriceKobo?: number
+  isMostPopular?: boolean
+  isBestValue?: boolean
+  bestFor?: string
+  noClaimPct?: number
 }
 
 export interface ActiveSubscription {
