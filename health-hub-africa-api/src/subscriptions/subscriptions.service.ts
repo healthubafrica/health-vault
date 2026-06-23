@@ -17,7 +17,7 @@ export class SubscriptionsService {
   async findPlans() {
     return this.prisma.subscriptionPlan.findMany({
       where: { isActive: true },
-      orderBy: { priceKobo: 'asc' },
+      orderBy: { displayOrder: 'asc' },
     });
   }
 
@@ -48,6 +48,12 @@ export class SubscriptionsService {
     });
     if (!plan) throw new NotFoundException('Plan not found');
 
+    // Cancel any existing active or trial subscription (upgrade path)
+    const existing = await this.prisma.patientSubscription.findFirst({
+      where: { patientId, status: { in: ['active', 'trial'] } },
+      orderBy: { createdAt: 'desc' },
+    });
+
     const startDate = new Date();
     const endDate = new Date(startDate);
     if (dto.billingCycle === 'annually') {
@@ -58,16 +64,27 @@ export class SubscriptionsService {
       endDate.setMonth(endDate.getMonth() + 1);
     }
 
-    // Pricing lives on the plan (priceKobo per billingPeriod); the
-    // subscription row only tracks the period.
-    return this.prisma.patientSubscription.create({
-      data: {
-        patientId,
-        planId: dto.planId,
-        startedAt: startDate,
-        expiresAt: endDate,
-      },
-      include: { plan: true },
+    // Cancel-then-create must be atomic: if create fails after cancel commits,
+    // the patient would be left with zero active subscriptions.
+    return this.prisma.$transaction(async (tx) => {
+      if (existing) {
+        await tx.patientSubscription.update({
+          where: { id: existing.id },
+          data: { status: 'cancelled', cancelledAt: new Date(), cancellationReason: 'Upgraded to new plan' },
+        });
+      }
+
+      // Pricing lives on the plan (priceKobo per billingPeriod); the
+      // subscription row only tracks the period.
+      return tx.patientSubscription.create({
+        data: {
+          patientId,
+          planId: dto.planId,
+          startedAt: startDate,
+          expiresAt: endDate,
+        },
+        include: { plan: true },
+      });
     });
   }
 

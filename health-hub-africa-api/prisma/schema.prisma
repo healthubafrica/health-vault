@@ -104,10 +104,10 @@ enum PaymentGateway {
 
 enum PlanTier {
   Free
-  Basic
-  Mid_Level
-  Gold
-  Corporate
+  BasicCare
+  SilverCare
+  GoldCare
+  ConciergeCare
 }
 
 enum SubscriptionStatus {
@@ -278,6 +278,8 @@ model Patient {
   openemrPatientUuid String? @unique @map("openemr_patient_uuid")
   openemrSyncStatus  String  @default("pending") @map("openemr_sync_status")
   status      String     @default("Stable")
+  profilePhotoSizeBytes      Int?    @map("profile_photo_size_bytes")
+  storageQuotaOverrideBytes  BigInt? @map("storage_quota_override_bytes")
   createdAt   DateTime   @default(now()) @map("created_at")
   updatedAt   DateTime   @updatedAt @map("updated_at")
   deletedAt   DateTime?  @map("deleted_at")
@@ -419,7 +421,7 @@ model Appointment {
   id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   hhaRef           String            @unique @map("hha_ref")
   patientId        String            @map("patient_id") @db.Uuid
-  providerId       String            @map("provider_id") @db.Uuid
+  providerId       String?           @map("provider_id") @db.Uuid
   serviceType      ServiceType       @map("service_type")
   status           AppointmentStatus @default(requested)
   scheduledAt      DateTime          @map("scheduled_at")
@@ -435,8 +437,8 @@ model Appointment {
   createdAt        DateTime          @default(now()) @map("created_at")
   updatedAt        DateTime          @updatedAt @map("updated_at")
 
-  patient    Patient  @relation(fields: [patientId], references: [id])
-  provider   Provider @relation(fields: [providerId], references: [id])
+  patient    Patient   @relation(fields: [patientId], references: [id])
+  provider   Provider? @relation(fields: [providerId], references: [id])
   reminders  AppointmentReminder[]
   telecareSession TelecareSession?
   clinicalRecords ClinicalRecord[]
@@ -771,7 +773,15 @@ model SubscriptionPlan {
   tier          PlanTier
   name          String
   priceKobo     Int       @map("price_kobo")
-  billingPeriod String    @default("monthly") @map("billing_period")
+  annualPriceKobo   Int       @default(0) @map("annual_price_kobo")
+  launchPriceKobo   Int       @default(0) @map("launch_price_kobo")
+  familyPricing     Json      @default("[]") @map("family_pricing")
+  noClaimPct        Int       @default(0) @map("no_claim_pct")
+  isMostPopular     Boolean   @default(false) @map("is_most_popular")
+  isBestValue       Boolean   @default(false) @map("is_best_value")
+  bestFor           String    @default("") @map("best_for")
+  billingPeriod     String  @default("monthly") @map("billing_period")
+  storageQuotaBytes BigInt? @map("storage_quota_bytes")
   features      Json      @default("[]")
   isActive      Boolean   @default(true) @map("is_active")
   displayOrder  Int       @default(0) @map("display_order") @db.SmallInt
