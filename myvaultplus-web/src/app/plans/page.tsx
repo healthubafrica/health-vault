@@ -83,14 +83,7 @@ export default function PlansPage() {
         </section>
       </div>
 
-      {/* Section 3 — Savings calculator */}
-      <div className="page-card" style={{ background: '#07251C' }}>
-        <section className="section-inner">
-          <SavingsCalculator />
-        </section>
-      </div>
-
-      {/* Section 4 — Comparison table */}
+      {/* Section 3 — Comparison table */}
       <div className="page-card" style={{ background: '#fff' }}>
         <section className="section-inner">
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
@@ -123,6 +116,13 @@ export default function PlansPage() {
               </table>
             </div>
           </div>
+        </section>
+      </div>
+
+      {/* Section 4 — Savings calculator */}
+      <div className="page-card" style={{ background: '#07251C' }}>
+        <section className="section-inner">
+          <SavingsCalculator />
         </section>
       </div>
 
