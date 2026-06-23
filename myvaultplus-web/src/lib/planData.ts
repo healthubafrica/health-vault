@@ -136,7 +136,7 @@ export const PLANS: Plan[] = [
     ],
   },
   {
-    slug: 'conciergcare',
+    slug: 'conciergecare',
     name: 'ConciergeCare™',
     tagline: '₦125,000/month · ₦1,500,000/year',
     bestFor: 'Executives, affluent families, diaspora sponsors, VIP members',
@@ -192,16 +192,16 @@ export const CORPORATE_TIERS = [
 ]
 
 export const COMPARE_ROWS = [
-  { service: 'TeleCare™ GP Sessions', free: 'Pay-per-use', basiccare: '2/year', silvercare: '12/year', goldcare: 'Expanded', conciergcare: 'Unlimited' },
-  { service: 'Specialist Second Opinion', free: '—', basiccare: '—', silvercare: '2/year', goldcare: '✓', conciergcare: '✓' },
-  { service: 'Annual Wellness Assessment', free: '—', basiccare: '—', silvercare: '✓', goldcare: 'Comprehensive', conciergcare: 'Quarterly' },
-  { service: 'DispatchCare™', free: 'Pay-per-use', basiccare: 'Preferred rate', silvercare: 'Preferred rate', goldcare: 'Priority', conciergcare: 'Priority' },
-  { service: 'MinuteCare™', free: 'Pay-per-use', basiccare: 'Preferred rate', silvercare: 'Preferred rate', goldcare: '✓', conciergcare: '✓' },
-  { service: 'CareTest™ Screening', free: 'Pay-per-use', basiccare: 'Discounted', silvercare: 'Annual package', goldcare: 'Comprehensive', conciergcare: '✓' },
-  { service: 'Care Navigation', free: '—', basiccare: '✓', silvercare: 'Enhanced', goldcare: 'Dedicated coordinator', conciergcare: 'Relationship Manager' },
-  { service: 'TravelSafe™', free: '—', basiccare: '—', silvercare: '—', goldcare: 'Nigeria', conciergcare: 'Global' },
-  { service: 'No Claim Discount', free: '—', basiccare: '3%', silvercare: '5%', goldcare: '7%', conciergcare: '—' },
-  { service: 'Family Plan Option', free: '—', basiccare: '—', silvercare: '✓', goldcare: '✓', conciergcare: '✓' },
+  { service: 'TeleCare™ GP Sessions', free: 'Pay-per-use', basiccare: '2/year', silvercare: '12/year', goldcare: 'Expanded', conciergecare: 'Unlimited' },
+  { service: 'Specialist Second Opinion', free: '—', basiccare: '—', silvercare: '2/year', goldcare: '✓', conciergecare: '✓' },
+  { service: 'Annual Wellness Assessment', free: '—', basiccare: '—', silvercare: '✓', goldcare: 'Comprehensive', conciergecare: 'Quarterly' },
+  { service: 'DispatchCare™', free: 'Pay-per-use', basiccare: 'Preferred rate', silvercare: 'Preferred rate', goldcare: 'Priority', conciergecare: 'Priority' },
+  { service: 'MinuteCare™', free: 'Pay-per-use', basiccare: 'Preferred rate', silvercare: 'Preferred rate', goldcare: '✓', conciergecare: '✓' },
+  { service: 'CareTest™ Screening', free: 'Pay-per-use', basiccare: 'Discounted', silvercare: 'Annual package', goldcare: 'Comprehensive', conciergecare: '✓' },
+  { service: 'Care Navigation', free: '—', basiccare: '✓', silvercare: 'Enhanced', goldcare: 'Dedicated coordinator', conciergecare: 'Relationship Manager' },
+  { service: 'TravelSafe™', free: '—', basiccare: '—', silvercare: '—', goldcare: 'Nigeria', conciergecare: 'Global' },
+  { service: 'No Claim Discount', free: '—', basiccare: '3%', silvercare: '5%', goldcare: '7%', conciergecare: '—' },
+  { service: 'Family Plan Option', free: '—', basiccare: '—', silvercare: '✓', goldcare: '✓', conciergecare: '✓' },
 ]
 
 export function formatKobo(kobo: number): string {
@@ -239,7 +239,7 @@ export const SAVINGS_DEFAULTS: Record<string, Record<string, number>> = {
   basiccare: { teleGp: 2 },
   silvercare: { teleGp: 6, teleSpecialist: 2, basicScreening: 1 },
   goldcare: { teleGp: 12, teleSpecialist: 4, comprehensiveScreening: 2, homeVisit: 1 },
-  conciergcare: { teleGp: 12, teleSpecialist: 6, homeVisit: 2, comprehensiveScreening: 2, dispatchCare: 1 },
+  conciergecare: { teleGp: 12, teleSpecialist: 6, homeVisit: 2, comprehensiveScreening: 2, dispatchCare: 1 },
 }
 
 // Savings above this amount trigger the "big savings" smart message.
