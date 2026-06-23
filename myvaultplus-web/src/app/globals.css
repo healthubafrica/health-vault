@@ -268,3 +268,18 @@ body {
 .blog-article-body a { color: #137333; text-decoration: underline; }
 .blog-article-body img { max-width: 100%; border-radius: 16px; margin: 1.4em 0; }
 .blog-article-body h2:first-child, .blog-article-body h3:first-child { margin-top: 0; }
+
+/* ── Plans grid: 3 + 2 layout with centered bottom row ─────────────────── */
+@media (max-width: 900px) {
+  .plans-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .plans-grid > * {
+    grid-column: auto !important;
+  }
+}
+@media (max-width: 560px) {
+  .plans-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

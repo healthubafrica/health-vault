@@ -163,7 +163,7 @@ export default function Plans() {
           {/* Billing Toggle */}
           <motion.div
             variants={bodyVariant}
-            style={{ display: 'flex', alignItems: 'center', gap: 0, background: '#F0F4F0', borderRadius: 100, padding: 4, marginTop: 16, marginBottom: 4 }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 0, background: '#F0F4F0', borderRadius: 100, padding: 4, marginTop: 16, marginBottom: 4 }}
           >
             {(['monthly', 'annual'] as BillingMode[]).map((mode) => (
               <button
@@ -197,17 +197,19 @@ export default function Plans() {
           animate={animate}
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
             gap: 24,
             alignItems: 'stretch',
           }}
+          className="plans-grid"
         >
-          {PLANS.map((plan) => {
+          {PLANS.map((plan, index) => {
             const icon = ICON_MAP[plan.slug] ?? ICON_MAP.free
             const displayBadge = plan.isMostPopular ? 'MOST POPULAR' : plan.isBestValue ? 'BEST VALUE' : null
             const highlight = plan.isMostPopular
             const desc = DESC_MAP[plan.slug] ?? plan.bestFor
             const badgeLabel = plan.slug === 'free' ? 'FREE' : plan.name.toUpperCase()
+            const gridColumn = index < 3 ? 'span 2' : index === 3 ? '2 / span 2' : '4 / span 2'
 
             return (
               <motion.div
@@ -221,6 +223,7 @@ export default function Plans() {
                   padding: 28,
                   display: 'flex',
                   flexDirection: 'column',
+                  gridColumn,
                 }}
               >
                 {/* Icon badge */}
