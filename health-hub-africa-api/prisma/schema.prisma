@@ -104,10 +104,10 @@ enum PaymentGateway {
 
 enum PlanTier {
   Free
-  Basic
-  Mid_Level
-  Gold
-  Corporate
+  BasicCare
+  SilverCare
+  GoldCare
+  ConciergeCare
 }
 
 enum SubscriptionStatus {
@@ -419,7 +419,7 @@ model Appointment {
   id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   hhaRef           String            @unique @map("hha_ref")
   patientId        String            @map("patient_id") @db.Uuid
-  providerId       String            @map("provider_id") @db.Uuid
+  providerId       String?           @map("provider_id") @db.Uuid
   serviceType      ServiceType       @map("service_type")
   status           AppointmentStatus @default(requested)
   scheduledAt      DateTime          @map("scheduled_at")
@@ -435,8 +435,8 @@ model Appointment {
   createdAt        DateTime          @default(now()) @map("created_at")
   updatedAt        DateTime          @updatedAt @map("updated_at")
 
-  patient    Patient  @relation(fields: [patientId], references: [id])
-  provider   Provider @relation(fields: [providerId], references: [id])
+  patient    Patient   @relation(fields: [patientId], references: [id])
+  provider   Provider? @relation(fields: [providerId], references: [id])
   reminders  AppointmentReminder[]
   telecareSession TelecareSession?
   clinicalRecords ClinicalRecord[]
@@ -771,6 +771,13 @@ model SubscriptionPlan {
   tier          PlanTier
   name          String
   priceKobo     Int       @map("price_kobo")
+  annualPriceKobo   Int       @default(0) @map("annual_price_kobo")
+  launchPriceKobo   Int       @default(0) @map("launch_price_kobo")
+  familyPricing     Json      @default("[]") @map("family_pricing")
+  noClaimPct        Int       @default(0) @map("no_claim_pct")
+  isMostPopular     Boolean   @default(false) @map("is_most_popular")
+  isBestValue       Boolean   @default(false) @map("is_best_value")
+  bestFor           String    @default("") @map("best_for")
   billingPeriod String    @default("monthly") @map("billing_period")
   features      Json      @default("[]")
   isActive      Boolean   @default(true) @map("is_active")
