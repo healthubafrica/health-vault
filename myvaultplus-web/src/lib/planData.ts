@@ -10,6 +10,8 @@ export interface Plan {
   slug: string
   name: string
   tagline: string
+  /** One-sentence marketing blurb used by homepage teaser cards. */
+  shortDesc?: string
   bestFor: string
   monthlyKobo: number
   annualKobo: number
