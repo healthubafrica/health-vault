@@ -73,11 +73,13 @@ export class AppointmentsService {
       this.requireAdminOrCoordinator(currentUser);
     }
 
-    const provider = await this.prisma.provider.findUnique({
-      where: { id: dto.providerId },
-      select: { id: true },
-    });
-    if (!provider) throw new NotFoundException('Provider not found');
+    if (dto.providerId) {
+      const provider = await this.prisma.provider.findUnique({
+        where: { id: dto.providerId },
+        select: { id: true },
+      });
+      if (!provider) throw new NotFoundException('Provider not found');
+    }
 
     const { serviceType, isTelecare } = toServiceFields(dto.appointmentType);
 
@@ -85,7 +87,7 @@ export class AppointmentsService {
       data: {
         hhaRef: await this.generateAppointmentRef(),
         patientId,
-        providerId: dto.providerId,
+        providerId: dto.providerId ?? null,
         serviceType,
         isTelecare,
         location:

@@ -33,8 +33,13 @@ const nextConfig: NextConfig = {
 
     return [
       {
-        // Geolocation blocked site-wide by default
-        source: '/(.*)',
+        // Geolocation blocked by default on every route except /dispatch.
+        // Excluding /dispatch here (instead of overriding it with a second
+        // matching rule) avoids sending two Permissions-Policy headers for
+        // the same response — browsers intersect duplicate headers, so a
+        // site-wide geolocation=() would otherwise silently cancel out the
+        // geolocation=(self) grant below on /dispatch.
+        source: '/((?!dispatch$).*)',
         headers: [
           ...sharedHeaders,
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
@@ -44,6 +49,7 @@ const nextConfig: NextConfig = {
         // Dispatch page requires geolocation to pinpoint emergency location
         source: '/dispatch',
         headers: [
+          ...sharedHeaders,
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(self)' },
         ],
       },
