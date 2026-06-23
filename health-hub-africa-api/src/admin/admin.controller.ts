@@ -14,6 +14,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { AdminService } from './admin.service';
 import { UpdateUserRoleDto, UpdateUserStatusDto, CreateFacilityDto } from './dto/admin.dto';
+import { SetStorageOverrideDto } from './dto/set-storage-override.dto';
 import { Roles, Public } from '../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 
@@ -413,5 +414,17 @@ export class AdminController {
   @ApiOperation({ summary: 'Deactivate a facility' })
   deleteFacility(@Param('id') id: string) {
     return this.adminService.deleteFacility(id);
+  }
+
+  // ── Storage ───────────────────────────────────────────────────────────────
+
+  @Patch('patients/:id/storage-override')
+  @ApiOperation({ summary: 'Override storage quota for a patient (admin only)' })
+  setPatientStorageOverride(
+    @Param('id') patientId: string,
+    @Body() dto: SetStorageOverrideDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.adminService.setPatientStorageOverride(patientId, dto, user);
   }
 }

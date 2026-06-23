@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { DispatchStatus, UserRole } from '@prisma/client';
@@ -35,6 +36,8 @@ const FLAGS_REDIS_KEY = 'admin:feature-flags';
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue(OPENEMR_SYNC_QUEUE) private readonly openemrQueue: Queue<SyncJobData>,
@@ -715,28 +718,77 @@ export class AdminService {
           subscriptions: {
             take: 1,
             orderBy: { createdAt: 'desc' },
-            include: { plan: { select: { name: true } } },
+            include: { plan: { select: { name: true, storageQuotaBytes: true } } },
           },
         },
       }),
       this.prisma.patient.count({ where }),
     ]);
 
-    const data = rows.map((r) => ({
-      id: r.id,
-      hhaPatientId: r.hhaPatientId,
-      firstName: r.firstName,
-      lastName: r.lastName,
-      email: r.user.email,
-      phone: r.user.phone,
-      openemrSyncStatus: r.openemrSyncStatus,
-      openemrPatientUuid: r.openemrPatientUuid,
-      subscriptionPlan: r.subscriptions[0]?.plan.name ?? null,
-      subscriptionStatus: r.subscriptions[0]?.status ?? null,
-      createdAt: r.createdAt,
-    }));
+    const patientIds = rows.map((r) => r.id);
+    const clinicalAggs = patientIds.length
+      ? await this.prisma.clinicalRecord.groupBy({
+          by: ['patientId'],
+          where: { patientId: { in: patientIds }, fileSizeBytes: { not: null }, deletedAt: null },
+          _sum: { fileSizeBytes: true },
+        })
+      : [];
+    const clinicalBytesMap = new Map(clinicalAggs.map((a) => [a.patientId, Number(a._sum.fileSizeBytes ?? 0)]));
+
+    const data = rows.map((r) => {
+      const clinicalBytes = clinicalBytesMap.get(r.id) ?? 0;
+      const photoBytes = r.profilePhotoSizeBytes ?? 0;
+      const usedBytes = clinicalBytes + photoBytes;
+
+      const override = r.storageQuotaOverrideBytes;
+      const planQuota = r.subscriptions[0]?.plan?.storageQuotaBytes ?? null;
+      const quotaBytes =
+        override != null ? Number(override) : planQuota != null ? Number(planQuota) : null;
+
+      return {
+        id: r.id,
+        hhaPatientId: r.hhaPatientId,
+        firstName: r.firstName,
+        lastName: r.lastName,
+        email: r.user.email,
+        phone: r.user.phone,
+        openemrSyncStatus: r.openemrSyncStatus,
+        openemrPatientUuid: r.openemrPatientUuid,
+        subscriptionPlan: r.subscriptions[0]?.plan.name ?? null,
+        subscriptionStatus: r.subscriptions[0]?.status ?? null,
+        storageUsedBytes: usedBytes,
+        storageQuotaBytes: quotaBytes,
+        storageQuotaOverrideBytes: override != null ? Number(override) : null,
+        createdAt: r.createdAt,
+      };
+    });
 
     return { data, meta: { total, page, limit } };
+  }
+
+  async setPatientStorageOverride(
+    patientId: string,
+    dto: { storageQuotaOverrideMb?: number },
+    currentUser: JwtPayload,
+  ) {
+    const patient = await this.prisma.patient.findUnique({ where: { id: patientId } });
+    if (!patient) throw new NotFoundException('Patient not found');
+
+    const overrideBytes =
+      dto.storageQuotaOverrideMb != null
+        ? BigInt(dto.storageQuotaOverrideMb) * BigInt(1024 * 1024)
+        : null;
+
+    await this.prisma.patient.update({
+      where: { id: patientId },
+      data: { storageQuotaOverrideBytes: overrideBytes },
+    });
+
+    this.logger.log(
+      `Admin ${currentUser.sub} set storage override for patient ${patientId} to ${dto.storageQuotaOverrideMb ?? 'null (plan default)'}`,
+    );
+
+    return { message: 'Storage quota override updated', patientId, storageQuotaOverrideMb: dto.storageQuotaOverrideMb ?? null };
   }
 
   // ── Subscriptions ─────────────────────────────────────────────────────────

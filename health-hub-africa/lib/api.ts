@@ -428,6 +428,9 @@ export const records = {
 
   getDownloadUrl: (objectKey: string) =>
     request<{ data: { downloadUrl: string } }>(`/records/download-url/${encodeURIComponent(objectKey)}`),
+
+  getStorageUsage: () =>
+    request<{ data: { usedBytes: number; quotaBytes: number | null } | null }>('/records/storage'),
 }
 
 // ── Lab Orders & Results ──────────────────────────────────────────────────

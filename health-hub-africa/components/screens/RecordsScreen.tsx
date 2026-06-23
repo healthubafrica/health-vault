@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/Card'
 import { FilterTabs } from '@/components/ui/FilterTabs'
 import { Pill } from '@/components/ui/Pill'
 import { type RecordType } from '@/lib/data/records'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatBytes } from '@/lib/utils'
 import { FileText, FlaskConical, Pill as PillIcon, File, Download } from 'lucide-react'
 import { records as recordsApi, type ClinicalRecord } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
@@ -54,6 +54,8 @@ export function RecordsScreen() {
   const { data: recordsRes, isInitialLoad, error, refetch } = useApi(
     () => recordsApi.list(selectedType ? { type: selectedType } : undefined)
   )
+  const { data: storageRes } = useApi(() => recordsApi.getStorageUsage())
+  const storageData = storageRes?.data
 
   if (isInitialLoad) return <ListSkeleton ariaLabel="Loading records" showAction />
   if (error && !recordsRes) return <ErrorState message={error} onRetry={refetch} />
@@ -63,6 +65,10 @@ export function RecordsScreen() {
   const filtered = selectedType
     ? allRecords.filter(r => r.recordType === selectedType)
     : allRecords
+
+  const storagePct = storageData?.quotaBytes
+    ? Math.min(100, (storageData.usedBytes / storageData.quotaBytes) * 100)
+    : 0
 
   return (
     <div className="flex flex-col gap-5 pb-20 md:pb-5">
@@ -74,6 +80,40 @@ export function RecordsScreen() {
           Your complete medical history
         </p>
       </div>
+
+      {storageData?.quotaBytes != null && (
+        <div
+          className="rounded-2xl border p-4"
+          style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface)' }}
+        >
+          <div className="flex justify-between text-xs mb-2">
+            <span style={{ color: 'var(--color-text-muted)' }}>Storage Used</span>
+            <span style={{ color: 'var(--color-text)' }}>
+              {formatBytes(storageData.usedBytes)} of {formatBytes(storageData.quotaBytes)}
+            </span>
+          </div>
+          <div
+            className="h-1.5 rounded-full overflow-hidden"
+            style={{ background: 'var(--color-border)' }}
+          >
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${storagePct}%`,
+                background: storagePct >= 90 ? '#EF4444' : '#6DC43F',
+              }}
+            />
+          </div>
+          {storagePct >= 100 && (
+            <p className="text-xs mt-2" style={{ color: '#EF4444' }}>
+              You have reached your Free Plan storage limit.{' '}
+              <a href="/subscriptions" style={{ color: '#6DC43F', fontWeight: 700 }}>
+                Upgrade to continue uploading records.
+              </a>
+            </p>
+          )}
+        </div>
+      )}
 
       <FilterTabs tabs={TABS} active={tab} onChange={setTab} className="self-start" />
 

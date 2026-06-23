@@ -4,6 +4,8 @@ import {
   IsEnum,
   IsArray,
   IsBoolean,
+  IsInt,
+  Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { RecordType } from '@prisma/client';
@@ -47,4 +49,10 @@ export class CreateRecordDto {
   @IsOptional()
   @IsBoolean()
   isConfidential?: boolean;
+
+  @ApiPropertyOptional({ description: 'File size in bytes — used for storage quota tracking' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  fileSizeBytes?: number;
 }

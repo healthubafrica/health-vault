@@ -3,9 +3,10 @@ import { PatientsService } from './patients.service';
 import { PatientsController } from './patients.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { OpenemrModule } from '../openemr/openemr.module';
+import { StorageModule } from '../storage/storage.module';
 
 @Module({
-  imports: [NotificationsModule, OpenemrModule],
+  imports: [NotificationsModule, OpenemrModule, StorageModule],
   providers: [PatientsService],
   controllers: [PatientsController],
   exports: [PatientsService],
