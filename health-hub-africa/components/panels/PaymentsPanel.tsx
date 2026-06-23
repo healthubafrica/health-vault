@@ -1,11 +1,13 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { payments } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { formatCurrency } from '@/lib/utils'
 
 export function PaymentsPanel() {
+  const router = useRouter()
   const { data: paymentsRes } = useApi(() => payments.list())
   const allPayments = paymentsRes?.data ?? []
   const total = allPayments.reduce((sum, p) => sum + p.amountKobo, 0) / 100
@@ -49,7 +51,7 @@ export function PaymentsPanel() {
         )}
       </div>
 
-      <Button size="sm" fullWidth>Make Payment</Button>
+      <Button size="sm" fullWidth onClick={() => router.push('/payments')}>Make Payment</Button>
     </div>
   )
 }

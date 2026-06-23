@@ -1,5 +1,7 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
 import { Avatar } from '@/components/ui/Avatar'
@@ -8,6 +10,7 @@ import { useApi } from '@/lib/hooks/useApi'
 import { formatDate } from '@/lib/utils'
 
 export function TeleCarePanel() {
+  const router = useRouter()
   const { data: sessionsRes } = useApi(() => telecare.list())
   const sessions = sessionsRes?.data ?? []
 
@@ -46,7 +49,16 @@ export function TeleCarePanel() {
         </div>
       </div>
 
-      <Button size="sm" fullWidth>Schedule Next Session</Button>
+      <Button
+        size="sm"
+        fullWidth
+        onClick={() => {
+          toast.info('Select TeleCare as the service type to schedule a session')
+          router.push('/appointments')
+        }}
+      >
+        Schedule Next Session
+      </Button>
     </div>
   )
 }

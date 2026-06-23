@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
 import { Avatar } from '@/components/ui/Avatar'
@@ -120,6 +122,7 @@ function MiniCalendar() {
 }
 
 export function DashboardPanel() {
+  const router = useRouter()
   const [selectedTime, setSelectedTime] = useState('10:00 AM')
 
   return (
@@ -209,7 +212,15 @@ export function DashboardPanel() {
       </div>
 
       {/* Book Button */}
-      <Button variant="primary" fullWidth className="mt-auto rounded-2xl h-11 text-xs uppercase tracking-wider font-extrabold bg-[var(--color-primary)] hover:bg-[var(--color-primary)]/90">
+      <Button
+        variant="primary"
+        fullWidth
+        className="mt-auto rounded-2xl h-11 text-xs uppercase tracking-wider font-extrabold bg-[var(--color-primary)] hover:bg-[var(--color-primary)]/90"
+        onClick={() => {
+          toast.info('Complete your booking in the Appointments tab')
+          router.push('/appointments')
+        }}
+      >
         Confirm Booking
       </Button>
     </div>

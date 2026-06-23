@@ -1,5 +1,6 @@
 'use client'
 
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { records } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
@@ -8,6 +9,12 @@ import { Download, FolderOpen } from 'lucide-react'
 export function RecordsPanel() {
   const { data: recordsRes } = useApi(() => records.list())
   const downloadable = (recordsRes?.data ?? []).filter(r => r.isDownloadable && r.fileUrl)
+
+  function handleDownloadAll() {
+    if (downloadable.length === 0) return
+    downloadable.forEach(r => window.open(r.fileUrl, '_blank', 'noopener,noreferrer'))
+    toast.success(`Opening ${downloadable.length} record${downloadable.length > 1 ? 's' : ''}…`)
+  }
 
   return (
     <div className="flex flex-col gap-5 p-4">
@@ -45,7 +52,9 @@ export function RecordsPanel() {
         </div>
       )}
 
-      <Button size="sm" fullWidth variant="secondary">Download All Records</Button>
+      <Button size="sm" fullWidth variant="secondary" disabled={downloadable.length === 0} onClick={handleDownloadAll}>
+        Download All Records
+      </Button>
     </div>
   )
 }

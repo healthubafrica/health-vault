@@ -1,5 +1,6 @@
 'use client'
 
+import { toast } from 'sonner'
 import { Pill } from '@/components/ui/Pill'
 import { IdChip } from '@/components/ui/IdChip'
 import { patients, subscriptions } from '@/lib/api'
@@ -187,6 +188,7 @@ export function SettingsPanel() {
           {QUICK_LINKS.map(({ icon: Icon, label }) => (
             <button
               key={label}
+              onClick={() => toast.info(`${label} is coming soon`)}
               className="flex items-center justify-between gap-2 py-2.5 border-b last:border-b-0 text-left w-full group"
               style={{ borderColor: 'var(--color-border)' }}
             >
