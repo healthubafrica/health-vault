@@ -107,7 +107,7 @@ export default function PlansPage() {
                   {COMPARE_ROWS.map((row, idx) => (
                     <tr key={row.service} style={{ background: idx % 2 === 0 ? '#fff' : '#F7FAF7', borderBottom: '1px solid rgba(7,37,28,0.06)' }}>
                       <td style={{ padding: '13px 20px', fontWeight: 600, fontSize: 13.5, color: '#07251C' }}>{row.service}</td>
-                      {[row.free, row.basiccare, row.silvercare, row.goldcare, row.conciergcare].map((val, vi) => (
+                      {[row.free, row.basiccare, row.silvercare, row.goldcare, row.conciergecare].map((val, vi) => (
                         <td key={vi} style={{ padding: '13px 14px', textAlign: 'center', fontSize: 13, color: val === '✓' ? '#137333' : val === '—' ? '#C4CEC9' : '#27433A', fontWeight: val === '✓' ? 700 : 500 }}>{val}</td>
                       ))}
                     </tr>

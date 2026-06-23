@@ -120,7 +120,7 @@ async function main() {
       displayOrder: 3,
     },
     {
-      slug: 'conciergcare',
+      slug: 'conciergecare',
       tier: 'ConciergeCare' as const,
       name: 'ConciergeCare™',
       priceKobo: 12_500_000,
