@@ -83,6 +83,12 @@ export class RecordsController {
     return { data: await this.recordsService.findRecords(query.patientId, user, query.type) };
   }
 
+  @Get('storage')
+  @ApiOperation({ summary: 'Get storage usage for the current patient' })
+  async getStorageUsage(@CurrentUser() user: JwtPayload) {
+    return { data: await this.recordsService.getMyStorageUsage(user) };
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a clinical record by ID' })
   async findRecord(@Param('id') id: string, @CurrentUser() user: JwtPayload) {

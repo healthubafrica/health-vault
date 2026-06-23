@@ -19,6 +19,8 @@ import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { CreateRecordDto } from './dto/create-record.dto';
 import { CreatePrescriptionDto } from './dto/create-prescription.dto';
 import { RequestUploadUrlDto } from './dto/upload-url.dto';
+import { StorageService } from '../storage/storage.service';
+import { PaymentRequiredException } from '../common/exceptions/payment-required.exception';
 
 @Injectable()
 export class RecordsService {
@@ -30,6 +32,7 @@ export class RecordsService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly openemrService: OpenemrService,
+    private readonly storageService: StorageService,
   ) {
     // Static keys are optional — when absent the SDK default credential
     // provider chain resolves the ECS task role (or local AWS profile).
@@ -59,6 +62,15 @@ export class RecordsService {
   };
 
   async requestUploadUrl(dto: RequestUploadUrlDto, currentUser: JwtPayload) {
+    if (currentUser.patientId) {
+      const { usedBytes, quotaBytes } = await this.storageService.getStorageUsage(currentUser.patientId);
+      if (quotaBytes !== null && usedBytes + dto.sizeBytes > quotaBytes) {
+        throw new PaymentRequiredException(
+          'You have reached your Free Plan storage limit. Please upgrade to continue uploading records.',
+        );
+      }
+    }
+
     const ext = RecordsService.MIME_TO_EXT[dto.contentType] ?? 'bin';
     const objectKey = `records/${currentUser.sub}/${randomUUID()}.${ext}`;
 
@@ -73,6 +85,11 @@ export class RecordsService {
     const uploadUrl = await getSignedUrl(this.s3, command, { expiresIn: 600 }); // 10 min
 
     return { uploadUrl, objectKey };
+  }
+
+  async getMyStorageUsage(currentUser: JwtPayload) {
+    if (!currentUser.patientId) return null;
+    return this.storageService.getStorageUsage(currentUser.patientId);
   }
 
   // ── Download URL ───────────────────────────────────────────────────────────
@@ -133,6 +150,7 @@ export class RecordsService {
         title: dto.title,
         description,
         fileUrl: dto.fileKeys?.[0],
+        fileSizeBytes: dto.fileSizeBytes,
         // Confidential records are not patient-downloadable
         isDownloadable: !(dto.isConfidential ?? false),
         recordedAt: new Date(),
