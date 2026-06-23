@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { PLANS, SAVINGS_SERVICES, SAVINGS_DEFAULTS, SAVINGS_BIG_THRESHOLD_KOBO, formatKobo } from '@/lib/planData'
 
-const PLAN_SLUGS = ['basiccare', 'silvercare', 'goldcare', 'conciergcare']
+const PLAN_SLUGS = ['basiccare', 'silvercare', 'goldcare', 'conciergecare']
 
 function defaultsFor(slug: string): Record<string, number> {
   const defaults = SAVINGS_DEFAULTS[slug] ?? {}

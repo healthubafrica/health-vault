@@ -33,7 +33,7 @@ const RECOMMENDATIONS: Record<string, Recommendation> = {
     familyNote: 'Add family members at checkout for family pricing.',
   },
   'family-international': {
-    slug: 'conciergcare',
+    slug: 'conciergecare',
     reason: 'International family coverage with TravelSafe™ Global and concierge coordination.',
     familyNote: 'Add family members at checkout for family pricing.',
   },
@@ -51,7 +51,7 @@ const RECOMMENDATIONS: Record<string, Recommendation> = {
     familyNote: 'Add family members at checkout for family pricing.',
   },
   'family-executive-international': {
-    slug: 'conciergcare',
+    slug: 'conciergecare',
     reason: 'White-glove family coverage with global travel protection and concierge management.',
     familyNote: 'Add family members at checkout for family pricing.',
   },
