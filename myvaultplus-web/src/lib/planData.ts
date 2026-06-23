@@ -208,3 +208,39 @@ export function formatKobo(kobo: number): string {
   if (kobo === 0) return 'Free'
   return '₦' + (kobo / 100).toLocaleString('en-NG', { maximumFractionDigits: 0 })
 }
+
+export interface SavingsService {
+  key: string
+  label: string
+  priceKobo: number
+  min: number
+  max: number
+}
+
+// Retail pricing per the Customer Savings Calculator spec.
+// TODO(future): swap this static array for an API-backed retail-services
+// endpoint once the database is reachable — shape is designed for a 1:1 swap.
+export const SAVINGS_SERVICES: SavingsService[] = [
+  { key: 'teleGp', label: 'TeleCare™ GP Consultations', priceKobo: 1_000_000, min: 0, max: 50 },
+  { key: 'teleSpecialist', label: 'TeleCare™ Specialist Consultations', priceKobo: 2_000_000, min: 0, max: 20 },
+  { key: 'minuteCare', label: 'MinuteCare™ Visits', priceKobo: 1_500_000, min: 0, max: 20 },
+  { key: 'dispatchCare', label: 'DispatchCare™ Emergency Responses', priceKobo: 7_500_000, min: 0, max: 10 },
+  { key: 'homeVisit', label: 'Home Visits', priceKobo: 7_500_000, min: 0, max: 20 },
+  { key: 'basicScreening', label: 'Basic Wellness Screenings', priceKobo: 2_500_000, min: 0, max: 10 },
+  { key: 'comprehensiveScreening', label: 'Comprehensive Wellness Screenings', priceKobo: 7_500_000, min: 0, max: 10 },
+  { key: 'specialistOpinion', label: 'Specialist Second Opinions', priceKobo: 5_000_000, min: 0, max: 10 },
+  { key: 'intlOpinion', label: 'International Second Opinions', priceKobo: 15_000_000, min: 0, max: 10 },
+  { key: 'neuroflex', label: 'NeuroFlex® Assessments', priceKobo: 15_000_000, min: 0, max: 10 },
+]
+
+// Pre-populated usage examples per plan, keyed by SavingsService.key.
+// Any service not listed for a plan defaults to 0.
+export const SAVINGS_DEFAULTS: Record<string, Record<string, number>> = {
+  basiccare: { teleGp: 2 },
+  silvercare: { teleGp: 6, teleSpecialist: 2, basicScreening: 1 },
+  goldcare: { teleGp: 12, teleSpecialist: 4, comprehensiveScreening: 2, homeVisit: 1 },
+  conciergcare: { teleGp: 12, teleSpecialist: 6, homeVisit: 2, comprehensiveScreening: 2, dispatchCare: 1 },
+}
+
+// Savings above this amount trigger the "big savings" smart message.
+export const SAVINGS_BIG_THRESHOLD_KOBO = 50_000_000 // ₦500,000
