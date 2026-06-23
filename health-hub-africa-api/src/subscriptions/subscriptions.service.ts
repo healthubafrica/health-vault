@@ -17,7 +17,7 @@ export class SubscriptionsService {
   async findPlans() {
     return this.prisma.subscriptionPlan.findMany({
       where: { isActive: true },
-      orderBy: { priceKobo: 'asc' },
+      orderBy: { displayOrder: 'asc' },
     });
   }
 
@@ -47,6 +47,18 @@ export class SubscriptionsService {
       where: { id: dto.planId },
     });
     if (!plan) throw new NotFoundException('Plan not found');
+
+    // Cancel any existing active or trial subscription (upgrade path)
+    const existing = await this.prisma.patientSubscription.findFirst({
+      where: { patientId, status: { in: ['active', 'trial'] } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (existing) {
+      await this.prisma.patientSubscription.update({
+        where: { id: existing.id },
+        data: { status: 'cancelled', cancelledAt: new Date(), cancellationReason: 'Upgraded to new plan' },
+      });
+    }
 
     const startDate = new Date();
     const endDate = new Date(startDate);
