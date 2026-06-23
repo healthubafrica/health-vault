@@ -36,7 +36,7 @@ export function LabsScreen() {
       status: r.isFlagged ? 'flagged' : 'normal',
       value: [r.valueDisplay, r.unit].filter(Boolean).join(' '),
       referenceRange: r.referenceRange,
-      doctor: `${order.provider.title} ${order.provider.lastName}`,
+      doctor: order.provider ? `${order.provider.title} ${order.provider.lastName}` : 'Provider TBD',
       date: order.orderedAt,
     }))
   )
