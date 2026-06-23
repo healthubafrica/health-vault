@@ -1,5 +1,7 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
 import { labs } from '@/lib/api'
@@ -7,6 +9,7 @@ import { useApi } from '@/lib/hooks/useApi'
 import { FlaskConical } from 'lucide-react'
 
 export function LabsPanel() {
+  const router = useRouter()
   const { data: labsRes } = useApi(() => labs.listOrders())
   const allOrders = labsRes?.data ?? []
 
@@ -46,7 +49,16 @@ export function LabsPanel() {
         </div>
       )}
 
-      <Button size="sm" fullWidth><FlaskConical size={13} />Book CareTest™</Button>
+      <Button
+        size="sm"
+        fullWidth
+        onClick={() => {
+          toast.info('Select Care Test as the service type to book a test')
+          router.push('/appointments')
+        }}
+      >
+        <FlaskConical size={13} />Book CareTest™
+      </Button>
     </div>
   )
 }

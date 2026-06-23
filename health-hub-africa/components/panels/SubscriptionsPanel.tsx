@@ -6,10 +6,15 @@ import { subscriptions } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { Check } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
+import { useRouter } from 'next/navigation'
 
 export function SubscriptionsPanel() {
+  const router = useRouter()
   const { data: subRes } = useApi(() => subscriptions.getMy())
   const activeSub = subRes?.data
+  const features: string[] = Array.isArray(activeSub?.plan?.features)
+    ? (activeSub!.plan.features as string[])
+    : []
 
   return (
     <div className="flex flex-col gap-5 p-4">
@@ -39,7 +44,7 @@ export function SubscriptionsPanel() {
               Plan Benefits
             </p>
             <ul className="flex flex-col gap-2">
-              {activeSub.plan.features.map(f => (
+              {features.map(f => (
                 <li key={f} className="flex items-start gap-2">
                   <Check size={13} className="mt-0.5 shrink-0 text-[#6DC43F]" />
                   <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{f}</span>
@@ -60,7 +65,9 @@ export function SubscriptionsPanel() {
         </div>
       )}
 
-      <Button size="sm" fullWidth>{activeSub ? 'Upgrade Plan' : 'View Plans'}</Button>
+      <Button size="sm" fullWidth onClick={() => router.push('/subscriptions')}>
+        {activeSub ? 'Upgrade Plan' : 'View Plans'}
+      </Button>
     </div>
   )
 }
