@@ -305,9 +305,11 @@ export function DashboardScreen() {
               <p className="text-lg font-extrabold text-gray-800" style={{ fontFamily: 'var(--font-display)' }}>
                 {formatDate(nextAppt.scheduledAt)}
               </p>
-              <p className="text-xs font-medium text-gray-400">
-                With {nextAppt.provider.title} {nextAppt.provider.lastName}
-              </p>
+              {nextAppt.provider && (
+                <p className="text-xs font-medium text-gray-400">
+                  With {nextAppt.provider.title} {nextAppt.provider.lastName}
+                </p>
+              )}
               <Button
                 size="sm"
                 variant="secondary"
@@ -338,7 +340,7 @@ export function DashboardScreen() {
 
         <Card className="rounded-[24px] p-5">
           <CardTitle className="text-xs font-extrabold text-gray-400 uppercase tracking-wider mb-4">Your Doctor</CardTitle>
-          {nextAppt ? (
+          {nextAppt?.provider ? (
             <>
               <div className="flex items-center gap-3.5">
                 <Avatar
