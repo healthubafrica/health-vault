@@ -20,3 +20,8 @@ export function formatDate(date: string | Date) {
 export function truncate(str: string, max: number) {
   return str.length > max ? str.slice(0, max) + '…' : str
 }
+
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
