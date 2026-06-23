@@ -53,12 +53,6 @@ export class SubscriptionsService {
       where: { patientId, status: { in: ['active', 'trial'] } },
       orderBy: { createdAt: 'desc' },
     });
-    if (existing) {
-      await this.prisma.patientSubscription.update({
-        where: { id: existing.id },
-        data: { status: 'cancelled', cancelledAt: new Date(), cancellationReason: 'Upgraded to new plan' },
-      });
-    }
 
     const startDate = new Date();
     const endDate = new Date(startDate);
@@ -70,16 +64,27 @@ export class SubscriptionsService {
       endDate.setMonth(endDate.getMonth() + 1);
     }
 
-    // Pricing lives on the plan (priceKobo per billingPeriod); the
-    // subscription row only tracks the period.
-    return this.prisma.patientSubscription.create({
-      data: {
-        patientId,
-        planId: dto.planId,
-        startedAt: startDate,
-        expiresAt: endDate,
-      },
-      include: { plan: true },
+    // Cancel-then-create must be atomic: if create fails after cancel commits,
+    // the patient would be left with zero active subscriptions.
+    return this.prisma.$transaction(async (tx) => {
+      if (existing) {
+        await tx.patientSubscription.update({
+          where: { id: existing.id },
+          data: { status: 'cancelled', cancelledAt: new Date(), cancellationReason: 'Upgraded to new plan' },
+        });
+      }
+
+      // Pricing lives on the plan (priceKobo per billingPeriod); the
+      // subscription row only tracks the period.
+      return tx.patientSubscription.create({
+        data: {
+          patientId,
+          planId: dto.planId,
+          startedAt: startDate,
+          expiresAt: endDate,
+        },
+        include: { plan: true },
+      });
     });
   }
 
