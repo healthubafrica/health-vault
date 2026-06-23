@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { motion, useInView, useReducedMotion } from 'framer-motion'
 import { staggerContainer, labelVariant, headingVariant, bodyVariant } from '@/lib/motion'
 
@@ -45,7 +45,132 @@ const rowTwo = [
   },
 ]
 
-function TrustCard({ item }: { item: (typeof rowOne)[0] }) {
+const allItems = [...rowOne, ...rowTwo]
+
+type SecurityItem = (typeof rowOne)[0]
+
+/** Desktop: accordion row — hovered card expands and reveals its photo. */
+function AccordionRow({ items }: { items: SecurityItem[] }) {
+  const [hovered, setHovered] = useState(0)
+
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: items.map((_, i) => (hovered === i ? '2fr' : '1fr')).join(' '),
+        gap: 12,
+        transition: 'grid-template-columns 0.44s cubic-bezier(0.4, 0, 0.2, 1)',
+      }}
+      onMouseLeave={() => setHovered(0)}
+    >
+      {items.map((item, i) => {
+        const isActive = hovered === i
+        return (
+          <div
+            key={item.title}
+            onMouseEnter={() => setHovered(i)}
+            style={{
+              background: '#fff',
+              borderRadius: 18,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'row',
+              alignItems: 'stretch',
+              padding: 28,
+              gap: isActive ? 20 : 0,
+              transition: 'gap 0.44s cubic-bezier(0.4, 0, 0.2, 1)',
+              height: 316,
+            }}
+          >
+            {/* Left column: icon at top, title+desc at bottom */}
+            <div
+              style={{
+                flex: 1,
+                minWidth: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 10,
+                  background: item.titleColor,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d={item.icon}
+                    stroke="#07251C"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+
+              <div>
+                <h3
+                  style={{
+                    fontFamily: 'var(--font-manrope), sans-serif',
+                    fontWeight: 700,
+                    fontSize: 18,
+                    margin: '0 0 8px',
+                    color: item.titleColor,
+                    letterSpacing: '-0.01em',
+                    lineHeight: 1.25,
+                  }}
+                >
+                  {item.title}
+                </h3>
+                <p style={{ fontSize: 13, lineHeight: 1.65, color: '#5A7068', margin: 0 }}>
+                  {item.desc}
+                </p>
+              </div>
+            </div>
+
+            {/* Right: square image, inset, animates in on hover */}
+            <div
+              style={{
+                flexShrink: 0,
+                width: isActive ? 260 : 0,
+                height: 260,
+                alignSelf: 'center',
+                overflow: 'hidden',
+                borderRadius: 14,
+                position: 'relative',
+                transition: 'width 0.44s cubic-bezier(0.4, 0, 0.2, 1)',
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={item.photo}
+                alt={item.title}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  objectPosition: 'center',
+                }}
+              />
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/** Mobile: always-visible photo with a dark overlay (no hover interaction needed on touch). */
+function TrustCard({ item }: { item: SecurityItem }) {
   return (
     <div
       className="security-card"
@@ -53,10 +178,9 @@ function TrustCard({ item }: { item: (typeof rowOne)[0] }) {
         position: 'relative',
         borderRadius: 18,
         overflow: 'hidden',
-        height: 300,
+        height: 220,
       }}
     >
-      {/* Background photo — always present */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={item.photo}
@@ -71,10 +195,8 @@ function TrustCard({ item }: { item: (typeof rowOne)[0] }) {
         }}
       />
 
-      {/* Dark overlay — lifts on hover via CSS */}
       <div className="security-overlay" />
 
-      {/* Content layer */}
       <div
         style={{
           position: 'absolute',
@@ -86,7 +208,6 @@ function TrustCard({ item }: { item: (typeof rowOne)[0] }) {
           zIndex: 1,
         }}
       >
-        {/* Icon badge */}
         <div
           style={{
             width: 44,
@@ -112,7 +233,6 @@ function TrustCard({ item }: { item: (typeof rowOne)[0] }) {
           </svg>
         </div>
 
-        {/* Title + description */}
         <div>
           <h3
             style={{
@@ -161,10 +281,11 @@ export default function Security() {
         .security-card:hover .security-overlay {
           background: rgba(4, 18, 12, 0.44);
         }
+        .security-desktop-only { display: block; }
+        .security-mobile-only { display: none; }
         @media (max-width: 768px) {
-          .security-grid { display: flex !important; flex-direction: column; padding: 12px; }
-          .security-grid > div { display: flex !important; flex-direction: column !important; max-width: 100% !important; gap: 10px !important; }
-          .security-card { height: 220px !important; }
+          .security-desktop-only { display: none !important; }
+          .security-mobile-only { display: flex !important; flex-direction: column; gap: 10px; padding: 12px; }
         }
       `}</style>
 
@@ -264,33 +385,32 @@ export default function Security() {
           </motion.div>
         </motion.div>
 
-        {/* ── Grey outer wrapper ── */}
-        <div className="security-grid" style={{ display: 'flex', flexDirection: 'column' }}>
-
-          {/* Row 1 — 3 columns */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-            {rowOne.map((item) => (
-              <TrustCard key={item.title} item={item} />
-            ))}
-          </div>
-
-          {/* Row 2 — 2 columns centred at ⅔ width */}
+        {/* ── Desktop: accordion rows, hover to reveal photo ── */}
+        <div className="security-desktop-only">
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
+              background: '#DEDEDE',
+              borderRadius: 28,
+              padding: 16,
+              display: 'flex',
+              flexDirection: 'column',
               gap: 12,
-              maxWidth: 'calc(66.667% - 4px)',
-              margin: '0 auto',
-              width: '100%',
             }}
           >
-            {rowTwo.map((item) => (
-              <TrustCard key={item.title} item={item} />
-            ))}
+            <AccordionRow items={rowOne} />
+            <div style={{ maxWidth: 'calc(66.667% - 4px)', margin: '0 auto', width: '100%' }}>
+              <AccordionRow items={rowTwo} />
+            </div>
           </div>
-
         </div>
+
+        {/* ── Mobile: stacked cards, photo always visible ── */}
+        <div className="security-mobile-only">
+          {allItems.map((item) => (
+            <TrustCard key={item.title} item={item} />
+          ))}
+        </div>
+
       </div>
     </section>
   )

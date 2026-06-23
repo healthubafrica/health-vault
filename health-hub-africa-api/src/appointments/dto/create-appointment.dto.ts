@@ -10,9 +10,10 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AppointmentType } from '../../common/enums';
 
 export class CreateAppointmentDto {
-  @ApiProperty()
+  @ApiPropertyOptional({ description: 'Omit for patient self-booking; care team assigns provider' })
+  @IsOptional()
   @IsString()
-  providerId: string;
+  providerId?: string;
 
   @ApiPropertyOptional({ description: 'Required if creating on behalf of a patient (admin/coordinator)' })
   @IsOptional()

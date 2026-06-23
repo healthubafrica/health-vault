@@ -17,13 +17,13 @@ import { ErrorState } from '@/components/ui/ErrorState'
 const TABS = ['All', 'Upcoming', 'Completed', 'Cancelled']
 
 const SERVICE_TYPES = [
-  { label: 'Health Consult', value: 'HEALTH_CONSULT' },
-  { label: 'TeleCare', value: 'TELECARE' },
-  { label: 'Care Test', value: 'CARE_TEST' },
-  { label: 'Expert Review', value: 'EXPERT_REVIEW' },
-  { label: 'MinuteCare', value: 'MINUTE_CARE' },
-  { label: 'NeuroFlex', value: 'NEUROFLEX' },
-]
+  { label: 'Health Consult', value: 'HEALTH_CONSULT', appointmentType: 'in_person' },
+  { label: 'TeleCare', value: 'TELECARE', appointmentType: 'virtual' },
+  { label: 'Care Test', value: 'CARE_TEST', appointmentType: 'in_person' },
+  { label: 'Expert Review', value: 'EXPERT_REVIEW', appointmentType: 'in_person' },
+  { label: 'MinuteCare', value: 'MINUTE_CARE', appointmentType: 'in_person' },
+  { label: 'NeuroFlex', value: 'NEUROFLEX', appointmentType: 'virtual' },
+] as const
 
 const STATUS_PILL: Record<string, 'success' | 'warning' | 'neutral' | 'emergency'> = {
   upcoming: 'success',
@@ -88,12 +88,13 @@ export function AppointmentsScreen() {
       return
     }
     setIsBooking(true)
+    const selected = SERVICE_TYPES.find(s => s.value === serviceType)
     try {
       await apptApi.create({
-        serviceType,
+        appointmentType: selected?.appointmentType ?? 'in_person',
         scheduledAt: new Date(scheduledAt).toISOString(),
-        reason: reason.trim() || undefined,
-        isTelecare: serviceType === 'TELECARE',
+        durationMinutes: 30,
+        chiefComplaint: reason.trim() || undefined,
       })
       toast.success('Appointment requested', {
         description: 'Your care team will confirm within 24 hours.',
@@ -131,7 +132,9 @@ export function AppointmentsScreen() {
         ) : (
           <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
             {filtered.map(appt => {
-              const providerName = `${appt.provider.title} ${appt.provider.lastName}`
+              const providerName = appt.provider
+                ? `${appt.provider.title} ${appt.provider.lastName}`
+                : 'Provider TBD'
               const { date, time } = formatScheduledAt(appt.scheduledAt)
               const appointmentType = appt.isTelecare ? 'TeleCare' : 'In-person'
 

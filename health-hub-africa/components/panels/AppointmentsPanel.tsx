@@ -24,7 +24,7 @@ export function AppointmentsPanel() {
             {formatDate(nextAppt.scheduledAt)}
           </p>
           <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            {new Date(nextAppt.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · {nextAppt.provider.title} {nextAppt.provider.lastName}
+            {new Date(nextAppt.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}{nextAppt.provider ? ` · ${nextAppt.provider.title} ${nextAppt.provider.lastName}` : ''}
           </p>
           <Button size="sm" variant="secondary" fullWidth className="mt-3">Reschedule</Button>
         </div>
@@ -38,7 +38,7 @@ export function AppointmentsPanel() {
         <p className="text-[11px] font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--color-text-muted)' }}>
           Care Provider
         </p>
-        {nextAppt ? (
+        {nextAppt?.provider ? (
           <div className="flex items-center gap-3">
             <Avatar seed={`${nextAppt.provider.firstName} ${nextAppt.provider.lastName}`} size="md" shape="rounded" alt={`${nextAppt.provider.firstName} ${nextAppt.provider.lastName}`} />
             <div>
