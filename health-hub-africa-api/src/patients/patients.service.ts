@@ -21,6 +21,8 @@ import { UpdatePatientDto } from './dto/update-patient.dto';
 import { QueryPatientsDto } from './dto/query-patients.dto';
 import { RequestProfilePhotoUrlDto } from './dto/profile-photo-upload.dto';
 import { OpenemrService } from '../openemr/openemr.service';
+import { StorageService } from '../storage/storage.service';
+import { PaymentRequiredException } from '../common/exceptions/payment-required.exception';
 
 // HHA Patient ID: HHA-{REGION}-{YYYYMM}-{4-digit-seq}  e.g. HHA-CAN-2605-0004
 const REGION_MAP: Record<string, string> = {
@@ -44,6 +46,7 @@ export class PatientsService {
     private readonly notifications: NotificationsService,
     private readonly config: ConfigService,
     private readonly openemrService: OpenemrService,
+    private readonly storageService: StorageService,
   ) {
     // Static keys are optional — when absent the SDK default credential
     // provider chain resolves the ECS task role (or local AWS profile).
@@ -290,6 +293,26 @@ export class PatientsService {
   }
 
   async requestProfilePhotoUploadUrl(dto: RequestProfilePhotoUrlDto, currentUser: JwtPayload) {
+    const patient = await this.prisma.patient.findUnique({
+      where: { userId: currentUser.sub },
+      select: { id: true, profilePhotoSizeBytes: true },
+    });
+
+    if (patient) {
+      const { usedBytes, quotaBytes } = await this.storageService.getStorageUsage(patient.id);
+      const currentPhotoSize = patient.profilePhotoSizeBytes ?? 0;
+      const netIncrease = dto.sizeBytes - currentPhotoSize;
+      if (quotaBytes !== null && usedBytes + netIncrease > quotaBytes) {
+        throw new PaymentRequiredException(
+          'You have reached your Free Plan storage limit. Please upgrade to continue uploading files.',
+        );
+      }
+      await this.prisma.patient.update({
+        where: { id: patient.id },
+        data: { profilePhotoSizeBytes: dto.sizeBytes },
+      });
+    }
+
     const ext = dto.contentType === 'image/png' ? 'png' : dto.contentType === 'image/webp' ? 'webp' : 'jpg';
     const objectKey = `profile-photos/${currentUser.sub}/${randomUUID()}.${ext}`;
 

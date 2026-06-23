@@ -372,7 +372,7 @@ export interface Appointment {
   reason?: string
   isTelecare: boolean
   meetingUrl?: string
-  provider: { firstName: string; lastName: string; specialty: string; title: string }
+  provider?: { firstName: string; lastName: string; specialty: string; title: string } | null
 }
 
 export const appointments = {
@@ -428,6 +428,9 @@ export const records = {
 
   getDownloadUrl: (objectKey: string) =>
     request<{ data: { downloadUrl: string } }>(`/records/download-url/${encodeURIComponent(objectKey)}`),
+
+  getStorageUsage: () =>
+    request<{ data: { usedBytes: number; quotaBytes: number | null } | null }>('/records/storage'),
 }
 
 // ── Lab Orders & Results ──────────────────────────────────────────────────
@@ -492,6 +495,11 @@ export interface SubscriptionPlan {
   priceKobo: number
   billingPeriod: string
   features: string[]
+  annualPriceKobo?: number
+  isMostPopular?: boolean
+  isBestValue?: boolean
+  bestFor?: string
+  noClaimPct?: number
 }
 
 export interface ActiveSubscription {
