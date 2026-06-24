@@ -578,6 +578,11 @@ export const adminApi = {
       return request<{ data: AdminSubscription[]; meta: { total: number } }>(`/admin/subscriptions${qs}`)
     },
     cancel: (id: string) => request<void>(`/admin/subscriptions/${id}/cancel`, { method: 'PATCH' }),
+    override: (patientId: string, planId: string, billingCycle: 'monthly' | 'annually') =>
+      request<{ done: boolean }>(`/admin/patients/${patientId}/subscription/override`, {
+        method: 'POST',
+        body: JSON.stringify({ planId, billingCycle }),
+      }),
   },
 
   payments: {
@@ -585,6 +590,8 @@ export const adminApi = {
       const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : ''
       return request<{ data: AdminPayment[]; meta: { total: number } }>(`/admin/payments${qs}`)
     },
+    confirmManual: (id: string) =>
+      request<{ confirmed?: boolean; already?: boolean }>(`/admin/payments/${id}/confirm`, { method: 'PATCH' }),
   },
 
   providers: {
@@ -717,5 +724,9 @@ export const adminApi = {
       delete: (id: string) =>
         request<void>(`/admin/cms/testimonials/${id}`, { method: 'DELETE' }),
     },
+  },
+
+  plans: {
+    list: () => request<{ data: Array<{ id: string; name: string; tier: string; slug: string }> }>('/subscriptions/plans'),
   },
 }

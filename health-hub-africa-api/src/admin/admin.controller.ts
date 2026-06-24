@@ -287,6 +287,24 @@ export class AdminController {
     );
   }
 
+  @Patch('payments/:id/confirm')
+  @Roles(UserRole.super_admin, UserRole.admin)
+  @ApiOperation({ summary: 'Confirm a manual (bank transfer) payment and activate subscription' })
+  confirmManualPayment(@Param('id') id: string) {
+    return this.adminService.confirmManualPayment(id);
+  }
+
+  @Post('patients/:patientId/subscription/override')
+  @Roles(UserRole.super_admin)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Override a patient subscription plan (super_admin only)' })
+  overridePatientSubscription(
+    @Param('patientId') patientId: string,
+    @Body() body: { planId: string; billingCycle: 'monthly' | 'annually' },
+  ) {
+    return this.adminService.overridePatientSubscription(patientId, body.planId, body.billingCycle);
+  }
+
   // ── Providers ─────────────────────────────────────────────────────────────
 
   @Get('providers')

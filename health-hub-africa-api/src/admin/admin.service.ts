@@ -879,6 +879,87 @@ export class AdminService {
     return { data, meta: { total, page, limit } };
   }
 
+  async confirmManualPayment(paymentId: string) {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      select: { id: true, status: true, gateway: true, patientId: true, metadata: true },
+    });
+    if (!payment) throw new NotFoundException('Payment not found');
+    if (payment.gateway !== 'manual') {
+      throw new BadRequestException('Only manual (bank transfer) payments can be confirmed this way');
+    }
+    if (payment.status === 'paid') return { already: true };
+
+    await this.prisma.payment.update({
+      where: { id: paymentId },
+      data: { status: 'paid', paidAt: new Date() },
+    });
+
+    // Activate subscription if this payment carries subscription metadata
+    const meta = payment.metadata as { kind?: string; planId?: string; billingCycle?: string } | null;
+    if (meta?.kind === 'subscription_upgrade' && meta.planId) {
+      const cycle = meta.billingCycle === 'annually' ? 'annually'
+        : meta.billingCycle === 'quarterly' ? 'quarterly'
+        : 'monthly';
+      const startDate = new Date();
+      const endDate = new Date(startDate);
+      if (cycle === 'annually') endDate.setFullYear(endDate.getFullYear() + 1);
+      else if (cycle === 'quarterly') endDate.setMonth(endDate.getMonth() + 3);
+      else endDate.setMonth(endDate.getMonth() + 1);
+
+      await this.prisma.$transaction(async (tx) => {
+        await tx.patientSubscription.updateMany({
+          where: { patientId: payment.patientId, status: { in: ['active', 'trial'] } },
+          data: { status: 'cancelled' as any, cancelledAt: new Date(), cancellationReason: 'Upgraded via bank transfer confirmation' },
+        });
+        await tx.patientSubscription.create({
+          data: {
+            patientId: payment.patientId,
+            planId: meta.planId!,
+            startedAt: startDate,
+            expiresAt: endDate,
+            paymentId: payment.id,
+          },
+        });
+      });
+    }
+
+    return { confirmed: true };
+  }
+
+  async overridePatientSubscription(patientId: string, planId: string, billingCycle: 'monthly' | 'annually') {
+    const patient = await this.prisma.patient.findUnique({ where: { id: patientId }, select: { id: true } });
+    if (!patient) throw new NotFoundException('Patient not found');
+
+    const plan = await this.prisma.subscriptionPlan.findUnique({ where: { id: planId }, select: { id: true, tier: true } });
+    if (!plan) throw new NotFoundException('Plan not found');
+
+    if (plan.tier === 'Free') {
+      await this.prisma.patientSubscription.updateMany({
+        where: { patientId, status: { in: ['active', 'trial'] } },
+        data: { status: 'cancelled' as any, cancelledAt: new Date(), cancellationReason: 'Admin override — downgraded to Free' },
+      });
+      return { done: true };
+    }
+
+    const startDate = new Date();
+    const endDate = new Date(startDate);
+    if (billingCycle === 'annually') endDate.setFullYear(endDate.getFullYear() + 1);
+    else endDate.setMonth(endDate.getMonth() + 1);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.patientSubscription.updateMany({
+        where: { patientId, status: { in: ['active', 'trial'] } },
+        data: { status: 'cancelled' as any, cancelledAt: new Date(), cancellationReason: 'Admin override — plan change' },
+      });
+      await tx.patientSubscription.create({
+        data: { patientId, planId, startedAt: startDate, expiresAt: endDate },
+      });
+    });
+
+    return { done: true };
+  }
+
   // ── Providers ─────────────────────────────────────────────────────────────
 
   async listProviders(page = 1, limit = 20, search?: string) {
