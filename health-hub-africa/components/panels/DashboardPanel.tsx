@@ -65,28 +65,28 @@ function MiniCalendar() {
           <button
             aria-label="Previous month"
             onClick={goToPreviousMonth}
-            className="w-7 h-7 rounded-lg flex items-center justify-center border border-[var(--color-border)] hover:bg-gray-50 transition-colors"
+            className="w-7 h-7 rounded-lg flex items-center justify-center border border-[var(--color-border)] hover:bg-[var(--color-bg)] transition-colors"
           >
-            <ChevronLeft size={14} className="text-gray-500" />
+            <ChevronLeft size={14} className="text-[var(--color-text-muted)]" />
           </button>
         </div>
-        <span className="text-xs font-extrabold text-gray-800 uppercase tracking-wider">
+        <span className="text-xs font-extrabold text-[var(--color-text)] uppercase tracking-wider">
           {MONTH_NAMES[viewMonth]} {viewYear}
         </span>
         <div className="flex items-center gap-1">
           <button
             aria-label="Next month"
             onClick={goToNextMonth}
-            className="w-7 h-7 rounded-lg flex items-center justify-center border border-[var(--color-border)] hover:bg-gray-50 transition-colors"
+            className="w-7 h-7 rounded-lg flex items-center justify-center border border-[var(--color-border)] hover:bg-[var(--color-bg)] transition-colors"
           >
-            <ChevronRight size={14} className="text-gray-500" />
+            <ChevronRight size={14} className="text-[var(--color-text-muted)]" />
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-7 gap-y-1 mb-2">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => (
-          <div key={i} className="text-center text-[9px] font-bold text-gray-400 py-1">{d}</div>
+          <div key={i} className="text-center text-[9px] font-bold text-[var(--color-text-faint)] py-1">{d}</div>
         ))}
       </div>
 
@@ -107,17 +107,17 @@ function MiniCalendar() {
           } else if (isCritical) {
             btnClass += "bg-[#C0392B] text-white shadow-sm hover:bg-[#a93226]"
           } else if (isFull) {
-            btnClass += "text-gray-300 cursor-not-allowed"
+            btnClass += "text-[var(--color-text-faint)] cursor-not-allowed"
           } else if (isAvail) {
-            btnClass += "text-gray-700 hover:bg-gray-100 cursor-pointer"
+            btnClass += "text-[var(--color-text)] hover:bg-[var(--color-primary-light)] cursor-pointer"
           } else {
-            btnClass += "text-gray-300 cursor-not-allowed"
+            btnClass += "text-[var(--color-text-faint)] cursor-not-allowed"
           }
 
           return (
             <div key={`day-${day}`} className="relative flex flex-col items-center justify-center">
               {isCritical && (
-                <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[7px] font-extrabold text-[#C0392B] bg-[#FDECEA] px-1 rounded-sm tracking-tighter whitespace-nowrap scale-90 border border-[#C0392B]/10 z-10">
+                <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[7px] font-extrabold text-[var(--color-emergency)] bg-[var(--color-error-bg)] px-1 rounded-sm tracking-tighter whitespace-nowrap scale-90 border border-[var(--color-emergency)]/10 z-10">
                   CRITICAL FIX
                 </span>
               )}
@@ -136,7 +136,7 @@ function MiniCalendar() {
                 {day}
               </button>
               {isAvail && !isSelected && !isCritical && (
-                <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-[#137333]" />
+                <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-[var(--color-primary)]" />
               )}
             </div>
           )
@@ -146,16 +146,16 @@ function MiniCalendar() {
       {/* Legend */}
       <div className="flex items-center gap-4 mt-5 border-t border-[var(--color-border)] pt-3">
         <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#137333]" />
-          <span className="text-[10px] font-semibold text-gray-500">Available</span>
+          <span className="w-2.5 h-2.5 rounded-full bg-[var(--color-primary)]" />
+          <span className="text-[10px] font-semibold text-[var(--color-text-muted)]">Available</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#374151]" />
-          <span className="text-[10px] font-semibold text-gray-500">Full Booked</span>
+          <span className="w-2.5 h-2.5 rounded-full bg-[var(--color-text-faint)]" />
+          <span className="text-[10px] font-semibold text-[var(--color-text-muted)]">Full Booked</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-gray-200" />
-          <span className="text-[10px] font-semibold text-gray-500">Not Available</span>
+          <span className="w-2.5 h-2.5 rounded-full bg-[var(--color-border)]" />
+          <span className="text-[10px] font-semibold text-[var(--color-text-muted)]">Not Available</span>
         </div>
       </div>
     </div>
@@ -216,7 +216,7 @@ export function DashboardPanel() {
     <div className="flex flex-col gap-6 p-5">
       {/* Title */}
       <div>
-        <h3 className="text-base font-extrabold text-gray-800">
+        <h3 className="text-base font-extrabold text-[var(--color-text)]">
           Book a Service
         </h3>
       </div>
@@ -224,7 +224,7 @@ export function DashboardPanel() {
       {/* Search Input and Filter */}
       <div className="relative flex gap-2" ref={dropdownRef}>
         <div className="flex items-center gap-2 flex-1 h-10 px-3.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)]">
-          <Search size={14} className="text-gray-400" />
+          <Search size={14} className="text-[var(--color-text-faint)]" />
           <input
             type="text"
             value={searchQuery}
@@ -233,13 +233,13 @@ export function DashboardPanel() {
               if (!e.target.value.trim()) setSelectedProvider(null)
             }}
             placeholder="Search doctor or specialty"
-            className="bg-transparent border-none outline-none text-xs text-[var(--color-text)] placeholder-gray-400 w-full"
+            className="bg-transparent border-none outline-none text-xs text-[var(--color-text)] placeholder-[var(--color-text-faint)] w-full"
           />
         </div>
         <button
           aria-label="Filter Care Providers"
           onClick={() => router.push('/appointments')}
-          className="w-10 h-10 flex items-center justify-center border border-[var(--color-border)] rounded-xl bg-[var(--color-bg)] text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+          className="w-10 h-10 flex items-center justify-center border border-[var(--color-border)] rounded-xl bg-[var(--color-bg)] text-[var(--color-text-muted)] hover:bg-[var(--color-primary-light)] hover:text-[var(--color-text)] transition-colors"
         >
           <SlidersHorizontal size={14} />
         </button>
@@ -250,7 +250,7 @@ export function DashboardPanel() {
               <button
                 key={p.id}
                 onClick={() => selectProvider(p)}
-                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 transition-colors text-left"
+                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--color-primary-light)] transition-colors text-left"
               >
                 <Avatar seed={`${p.firstName} ${p.lastName}`} size="sm" shape="circle" alt={`${p.firstName} ${p.lastName}`} />
                 <div className="flex-1 min-w-0">
@@ -284,15 +284,15 @@ export function DashboardPanel() {
       <div className="flex gap-3.5 p-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm">
         <Avatar seed={displayName} size="md" shape="circle" alt={displayName} />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-extrabold text-gray-800 leading-tight">
+          <p className="text-sm font-extrabold text-[var(--color-text)] leading-tight">
             {displayName}
           </p>
-          <p className="text-xs text-gray-400 font-medium mt-0.5">
+          <p className="text-xs text-[var(--color-text-muted)] font-medium mt-0.5">
             {displaySpecialty}
           </p>
 
           <div className="flex flex-wrap gap-1.5 mt-2">
-            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-slate-100 text-gray-600 text-[9px] font-bold">
+            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-[var(--color-bg)] text-[var(--color-text-muted)] text-[9px] font-bold">
               <User size={8} /> {selectedProvider ? 'Verified' : 'Any'}
             </span>
             {selectedProvider?.rating && (
@@ -301,7 +301,7 @@ export function DashboardPanel() {
               </span>
             )}
             {selectedProvider?.isAvailable === false && (
-              <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-red-50 text-red-600 text-[9px] font-bold">
+              <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-[var(--color-error-bg)] text-[var(--color-emergency)] text-[9px] font-bold">
                 Unavailable
               </span>
             )}
@@ -311,7 +311,7 @@ export function DashboardPanel() {
 
       {/* Date Selection */}
       <div className="border-t border-[var(--color-border)] pt-4">
-        <p className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 mb-3">
+        <p className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--color-text-muted)] mb-3">
           Select Date
         </p>
         <MiniCalendar />
@@ -319,7 +319,7 @@ export function DashboardPanel() {
 
       {/* Time Selection */}
       <div className="border-t border-[var(--color-border)] pt-4 mb-2">
-        <p className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 mb-3">
+        <p className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--color-text-muted)] mb-3">
           Select Time
         </p>
         <div className="flex flex-wrap gap-2">
@@ -332,7 +332,7 @@ export function DashboardPanel() {
                 className={`px-4 py-2 rounded-full text-xs font-bold transition-all duration-150 border ${
                   isActive
                     ? 'bg-[var(--color-primary)] border-[var(--color-primary)] text-white shadow-sm'
-                    : 'bg-white border-[var(--color-border)] text-gray-500 hover:border-gray-400 hover:text-gray-700'
+                    : 'bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-text-faint)] hover:text-[var(--color-text)]'
                 }`}
               >
                 {time}

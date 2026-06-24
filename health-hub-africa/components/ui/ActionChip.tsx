@@ -25,9 +25,9 @@ export function ActionChip({ icon: Icon, name, description, emergency, onClick, 
     >
       <div
         className="flex items-center justify-center w-9 h-9 rounded-xl shrink-0"
-        style={{ background: emergency ? '#FDECEA' : 'var(--color-success-bg)' }}
+        style={{ background: emergency ? 'var(--color-error-bg)' : 'var(--color-success-bg)' }}
       >
-        <Icon size={18} style={{ color: emergency ? 'var(--color-emergency)' : '#006022' }} />
+        <Icon size={18} style={{ color: emergency ? 'var(--color-emergency)' : 'var(--color-success-text)' }} />
       </div>
       <div className="min-w-0">
         <p className="text-sm font-semibold truncate" style={{ color: 'var(--color-text)' }}>

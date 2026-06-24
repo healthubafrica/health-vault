@@ -52,7 +52,7 @@ export function Avatar({
 
   return (
     <div
-      className={cn('shrink-0 overflow-hidden bg-[#e8f4e8]', SHAPE_CLASS[shape], className)}
+      className={cn('shrink-0 overflow-hidden bg-[var(--color-primary-light)]', SHAPE_CLASS[shape], className)}
       style={{ width: px, height: px }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}

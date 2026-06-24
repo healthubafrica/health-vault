@@ -28,10 +28,16 @@
   /* Status */
   --color-success: #6DC43F;
   --color-success-bg: #EAF5E2;
+  --color-success-text: #006022;
   --color-warning: #E8930A;
   --color-warning-bg: #FFF4E0;
+  --color-warning-text: #92610a;
   --color-error: #C0392B;
   --color-error-bg: #FDECEA;
+  --color-phase-bg: #e8eaf6;
+  --color-phase-text: #3949ab;
+  --color-info-bg: #e3f2fd;
+  --color-info-text: #1565c0;
 
   /* Fonts */
   --font-display: var(--font-manrope), sans-serif;
@@ -56,8 +62,14 @@
 
   --color-primary-light: #1E3A1E;
   --color-success-bg: #1E3A1E;
+  --color-success-text: #8AE659;
   --color-warning-bg: #2A2010;
+  --color-warning-text: #F5B041;
   --color-error-bg: #2A1010;
+  --color-phase-bg: #1E1F29;
+  --color-phase-text: #8C9EFF;
+  --color-info-bg: #102030;
+  --color-info-text: #64B5F6;
 }
 
 /* ─── Base Styles ────────────────────────────────────────────────────────── */
