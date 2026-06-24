@@ -19,7 +19,14 @@ const OPENEMR_SECRET_NAME = 'hha/openemr-refresh-token';
 
 const REDIS_REFRESH_KEY = 'openemr:refresh_token';
 const REDIS_STATE_PREFIX = 'openemr:oauth_state:';
+const REDIS_PULL_CURSOR_PREFIX = 'openemr:pull-cursor:';
 const STATE_TTL_SECONDS = 600; // 10 minutes
+
+export type PullResourceType =
+  | 'Observation'
+  | 'MedicationRequest'
+  | 'DocumentReference'
+  | 'Encounter';
 
 const ALLOWED_REDIRECT_URIS = new Set([
   'https://www.myvaultplus.com/auth/callback',
@@ -54,16 +61,52 @@ export class OpenemrService implements OnModuleInit {
 
     // Clear and re-register all scheduled jobs so cron expressions stay consistent
     // across deployments without accumulating duplicate repeatables.
+    const repeatableNames = new Set([
+      'pull-lab-results',
+      'pull-observations',
+      'pull-medications',
+      'pull-documents',
+      'pull-encounters',
+      'recover-unsynced',
+    ]);
     const repeatables = await this.syncQueue.getRepeatableJobs();
-    for (const r of repeatables.filter(j =>
-      j.name === 'pull-lab-results' || j.name === 'recover-unsynced',
-    )) {
+    for (const r of repeatables.filter(j => repeatableNames.has(j.name))) {
       await this.syncQueue.removeRepeatableByKey(r.key);
     }
 
     await this.syncQueue.add(
       'pull-lab-results',
       { patientId: '', operation: 'sync_labs' },
+      { repeat: { cron: '*/15 * * * *' }, removeOnComplete: 10 },
+    );
+
+    // Inbound FHIR pulls — clinical data authored in OpenEMR (vitals taken at
+    // the clinic, e-prescriptions written by clinicians, scanned documents,
+    // and finalised encounters) flows back into HHA so the patient portal
+    // shows a complete record. Each handler uses a global Redis cursor
+    // (`openemr:pull-cursor:{Resource}`) so it only fetches changes since
+    // the last successful run.
+    await this.syncQueue.add(
+      'pull-observations',
+      { patientId: '', operation: 'sync_record' },
+      { repeat: { cron: '*/15 * * * *' }, removeOnComplete: 10 },
+    );
+
+    await this.syncQueue.add(
+      'pull-medications',
+      { patientId: '', operation: 'sync_record' },
+      { repeat: { cron: '*/15 * * * *' }, removeOnComplete: 10 },
+    );
+
+    await this.syncQueue.add(
+      'pull-documents',
+      { patientId: '', operation: 'sync_record' },
+      { repeat: { cron: '*/15 * * * *' }, removeOnComplete: 10 },
+    );
+
+    await this.syncQueue.add(
+      'pull-encounters',
+      { patientId: '', operation: 'sync_record' },
       { repeat: { cron: '*/15 * * * *' }, removeOnComplete: 10 },
     );
 
@@ -547,5 +590,42 @@ export class OpenemrService implements OnModuleInit {
 
   get isAuthenticated(): boolean {
     return !!this.refreshToken;
+  }
+
+  // ── Pull Cursors ───────────────────────────────────────────────────────────
+  //
+  // Tracks the high-water mark per FHIR resource type so subsequent pulls only
+  // ask OpenEMR for records changed since the last successful pull
+  // (`_lastUpdated=gt{cursor}`). Cursors are global (not per-patient) — new
+  // patients have no prior OpenEMR history to backfill since the patient
+  // record itself was just pushed from HHA.
+
+  async getPullCursor(resource: PullResourceType): Promise<string | null> {
+    try {
+      return await this.redis.get(`${REDIS_PULL_CURSOR_PREFIX}${resource}`);
+    } catch (err) {
+      this.logger.error(`Failed to read pull cursor for ${resource}: ${err}`);
+      return null;
+    }
+  }
+
+  async setPullCursor(resource: PullResourceType, iso: string): Promise<void> {
+    try {
+      await this.redis.set(`${REDIS_PULL_CURSOR_PREFIX}${resource}`, iso);
+    } catch (err) {
+      this.logger.error(`Failed to persist pull cursor for ${resource}: ${err}`);
+    }
+  }
+
+  // Exposed for the processor — internal callers should use the typed helpers
+  // (fetchPractitioners, enqueue*). Returns the raw FHIR JSON response.
+  async fhirCall(
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+    path: string,
+    body?: Record<string, unknown>,
+    patientId?: string,
+  ): Promise<Record<string, unknown>> {
+    const token = await this.getAccessToken();
+    return this.callOpenemr(token, method, path, body, patientId);
   }
 }

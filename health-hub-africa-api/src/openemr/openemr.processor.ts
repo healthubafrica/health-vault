@@ -1,9 +1,9 @@
 import { Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bull';
-import { Gender, RecordType } from '@prisma/client';
+import { Gender, Prisma, RecordType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { OpenemrService, OPENEMR_SYNC_QUEUE, SyncJobData } from './openemr.service';
+import { OpenemrService, OPENEMR_SYNC_QUEUE, PullResourceType, SyncJobData } from './openemr.service';
 
 // ── FHIR helper types ─────────────────────────────────────────────────────────
 
@@ -28,6 +28,82 @@ interface FhirDiagnosticReport {
   result?: Array<{ reference?: string; display?: string }>;
   conclusion?: string;
   conclusionCode?: FhirCodeableConcept[];
+}
+
+interface FhirObservation {
+  resourceType: string;
+  id?: string;
+  status?: string;
+  category?: FhirCodeableConcept[];
+  code?: FhirCodeableConcept;
+  subject?: { reference?: string };
+  effectiveDateTime?: string;
+  valueQuantity?: { value?: number; unit?: string };
+  meta?: { lastUpdated?: string };
+}
+
+interface FhirMedicationRequest {
+  resourceType: string;
+  id?: string;
+  status?: string;
+  intent?: string;
+  medicationCodeableConcept?: FhirCodeableConcept;
+  subject?: { reference?: string };
+  requester?: { reference?: string };
+  authoredOn?: string;
+  dosageInstruction?: Array<{
+    text?: string;
+    route?: FhirCodeableConcept;
+    doseAndRate?: Array<{ doseQuantity?: { value?: number; unit?: string } }>;
+  }>;
+  dispenseRequest?: {
+    numberOfRepeatsAllowed?: number;
+    validityPeriod?: { end?: string };
+  };
+  note?: Array<{ text?: string }>;
+  meta?: { lastUpdated?: string };
+}
+
+interface FhirDocumentReference {
+  resourceType: string;
+  id?: string;
+  status?: string;
+  type?: FhirCodeableConcept;
+  subject?: { reference?: string };
+  date?: string;
+  description?: string;
+  content?: Array<{
+    attachment?: {
+      url?: string;
+      contentType?: string;
+      title?: string;
+      size?: number;
+    };
+  }>;
+  context?: {
+    encounter?: Array<{ reference?: string }>;
+    period?: { start?: string; end?: string };
+  };
+  meta?: { lastUpdated?: string };
+}
+
+interface FhirEncounter {
+  resourceType: string;
+  id?: string;
+  status?: string;
+  class?: FhirCoding;
+  type?: FhirCodeableConcept[];
+  subject?: { reference?: string };
+  participant?: Array<{ individual?: { reference?: string } }>;
+  period?: { start?: string; end?: string };
+  reasonCode?: FhirCodeableConcept[];
+  meta?: { lastUpdated?: string };
+}
+
+interface FhirBundle {
+  resourceType: string;
+  entry?: Array<{ resource: Record<string, unknown> }>;
+  link?: Array<{ relation: string; url: string }>;
 }
 
 // ── Lookup tables ─────────────────────────────────────────────────────────────
@@ -57,6 +133,34 @@ const RECORD_TYPE_LOINC: Record<string, string> = {
   referral:      '57133-1',
   expert_review: '11488-4',
 };
+
+// Reverse LOINC → VitalsReading column. Multiple LOINC codes can target the
+// same column (e.g. variants of body temperature); list canonical codes first.
+const LOINC_TO_VITALS_FIELD: Record<string, keyof typeof VITALS_LOINC> = (() => {
+  const out: Record<string, keyof typeof VITALS_LOINC> = {};
+  for (const [field, loinc] of Object.entries(VITALS_LOINC)) {
+    out[loinc.code] = field as keyof typeof VITALS_LOINC;
+  }
+  return out;
+})();
+
+// Reverse LOINC → RecordType for DocumentReference pulls. Anything else falls
+// back to 'document'.
+const LOINC_TO_RECORD_TYPE: Record<string, RecordType> = (() => {
+  const out: Record<string, RecordType> = {};
+  for (const [type, code] of Object.entries(RECORD_TYPE_LOINC)) {
+    if (!out[code]) out[code] = type as RecordType;
+  }
+  return out;
+})();
+
+// Numeric vitals columns are SmallInts on Prisma — round before insert.
+const VITALS_INT_FIELDS = new Set<keyof typeof VITALS_LOINC>([
+  'heartRate', 'systolicBp', 'diastolicBp', 'platelets',
+]);
+
+const PULL_PAGE_SIZE = 200;
+const PULL_MAX_PAGES = 5;
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -487,6 +591,152 @@ export class OpenemrProcessor {
     }
   }
 
+  // ── Vitals / Observations (pull) ──────────────────────────────────────────
+  //
+  // Clinicians often record vitals directly in OpenEMR during in-person visits.
+  // We pull `Observation` resources tagged with category=vital-signs since
+  // the last cursor, group them by (patient, effectiveDateTime), and upsert
+  // one VitalsReading per group. The reverse LOINC map fills the right
+  // numeric column for each Observation in the group.
+
+  @Process({ name: 'pull-observations' })
+  async handlePullObservations() {
+    const since = await this.openemrService.getPullCursor('Observation');
+    const sinceParam = since ? `&_lastUpdated=gt${encodeURIComponent(since)}` : '';
+
+    let highWater = since ?? new Date(0).toISOString();
+
+    const resources = await this.fetchAllPages<FhirObservation>(
+      `/fhir/Observation?category=vital-signs${sinceParam}`,
+    ).catch((err) => {
+      this.logger.error(`Observation pull failed: ${err instanceof Error ? err.message : String(err)}`);
+      return [];
+    });
+
+    if (resources.length === 0) {
+      this.logger.log('No new Observations to pull');
+      return;
+    }
+
+    // Group by (patient uuid, effectiveDateTime) — one VitalsReading per group.
+    const groups = new Map<string, FhirObservation[]>();
+    for (const obs of resources) {
+      const patientUuid = (obs.subject?.reference ?? '').replace(/^Patient\//, '');
+      const when = obs.effectiveDateTime;
+      if (!patientUuid || !when) continue;
+      const key = `${patientUuid}|${when}`;
+      const arr = groups.get(key) ?? [];
+      arr.push(obs);
+      groups.set(key, arr);
+      const last = obs.meta?.lastUpdated;
+      if (last && last > highWater) highWater = last;
+    }
+
+    let created = 0;
+    for (const [key, observations] of groups) {
+      try {
+        const [patientUuid, when] = key.split('|');
+        const patient = await this.prisma.patient.findFirst({
+          where: { openemrPatientUuid: patientUuid },
+          select: { id: true },
+        });
+        if (!patient) continue;
+
+        const recordedAt = new Date(when);
+
+        // Dedup: the same (patient, recordedAt, source='openemr') combo is
+        // assumed to be the same clinic measurement event. Skip if present.
+        const existing = await this.prisma.vitalsReading.findFirst({
+          where: { patientId: patient.id, recordedAt, source: 'openemr' },
+          select: { id: true },
+        });
+        if (existing) continue;
+
+        const data: Prisma.VitalsReadingUncheckedCreateInput = {
+          patientId: patient.id,
+          recordedAt,
+          source: 'openemr',
+        };
+
+        for (const obs of observations) {
+          const loinc = obs.code?.coding?.find(c => c.system === 'http://loinc.org')?.code;
+          if (!loinc) continue;
+          const field = LOINC_TO_VITALS_FIELD[loinc];
+          const value = obs.valueQuantity?.value;
+          if (!field || value === undefined || value === null) continue;
+          (data as Record<string, unknown>)[field] = VITALS_INT_FIELDS.has(field)
+            ? Math.round(value)
+            : value;
+        }
+
+        // Skip empty groups (no recognised LOINC matches).
+        const hasAnyValue = Object.keys(data).some(
+          k => k !== 'patientId' && k !== 'recordedAt' && k !== 'source',
+        );
+        if (!hasAnyValue) continue;
+
+        await this.prisma.vitalsReading.create({ data });
+        created++;
+      } catch (err: unknown) {
+        this.logger.error(
+          `Observation upsert failed for group ${key}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
+    await this.openemrService.setPullCursor('Observation', highWater);
+    this.logger.log(`Pulled ${resources.length} Observations → created ${created} vitals readings`);
+  }
+
+  // ── Medications (pull) ────────────────────────────────────────────────────
+  //
+  // Prescriptions written in OpenEMR (e.g. by a clinician during an
+  // in-person visit) flow back as ClinicalRecord(recordType=prescription)
+  // + Prescription rows so they appear in the patient portal. We require a
+  // matching Provider (via openemrProviderUuid) because Prescription has a
+  // mandatory provider FK — unmatched requesters are skipped with a warning.
+
+  @Process({ name: 'pull-medications' })
+  async handlePullMedications() {
+    await this.handleGenericPull<FhirMedicationRequest>(
+      'MedicationRequest',
+      '/fhir/MedicationRequest?status=active,completed,stopped',
+      async (resource) => this.upsertMedicationFromFhir(resource),
+    );
+  }
+
+  // ── Documents (pull) ──────────────────────────────────────────────────────
+  //
+  // Clinical notes, scan results, discharge summaries and other documents
+  // attached to a patient in OpenEMR show up as DocumentReference resources.
+  // We map the LOINC type code back to our RecordType enum and create a
+  // ClinicalRecord pointing at the OpenEMR-hosted attachment URL.
+
+  @Process({ name: 'pull-documents' })
+  async handlePullDocuments() {
+    await this.handleGenericPull<FhirDocumentReference>(
+      'DocumentReference',
+      '/fhir/DocumentReference?status=current',
+      async (resource) => this.upsertDocumentFromFhir(resource),
+    );
+  }
+
+  // ── Encounters (pull) ─────────────────────────────────────────────────────
+  //
+  // Finalised encounters (in-person visits, walk-ins, etc.) are stored as
+  // ClinicalRecord(recordType=visit) so the portal timeline reflects every
+  // clinical interaction, including those that did not originate as HHA
+  // Appointments.
+
+  @Process({ name: 'pull-encounters' })
+  async handlePullEncounters() {
+    await this.handleGenericPull<FhirEncounter>(
+      'Encounter',
+      '/fhir/Encounter?status=finished',
+      async (resource) => this.upsertEncounterFromFhir(resource),
+    );
+  }
+
   // ── Lab Order (push) ─────────────────────────────────────────────────────
 
   @Process({ name: 'sync-labs' })
@@ -614,5 +864,253 @@ export class OpenemrProcessor {
     ]);
 
     this.logger.log(`Lab result upserted for order ${order.id} (patient ${patientId})`);
+  }
+
+  // Fetch all pages of a FHIR Bundle by following `link.relation=next` URLs.
+  // OpenEMR usually keeps `next` on the same `{base}/apis/default` host —
+  // we pass the relative path to `fhirCall` so the same OAuth token applies.
+  // Capped at PULL_MAX_PAGES to bound a single cron tick.
+  private async fetchAllPages<T>(initialPath: string): Promise<T[]> {
+    const out: T[] = [];
+    const sep = initialPath.includes('?') ? '&' : '?';
+    let nextPath: string | null = `${initialPath}${sep}_count=${PULL_PAGE_SIZE}`;
+
+    for (let page = 0; page < PULL_MAX_PAGES && nextPath; page++) {
+      const bundle = (await this.openemrService.fhirCall('GET', nextPath)) as unknown as FhirBundle;
+      const entries = bundle.entry ?? [];
+      for (const e of entries) out.push(e.resource as T);
+
+      const next = bundle.link?.find(l => l.relation === 'next')?.url;
+      if (!next) break;
+
+      // Strip the base URL so we hit `/apis/default/...` consistently.
+      const base = this.openemrService.openemrBase + '/apis/default';
+      nextPath = next.startsWith(base) ? next.slice(base.length) : null;
+    }
+
+    return out;
+  }
+
+  // Common loop for incremental FHIR pulls: read cursor → fetch since cursor
+  // → upsert each resource → advance cursor to max(lastUpdated).
+  private async handleGenericPull<T extends { meta?: { lastUpdated?: string } }>(
+    resource: PullResourceType,
+    basePath: string,
+    upsert: (resource: T) => Promise<'created' | 'skipped'>,
+  ): Promise<void> {
+    const since = await this.openemrService.getPullCursor(resource);
+    const sinceParam = since ? `&_lastUpdated=gt${encodeURIComponent(since)}` : '';
+    const path = `${basePath}${basePath.includes('?') ? '' : '?'}${sinceParam}`;
+
+    let highWater = since ?? new Date(0).toISOString();
+    let created = 0;
+    let total = 0;
+
+    const resources = await this.fetchAllPages<T>(path).catch((err) => {
+      this.logger.error(`${resource} pull failed: ${err instanceof Error ? err.message : String(err)}`);
+      return [] as T[];
+    });
+
+    for (const r of resources) {
+      total++;
+      try {
+        const result = await upsert(r);
+        if (result === 'created') created++;
+      } catch (err: unknown) {
+        this.logger.error(
+          `${resource} upsert failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+      const last = r.meta?.lastUpdated;
+      if (last && last > highWater) highWater = last;
+    }
+
+    await this.openemrService.setPullCursor(resource, highWater);
+    this.logger.log(`Pulled ${total} ${resource}(s) → created ${created}`);
+  }
+
+  private async upsertMedicationFromFhir(
+    med: FhirMedicationRequest,
+  ): Promise<'created' | 'skipped'> {
+    if (!med.id) return 'skipped';
+
+    // Dedup: if we've already created a clinical record for this FHIR id, skip.
+    const existing = await this.prisma.clinicalRecord.findUnique({
+      where: { openemrResourceId: med.id },
+      select: { id: true },
+    });
+    if (existing) return 'skipped';
+
+    const patientUuid = (med.subject?.reference ?? '').replace(/^Patient\//, '');
+    if (!patientUuid) return 'skipped';
+
+    const patient = await this.prisma.patient.findFirst({
+      where: { openemrPatientUuid: patientUuid },
+      select: { id: true },
+    });
+    if (!patient) return 'skipped';
+
+    // Prescription requires a provider — find by openemrProviderUuid from
+    // the requester reference. Skip if we can't resolve one; pushing back a
+    // prescription with an unknown prescriber would silently break the UI.
+    const requesterUuid = (med.requester?.reference ?? '').replace(/^Practitioner\//, '');
+    const provider = requesterUuid
+      ? await this.prisma.provider.findFirst({
+          where: { openemrProviderUuid: requesterUuid },
+          select: { id: true },
+        })
+      : null;
+
+    if (!provider) {
+      this.logger.warn(
+        `MedicationRequest ${med.id} has no resolvable provider (requester=${requesterUuid || 'none'}); skipping`,
+      );
+      return 'skipped';
+    }
+
+    const drugName = med.medicationCodeableConcept?.text
+      ?? med.medicationCodeableConcept?.coding?.[0]?.display
+      ?? 'Unknown medication';
+    const dosageText = med.dosageInstruction?.[0]?.text ?? '';
+    const route = med.dosageInstruction?.[0]?.route?.text ?? 'oral';
+    const refills = med.dispenseRequest?.numberOfRepeatsAllowed ?? 0;
+    const expiresAtRaw = med.dispenseRequest?.validityPeriod?.end;
+    const expiresAt = expiresAtRaw ? new Date(expiresAtRaw) : null;
+    const authoredOn = med.authoredOn ? new Date(med.authoredOn) : new Date();
+    const notes = med.note?.map(n => n.text).filter(Boolean).join('\n') || null;
+
+    // Best-effort split of "5mg twice daily" into dosage + frequency.
+    const [dosage, ...freqRest] = dosageText.split(' ');
+    const frequency = freqRest.join(' ') || 'as directed';
+
+    await this.prisma.$transaction(async (tx) => {
+      const record = await tx.clinicalRecord.create({
+        data: {
+          hhaRef: `RX-OE-${med.id!.slice(0, 12)}`,
+          patientId: patient.id,
+          providerId: provider.id,
+          recordType: RecordType.prescription,
+          title: drugName,
+          description: notes,
+          recordedAt: authoredOn,
+          openemrResourceId: med.id,
+        },
+      });
+
+      await tx.prescription.create({
+        data: {
+          recordId: record.id,
+          patientId: patient.id,
+          providerId: provider.id,
+          drugName,
+          dosage: dosage || 'as prescribed',
+          frequency,
+          route,
+          refillsRemaining: refills,
+          expiresAt,
+          notes,
+        },
+      });
+    });
+
+    return 'created';
+  }
+
+  private async upsertDocumentFromFhir(
+    doc: FhirDocumentReference,
+  ): Promise<'created' | 'skipped'> {
+    if (!doc.id) return 'skipped';
+
+    const existing = await this.prisma.clinicalRecord.findUnique({
+      where: { openemrResourceId: doc.id },
+      select: { id: true },
+    });
+    if (existing) return 'skipped';
+
+    const patientUuid = (doc.subject?.reference ?? '').replace(/^Patient\//, '');
+    if (!patientUuid) return 'skipped';
+
+    const patient = await this.prisma.patient.findFirst({
+      where: { openemrPatientUuid: patientUuid },
+      select: { id: true },
+    });
+    if (!patient) return 'skipped';
+
+    const attachment = doc.content?.[0]?.attachment;
+    const loinc = doc.type?.coding?.find(c => c.system === 'http://loinc.org')?.code;
+    const mapped = loinc ? LOINC_TO_RECORD_TYPE[loinc] : undefined;
+    const recordType: RecordType = mapped ?? RecordType.document;
+    const title = attachment?.title ?? doc.description ?? doc.type?.text ?? 'Clinical document';
+    const recordedAt = doc.date ? new Date(doc.date) : new Date();
+
+    await this.prisma.clinicalRecord.create({
+      data: {
+        hhaRef: `DOC-OE-${doc.id.slice(0, 12)}`,
+        patientId: patient.id,
+        recordType,
+        title,
+        description: doc.description ?? null,
+        fileUrl: attachment?.url ?? null,
+        fileMimeType: attachment?.contentType ?? null,
+        fileSizeBytes: attachment?.size ?? null,
+        recordedAt,
+        openemrResourceId: doc.id,
+      },
+    });
+
+    return 'created';
+  }
+
+  private async upsertEncounterFromFhir(
+    enc: FhirEncounter,
+  ): Promise<'created' | 'skipped'> {
+    if (!enc.id) return 'skipped';
+
+    const existing = await this.prisma.clinicalRecord.findUnique({
+      where: { openemrResourceId: enc.id },
+      select: { id: true },
+    });
+    if (existing) return 'skipped';
+
+    const patientUuid = (enc.subject?.reference ?? '').replace(/^Patient\//, '');
+    if (!patientUuid) return 'skipped';
+
+    const patient = await this.prisma.patient.findFirst({
+      where: { openemrPatientUuid: patientUuid },
+      select: { id: true },
+    });
+    if (!patient) return 'skipped';
+
+    // Map the encounter's practitioner participant (if any) to an HHA Provider.
+    const practitionerRef = enc.participant?.find(
+      p => p.individual?.reference?.startsWith('Practitioner/'),
+    )?.individual?.reference;
+    const practitionerUuid = practitionerRef?.replace(/^Practitioner\//, '');
+    const provider = practitionerUuid
+      ? await this.prisma.provider.findFirst({
+          where: { openemrProviderUuid: practitionerUuid },
+          select: { id: true },
+        })
+      : null;
+
+    const reason = enc.reasonCode?.[0]?.text
+      ?? enc.reasonCode?.[0]?.coding?.[0]?.display
+      ?? enc.type?.[0]?.text
+      ?? 'Clinical visit';
+    const recordedAt = enc.period?.start ? new Date(enc.period.start) : new Date();
+
+    await this.prisma.clinicalRecord.create({
+      data: {
+        hhaRef: `ENC-OE-${enc.id.slice(0, 12)}`,
+        patientId: patient.id,
+        providerId: provider?.id ?? null,
+        recordType: RecordType.visit,
+        title: reason,
+        recordedAt,
+        openemrResourceId: enc.id,
+      },
+    });
+
+    return 'created';
   }
 }
