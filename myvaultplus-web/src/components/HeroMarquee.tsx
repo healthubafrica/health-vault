@@ -77,13 +77,15 @@ export default function HeroMarquee({ marginTop = 120 }: { marginTop?: number })
     <div key="lab" style={{ background: '#fff', borderRadius: 18, padding: '16px 18px', width: 200, flexShrink: 0 }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: '#137333', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>CareTest™</div>
       <div style={{ fontSize: 12, fontWeight: 700, color: '#07251C', marginBottom: 14 }}>Lab Results</div>
-      {[['Haemoglobin','72%','#137333'],['Glucose','48%','#F5A623'],['WBC Count','60%','#6DC43F']].map(([label, pct, color]) => (
-        <div key={label} style={{ marginBottom: 9 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#617870', marginBottom: 4 }}>
-            <span>{label}</span><span style={{ fontWeight: 600, color: '#07251C' }}>{pct}</span>
-          </div>
-          <div style={{ height: 4, background: '#F1F4EF', borderRadius: 4 }}>
-            <div style={{ width: pct, height: '100%', background: color, borderRadius: 4 }} />
+      {[['Haemoglobin','14.2 g/dL'],['Glucose','92 mg/dL'],['WBC Count','6.5 ×10³/µL']].map(([label, value]) => (
+        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 9 }}>
+          <span style={{ fontSize: 10, color: '#617870' }}>{label}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ fontSize: 10, fontWeight: 600, color: '#07251C' }}>{value}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 700, color: '#137333' }}>
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#137333" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              Normal
+            </span>
           </div>
         </div>
       ))}
