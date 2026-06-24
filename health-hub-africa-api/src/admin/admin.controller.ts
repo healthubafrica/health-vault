@@ -58,6 +58,20 @@ export class AdminController {
     return this.adminService.updateUserRole(id, dto, user);
   }
 
+  @Post('users/:id/resend-verification')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Resend email verification OTP to an unverified user' })
+  resendVerificationEmail(@Param('id') id: string) {
+    return this.adminService.resendVerificationEmail(id);
+  }
+
+  @Post('users/:id/resend-onboarding')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Send onboarding completion email to a verified user with no patient profile' })
+  sendOnboardingEmail(@Param('id') id: string) {
+    return this.adminService.sendOnboardingEmail(id);
+  }
+
   @Patch('users/:id/status')
   @ApiOperation({ summary: 'Activate or deactivate a user account' })
   updateUserStatus(

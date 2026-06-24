@@ -11,8 +11,9 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import Redis from 'ioredis';
 import * as bcrypt from 'bcryptjs';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import {
   UpdateUserRoleDto,
@@ -43,6 +44,7 @@ export class AdminService {
     @InjectQueue(OPENEMR_SYNC_QUEUE) private readonly openemrQueue: Queue<SyncJobData>,
     @Inject(ADMIN_REDIS) private readonly redis: Redis,
     private readonly openemrService: OpenemrService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ── Users ─────────────────────────────────────────────────────────────────
@@ -196,6 +198,63 @@ export class AdminService {
       },
       select: { id: true, email: true, isActive: true, isVerified: true },
     });
+  }
+
+  async resendVerificationEmail(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, isVerified: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.isVerified) throw new BadRequestException('User is already verified');
+
+    // Invalidate any outstanding verification tokens
+    await this.prisma.verificationToken.updateMany({
+      where: { userId, type: 'email', usedAt: null },
+      data: { usedAt: new Date() },
+    });
+
+    const otp = randomInt(100000, 999999).toString();
+    const otpHash = await bcrypt.hash(otp, 10);
+
+    await this.prisma.verificationToken.create({
+      data: {
+        userId,
+        token: otpHash,
+        type: 'email',
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      },
+    });
+
+    await this.notifications.sendEmail(
+      user.email,
+      'MyHealth Vault+™ — Verify Your Email',
+      `Your email verification OTP is: ${otp}\n\nIt expires in 10 minutes.`,
+      userId,
+    );
+
+    return { message: 'Verification email sent' };
+  }
+
+  async sendOnboardingEmail(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, isVerified: true, patient: { select: { id: true } } },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    if (!user.isVerified) throw new BadRequestException('User has not verified their email yet');
+    if (user.patient) throw new BadRequestException('User has already completed onboarding');
+
+    const frontendUrl = process.env.FRONTEND_URL ?? 'https://app.myvaultplus.com';
+
+    await this.notifications.sendEmail(
+      user.email,
+      'Complete Your MyHealth Vault+™ Profile',
+      `Hello,\n\nYour account is verified but your health profile is not set up yet.\n\nPlease log in and complete your onboarding to access all features:\n${frontendUrl}/onboarding\n\nIf you have any issues, contact our support team.`,
+      userId,
+    );
+
+    return { message: 'Onboarding email sent' };
   }
 
   async getAuditLogs(page = 1, limit = 50, userId?: string) {
