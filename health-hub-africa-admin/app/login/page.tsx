@@ -41,11 +41,9 @@ function LoginForm() {
     e.preventDefault()
     clearError()
     try {
-      const result = await login(email, password)
-      if (!result.requiresTwoFactor) {
-        router.replace(safeRedirectTarget(searchParams.get('from')))
-      }
-      // If requiresTwoFactor, the store sets pendingUserId — UI transitions to OTP step
+      await login(email, password)
+      // Redirect is driven entirely by the isAuthenticated effect above —
+      // if requiresTwoFactor was set instead, the UI transitions to the OTP step.
     } catch {
       // error already set in store
     }
@@ -56,7 +54,7 @@ function LoginForm() {
     clearError()
     try {
       await verify2fa(otp)
-      router.replace(safeRedirectTarget(searchParams.get('from')))
+      // Redirect is driven by the isAuthenticated effect above.
     } catch {
       setOtp('')
       otpRef.current?.focus()
