@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { adminApi } from '@/lib/api'
+import { useLiveData } from '@/lib/hooks/useLiveData'
 import { Card } from '@/components/ui/Card'
 import { FilterTabs } from '@/components/ui/FilterTabs'
 import { Pill } from '@/components/ui/Pill'
@@ -36,28 +37,25 @@ const STATUS_PILL: Record<SessionStatus, 'success' | 'warning' | 'neutral' | 'in
 }
 
 export default function TelecarePage() {
-  const [sessions, setSessions] = useState<TelecareSession[]>([])
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(true)
   const [statusTab, setStatusTab] = useState('All')
   const [page, setPage] = useState(1)
   const limit = 20
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
+  useEffect(() => { setPage(1) }, [statusTab])
+
+  const { data: res, isInitialLoad, refresh } = useLiveData(
+    () => {
       const params: { status?: string; page?: number; limit?: number } = { page, limit }
       if (statusTab !== 'All') params.status = statusTab
-      const res = await adminApi.operations.telecare(params)
-      setSessions(res.data as TelecareSession[])
-      setTotal(res.meta.total)
-    } finally {
-      setLoading(false)
-    }
-  }, [page, statusTab])
+      return adminApi.operations.telecare(params)
+    },
+    [page, statusTab],
+    { intervalMs: 15_000 },
+  )
 
-  useEffect(() => { setPage(1) }, [statusTab])
-  useEffect(() => { load() }, [load])
+  const sessions: TelecareSession[] = (res?.data as TelecareSession[]) ?? []
+  const total = res?.meta.total ?? 0
+  const loading = isInitialLoad
 
   const totalPages = Math.ceil(total / limit)
 
@@ -72,7 +70,7 @@ export default function TelecarePage() {
             {total.toLocaleString()} total sessions
           </p>
         </div>
-        <Button variant="secondary" size="sm" onClick={load}>
+        <Button variant="secondary" size="sm" onClick={refresh}>
           <RefreshCw className="w-3.5 h-3.5" />
           Refresh
         </Button>

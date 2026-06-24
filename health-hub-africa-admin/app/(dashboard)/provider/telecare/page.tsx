@@ -767,12 +767,46 @@ export default function ProviderTelecarePage() {
 
   useEffect(() => { load() }, [load])
 
-  // Load metrics on mount
+  // Refresh sessions + metrics on focus/visibility and on a 15s interval so
+  // status flips (accept, decline, transfer, complete) propagate without
+  // the provider clicking Refresh.
   useEffect(() => {
-    adminApi.providerTelecare.metrics().then(setMetrics).catch(() => null)
-  }, [])
+    const refreshAll = () => {
+      void load()
+      adminApi.providerTelecare.metrics().then(setMetrics).catch(() => null)
+    }
+    refreshAll()
 
-  // Poll for waiting sessions every 8 seconds
+    let interval: ReturnType<typeof setInterval> | null = null
+    const start = () => {
+      if (interval || document.hidden) return
+      interval = setInterval(() => {
+        if (!document.hidden) refreshAll()
+      }, 15_000)
+    }
+    const stop = () => {
+      if (!interval) return
+      clearInterval(interval)
+      interval = null
+    }
+    const onFocus = () => { if (!document.hidden) refreshAll() }
+    const onVis = () => {
+      if (document.hidden) stop()
+      else { refreshAll(); start() }
+    }
+
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVis)
+    start()
+
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVis)
+      stop()
+    }
+  }, [load])
+
+  // Poll for waiting sessions every 8 seconds (incoming calls — fastest tick).
   useEffect(() => {
     const poll = async () => {
       try {

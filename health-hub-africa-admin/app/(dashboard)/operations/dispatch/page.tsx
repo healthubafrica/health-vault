@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { adminApi } from '@/lib/api'
+import { useLiveData } from '@/lib/hooks/useLiveData'
 import { Card } from '@/components/ui/Card'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { Pill } from '@/components/ui/Pill'
@@ -42,20 +42,16 @@ const TRIAGE_PILL: Record<TriagePriority, 'emergency' | 'warning' | 'info' | 'su
 }
 
 export default function DispatchPage() {
-  const [requests, setRequests] = useState<DispatchRequest[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: res, isInitialLoad, refresh } = useLiveData(
+    () => adminApi.operations.dispatch(),
+    [],
+    // Dispatch is the most time-critical surface — emergency cases shouldn't
+    // wait 20s to surface. Poll every 10s.
+    { intervalMs: 10_000 },
+  )
 
-  const load = async () => {
-    setLoading(true)
-    try {
-      const res = await adminApi.operations.dispatch()
-      setRequests(res.data as DispatchRequest[])
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { load() }, [])
+  const requests: DispatchRequest[] = (res?.data as DispatchRequest[]) ?? []
+  const loading = isInitialLoad
 
   const active = requests.filter((r) =>
     ['pending', 'dispatched', 'en_route', 'on_scene'].includes(r.status),
@@ -73,7 +69,7 @@ export default function DispatchPage() {
             Emergency response and STRIDE triage
           </p>
         </div>
-        <Button variant="secondary" size="sm" onClick={load}>
+        <Button variant="secondary" size="sm" onClick={refresh}>
           <RefreshCw className="w-3.5 h-3.5" />
           Refresh
         </Button>
