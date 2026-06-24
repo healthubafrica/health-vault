@@ -32,6 +32,7 @@ import {
   CalendarClock,
   Newspaper,
   MessageSquareQuote,
+  Settings,
 } from 'lucide-react'
 
 interface NavItem {
@@ -73,6 +74,7 @@ const NAV: NavItem[] = [
   { label: 'Blog Posts', href: '/content/blog', icon: Newspaper, roles: ['admin', 'super_admin'], group: 'Content' },
   { label: 'Testimonials', href: '/content/testimonials', icon: MessageSquareQuote, roles: ['admin', 'super_admin'], group: 'Content' },
 
+  { label: 'Settings', href: '/settings', icon: Settings, group: 'Other' },
   { label: 'Support', href: '/support', icon: HeadphonesIcon, group: 'Other' },
 ]
 
