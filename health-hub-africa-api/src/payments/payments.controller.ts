@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Query,
   RawBodyRequest,
   Req,
 } from '@nestjs/common';
@@ -46,6 +47,13 @@ export class PaymentsController {
   @ApiOperation({ summary: 'List my payments' })
   findMyPayments(@CurrentUser() user: JwtPayload) {
     return this.paymentsService.findMyPayments(user);
+  }
+
+  @ApiBearerAuth()
+  @Get('verify')
+  @ApiOperation({ summary: 'Verify a payment by gateway reference (Paystack callback fallback)' })
+  verifyPayment(@Query('reference') reference: string, @CurrentUser() user: JwtPayload) {
+    return this.paymentsService.verifyPayment(reference, user);
   }
 
   @ApiBearerAuth()

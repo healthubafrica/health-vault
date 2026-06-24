@@ -102,7 +102,14 @@ export class PaymentsService {
         Authorization: `Bearer ${secret}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ email, amount: amountKobo, currency, reference, metadata: { paymentId, description } }),
+      body: JSON.stringify({
+        email,
+        amount: amountKobo,
+        currency,
+        reference,
+        callback_url: `${this.config.get('FRONTEND_URL')}/payments/verify`,
+        metadata: { paymentId, description },
+      }),
     });
 
     if (!res.ok) {
@@ -234,6 +241,51 @@ export class PaymentsService {
     }
 
     return payment;
+  }
+
+  // ── Verify Payment (callback fallback) ───────────────────────────────────
+
+  async verifyPayment(reference: string, currentUser: JwtPayload) {
+    const payment = await this.prisma.payment.findFirst({
+      where: { gatewayRef: reference },
+      include: { patient: { select: { userId: true } } },
+    });
+
+    if (!payment) throw new NotFoundException('Payment not found');
+
+    const adminRoles: UserRole[] = [UserRole.admin, UserRole.super_admin];
+    const isAdmin = adminRoles.includes(currentUser.role as UserRole);
+    if (!isAdmin && payment.patient.userId !== currentUser.sub) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    // Already confirmed — return current state without re-querying PSP
+    if (payment.status === PaymentStatus.paid) {
+      return { status: 'paid', paymentId: payment.id, gateway: payment.gateway };
+    }
+
+    // For Paystack payments: re-verify with the PSP so we don't depend solely
+    // on the webhook arriving before the user navigates back.
+    if (payment.gateway === PaymentGateway.Paystack) {
+      const secret = this.config.getOrThrow<string>('PAYSTACK_SECRET_KEY');
+      const res = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+        headers: { Authorization: `Bearer ${secret}` },
+      });
+
+      if (res.ok) {
+        const body = (await res.json()) as { data: { status: string; reference: string } };
+        if (body.data?.status === 'success') {
+          const syntheticEvent = {
+            event: 'charge.success',
+            data: { reference: body.data.reference, status: body.data.status },
+          };
+          await this.processWebhookEvent(syntheticEvent as Record<string, unknown>, PaymentGateway.Paystack);
+          return { status: 'paid', paymentId: payment.id, gateway: payment.gateway };
+        }
+      }
+    }
+
+    return { status: payment.status, paymentId: payment.id, gateway: payment.gateway };
   }
 
   // ── Gateway Status ────────────────────────────────────────────────────────
