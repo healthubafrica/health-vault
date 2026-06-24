@@ -765,6 +765,13 @@ export const adminApi = {
         method: 'PATCH',
         body: JSON.stringify({ status, cancellationReason }),
       }),
+    // Admin / coordinator assigns a provider to an appointment. The provider
+    // becomes the assignee for the auto-spawned TelecareSession on confirm.
+    assignAppointmentProvider: (id: string, providerId: string) =>
+      request<unknown>(`/appointments/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ providerId }),
+      }),
   },
 
   cms: {
