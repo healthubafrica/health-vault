@@ -177,6 +177,16 @@ export class CreatePatientDto {
   @IsString()
   preferredTimezone?: string;
 
+  @ApiPropertyOptional({ description: 'ISO 639-1 language code' })
+  @IsOptional()
+  @IsString()
+  preferredLanguage?: string;
+
+  @ApiPropertyOptional({ description: 'Preferred date display format, e.g. dd/mm/yyyy' })
+  @IsOptional()
+  @IsString()
+  dateFormat?: string;
+
   @ApiPropertyOptional({ description: 'URL of the profile photo' })
   @IsOptional()
   @IsString()

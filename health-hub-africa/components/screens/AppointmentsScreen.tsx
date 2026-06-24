@@ -1,15 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { FilterTabs } from '@/components/ui/FilterTabs'
 import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
 import { FormInput, FormSelect, FormTextarea } from '@/components/ui/FormInput'
 import { formatDate } from '@/lib/utils'
-import { CalendarDays } from 'lucide-react'
+import { CalendarDays, Search } from 'lucide-react'
 import { toast } from 'sonner'
-import { appointments as apptApi, ApiError, type Appointment } from '@/lib/api'
+import { appointments as apptApi, providers as providersApi, ApiError, type Appointment, type Provider } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { AppointmentsSkeleton } from '@/components/skeletons/AppointmentsSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
@@ -41,12 +42,57 @@ function formatScheduledAt(scheduledAt: string): { date: string; time: string } 
 
 export function AppointmentsScreen() {
   const [tab, setTab] = useState('All')
+  const searchParams = useSearchParams()
 
   // Booking form state
   const [serviceType, setServiceType] = useState<string>(SERVICE_TYPES[0].value)
   const [scheduledAt, setScheduledAt] = useState('')
   const [reason, setReason] = useState('')
   const [isBooking, setIsBooking] = useState(false)
+
+  // Provider picker
+  const [providerQuery, setProviderQuery] = useState('')
+  const [providerResults, setProviderResults] = useState<Provider[]>([])
+  const [showProviderDropdown, setShowProviderDropdown] = useState(false)
+  const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null)
+  const providerDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const providerDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Pre-select provider from ?providerId= query param
+  useEffect(() => {
+    const pid = searchParams?.get('providerId')
+    if (!pid) return
+    providersApi.search('').then(res => {
+      const match = res.data?.find(p => p.id === pid)
+      if (match) {
+        setSelectedProvider(match)
+        setProviderQuery(`${match.title ? match.title + ' ' : ''}${match.firstName} ${match.lastName}`)
+      }
+    }).catch(() => {})
+  }, [searchParams])
+
+  useEffect(() => {
+    if (providerDebounceRef.current) clearTimeout(providerDebounceRef.current)
+    if (!providerQuery.trim()) { setProviderResults([]); setShowProviderDropdown(false); return }
+    providerDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await providersApi.search(providerQuery.trim())
+        setProviderResults(res.data ?? [])
+        setShowProviderDropdown(true)
+      } catch { setProviderResults([]) }
+    }, 300)
+    return () => { if (providerDebounceRef.current) clearTimeout(providerDebounceRef.current) }
+  }, [providerQuery])
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (providerDropdownRef.current && !providerDropdownRef.current.contains(e.target as Node)) {
+        setShowProviderDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   // Cancellation in-progress tracker
   const [cancellingId, setCancellingId] = useState<string | null>(null)
@@ -95,6 +141,7 @@ export function AppointmentsScreen() {
         scheduledAt: new Date(scheduledAt).toISOString(),
         durationMinutes: 30,
         chiefComplaint: reason.trim() || undefined,
+        ...(selectedProvider && { providerId: selectedProvider.id }),
       })
       toast.success('Appointment requested', {
         description: 'Your care team will confirm within 24 hours.',
@@ -199,6 +246,73 @@ export function AppointmentsScreen() {
             value={scheduledAt}
             onChange={e => setScheduledAt(e.target.value)}
           />
+
+          {/* Provider picker */}
+          <div className="sm:col-span-2 flex flex-col gap-1">
+            <label className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+              Care Provider <span className="font-normal">(optional)</span>
+            </label>
+            <div className="relative" ref={providerDropdownRef}>
+              <div className="flex items-center gap-2 h-10 px-3.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)]">
+                <Search size={13} style={{ color: 'var(--color-text-muted)' }} />
+                <input
+                  type="text"
+                  value={providerQuery}
+                  onChange={e => {
+                    setProviderQuery(e.target.value)
+                    if (!e.target.value.trim()) setSelectedProvider(null)
+                  }}
+                  placeholder="Search by name or specialty"
+                  className="bg-transparent border-none outline-none text-sm w-full"
+                  style={{ color: 'var(--color-text)' }}
+                />
+                {selectedProvider && (
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedProvider(null); setProviderQuery('') }}
+                    className="text-xs shrink-0"
+                    style={{ color: 'var(--color-text-muted)' }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              {showProviderDropdown && providerResults.length > 0 && (
+                <div className="absolute top-11 left-0 right-0 z-50 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg overflow-hidden">
+                  {providerResults.map(p => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedProvider(p)
+                        setProviderQuery(`${p.title ? p.title + ' ' : ''}${p.firstName} ${p.lastName}`)
+                        setShowProviderDropdown(false)
+                      }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate" style={{ color: 'var(--color-text)' }}>
+                          {p.title ? `${p.title} ` : ''}{p.firstName} {p.lastName}
+                        </p>
+                        {p.specialty && (
+                          <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)' }}>{p.specialty}</p>
+                        )}
+                      </div>
+                      {!p.isAvailable && (
+                        <span className="text-[10px] font-medium text-amber-600 shrink-0">Unavailable</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {selectedProvider && (
+              <p className="text-xs mt-1" style={{ color: 'var(--color-primary)' }}>
+                ✓ Booking with {selectedProvider.title ? `${selectedProvider.title} ` : ''}{selectedProvider.firstName} {selectedProvider.lastName}
+              </p>
+            )}
+          </div>
+
           <FormTextarea
             label="Reason for Visit"
             rows={3}
