@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { adminApi, type AdminSupportTicket } from '@/lib/api'
+import { useAutoRefresh } from '@/lib/hooks/useLiveData'
 import { Card } from '@/components/ui/Card'
 import { FilterTabs } from '@/components/ui/FilterTabs'
 import { Pill } from '@/components/ui/Pill'
@@ -101,6 +102,7 @@ export default function SupportPage() {
 
   useEffect(() => { setPage(1) }, [statusTab])
   useEffect(() => { load() }, [load])
+  useAutoRefresh(load, 30_000)
 
   const totalPages = Math.ceil(total / limit)
 

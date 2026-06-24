@@ -161,7 +161,16 @@ export class AppointmentsService {
   async update(id: string, dto: UpdateAppointmentDto, currentUser: JwtPayload) {
     const appt = await this.prisma.appointment.findUnique({
       where: { id },
-      select: { id: true, status: true, patient: { select: { userId: true } }, providerId: true },
+      select: {
+        id: true,
+        status: true,
+        patientId: true,
+        providerId: true,
+        scheduledAt: true,
+        isTelecare: true,
+        patient: { select: { userId: true } },
+        telecareSession: { select: { id: true } },
+      },
     });
 
     if (!appt) throw new NotFoundException('Appointment not found');
@@ -188,11 +197,58 @@ export class AppointmentsService {
       data.cancelledBy = currentUser.sub;
     }
 
+    // Auto-create a TelecareSession the moment a telecare appointment is
+    // confirmed so it surfaces in /operations/telecare and the provider
+    // waiting queue without an admin separately POSTing /telecare/sessions.
+    // Idempotent: skip if a session already exists. Done in the same
+    // transaction as the status update so we never confirm without the
+    // matching session row landing.
+    const shouldSpawnTelecareSession =
+      dto.status === AppointmentStatus.confirmed &&
+      appt.isTelecare &&
+      !appt.telecareSession;
+
+    if (shouldSpawnTelecareSession) {
+      const hhaRef = await this.generateTelecareRef();
+      return this.prisma.$transaction(async (tx) => {
+        const updated = await tx.appointment.update({
+          where: { id },
+          data,
+          select: this.safeSelect(),
+        });
+        await tx.telecareSession.create({
+          data: {
+            hhaRef,
+            appointmentId: appt.id,
+            patientId: appt.patientId,
+            providerId: appt.providerId!,
+            scheduledAt: appt.scheduledAt,
+            platform: 'HHA Native',
+          },
+        });
+        return updated;
+      });
+    }
+
     return this.prisma.appointment.update({
       where: { id },
       data,
       select: this.safeSelect(),
     });
+  }
+
+  // TLC-YYYY-0001 sequential session reference. Duplicates the helper in
+  // TelecareService so we don't need a circular import for the auto-spawn case.
+  private async generateTelecareRef(): Promise<string> {
+    const year = new Date().getFullYear();
+    const prefix = `TLC-${year}-`;
+    const last = await this.prisma.telecareSession.findFirst({
+      where: { hhaRef: { startsWith: prefix } },
+      orderBy: { hhaRef: 'desc' },
+      select: { hhaRef: true },
+    });
+    const seq = last ? parseInt(last.hhaRef.split('-')[2], 10) + 1 : 1;
+    return `${prefix}${String(seq).padStart(4, '0')}`;
   }
 
   // ── Cancel ────────────────────────────────────────────────────────────────

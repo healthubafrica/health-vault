@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { adminApi } from '@/lib/api'
+import { useAutoRefresh } from '@/lib/hooks/useLiveData'
 import { Card } from '@/components/ui/Card'
 import { FilterTabs } from '@/components/ui/FilterTabs'
 import { Pill } from '@/components/ui/Pill'
@@ -60,6 +61,7 @@ export default function LabsPage() {
 
   useEffect(() => { setPage(1) }, [statusTab, showFlagged])
   useEffect(() => { load() }, [load])
+  useAutoRefresh(load, 20_000)
 
   const totalPages = Math.ceil(total / limit)
 

@@ -55,13 +55,18 @@ export class AdminService {
       ? {
           OR: [
             { email: { contains: search, mode: 'insensitive' } },
+            { phone: { contains: search, mode: 'insensitive' } },
             { patient: { firstName: { contains: search, mode: 'insensitive' } } },
             { patient: { lastName: { contains: search, mode: 'insensitive' } } },
+            { patient: { hhaPatientId: { contains: search, mode: 'insensitive' } } },
+            { patient: { openemrPatientUuid: { contains: search, mode: 'insensitive' } } },
+            { provider: { firstName: { contains: search, mode: 'insensitive' } } },
+            { provider: { lastName: { contains: search, mode: 'insensitive' } } },
           ],
         }
       : {};
 
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.user.findMany({
         where,
         skip,
@@ -76,12 +81,79 @@ export class AdminService {
           isVerified: true,
           lastLoginAt: true,
           createdAt: true,
-          patient: { select: { id: true, firstName: true, lastName: true, hhaPatientId: true } },
-          provider: { select: { id: true, firstName: true, lastName: true, isAvailable: true } },
+          patient: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              hhaPatientId: true,
+              openemrPatientUuid: true,
+              subscriptions: {
+                where: { status: { in: ['active', 'trial'] } },
+                take: 1,
+                orderBy: { startedAt: 'desc' },
+                select: {
+                  status: true,
+                  expiresAt: true,
+                  plan: { select: { name: true, tier: true } },
+                },
+              },
+            },
+          },
+          provider: {
+            select: { id: true, firstName: true, lastName: true, isAvailable: true },
+          },
         },
       }),
       this.prisma.user.count({ where }),
     ]);
+
+    // Flatten so the admin Users table renders directly: fullName, phoneNumber,
+    // and the latest active subscription (matches getUser's shape).
+    const data = rows.map((u) => {
+      const sub = u.patient?.subscriptions?.[0];
+      const fullName = u.patient
+        ? `${u.patient.firstName} ${u.patient.lastName}`.trim()
+        : u.provider
+        ? `${u.provider.firstName} ${u.provider.lastName}`.trim()
+        : undefined;
+      return {
+        id: u.id,
+        email: u.email,
+        phoneNumber: u.phone ?? undefined,
+        role: u.role,
+        fullName,
+        isActive: u.isActive,
+        isVerified: u.isVerified,
+        lastLoginAt: u.lastLoginAt ?? undefined,
+        createdAt: u.createdAt,
+        patient: u.patient
+          ? {
+              id: u.patient.id,
+              hhaPatientId: u.patient.hhaPatientId,
+              firstName: u.patient.firstName,
+              lastName: u.patient.lastName,
+              openemrPatientUuid: u.patient.openemrPatientUuid ?? null,
+            }
+          : undefined,
+        provider: u.provider
+          ? {
+              id: u.provider.id,
+              firstName: u.provider.firstName,
+              lastName: u.provider.lastName,
+              isAvailable: u.provider.isAvailable,
+            }
+          : undefined,
+        subscription: sub
+          ? {
+              plan: sub.plan.name,
+              tier: String(sub.plan.tier),
+              status: String(sub.status),
+              expiresAt: sub.expiresAt.toISOString(),
+            }
+          : undefined,
+      };
+    });
 
     return { data, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
   }
@@ -479,15 +551,51 @@ export class AdminService {
     const skip = (page - 1) * limit;
     const where: any = status ? { status } : {};
 
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.openemrSyncQueue.findMany({
         where,
         skip,
         take: limit,
         orderBy: { scheduledFor: 'asc' },
+        include: {
+          patient: {
+            select: {
+              hhaPatientId: true,
+              firstName: true,
+              lastName: true,
+              openemrPatientUuid: true,
+              user: { select: { email: true } },
+            },
+          },
+        },
       }),
       this.prisma.openemrSyncQueue.count({ where }),
     ]);
+
+    // Flatten so the UI gets patientName / patientEmail / openemrPatientId
+    // / lastAttemptAt directly. Sync queue items previously rendered the
+    // raw patient UUID because the UI's getter chain hit undefined.
+    const data = rows.map((r) => ({
+      id: r.id,
+      patientId: r.patientId,
+      patientName: r.patient
+        ? `${r.patient.firstName} ${r.patient.lastName}`.trim()
+        : undefined,
+      patientEmail: r.patient?.user?.email ?? undefined,
+      hhaPatientId: r.patient?.hhaPatientId ?? undefined,
+      openemrPatientId: r.patient?.openemrPatientUuid ?? null,
+      operation: r.operation,
+      payload: r.payload,
+      status: r.status,
+      attempts: r.attempts,
+      maxAttempts: r.maxAttempts,
+      lastAttemptAt: r.lastAttemptedAt,
+      lastAttemptedAt: r.lastAttemptedAt,
+      errorMessage: r.errorMessage ?? undefined,
+      scheduledFor: r.scheduledFor,
+      createdAt: r.createdAt,
+      completedAt: r.completedAt,
+    }));
 
     return { data, meta: { total, page, limit } };
   }
@@ -499,15 +607,55 @@ export class AdminService {
         ? { resolvedAt: resolved ? { not: null } : null }
         : {};
 
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.integrationError.findMany({
         where,
         skip,
         take: limit,
         orderBy: { occurredAt: 'desc' },
+        include: {
+          patient: {
+            select: { firstName: true, lastName: true, hhaPatientId: true },
+          },
+        },
       }),
       this.prisma.integrationError.count({ where }),
     ]);
+
+    // Map the IntegrationError schema (errorMessage, occurredAt, method+endpoint)
+    // onto the shape the UI renders (message, createdAt, operation, severity,
+    // resolved boolean). Severity is derived from errorCode — 4xx warn, 5xx critical.
+    const severityFor = (code: string | null | undefined): 'info' | 'warning' | 'critical' => {
+      if (!code) return 'info';
+      const n = parseInt(code, 10);
+      if (Number.isNaN(n)) return 'info';
+      if (n >= 500) return 'critical';
+      if (n >= 400) return 'warning';
+      return 'info';
+    };
+
+    const data = rows.map((r) => ({
+      id: r.id,
+      service: r.service,
+      operation: `${r.method} ${r.endpoint}`,
+      endpoint: r.endpoint,
+      method: r.method,
+      errorCode: r.errorCode ?? undefined,
+      message: r.errorMessage ?? '',
+      errorMessage: r.errorMessage ?? undefined,
+      severity: severityFor(r.errorCode),
+      resolved: r.resolvedAt !== null,
+      resolvedAt: r.resolvedAt,
+      resolutionNotes: r.resolutionNotes ?? undefined,
+      retryCount: r.retryCount,
+      patientId: r.patientId ?? undefined,
+      patientName: r.patient
+        ? `${r.patient.firstName} ${r.patient.lastName}`.trim()
+        : undefined,
+      hhaPatientId: r.patient?.hhaPatientId ?? undefined,
+      createdAt: r.occurredAt,
+      occurredAt: r.occurredAt,
+    }));
 
     return { data, meta: { total, page, limit } };
   }
@@ -812,7 +960,10 @@ export class AdminService {
           OR: [
             { firstName: { contains: search, mode: 'insensitive' } },
             { lastName: { contains: search, mode: 'insensitive' } },
+            { hhaPatientId: { contains: search, mode: 'insensitive' } },
+            { openemrPatientUuid: { contains: search, mode: 'insensitive' } },
             { user: { email: { contains: search, mode: 'insensitive' } } },
+            { user: { phone: { contains: search, mode: 'insensitive' } } },
           ],
         }
       : {};

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { adminApi, type ClinicalQueueItem } from '@/lib/api'
+import { useAutoRefresh } from '@/lib/hooks/useLiveData'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
@@ -92,11 +93,10 @@ export default function ClinicalQueuePage() {
     }
   }, [])
 
-  useEffect(() => {
-    load()
-    const interval = setInterval(load, 30_000)
-    return () => clearInterval(interval)
-  }, [load])
+  useEffect(() => { load() }, [load])
+  // 15s tick + focus/visibility (was a plain 30s setInterval); pauses on
+  // hidden tabs so background views don't churn the API.
+  useAutoRefresh(load, 15_000)
 
   const activeTeleconsults = teleconsults.filter((i) => i.status === 'active' || i.status === 'in_progress').length
   const activeER = expertReviews.filter((i) => i.status === 'active' || i.status === 'in_progress').length

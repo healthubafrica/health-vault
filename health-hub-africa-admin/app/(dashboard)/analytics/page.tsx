@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useAutoRefresh } from '@/lib/hooks/useLiveData'
 import { adminApi, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { FilterTabs } from '@/components/ui/FilterTabs'
@@ -48,18 +49,27 @@ export default function AnalyticsPage() {
   const [usage, setUsage] = useState<UsageDataPoint[]>([])
   const [loading, setLoading] = useState(true)
 
+  const load = useCallback(async () => {
+    try {
+      const [rRes, uRes] = await Promise.all([
+        adminApi.analytics.revenue(period),
+        adminApi.analytics.usage(period),
+      ])
+      setRevenue(rRes.data)
+      setUsage(uRes.data)
+    } finally {
+      setLoading(false)
+    }
+  }, [period])
+
   useEffect(() => {
     setLoading(true)
-    Promise.all([
-      adminApi.analytics.revenue(period),
-      adminApi.analytics.usage(period),
-    ])
-      .then(([rRes, uRes]) => {
-        setRevenue(rRes.data)
-        setUsage(uRes.data)
-      })
-      .finally(() => setLoading(false))
-  }, [period])
+    void load()
+  }, [load])
+
+  // Analytics data only ticks daily so a slow 60s poll is plenty —
+  // the value of useAutoRefresh here is mostly the focus-refresh.
+  useAutoRefresh(load, 60_000)
 
   const revenueLabels = revenue.slice(-14).map((r) =>
     new Date(r.date).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' }),
