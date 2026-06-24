@@ -20,6 +20,11 @@ function statusVariant(status: string): 'success' | 'warning' | 'emergency' | 'n
   return 'neutral'
 }
 
+function gatewayLabel(gateway: string): string {
+  if (gateway === 'manual') return 'Bank Transfer'
+  return gateway
+}
+
 function formatNaira(kobo: number): string {
   return (kobo / 100).toLocaleString('en-NG', { style: 'currency', currency: 'NGN' })
 }
@@ -32,6 +37,7 @@ export default function PaymentsPage() {
   const [statusTab, setStatusTab] = useState('all')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [confirming, setConfirming] = useState<string | null>(null)
   const limit = 20
 
   const load = useCallback(async () => {
@@ -55,6 +61,19 @@ export default function PaymentsPage() {
     const t = setTimeout(load, search ? 350 : 0)
     return () => clearTimeout(t)
   }, [load, search])
+
+  const handleConfirmManual = useCallback(async (id: string) => {
+    if (!window.confirm('Confirm this bank transfer payment? This will mark it as paid and activate the subscription if applicable.')) return
+    setConfirming(id)
+    try {
+      await adminApi.payments.confirmManual(id)
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to confirm payment')
+    } finally {
+      setConfirming(null)
+    }
+  }, [load])
 
   const totalPages = Math.ceil(total / limit)
 
@@ -109,7 +128,7 @@ export default function PaymentsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b" style={{ borderColor: 'var(--color-border)' }}>
-                {['Ref', 'Patient', 'Amount', 'Gateway', 'Status', 'Description', 'Date'].map((h) => (
+                {['Ref', 'Patient', 'Amount', 'Gateway', 'Status', 'Description', 'Date', ''].map((h) => (
                   <th
                     key={h}
                     className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider"
@@ -124,7 +143,7 @@ export default function PaymentsPage() {
               {loading ? (
                 Array.from({ length: 8 }).map((_, i) => (
                   <tr key={i} className="border-b" style={{ borderColor: 'var(--color-border)' }}>
-                    {Array.from({ length: 7 }).map((__, j) => (
+                    {Array.from({ length: 8 }).map((__, j) => (
                       <td key={j} className="px-4 py-3">
                         <SkeletonBox height={14} className="rounded" style={{ width: j === 0 ? 90 : 100 }} />
                       </td>
@@ -133,7 +152,7 @@ export default function PaymentsPage() {
                 ))
               ) : payments.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                  <td colSpan={8} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>
                     No payments found
                   </td>
                 </tr>
@@ -154,7 +173,7 @@ export default function PaymentsPage() {
                       {formatNaira(p.amountKobo)}
                     </td>
                     <td className="px-4 py-3">
-                      <Pill variant="neutral">{p.gateway}</Pill>
+                      <Pill variant={p.gateway === 'manual' ? 'warning' : 'neutral'}>{gatewayLabel(p.gateway)}</Pill>
                     </td>
                     <td className="px-4 py-3">
                       <Pill variant={statusVariant(p.status)}>{p.status}</Pill>
@@ -164,6 +183,18 @@ export default function PaymentsPage() {
                     </td>
                     <td className="px-4 py-3 text-xs" style={{ color: 'var(--color-text-muted)' }}>
                       {formatDate(p.paidAt ?? p.createdAt)}
+                    </td>
+                    <td className="px-4 py-3">
+                      {p.gateway === 'manual' && p.status === 'pending' && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          loading={confirming === p.id}
+                          onClick={() => handleConfirmManual(p.id)}
+                        >
+                          Confirm
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))
