@@ -588,6 +588,17 @@ export const telecare = {
   getToken: (id: string) => request<{ token: string; serverUrl: string; roomName: string }>(`/telecare/sessions/${id}/token`, {
     method: 'POST',
   }),
+  // Patients can only flip status → completed on their own session (server
+  // enforces this). Used to advance state when the patient hangs up or
+  // closes the tab so the row doesn't sit at "active" forever.
+  markCompleted: (id: string) =>
+    request<{ id: string; status: string; endedAt: string | null }>(
+      `/telecare/sessions/${id}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'completed', endedAt: new Date().toISOString() }),
+      },
+    ),
 }
 
 // ── Dispatch ──────────────────────────────────────────────────────────────

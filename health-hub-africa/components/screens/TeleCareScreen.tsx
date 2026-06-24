@@ -14,10 +14,11 @@ export function TeleCareScreen() {
   const [sessions, setSessions] = useState<TelecareSession[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  
+
   // Call state
   const [activeToken, setActiveToken] = useState<string | null>(null)
   const [activeRoom, setActiveRoom] = useState<string | null>(null)
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [joining, setJoining] = useState(false)
 
   const fetchSessions = () => {
@@ -46,6 +47,7 @@ export function TeleCareScreen() {
       if (res && res.token) {
         setActiveToken(res.token)
         setActiveRoom(res.roomName)
+        setActiveSessionId(sessionId)
       } else {
         setError("We couldn't set up your call. Kindly try again in a moment.")
       }
@@ -58,8 +60,17 @@ export function TeleCareScreen() {
   }
 
   const handleLeaveSession = () => {
+    // Fire-and-forget: advance the session to 'completed' on the server so
+    // the row doesn't sit at 'active' forever. The LiveKit webhook will do
+    // the same thing when the room finishes, but this gives an instant flip
+    // for the patient-initiated case. Errors are intentionally swallowed —
+    // the sweep cron is the final safety net.
+    if (activeSessionId) {
+      telecare.markCompleted(activeSessionId).catch(() => null)
+    }
     setActiveToken(null)
     setActiveRoom(null)
+    setActiveSessionId(null)
     fetchSessions()
   }
 

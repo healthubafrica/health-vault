@@ -1,5 +1,21 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+  RawBodyRequest,
+  Req,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
+import { Request } from 'express';
 import { SessionStatus, UserRole } from '@prisma/client';
 import { TelecareService } from './telecare.service';
 import {
@@ -10,7 +26,7 @@ import {
   TransferSessionDto,
   CreateShiftDto,
 } from './dto/create-session.dto';
-import { Roles } from '../common/decorators/roles.decorator';
+import { Public, Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 
 @ApiTags('TeleCare')
@@ -93,8 +109,11 @@ export class TelecareController {
     return { data: await this.telecareService.findOne(id, user) };
   }
 
+  // No @Roles here: the service decides authorisation per-actor — admins and
+  // assigned providers get full update rights; the owning patient is allowed
+  // to mark *their* session completed (and only that), so a hang-up advances
+  // state without requiring provider action.
   @Patch('sessions/:id')
-  @Roles(UserRole.provider, UserRole.admin, UserRole.super_admin)
   @ApiOperation({ summary: 'Update session status / timestamps / recording' })
   updateSession(
     @Param('id') id: string,
@@ -143,5 +162,22 @@ export class TelecareController {
   @ApiOperation({ summary: 'List currently available providers (for transfer)' })
   getAvailableProviders() {
     return this.telecareService.getAvailableProviders();
+  }
+
+  // LiveKit POSTs here when room lifecycle events fire (room_started,
+  // room_finished, participant_joined, etc.). Signature is verified against
+  // the JWT in Authorization using our LIVEKIT_API_KEY / LIVEKIT_API_SECRET.
+  // Configure the URL in the LiveKit dashboard:
+  //   https://{api-host}/api/v1/telecare/webhooks/livekit
+  @Public()
+  @SkipThrottle()
+  @Post('webhooks/livekit')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'LiveKit webhook receiver (public — invoked by LiveKit)' })
+  handleLivekitWebhook(
+    @Req() req: RawBodyRequest<Request>,
+    @Headers('authorization') authorization: string,
+  ) {
+    return this.telecareService.handleLivekitWebhook(req.rawBody!, authorization);
   }
 }
