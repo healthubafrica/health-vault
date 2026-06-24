@@ -3,24 +3,24 @@ import { cookies } from 'next/headers'
 
 const BACKEND = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000') + '/api/v1'
 
-const REFRESH_MAX_AGE = 604800  // 7 days
-const ACCESS_MAX_AGE = 900      // 15 min
+const REFRESH_MAX_AGE = 604800
+const ACCESS_MAX_AGE = 900
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
-  if (!body?.email || !body?.password) {
-    return NextResponse.json({ message: 'email and password are required' }, { status: 400 })
+  if (!body?.userId || !body?.otp) {
+    return NextResponse.json({ message: 'userId and otp are required' }, { status: 400 })
   }
 
   let upstream: Response
   try {
-    upstream = await fetch(`${BACKEND}/auth/login`, {
+    upstream = await fetch(`${BACKEND}/auth/verify-2fa`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: body.email, password: body.password }),
+      body: JSON.stringify({ userId: body.userId, otp: body.otp }),
     })
   } catch {
-    return NextResponse.json({ message: 'API unavailable — check that the backend is running' }, { status: 503 })
+    return NextResponse.json({ message: 'API unavailable' }, { status: 503 })
   }
 
   const data = await upstream.json().catch(() => ({}))
@@ -29,16 +29,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(data, { status: upstream.status })
   }
 
-  // 2FA: backend deferred token issuance — tell the client to show the OTP step
-  if ((data as { requiresTwoFactor?: boolean }).requiresTwoFactor) {
-    return NextResponse.json({ requiresTwoFactor: true, userId: (data as { userId: string }).userId })
-  }
-
   const { accessToken, refreshToken } = data as { accessToken: string; refreshToken: string }
 
   const cookieStore = await cookies()
 
-  // Access token — readable by JS so the client can attach it as Authorization: Bearer
   cookieStore.set('hha_at', accessToken, {
     maxAge: ACCESS_MAX_AGE,
     path: '/',
@@ -47,7 +41,6 @@ export async function POST(req: NextRequest) {
     httpOnly: false,
   })
 
-  // Refresh token — HttpOnly: JS cannot read it; only the /api/auth/refresh route handler can
   cookieStore.set('hha_rt', refreshToken, {
     maxAge: REFRESH_MAX_AGE,
     path: '/api/auth/refresh',

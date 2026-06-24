@@ -139,7 +139,10 @@ export interface User {
 
 export const auth = {
   login: (email: string, password: string) =>
-    bffFetch<{ accessToken: string }>('/api/auth/login', { email, password }),
+    bffFetch<{ accessToken: string } | { requiresTwoFactor: true; userId: string }>('/api/auth/login', { email, password }),
+
+  verify2fa: (userId: string, otp: string) =>
+    bffFetch<{ accessToken: string }>('/api/auth/verify-2fa', { userId, otp }),
 
   me: () => request<{ data: User }>('/auth/me'),
 
