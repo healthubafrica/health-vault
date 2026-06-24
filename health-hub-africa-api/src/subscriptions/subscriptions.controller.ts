@@ -12,6 +12,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public } from '../common/decorators/roles.decorator';
 import { SubscriptionsService } from './subscriptions.service';
 import { SubscribeDto } from './dto/subscribe.dto';
+import { UpgradeSubscriptionDto } from './dto/upgrade-subscription.dto';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 
 @ApiTags('Subscriptions')
@@ -35,9 +36,21 @@ export class SubscriptionsController {
 
   @ApiBearerAuth()
   @Post()
-  @ApiOperation({ summary: 'Subscribe to a plan' })
+  @ApiOperation({ summary: 'Subscribe to a plan (admin or Free plan only)' })
   async subscribe(@Body() dto: SubscribeDto, @CurrentUser() user: JwtPayload) {
     return { data: await this.subscriptionsService.subscribe(dto, user) };
+  }
+
+  @ApiBearerAuth()
+  @Post('upgrade')
+  @ApiOperation({
+    summary: 'Upgrade to a paid plan via payment gateway',
+    description:
+      'Creates a pending Payment and returns the Paystack/Flutterwave authorization URL. ' +
+      'The webhook activates the subscription on successful payment.',
+  })
+  async upgrade(@Body() dto: UpgradeSubscriptionDto, @CurrentUser() user: JwtPayload) {
+    return this.subscriptionsService.upgrade(dto, user);
   }
 
   @ApiBearerAuth()
