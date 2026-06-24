@@ -49,11 +49,12 @@ export class PaymentsController {
     return this.paymentsService.findMyPayments(user);
   }
 
-  @ApiBearerAuth()
+  @Public()
+  @SkipThrottle()
   @Get('verify')
-  @ApiOperation({ summary: 'Verify a payment by gateway reference (Paystack callback fallback)' })
-  verifyPayment(@Query('reference') reference: string, @CurrentUser() user: JwtPayload) {
-    return this.paymentsService.verifyPayment(reference, user);
+  @ApiOperation({ summary: 'Verify a payment by gateway reference (public — Paystack callback fallback)' })
+  verifyPayment(@Query('reference') reference: string) {
+    return this.paymentsService.verifyPayment(reference);
   }
 
   @ApiBearerAuth()
