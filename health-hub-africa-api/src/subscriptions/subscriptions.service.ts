@@ -1,16 +1,23 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { PaymentGateway, PlanTier, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
+import { PaymentsService } from '../payments/payments.service';
+import { PaymentPurpose } from '../payments/dto/initiate-payment.dto';
 import { SubscribeDto } from './dto/subscribe.dto';
+import { UpgradeSubscriptionDto } from './dto/upgrade-subscription.dto';
 
 @Injectable()
 export class SubscriptionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly paymentsService: PaymentsService,
+  ) {}
 
   // ── Plans ──────────────────────────────────────────────────────────────────
 
@@ -86,6 +93,66 @@ export class SubscriptionsService {
         include: { plan: true },
       });
     });
+  }
+
+  // Patient-facing upgrade flow. For paid plans this issues a pending Payment
+  // with a structured `metadata` blob so the gateway webhook can activate the
+  // subscription on success. Free plan stays self-service via the existing
+  // `subscribe()` path (no money to charge).
+  async upgrade(dto: UpgradeSubscriptionDto, currentUser: JwtPayload) {
+    const patient = await this.prisma.patient.findUnique({
+      where: { userId: currentUser.sub },
+      select: { id: true },
+    });
+    if (!patient) throw new NotFoundException('Patient profile not found');
+
+    const plan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id: dto.planId },
+    });
+    if (!plan) throw new NotFoundException('Plan not found');
+
+    if (plan.tier === PlanTier.Free) {
+      throw new BadRequestException(
+        'Use DELETE /subscriptions/:id to revert to the Free plan',
+      );
+    }
+
+    const amountKobo = dto.billingCycle === 'annually'
+      ? (plan.launchPriceKobo > 0 ? plan.launchPriceKobo : plan.annualPriceKobo)
+      : plan.priceKobo;
+
+    if (!amountKobo || amountKobo <= 0) {
+      throw new BadRequestException(
+        `Plan ${plan.name} has no price for billing cycle ${dto.billingCycle}`,
+      );
+    }
+
+    const gateway = dto.gateway ?? PaymentGateway.Paystack;
+
+    const gatewayResponse = await this.paymentsService.initiate(
+      {
+        gateway,
+        purpose: PaymentPurpose.subscription,
+        amountKobo,
+        currency: 'NGN',
+        referenceId: plan.id,
+      },
+      currentUser,
+      {
+        description: `${plan.name} subscription — ${dto.billingCycle}`,
+        metadata: {
+          kind: 'subscription_upgrade',
+          planId: plan.id,
+          planName: plan.name,
+          billingCycle: dto.billingCycle,
+        },
+      },
+    );
+
+    return {
+      requiresPayment: true,
+      ...gatewayResponse,
+    };
   }
 
   async findMySubscription(currentUser: JwtPayload) {
