@@ -250,6 +250,14 @@ export class PaymentsService {
         name: 'Flutterwave',
         active: !!this.config.get<string>('FLUTTERWAVE_SECRET_KEY'),
       },
+      {
+        gateway: 'bank_transfer',
+        name: 'Bank Transfer',
+        active: true,
+        bankName: 'United Bank for Africa',
+        accountNumber: '1028358485',
+        accountName: 'Health Hub Africa',
+      },
     ];
   }
 
