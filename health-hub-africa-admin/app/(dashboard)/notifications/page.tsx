@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { adminApi, type NotificationDelivery } from '@/lib/api'
+import { useAutoRefresh } from '@/lib/hooks/useLiveData'
 import { Card } from '@/components/ui/Card'
 import { FilterTabs } from '@/components/ui/FilterTabs'
 import { Pill } from '@/components/ui/Pill'
@@ -52,6 +53,7 @@ export default function NotificationsPage() {
   }, [page, channelTab])
 
   useEffect(() => { load() }, [load])
+  useAutoRefresh(load, 20_000)
 
   const handleResend = useCallback(async (id: string, recipient: string) => {
     setResending(id)

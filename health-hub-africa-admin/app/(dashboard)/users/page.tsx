@@ -207,6 +207,16 @@ export default function UsersPage() {
                             <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)' }}>
                               {u.email}
                             </p>
+                            {u.patient && (
+                              <p className="text-[10px] font-mono truncate" style={{ color: 'var(--color-text-faint)' }}>
+                                {u.patient.hhaPatientId}
+                                {u.patient.openemrPatientUuid && (
+                                  <span title={`OpenEMR: ${u.patient.openemrPatientUuid}`}>
+                                    {' · OEMR '}{u.patient.openemrPatientUuid.slice(0, 8)}…
+                                  </span>
+                                )}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </td>

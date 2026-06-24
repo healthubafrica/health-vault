@@ -199,9 +199,17 @@ export default function PatientsPage() {
                           {p.openemrSyncStatus}
                         </Pill>
                         {p.openemrPatientUuid && (
-                          <span className="font-mono text-[10px]" style={{ color: 'var(--color-text-faint)' }}>
-                            {p.openemrPatientUuid.slice(0, 8)}…
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard?.writeText(p.openemrPatientUuid!).catch(() => null)
+                            }}
+                            title={`Copy OpenEMR ID: ${p.openemrPatientUuid}`}
+                            className="font-mono text-[10px] text-left hover:underline cursor-pointer"
+                            style={{ color: 'var(--color-text-faint)', background: 'none', border: 'none', padding: 0 }}
+                          >
+                            OEMR: {p.openemrPatientUuid.slice(0, 8)}…
+                          </button>
                         )}
                       </div>
                     </td>
