@@ -555,7 +555,7 @@ export class AdminService {
     const skip = (page - 1) * limit;
     const where: any = status ? { status } : {};
 
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.appointment.findMany({
         where,
         skip,
@@ -570,12 +570,40 @@ export class AdminService {
           durationMinutes: true,
           isTelecare: true,
           createdAt: true,
-          patient: { select: { id: true, firstName: true, lastName: true } },
-          provider: { select: { id: true, firstName: true, lastName: true } },
+          patient: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              user: { select: { email: true } },
+            },
+          },
+          provider: {
+            select: { id: true, firstName: true, lastName: true, title: true },
+          },
         },
       }),
       this.prisma.appointment.count({ where }),
     ]);
+
+    // Flatten to what the admin Appointments table renders directly so the
+    // page doesn't have to walk nested relations (which it currently doesn't,
+    // leading to the empty patient/provider cells).
+    const data = rows.map((r) => ({
+      id: r.id,
+      hhaRef: r.hhaRef,
+      patientName: `${r.patient.firstName} ${r.patient.lastName}`.trim(),
+      patientEmail: r.patient.user?.email ?? undefined,
+      providerName: r.provider
+        ? `${r.provider.title ?? ''} ${r.provider.firstName} ${r.provider.lastName}`.trim()
+        : undefined,
+      type: r.serviceType,
+      status: r.status,
+      scheduledAt: r.scheduledAt,
+      durationMinutes: r.durationMinutes,
+      isTelecare: r.isTelecare,
+      createdAt: r.createdAt,
+    }));
 
     return { data, meta: { total, page, limit } };
   }
