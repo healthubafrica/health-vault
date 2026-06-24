@@ -7,6 +7,7 @@ const ACCESS_COOKIE = 'hha_at'
 const PUBLIC_PATHS = [
   '/login',
   '/onboarding',
+  '/payments/verify',
   '/_next',
   '/favicon.ico',
   '/logo-white.png',
