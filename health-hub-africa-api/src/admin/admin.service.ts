@@ -6,7 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { DispatchStatus, UserRole } from '@prisma/client';
+import { AppointmentStatus, DispatchStatus, UserRole } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import Redis from 'ioredis';
@@ -548,6 +548,10 @@ export class AdminService {
   // ── Operations ────────────────────────────────────────────────────────────
 
   async listAppointments(page = 1, limit = 20, status?: string) {
+    if (status && !Object.values(AppointmentStatus).includes(status as AppointmentStatus)) {
+      throw new BadRequestException(`Invalid appointment status: ${status}`);
+    }
+
     const skip = (page - 1) * limit;
     const where: any = status ? { status } : {};
 

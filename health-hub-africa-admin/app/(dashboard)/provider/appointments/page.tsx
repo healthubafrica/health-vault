@@ -1,26 +1,16 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { adminApi } from '@/lib/api'
+import { adminApi, ProviderAppointment } from '@/lib/api'
 import { Card } from '@/components/ui/Card'
 import { FilterTabs } from '@/components/ui/FilterTabs'
 import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { formatDateTime } from '@/lib/utils'
-import { RefreshCw, Check, X } from 'lucide-react'
+import { CalendarCheck, RefreshCw, Check, X } from 'lucide-react'
 
-type AppStatus = 'requested' | 'confirmed' | 'upcoming' | 'in_progress' | 'completed' | 'cancelled' | 'no_show'
-
-interface Appointment {
-  id: string
-  patientName?: string
-  patientEmail?: string
-  providerName?: string
-  type: string
-  scheduledAt: string
-  status: AppStatus
-}
+type AppStatus = ProviderAppointment['status']
 
 const STATUS_TABS = ['All', 'requested', 'confirmed', 'upcoming', 'in_progress', 'completed', 'cancelled', 'no_show']
 
@@ -34,10 +24,21 @@ const STATUS_PILL: Record<AppStatus, 'success' | 'warning' | 'neutral' | 'info' 
   no_show: 'warning',
 }
 
-export default function AppointmentsPage() {
-  const [items, setItems] = useState<Appointment[]>([])
+function patientName(appt: ProviderAppointment): string {
+  if (!appt.patient) return '—'
+  return `${appt.patient.firstName} ${appt.patient.lastName}`.trim() || '—'
+}
+
+function appointmentType(appt: ProviderAppointment): string {
+  if (appt.isTelecare) return 'Virtual'
+  return appt.serviceType || 'In-person'
+}
+
+export default function ProviderAppointmentsPage() {
+  const [items, setItems] = useState<ProviderAppointment[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [statusTab, setStatusTab] = useState('All')
   const [page, setPage] = useState(1)
   const [actingId, setActingId] = useState<string | null>(null)
@@ -45,12 +46,15 @@ export default function AppointmentsPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
       const params: { status?: string; page?: number; limit?: number } = { page, limit }
       if (statusTab !== 'All') params.status = statusTab
-      const res = await adminApi.operations.appointments(params)
-      setItems(res.data as Appointment[])
+      const res = await adminApi.providerAppointments.list(params)
+      setItems(res.data)
       setTotal(res.meta.total)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load appointments')
     } finally {
       setLoading(false)
     }
@@ -62,7 +66,7 @@ export default function AppointmentsPage() {
   const handleConfirm = useCallback(async (id: string) => {
     setActingId(id)
     try {
-      await adminApi.operations.updateAppointmentStatus(id, 'confirmed')
+      await adminApi.providerAppointments.updateStatus(id, 'confirmed')
       await load()
     } finally {
       setActingId(null)
@@ -74,7 +78,7 @@ export default function AppointmentsPage() {
     if (reason === null) return
     setActingId(id)
     try {
-      await adminApi.operations.updateAppointmentStatus(id, 'cancelled', reason || undefined)
+      await adminApi.providerAppointments.updateStatus(id, 'cancelled', reason || undefined)
       await load()
     } finally {
       setActingId(null)
@@ -86,19 +90,31 @@ export default function AppointmentsPage() {
   return (
     <div className="max-w-[1200px]">
       <div className="flex items-center justify-between mb-5">
-        <div>
-          <h1 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>
-            Appointments
-          </h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-            {total.toLocaleString()} total
-          </p>
+        <div className="flex items-center gap-3">
+          <CalendarCheck className="w-6 h-6" style={{ color: 'var(--color-primary)' }} />
+          <div>
+            <h1 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>
+              My Appointments
+            </h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+              {total.toLocaleString()} total
+            </p>
+          </div>
         </div>
-        <Button variant="secondary" size="sm" onClick={load}>
+        <Button variant="secondary" size="sm" onClick={load} loading={loading}>
           <RefreshCw className="w-3.5 h-3.5" />
           Refresh
         </Button>
       </div>
+
+      {error && (
+        <div
+          className="rounded-lg px-4 py-3 mb-4 text-sm"
+          style={{ background: 'var(--color-error-bg)', color: 'var(--color-emergency)' }}
+        >
+          {error}
+        </div>
+      )}
 
       <FilterTabs
         tabs={STATUS_TABS}
@@ -112,7 +128,7 @@ export default function AppointmentsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b" style={{ borderColor: 'var(--color-border)' }}>
-                {['Patient', 'Provider', 'Type', 'Scheduled', 'Status', 'Actions'].map((h) => (
+                {['Patient', 'Type', 'Scheduled', 'Status', 'Actions'].map((h) => (
                   <th
                     key={h}
                     className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider"
@@ -127,56 +143,33 @@ export default function AppointmentsPage() {
               {loading ? (
                 Array.from({ length: 8 }).map((_, i) => (
                   <tr key={i} className="border-b" style={{ borderColor: 'var(--color-border)' }}>
-                    {[140, 100, 90, 120, 70, 90].map((w, j) => (
+                    {[140, 90, 120, 70, 90].map((w, j) => (
                       <td key={j} className="px-4 py-3">
-                        <SkeletonBox height={14} className="rounded" style={{ width: w }} />
+                        <SkeletonBox width={w} height={14} />
                       </td>
                     ))}
                   </tr>
                 ))
               ) : items.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={6}
-                    className="px-4 py-12 text-center text-sm"
-                    style={{ color: 'var(--color-text-muted)' }}
-                  >
-                    No appointments found
+                  <td colSpan={5} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                    No appointments found.
                   </td>
                 </tr>
               ) : (
                 items.map((a) => (
-                  <tr
-                    key={a.id}
-                    className="border-b last:border-b-0"
-                    style={{ borderColor: 'var(--color-border)' }}
-                  >
-                    <td className="px-4 py-3">
-                      <p className="font-medium" style={{ color: 'var(--color-text)' }}>
-                        {a.patientName ?? '—'}
-                      </p>
-                      {a.patientEmail && (
-                        <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-                          {a.patientEmail}
-                        </p>
-                      )}
+                  <tr key={a.id} className="border-b" style={{ borderColor: 'var(--color-border)' }}>
+                    <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-text)' }}>
+                      {patientName(a)}
                     </td>
-                    <td className="px-4 py-3 text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                      {a.providerName ?? '—'}
+                    <td className="px-4 py-3" style={{ color: 'var(--color-text-muted)' }}>
+                      {appointmentType(a)}
                     </td>
-                    <td className="px-4 py-3 text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                      {a.type}
-                    </td>
-                    <td
-                      className="px-4 py-3 text-sm whitespace-nowrap"
-                      style={{ color: 'var(--color-text-muted)' }}
-                    >
+                    <td className="px-4 py-3" style={{ color: 'var(--color-text-muted)' }}>
                       {formatDateTime(a.scheduledAt)}
                     </td>
                     <td className="px-4 py-3">
-                      <Pill variant={STATUS_PILL[a.status] ?? 'neutral'}>
-                        {a.status.replace('_', ' ')}
-                      </Pill>
+                      <Pill variant={STATUS_PILL[a.status]}>{a.status.replace('_', ' ')}</Pill>
                     </td>
                     <td className="px-4 py-3">
                       {a.status === 'requested' && (
@@ -212,28 +205,15 @@ export default function AppointmentsPage() {
         </div>
 
         {totalPages > 1 && (
-          <div
-            className="flex items-center justify-between px-4 py-3 border-t"
-            style={{ borderColor: 'var(--color-border)' }}
-          >
+          <div className="flex items-center justify-between px-4 py-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
             <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-              Page {page} of {totalPages} · {total.toLocaleString()} appointments
+              Page {page} of {totalPages}
             </span>
             <div className="flex gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
+              <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
                 Previous
               </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
+              <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
                 Next
               </Button>
             </div>
