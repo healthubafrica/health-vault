@@ -137,6 +137,27 @@ export interface User {
   fullName?: string
 }
 
+export interface Session {
+  id: string
+  ipAddress?: string
+  userAgent?: string
+  createdAt: string
+  expiresAt: string
+}
+
+export interface NotificationPrefs {
+  emailEnabled: boolean
+  smsEnabled: boolean
+  pushEnabled: boolean
+  whatsappEnabled: boolean
+  appointmentReminders: boolean
+  labResultAlerts: boolean
+  paymentReceipts: boolean
+  dispatchUpdates: boolean
+  expertReviewUpdates: boolean
+  marketingComms: boolean
+}
+
 export const auth = {
   login: (email: string, password: string) =>
     bffFetch<{ accessToken: string } | { requiresTwoFactor: true; userId: string }>('/api/auth/login', { email, password }),
@@ -159,6 +180,37 @@ export const auth = {
       method: 'POST',
       body: JSON.stringify({ email, otp, newPassword }),
     }),
+
+  // ── Settings endpoints (shared with the patient portal) ──────────────
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ message: string }>('/auth/change-password', {
+      method: 'PATCH',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+
+  get2fa: () => request<{ twoFactorEnabled: boolean }>('/auth/2fa'),
+
+  toggle2fa: (enabled: boolean) =>
+    request<{ twoFactorEnabled: boolean; message: string }>('/auth/2fa', {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled }),
+    }),
+
+  getNotificationPreferences: () =>
+    request<{ data: NotificationPrefs }>('/auth/notification-preferences'),
+
+  updateNotificationPreferences: (prefs: Partial<NotificationPrefs>) =>
+    request<{ data: NotificationPrefs }>('/auth/notification-preferences', {
+      method: 'PATCH',
+      body: JSON.stringify(prefs),
+    }),
+
+  listSessions: () => request<{ data: Session[] }>('/auth/sessions'),
+
+  revokeSession: (sessionId: string) =>
+    request<{ message: string }>(`/auth/sessions/${sessionId}`, { method: 'DELETE' }),
+
+  logoutAll: () => request<{ message: string }>('/auth/logout-all', { method: 'POST' }),
 }
 
 // ── Admin: Users ──────────────────────────────────────────────────────────
@@ -330,6 +382,18 @@ export interface ProviderShift {
   endTime: string
   isTelecare: boolean
   createdAt: string
+}
+
+export interface ProviderAppointment {
+  id: string
+  hhaRef: string
+  status: 'requested' | 'confirmed' | 'upcoming' | 'in_progress' | 'completed' | 'cancelled' | 'no_show'
+  scheduledAt: string
+  durationMinutes: number
+  serviceType: string
+  isTelecare: boolean
+  reason?: string | null
+  patient?: { firstName: string; lastName: string } | null
 }
 
 // ── Admin: Clinical Queue ─────────────────────────────────────────────────
@@ -580,6 +644,21 @@ export const adminApi = {
     },
   },
 
+  // Provider-scoped (uses /appointments, not /admin — scoped by JWT providerId)
+  providerAppointments: {
+    list: (params?: { status?: string; page?: number; limit?: number }) => {
+      const qs = params
+        ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString()
+        : ''
+      return request<{ data: ProviderAppointment[]; meta: { total: number } }>(`/appointments${qs}`)
+    },
+    updateStatus: (id: string, status: string, cancellationReason?: string) =>
+      request<unknown>(`/appointments/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status, cancellationReason }),
+      }),
+  },
+
   subscriptions: {
     list: (params?: { status?: string; page?: number; limit?: number }) => {
       const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : ''
@@ -681,6 +760,11 @@ export const adminApi = {
         : ''
       return request<{ data: unknown[]; meta: { total: number } }>(`/admin/operations/expert-review${qs}`)
     },
+    updateAppointmentStatus: (id: string, status: string, cancellationReason?: string) =>
+      request<unknown>(`/appointments/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status, cancellationReason }),
+      }),
   },
 
   cms: {
