@@ -479,6 +479,9 @@ export interface GatewayStatus {
   gateway: string
   name: string
   active: boolean
+  bankName?: string
+  accountNumber?: string
+  accountName?: string
 }
 
 export const payments = {
@@ -487,7 +490,7 @@ export const payments = {
   get: (id: string) => request<{ data: Payment }>(`/payments/${id}`),
 
   initiate: (data: { gateway: string; purpose: string; amountKobo: number; currency: string }) =>
-    request<{ paymentId: string; authorizationUrl: string; gateway: string }>('/payments', {
+    request<{ paymentId: string; authorizationUrl?: string; gateway: string; status?: string }>('/payments', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
