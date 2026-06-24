@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { formatDateTime } from '@/lib/utils'
 import { RefreshCw, Check, X } from 'lucide-react'
+import { useLiveData } from '@/lib/hooks/useLiveData'
 
 type AppStatus = 'requested' | 'confirmed' | 'upcoming' | 'in_progress' | 'completed' | 'cancelled' | 'no_show'
 
@@ -35,39 +36,36 @@ const STATUS_PILL: Record<AppStatus, 'success' | 'warning' | 'neutral' | 'info' 
 }
 
 export default function AppointmentsPage() {
-  const [items, setItems] = useState<Appointment[]>([])
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(true)
   const [statusTab, setStatusTab] = useState('All')
   const [page, setPage] = useState(1)
   const [actingId, setActingId] = useState<string | null>(null)
   const limit = 20
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
+  useEffect(() => { setPage(1) }, [statusTab])
+
+  const { data: res, isInitialLoad, refresh } = useLiveData(
+    () => {
       const params: { status?: string; page?: number; limit?: number } = { page, limit }
       if (statusTab !== 'All') params.status = statusTab
-      const res = await adminApi.operations.appointments(params)
-      setItems(res.data as Appointment[])
-      setTotal(res.meta.total)
-    } finally {
-      setLoading(false)
-    }
-  }, [page, statusTab])
+      return adminApi.operations.appointments(params)
+    },
+    [page, statusTab],
+    { intervalMs: 20_000 },
+  )
 
-  useEffect(() => { setPage(1) }, [statusTab])
-  useEffect(() => { load() }, [load])
+  const items: Appointment[] = (res?.data as Appointment[]) ?? []
+  const total = res?.meta.total ?? 0
+  const loading = isInitialLoad
 
   const handleConfirm = useCallback(async (id: string) => {
     setActingId(id)
     try {
       await adminApi.operations.updateAppointmentStatus(id, 'confirmed')
-      await load()
+      refresh()
     } finally {
       setActingId(null)
     }
-  }, [load])
+  }, [refresh])
 
   const handleDecline = useCallback(async (id: string) => {
     const reason = window.prompt('Reason for declining this appointment (optional):')
@@ -75,11 +73,11 @@ export default function AppointmentsPage() {
     setActingId(id)
     try {
       await adminApi.operations.updateAppointmentStatus(id, 'cancelled', reason || undefined)
-      await load()
+      refresh()
     } finally {
       setActingId(null)
     }
-  }, [load])
+  }, [refresh])
 
   const totalPages = Math.ceil(total / limit)
 
@@ -94,7 +92,7 @@ export default function AppointmentsPage() {
             {total.toLocaleString()} total
           </p>
         </div>
-        <Button variant="secondary" size="sm" onClick={load}>
+        <Button variant="secondary" size="sm" onClick={refresh}>
           <RefreshCw className="w-3.5 h-3.5" />
           Refresh
         </Button>

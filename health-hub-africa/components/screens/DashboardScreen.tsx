@@ -44,10 +44,18 @@ export function DashboardScreen() {
   const [overviewView, setOverviewView] = useState<OverviewView>('grid')
   const [heartRateRange, setHeartRateRange] = useState<ReadingsRange>('recent')
   const [sleepRange, setSleepRange] = useState<ReadingsRange>('recent')
-  const { data: profileRes, isInitialLoad: profileLoading, error: profileError, refetch: refetchProfile } = useApi(() => patients.getMyProfile())
-  const { data: vitalsRes, isInitialLoad: vitalsLoading } = useApi(() => vitalsApi.list())
-  const { data: apptRes, isInitialLoad: apptLoading } = useApi(() => appointments.list({ upcoming: true }))
-  const { data: subRes } = useApi(() => subscriptions.getMy())
+  // Dashboard surfaces (vitals, upcoming appointments, subscription status)
+  // need to reflect real changes without a manual refresh. Profile is mostly
+  // static so it polls slower; vitals/appointments tick every 30s + on
+  // tab focus. The request layer dedups bursts within 3s.
+  const { data: profileRes, isInitialLoad: profileLoading, error: profileError, refetch: refetchProfile } =
+    useApi(() => patients.getMyProfile(), [], { pollIntervalMs: 60_000 })
+  const { data: vitalsRes, isInitialLoad: vitalsLoading } =
+    useApi(() => vitalsApi.list(), [], { pollIntervalMs: 30_000 })
+  const { data: apptRes, isInitialLoad: apptLoading } =
+    useApi(() => appointments.list({ upcoming: true }), [], { pollIntervalMs: 30_000 })
+  const { data: subRes } =
+    useApi(() => subscriptions.getMy(), [], { pollIntervalMs: 60_000 })
 
   if (profileLoading || vitalsLoading || apptLoading) return <DashboardSkeleton />
 
