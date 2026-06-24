@@ -1,14 +1,14 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { adminApi } from '@/lib/api'
+import { adminApi, type AdminProvider } from '@/lib/api'
 import { Card } from '@/components/ui/Card'
 import { FilterTabs } from '@/components/ui/FilterTabs'
 import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { formatDateTime } from '@/lib/utils'
-import { RefreshCw, Check, X } from 'lucide-react'
+import { RefreshCw, Check, X, UserPlus } from 'lucide-react'
 import { useLiveData } from '@/lib/hooks/useLiveData'
 
 type AppStatus = 'requested' | 'confirmed' | 'upcoming' | 'in_progress' | 'completed' | 'cancelled' | 'no_show'
@@ -21,6 +21,7 @@ interface Appointment {
   type: string
   scheduledAt: string
   status: AppStatus
+  isTelecare?: boolean
 }
 
 const STATUS_TABS = ['All', 'requested', 'confirmed', 'upcoming', 'in_progress', 'completed', 'cancelled', 'no_show']
@@ -178,17 +179,34 @@ export default function AppointmentsPage() {
                     </td>
                     <td className="px-4 py-3">
                       {a.status === 'requested' && (
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            loading={actingId === a.id}
-                            disabled={actingId !== null && actingId !== a.id}
-                            onClick={() => handleConfirm(a.id)}
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                            Confirm
-                          </Button>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* Teleconsults need a provider before they can be
+                              confirmed — the backend rejects confirm without
+                              one. Show the assign control inline so admin
+                              can pick a provider without leaving the page. */}
+                          {a.isTelecare && !a.providerName ? (
+                            <AssignProviderControl
+                              appointmentId={a.id}
+                              disabled={actingId !== null && actingId !== a.id}
+                              loading={actingId === a.id}
+                              onAssigned={() => {
+                                setActingId(null)
+                                refresh()
+                              }}
+                              onActing={() => setActingId(a.id)}
+                            />
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              loading={actingId === a.id}
+                              disabled={actingId !== null && actingId !== a.id}
+                              onClick={() => handleConfirm(a.id)}
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              Confirm
+                            </Button>
+                          )}
                           <Button
                             variant="danger"
                             size="sm"
@@ -239,5 +257,85 @@ export default function AppointmentsPage() {
         )}
       </Card>
     </div>
+  )
+}
+
+// Inline provider picker rendered in the action cell for telecare
+// appointments that don't have a provider yet. Loads the provider roster
+// lazily (first interaction or first hover) so a long appointments list
+// doesn't trigger a roster fetch on mount.
+function AssignProviderControl({
+  appointmentId,
+  disabled,
+  loading,
+  onAssigned,
+  onActing,
+}: {
+  appointmentId: string
+  disabled: boolean
+  loading: boolean
+  onAssigned: () => void
+  onActing: () => void
+}) {
+  const [providers, setProviders] = useState<AdminProvider[] | null>(null)
+  const [loadingProviders, setLoadingProviders] = useState(false)
+  const [selectedId, setSelectedId] = useState('')
+
+  const ensureProviders = useCallback(async () => {
+    if (providers !== null || loadingProviders) return
+    setLoadingProviders(true)
+    try {
+      const res = await adminApi.providers.list({ limit: 100 })
+      setProviders(res.data)
+    } catch {
+      setProviders([])
+    } finally {
+      setLoadingProviders(false)
+    }
+  }, [providers, loadingProviders])
+
+  const handleChange = useCallback(async (providerId: string) => {
+    if (!providerId) return
+    setSelectedId(providerId)
+    onActing()
+    try {
+      await adminApi.operations.assignAppointmentProvider(appointmentId, providerId)
+      onAssigned()
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Failed to assign provider')
+      setSelectedId('')
+      onAssigned()
+    }
+  }, [appointmentId, onActing, onAssigned])
+
+  return (
+    <select
+      value={selectedId}
+      disabled={disabled || loading}
+      onFocus={ensureProviders}
+      onMouseEnter={ensureProviders}
+      onChange={(e) => handleChange(e.target.value)}
+      className="h-7 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+      style={{
+        background: 'var(--color-surface)',
+        borderColor: 'var(--color-border)',
+        color: 'var(--color-text)',
+      }}
+      aria-label="Assign provider to appointment"
+    >
+      <option value="">
+        {loading
+          ? 'Assigning…'
+          : loadingProviders
+          ? 'Loading…'
+          : 'Assign provider…'}
+      </option>
+      {providers?.map((p) => (
+        <option key={p.id} value={p.id}>
+          {p.title} {p.firstName} {p.lastName}
+          {p.specialty ? ` — ${p.specialty}` : ''}
+        </option>
+      ))}
+    </select>
   )
 }

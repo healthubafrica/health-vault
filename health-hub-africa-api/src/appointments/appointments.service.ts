@@ -185,6 +185,27 @@ export class AppointmentsService {
       }
     }
 
+    // Provider reassignment is an admin/coordinator-only mutation. Patients
+    // and the assigned provider can update everything else but not who
+    // delivers the care.
+    if (dto.providerId !== undefined) {
+      const adminRoles: UserRole[] = [
+        UserRole.admin,
+        UserRole.super_admin,
+        UserRole.coordinator,
+      ];
+      if (!adminRoles.includes(currentUser.role as UserRole)) {
+        throw new ForbiddenException('Only admin or coordinator can reassign a provider');
+      }
+      const target = await this.prisma.provider.findUnique({
+        where: { id: dto.providerId },
+        select: { id: true, deletedAt: true },
+      });
+      if (!target || target.deletedAt) {
+        throw new NotFoundException('Provider not found');
+      }
+    }
+
     const data: any = {};
     if (dto.scheduledAt) data.scheduledAt = new Date(dto.scheduledAt);
     if (dto.durationMinutes !== undefined) data.durationMinutes = dto.durationMinutes;
@@ -196,6 +217,11 @@ export class AppointmentsService {
       data.cancellationNote = dto.cancellationReason;
       data.cancelledBy = currentUser.sub;
     }
+    if (dto.providerId !== undefined) data.providerId = dto.providerId;
+
+    // Effective providerId for downstream logic — if the same PATCH assigns
+    // *and* confirms in one shot, use the new value, not the stale row.
+    const effectiveProviderId = dto.providerId ?? appt.providerId;
 
     // Auto-create a TelecareSession the moment a telecare appointment is
     // confirmed so it surfaces in /operations/telecare and the provider
@@ -207,6 +233,12 @@ export class AppointmentsService {
       dto.status === AppointmentStatus.confirmed &&
       appt.isTelecare &&
       !appt.telecareSession;
+
+    if (shouldSpawnTelecareSession && !effectiveProviderId) {
+      throw new BadRequestException(
+        'Assign a provider before confirming a teleconsult appointment',
+      );
+    }
 
     if (shouldSpawnTelecareSession) {
       const hhaRef = await this.generateTelecareRef();
@@ -221,7 +253,7 @@ export class AppointmentsService {
             hhaRef,
             appointmentId: appt.id,
             patientId: appt.patientId,
-            providerId: appt.providerId!,
+            providerId: effectiveProviderId!,
             scheduledAt: appt.scheduledAt,
             platform: 'HHA Native',
           },

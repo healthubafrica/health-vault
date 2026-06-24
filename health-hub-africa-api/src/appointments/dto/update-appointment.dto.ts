@@ -38,4 +38,11 @@ export class UpdateAppointmentDto {
   @IsOptional()
   @IsString()
   cancellationReason?: string;
+
+  // Reassign the appointment to a different provider. Service-level guard
+  // rejects this unless the caller is admin / coordinator / super_admin.
+  @ApiPropertyOptional({ description: 'Provider UUID — admin/coordinator only' })
+  @IsOptional()
+  @IsString()
+  providerId?: string;
 }
