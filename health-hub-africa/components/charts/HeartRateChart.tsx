@@ -21,7 +21,7 @@ export function HeartRateChart({ data }: HeartRateChartProps) {
   if (!data || data.length === 0) {
     return (
       <div className="h-[80px] flex items-center justify-center">
-        <p className="text-xs font-medium text-gray-400">No heart rate readings yet</p>
+        <p className="text-xs font-medium text-[var(--color-text-muted)]">No heart rate readings yet</p>
       </div>
     )
   }

@@ -15,7 +15,7 @@ export function WeightGauge({ value, min, max }: WeightGaugeProps) {
   if (value == null) {
     return (
       <div className="flex flex-col items-center justify-center h-[170px]">
-        <p className="text-xs font-medium text-gray-400">No weight readings yet</p>
+        <p className="text-xs font-medium text-[var(--color-text-muted)]">No weight readings yet</p>
       </div>
     )
   }
@@ -33,7 +33,7 @@ export function WeightGauge({ value, min, max }: WeightGaugeProps) {
             data={{
               datasets: [{
                 data: [filled, empty],
-                backgroundColor: ['#6DC43F', 'rgba(0,0,0,0.08)'],
+                backgroundColor: ['#6DC43F', 'rgba(120,120,120,0.15)'],
                 borderWidth: 0,
                 circumference: 180,
                 rotation: -90,

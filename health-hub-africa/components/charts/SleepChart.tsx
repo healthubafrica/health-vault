@@ -20,7 +20,7 @@ export function SleepChart({ data, labels }: SleepChartProps) {
   if (!data || data.length === 0) {
     return (
       <div className="h-[80px] flex items-center justify-center">
-        <p className="text-xs font-medium text-gray-400">No sleep data yet</p>
+        <p className="text-xs font-medium text-[var(--color-text-muted)]">No sleep data yet</p>
       </div>
     )
   }
