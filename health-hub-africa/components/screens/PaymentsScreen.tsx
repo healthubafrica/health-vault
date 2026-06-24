@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Receipt, CreditCard, X } from 'lucide-react'
-import { payments as paymentsApi, ApiError } from '@/lib/api'
+import { payments as paymentsApi, ApiError, type GatewayStatus } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
@@ -27,6 +27,7 @@ function formatNaira(amountKobo: number): string {
 
 export function PaymentsScreen() {
   const { data: paymentsRes, isInitialLoad, error, refetch } = useApi(() => paymentsApi.list())
+  const { data: gatewayStatuses } = useApi(() => paymentsApi.getGatewayStatus())
 
   const [showModal, setShowModal] = useState(false)
   const [description, setDescription] = useState('')
@@ -260,20 +261,22 @@ export function PaymentsScreen() {
       <Card>
         <CardTitle>Payment Methods</CardTitle>
         <div className="flex flex-col gap-3">
-          {['Paystack', 'Flutterwave'].map(gw => (
+          {(gatewayStatuses ?? [{ gateway: 'paystack', name: 'Paystack', active: true }, { gateway: 'flutterwave', name: 'Flutterwave', active: true }]).map((gw: GatewayStatus) => (
             <div
-              key={gw}
+              key={gw.gateway}
               className="flex items-center gap-3 p-3 rounded-xl border"
               style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg)' }}
             >
               <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ background: '#006022' }}>
-                {gw[0]}
+                {gw.name[0]}
               </div>
               <div>
-                <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{gw}</p>
+                <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{gw.name}</p>
                 <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Secure payment gateway</p>
               </div>
-              <Pill variant="success" className="ml-auto">Active</Pill>
+              <Pill variant={gw.active ? 'success' : 'neutral'} className="ml-auto">
+                {gw.active ? 'Active' : 'Inactive'}
+              </Pill>
             </div>
           ))}
         </div>

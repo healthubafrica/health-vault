@@ -38,7 +38,11 @@ export class PaymentsService {
 
   // ── Initiate Payment ───────────────────────────────────────────────────────
 
-  async initiate(dto: InitiatePaymentDto, currentUser: JwtPayload) {
+  async initiate(
+    dto: InitiatePaymentDto,
+    currentUser: JwtPayload,
+    options?: { metadata?: Prisma.InputJsonValue; description?: string },
+  ) {
     const patient = await this.prisma.patient.findUnique({
       where: { userId: currentUser.sub },
       include: { user: { select: { email: true } } },
@@ -47,7 +51,8 @@ export class PaymentsService {
 
     const idempotencyKey = randomUUID();
     const amountKobo = dto.amountKobo;
-    const description = `${dto.purpose} — ${dto.currency} ${(amountKobo / 100).toFixed(2)}`;
+    const description =
+      options?.description ?? `${dto.purpose} — ${dto.currency} ${(amountKobo / 100).toFixed(2)}`;
 
     const payment = await this.prisma.payment.create({
       data: {
@@ -59,6 +64,7 @@ export class PaymentsService {
         idempotencyKey,
         description,
         status: PaymentStatus.pending,
+        ...(options?.metadata !== undefined && { metadata: options.metadata }),
       },
     });
 
@@ -230,6 +236,23 @@ export class PaymentsService {
     return payment;
   }
 
+  // ── Gateway Status ────────────────────────────────────────────────────────
+
+  getGatewayStatus() {
+    return [
+      {
+        gateway: 'paystack',
+        name: 'Paystack',
+        active: !!this.config.get<string>('PAYSTACK_SECRET_KEY'),
+      },
+      {
+        gateway: 'flutterwave',
+        name: 'Flutterwave',
+        active: !!this.config.get<string>('FLUTTERWAVE_SECRET_KEY'),
+      },
+    ];
+  }
+
   // ── Internal: process webhook event ──────────────────────────────────────
 
   private async processWebhookEvent(event: Record<string, unknown>, gateway: PaymentGateway) {
@@ -277,6 +300,55 @@ export class PaymentsService {
     });
 
     this.logger.log(`Payment ${payment.id} → ${newStatus} via ${gateway}`);
+
+    // Activate subscription tied to a successful subscription_upgrade payment.
+    // Kept inline (no SubscriptionsService dep) to avoid a circular import:
+    // SubscriptionsService → PaymentsService → SubscriptionsService.
+    if (isSuccess) {
+      await this.activateSubscriptionFromPayment(payment.id);
+    }
+  }
+
+  private async activateSubscriptionFromPayment(paymentId: string): Promise<void> {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      select: { id: true, patientId: true, metadata: true },
+    });
+    const meta = payment?.metadata as { kind?: string; planId?: string; billingCycle?: string } | null;
+    if (!payment || !meta || meta.kind !== 'subscription_upgrade' || !meta.planId) return;
+
+    const cycle = meta.billingCycle === 'annually'
+      ? 'annually'
+      : meta.billingCycle === 'quarterly'
+      ? 'quarterly'
+      : 'monthly';
+
+    const startDate = new Date();
+    const endDate = new Date(startDate);
+    if (cycle === 'annually') endDate.setFullYear(endDate.getFullYear() + 1);
+    else if (cycle === 'quarterly') endDate.setMonth(endDate.getMonth() + 3);
+    else endDate.setMonth(endDate.getMonth() + 1);
+
+    await this.prisma.$transaction(async (tx) => {
+      // Cancel any prior active/trial subscription before activating the new one
+      // — patients should never carry two simultaneously.
+      await tx.patientSubscription.updateMany({
+        where: { patientId: payment.patientId, status: { in: ['active', 'trial'] } },
+        data: { status: 'cancelled', cancelledAt: new Date(), cancellationReason: 'Upgraded via payment' },
+      });
+
+      await tx.patientSubscription.create({
+        data: {
+          patientId: payment.patientId,
+          planId: meta.planId!,
+          startedAt: startDate,
+          expiresAt: endDate,
+          paymentId: payment.id,
+        },
+      });
+    });
+
+    this.logger.log(`Subscription activated for patient ${payment.patientId} from payment ${payment.id}`);
   }
 
   // ── Signature Verification ─────────────────────────────────────────────────

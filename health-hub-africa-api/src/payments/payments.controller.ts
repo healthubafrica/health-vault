@@ -35,6 +35,13 @@ export class PaymentsController {
   }
 
   @ApiBearerAuth()
+  @Get('gateways/status')
+  @ApiOperation({ summary: 'Get payment gateway availability' })
+  getGatewayStatus() {
+    return this.paymentsService.getGatewayStatus();
+  }
+
+  @ApiBearerAuth()
   @Get()
   @ApiOperation({ summary: 'List my payments' })
   findMyPayments(@CurrentUser() user: JwtPayload) {

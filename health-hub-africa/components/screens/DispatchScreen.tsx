@@ -313,7 +313,12 @@ export function DispatchScreen() {
 
       {/* CTA Buttons */}
       <div className="grid grid-cols-2 gap-3">
-        <Button variant="emergency-outline" size="lg" fullWidth>
+        <Button
+          variant="emergency-outline"
+          size="lg"
+          fullWidth
+          onClick={() => { window.location.href = 'tel:0800442911' }}
+        >
           <Phone size={16} /> Call Emergency
         </Button>
         <Button

@@ -271,6 +271,8 @@ export interface PatientProfile {
   nin?: string
   status: string
   openemrSyncStatus: string
+  preferredLanguage?: string
+  dateFormat?: string
   user: { email: string; phone?: string }
   medicalInfo?: {
     allergies: string[]
@@ -473,6 +475,12 @@ export interface Payment {
   createdAt: string
 }
 
+export interface GatewayStatus {
+  gateway: string
+  name: string
+  active: boolean
+}
+
 export const payments = {
   list: () => request<{ data: Payment[] }>('/payments'),
 
@@ -483,6 +491,8 @@ export const payments = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  getGatewayStatus: () => request<GatewayStatus[]>('/payments/gateways/status'),
 }
 
 // ── Subscriptions ─────────────────────────────────────────────────────────
@@ -511,16 +521,36 @@ export interface ActiveSubscription {
   plan: SubscriptionPlan
 }
 
+export interface UpgradeResponse {
+  requiresPayment: true
+  paymentId: string
+  gateway: string
+  authorizationUrl: string
+  amountKobo: number
+  currency: string
+}
+
 export const subscriptions = {
   listPlans: () => request<{ data: SubscriptionPlan[] }>('/subscriptions/plans'),
 
   getMy: () => request<{ data: ActiveSubscription | null }>('/subscriptions/me'),
 
   // billingCycle must match backend BillingCycle enum: 'monthly' | 'quarterly' | 'annually'
+  // Use this only for Free plan or admin-initiated flows. Patient upgrades to
+  // paid plans must go through `upgrade()` so payment is collected first.
   subscribe: (planId: string, billingCycle: string) =>
     request<{ data: ActiveSubscription }>('/subscriptions', {
       method: 'POST',
       body: JSON.stringify({ planId, billingCycle }),
+    }),
+
+  // Patient-facing paid upgrade. Returns a gateway authorization URL the
+  // caller should redirect the browser to. Subscription is activated by the
+  // payment webhook once the gateway confirms the charge.
+  upgrade: (planId: string, billingCycle: string, gateway?: 'Paystack' | 'Flutterwave') =>
+    request<UpgradeResponse>('/subscriptions/upgrade', {
+      method: 'POST',
+      body: JSON.stringify({ planId, billingCycle, ...(gateway && { gateway }) }),
     }),
 
   cancel: (subscriptionId: string) =>
@@ -591,6 +621,43 @@ export const dispatch = {
   list: () => request<{ data: DispatchCase[] }>('/dispatch'),
 
   get: (id: string) => request<{ data: DispatchCase }>(`/dispatch/${id}`),
+}
+
+// ── Providers ─────────────────────────────────────────────────────────────
+
+export interface Provider {
+  id: string
+  title?: string
+  firstName: string
+  lastName: string
+  specialty?: string
+  rating?: number
+  isAvailable: boolean
+}
+
+export const providers = {
+  search: (query: string, limit = 8) =>
+    request<{ data: Provider[] }>(`/providers?search=${encodeURIComponent(query)}&limit=${limit}`),
+}
+
+// ── Consents ──────────────────────────────────────────────────────────────
+
+export interface ConsentRecord {
+  id: string
+  consentType: string
+  granted: boolean
+  grantedAt?: string
+  revokedAt?: string
+}
+
+export const consents = {
+  upsert: (data: { consentType: string; granted: boolean; version?: string }) =>
+    request<{ data: ConsentRecord }>('/consents', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  list: () => request<{ data: ConsentRecord[] }>('/consents'),
 }
 
 // ── Feature Flags ─────────────────────────────────────────────────────────

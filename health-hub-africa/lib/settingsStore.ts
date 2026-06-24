@@ -26,7 +26,8 @@ interface SettingsState {
   dateFormat: string
 
   // Actions
-  set: (patch: Partial<Omit<SettingsState, 'set'>>) => void
+  set: (patch: Partial<Omit<SettingsState, 'set' | 'hydrate'>>) => void
+  hydrate: (patch: Partial<Omit<SettingsState, 'set' | 'hydrate'>>) => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -46,6 +47,7 @@ export const useSettingsStore = create<SettingsState>()(
       language: 'en',
       dateFormat: 'dd/mm/yyyy',
       set: (patch) => set((s) => ({ ...s, ...patch })),
+      hydrate: (patch) => set((s) => ({ ...s, ...patch })),
     }),
     { name: 'hha-settings' }
   )

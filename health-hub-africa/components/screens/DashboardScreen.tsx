@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -21,7 +22,7 @@ import { ActionChip } from '@/components/ui/ActionChip'
 import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
 import { IdChip } from '@/components/ui/IdChip'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatRelativeTime } from '@/lib/utils'
 import { patients, vitals as vitalsApi, appointments, subscriptions } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { DashboardSkeleton } from '@/components/skeletons/DashboardSkeleton'
@@ -35,8 +36,14 @@ const WeightGauge = dynamic(() => import('@/components/charts/WeightGauge').then
 // Generic healthy-adult reference range used while no provider-set target exists.
 const WEIGHT_RANGE_KG = { min: 45, max: 100 }
 
+type OverviewView = 'grid' | 'list'
+type ReadingsRange = 'recent' | 'all'
+
 export function DashboardScreen() {
   const router = useRouter()
+  const [overviewView, setOverviewView] = useState<OverviewView>('grid')
+  const [heartRateRange, setHeartRateRange] = useState<ReadingsRange>('recent')
+  const [sleepRange, setSleepRange] = useState<ReadingsRange>('recent')
   const { data: profileRes, isInitialLoad: profileLoading, error: profileError, refetch: refetchProfile } = useApi(() => patients.getMyProfile())
   const { data: vitalsRes, isInitialLoad: vitalsLoading } = useApi(() => vitalsApi.list())
   const { data: apptRes, isInitialLoad: apptLoading } = useApi(() => appointments.list({ upcoming: true }))
@@ -77,20 +84,55 @@ export function DashboardScreen() {
   const sleepHours = latestVitals?.sleepHours
   const weight = latestVitals?.weightKg
 
+  const RECENT_READINGS_COUNT = 10
+
   // Charts read oldest → newest; the API returns newest-first.
   const chronological = [...vitalsHistory].reverse()
-  const heartRateSeries = chronological
+
+  const heartRateChrono = heartRateRange === 'recent' ? chronological.slice(-RECENT_READINGS_COUNT) : chronological
+  const heartRateSeries = heartRateChrono
     .map((v) => v.heartRate)
     .filter((v): v is number => v != null)
-  const sleepSeries = chronological
+
+  const sleepChrono = sleepRange === 'recent' ? chronological.slice(-RECENT_READINGS_COUNT) : chronological
+  const sleepSeries = sleepChrono
     .filter((v) => v.sleepHours != null)
     .map((v) => v.sleepHours as number)
-  const sleepLabels = chronological
+  const sleepLabels = sleepChrono
     .filter((v) => v.sleepHours != null)
     .map((v) => new Date(v.recordedAt).toLocaleDateString('en-NG', { month: 'short' }))
+
   const rbcSeries = chronological
     .map((v) => v.rbc)
     .filter((v): v is number => v != null)
+  const lastRbcReading = [...chronological].reverse().find((v) => v.rbc != null)
+
+  function handleExportVitals() {
+    if (vitalsHistory.length === 0) {
+      toast.error('No vitals data to export yet')
+      return
+    }
+    const headers = ['Recorded At', 'Heart Rate (bpm)', 'SpO2 (%)', 'Systolic BP', 'Diastolic BP', 'Blood Glucose', 'Weight (kg)', 'Sleep (hrs)', 'RBC']
+    const rows = vitalsHistory.map((v) => [
+      new Date(v.recordedAt).toISOString(),
+      v.heartRate ?? '',
+      v.spo2 ?? '',
+      v.systolicBp ?? '',
+      v.diastolicBp ?? '',
+      v.bloodGlucose ?? '',
+      v.weightKg ?? '',
+      v.sleepHours ?? '',
+      v.rbc ?? '',
+    ])
+    const csv = [headers, ...rows].map((row) => row.join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `health-data-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="flex flex-col gap-6 pb-20 md:pb-5">
@@ -128,22 +170,46 @@ export function DashboardScreen() {
             Health Overview
           </h2>
           <div className="flex items-center gap-1.5">
-            <button className="p-2 rounded-xl bg-[#EBF5EC] text-[#137333] border border-[#137333]/10 cursor-pointer shadow-sm">
+            <button
+              onClick={() => setOverviewView('grid')}
+              aria-pressed={overviewView === 'grid'}
+              aria-label="Grid view"
+              className={`p-2 rounded-xl border cursor-pointer shadow-sm transition-colors ${
+                overviewView === 'grid'
+                  ? 'bg-[#EBF5EC] text-[#137333] border-[#137333]/10'
+                  : 'bg-white text-gray-400 border-transparent hover:bg-gray-100 shadow-none'
+              }`}
+            >
               <LayoutGrid size={14} strokeWidth={2.5} />
             </button>
-            <button className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 cursor-pointer">
+            <button
+              onClick={() => setOverviewView('list')}
+              aria-pressed={overviewView === 'list'}
+              aria-label="List view"
+              className={`p-2 rounded-xl border cursor-pointer shadow-sm transition-colors ${
+                overviewView === 'list'
+                  ? 'bg-[#EBF5EC] text-[#137333] border-[#137333]/10'
+                  : 'bg-white text-gray-400 border-transparent hover:bg-gray-100 shadow-none'
+              }`}
+            >
               <List size={14} strokeWidth={2} />
             </button>
-            <button className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] text-white text-xs font-bold transition-all shadow-sm cursor-pointer uppercase tracking-wider">
+            <button
+              onClick={handleExportVitals}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] text-white text-xs font-bold transition-all shadow-sm cursor-pointer uppercase tracking-wider"
+            >
               <Download size={13} strokeWidth={2.5} />
               Export
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        <div className={overviewView === 'grid' ? 'grid grid-cols-1 sm:grid-cols-3 gap-3.5' : 'flex flex-col gap-2.5'}>
           {/* Card 1: Health Summary */}
-          <div className="p-5 rounded-[22px] border border-[var(--color-border)] bg-white shadow-sm flex flex-col gap-2.5">
+          <div className={overviewView === 'grid'
+            ? 'p-5 rounded-[22px] border border-[var(--color-border)] bg-white shadow-sm flex flex-col gap-2.5'
+            : 'p-4 rounded-2xl border border-[var(--color-border)] bg-white shadow-sm flex items-center justify-between gap-3'
+          }>
             <p className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400">
               Health Summary
             </p>
@@ -151,7 +217,7 @@ export function DashboardScreen() {
               {healthStatus.label}
             </p>
             <div
-              className="self-start px-2.5 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-wider"
+              className="self-start px-2.5 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-wider shrink-0"
               style={{ background: healthStatus.bg, color: healthStatus.color, border: `1px solid ${healthStatus.border}25` }}
             >
               {healthStatus.alert}
@@ -159,7 +225,10 @@ export function DashboardScreen() {
           </div>
 
           {/* Card 2: Next Appointment */}
-          <div className="p-5 rounded-[22px] border border-[var(--color-border)] bg-white shadow-sm flex flex-col gap-2.5">
+          <div className={overviewView === 'grid'
+            ? 'p-5 rounded-[22px] border border-[var(--color-border)] bg-white shadow-sm flex flex-col gap-2.5'
+            : 'p-4 rounded-2xl border border-[var(--color-border)] bg-white shadow-sm flex items-center justify-between gap-3'
+          }>
             <p className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400">
               Next Appointment
             </p>
@@ -168,7 +237,7 @@ export function DashboardScreen() {
                 <p className="text-2xl font-extrabold text-gray-800 tracking-tight">
                   {formatDate(nextAppt.scheduledAt)}
                 </p>
-                <p className="text-[11px] text-gray-400 font-extrabold uppercase tracking-wider">
+                <p className="text-[11px] text-gray-400 font-extrabold uppercase tracking-wider shrink-0">
                   {nextAppt.serviceType}
                 </p>
               </>
@@ -177,7 +246,7 @@ export function DashboardScreen() {
                 <p className="text-2xl font-extrabold text-gray-800 tracking-tight">
                   —
                 </p>
-                <p className="text-[11px] text-gray-400 font-extrabold uppercase tracking-wider">
+                <p className="text-[11px] text-gray-400 font-extrabold uppercase tracking-wider shrink-0">
                   None scheduled
                 </p>
               </>
@@ -185,14 +254,17 @@ export function DashboardScreen() {
           </div>
 
           {/* Card 3: Active Plan */}
-          <div className="p-5 rounded-[22px] border border-[var(--color-border)] bg-white shadow-sm flex flex-col gap-2.5">
+          <div className={overviewView === 'grid'
+            ? 'p-5 rounded-[22px] border border-[var(--color-border)] bg-white shadow-sm flex flex-col gap-2.5'
+            : 'p-4 rounded-2xl border border-[var(--color-border)] bg-white shadow-sm flex items-center justify-between gap-3'
+          }>
             <p className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400">
               Active Plan
             </p>
             <p className="text-2xl font-extrabold text-gray-800 tracking-tight">
               {planName}
             </p>
-            <div className="self-start px-2.5 py-1 rounded-full bg-[#EBF5EC] text-[#137333] text-[9px] font-extrabold uppercase tracking-wider border border-[#137333]/15">
+            <div className="self-start px-2.5 py-1 rounded-full bg-[#EBF5EC] text-[#137333] text-[9px] font-extrabold uppercase tracking-wider border border-[#137333]/15 shrink-0">
               {activeSub?.status ?? 'No subscription'}
             </div>
           </div>
@@ -210,11 +282,20 @@ export function DashboardScreen() {
           <div className="p-5 rounded-[24px] border border-[var(--color-border)] bg-white shadow-sm flex flex-col justify-between min-h-[190px]">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-extrabold text-gray-400 uppercase tracking-wider">Heart rate</span>
-              <button className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider text-gray-400 hover:text-gray-600 border border-[var(--color-border)] rounded-full px-3 py-1 bg-gray-50/50 transition-colors cursor-pointer">
+              <label className="relative flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider text-gray-400 hover:text-gray-600 border border-[var(--color-border)] rounded-full px-3 py-1 bg-gray-50/50 transition-colors cursor-pointer">
                 <Clock size={10} />
-                Hourly
+                {heartRateRange === 'recent' ? 'Recent' : 'All time'}
                 <ChevronDown size={10} />
-              </button>
+                <select
+                  aria-label="Heart rate range"
+                  value={heartRateRange}
+                  onChange={(e) => setHeartRateRange(e.target.value as ReadingsRange)}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                >
+                  <option value="recent">Recent</option>
+                  <option value="all">All time</option>
+                </select>
+              </label>
             </div>
 
             <div className="my-2 flex-1 flex items-center">
@@ -233,11 +314,20 @@ export function DashboardScreen() {
           <div className="p-5 rounded-[24px] border border-[var(--color-border)] bg-white shadow-sm flex flex-col justify-between min-h-[190px]">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-extrabold text-gray-400 uppercase tracking-wider">Sleeping periodic</span>
-              <button className="flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider text-gray-400 hover:text-gray-600 border border-[var(--color-border)] rounded-full px-3 py-1 bg-gray-50/50 transition-colors cursor-pointer">
+              <label className="relative flex items-center gap-1.5 text-[9px] font-extrabold uppercase tracking-wider text-gray-400 hover:text-gray-600 border border-[var(--color-border)] rounded-full px-3 py-1 bg-gray-50/50 transition-colors cursor-pointer">
                 <Calendar size={10} />
-                Monthly
+                {sleepRange === 'recent' ? 'Recent' : 'All time'}
                 <ChevronDown size={10} />
-              </button>
+                <select
+                  aria-label="Sleep range"
+                  value={sleepRange}
+                  onChange={(e) => setSleepRange(e.target.value as ReadingsRange)}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                >
+                  <option value="recent">Recent</option>
+                  <option value="all">All time</option>
+                </select>
+              </label>
             </div>
 
             <div className="my-2 flex-1 flex items-center">
@@ -264,7 +354,9 @@ export function DashboardScreen() {
           <Card className="rounded-[24px]">
             <div className="flex items-center justify-between mb-3">
               <CardTitle className="mb-0 text-xs font-extrabold text-gray-400 uppercase tracking-wider">Blood Cells</CardTitle>
-              <span className="text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: 'var(--color-bg)', color: 'var(--color-text-muted)' }}>12 hrs</span>
+              <span className="text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: 'var(--color-bg)', color: 'var(--color-text-muted)' }}>
+                {lastRbcReading ? formatRelativeTime(lastRbcReading.recordedAt) : 'No data'}
+              </span>
             </div>
             <BloodCellsChart data={rbcSeries} />
           </Card>

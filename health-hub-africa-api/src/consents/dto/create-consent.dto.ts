@@ -7,6 +7,7 @@ export enum ConsentType {
   telecare = 'telecare',
   research = 'research',
   marketing = 'marketing',
+  analytics = 'analytics',
 }
 
 export class CreateConsentDto {

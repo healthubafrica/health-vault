@@ -8,6 +8,26 @@ import { patients, subscriptions } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { useAuthStore } from '@/lib/stores/authStore'
 
+// Tier → badge palette. Matches the website plan cards: gold for GoldCare,
+// silver for SilverCare, deep-green for Concierge, mint for BasicCare,
+// neutral slate for Free. Keep the bg ≥10% opacity so the chip reads on
+// both light and dark surfaces.
+type TierStyle = { bg: string; fg: string; border: string }
+const TIER_STYLES: Record<string, TierStyle> = {
+  Free:          { bg: 'rgba(122,140,132,0.12)', fg: '#41584E', border: 'rgba(122,140,132,0.28)' },
+  BasicCare:     { bg: 'rgba(109,196,63,0.14)',  fg: '#137333', border: 'rgba(109,196,63,0.32)' },
+  SilverCare:    { bg: 'rgba(157,170,180,0.18)', fg: '#3F4E58', border: 'rgba(157,170,180,0.40)' },
+  GoldCare:      { bg: 'rgba(187,159,88,0.15)',  fg: '#9A7D3A', border: 'rgba(187,159,88,0.32)' },
+  ConciergeCare: { bg: 'rgba(7,37,28,0.10)',     fg: '#07251C', border: 'rgba(7,37,28,0.30)' },
+}
+
+// "BasicCare" / "GoldCare™" / "Free" → matches a TierStyle key.
+function tierKeyFor(tier: string | undefined, name: string | undefined): keyof typeof TIER_STYLES {
+  const normalised = (tier ?? name ?? '').replace(/[™\s]/g, '')
+  if (normalised in TIER_STYLES) return normalised as keyof typeof TIER_STYLES
+  return 'Free'
+}
+
 const BREADCRUMBS: Record<string, string[]> = {
   '/dashboard': ['MyHealth Vault+™', 'Dashboard'],
   '/profile': ['MyHealth Vault+™', 'Profile'],
@@ -38,6 +58,8 @@ export function Topbar() {
   const profile = profileRes?.data
   const displayName = profile ? `${profile.firstName} ${profile.lastName}` : 'User'
   const planName = subRes?.data?.plan?.name ?? 'Free'
+  const planTier = subRes?.data?.plan?.tier
+  const tierStyle = TIER_STYLES[tierKeyFor(planTier, planName)]
 
   return (
     <header
@@ -97,9 +119,14 @@ export function Topbar() {
           <Avatar seed={displayName} size="sm" shape="circle" />
         </div>
 
-        {/* Plan badge */}
+        {/* Plan badge — colour follows the active tier */}
         <span
-          className="hidden sm:inline-flex items-center px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#bb9f58]/15 text-[#9a7d3a] border border-[#bb9f58]/20 shadow-sm cursor-default"
+          className="hidden sm:inline-flex items-center px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm cursor-default border"
+          style={{
+            background: tierStyle.bg,
+            color: tierStyle.fg,
+            borderColor: tierStyle.border,
+          }}
         >
           {planName} Plan
         </span>

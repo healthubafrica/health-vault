@@ -275,6 +275,8 @@ model Patient {
   gdprConsent       Boolean    @default(false) @map("gdpr_consent")
   marketingConsent  Boolean    @default(false) @map("marketing_consent")
   preferredTimezone String     @default("Africa/Lagos") @map("preferred_timezone")
+  preferredLanguage String     @default("en") @map("preferred_language")
+  dateFormat        String     @default("dd/mm/yyyy") @map("date_format")
   openemrPatientUuid String? @unique @map("openemr_patient_uuid")
   openemrSyncStatus  String  @default("pending") @map("openemr_sync_status")
   status      String     @default("Stable")
@@ -482,6 +484,7 @@ model ClinicalRecord {
   fileSizeBytes Int?       @map("file_size_bytes")
   isDownloadable Boolean   @default(true) @map("is_downloadable")
   recordedAt    DateTime   @map("recorded_at") @db.Date
+  openemrResourceId String? @unique @map("openemr_resource_id")
   createdAt     DateTime   @default(now()) @map("created_at")
   updatedAt     DateTime   @updatedAt @map("updated_at")
   deletedAt     DateTime?  @map("deleted_at")
@@ -829,6 +832,7 @@ model Payment {
   gateway         PaymentGateway
   gatewayRef      String?        @unique @map("gateway_ref")
   gatewayResponse Json?          @map("gateway_response")
+  metadata        Json?
   idempotencyKey  String?        @unique @map("idempotency_key")
   description     String
   paidAt          DateTime?      @map("paid_at")

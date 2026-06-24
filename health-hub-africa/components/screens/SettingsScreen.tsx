@@ -10,6 +10,7 @@ import { useAuthStore } from '@/lib/stores/authStore'
 import {
   auth,
   patients,
+  consents,
   notificationPrefs,
   clearTokens,
   ApiError,
@@ -121,6 +122,57 @@ export function SettingsScreen() {
   const s = useSettingsStore()
   const router = useRouter()
   const { user } = useAuthStore()
+
+  // ── Hydrate settings from server on mount ────────────────────────────────
+  const [patientId, setPatientId] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function hydrate() {
+      try {
+        const [profileRes, consentsRes] = await Promise.all([
+          patients.getMyProfile(),
+          consents.list(),
+        ])
+        const profile = profileRes.data
+        setPatientId(profile.id)
+
+        const consentMap: Record<string, boolean> = {}
+        for (const c of consentsRes.data) {
+          consentMap[c.consentType] = c.granted
+        }
+
+        s.hydrate({
+          language: profile.preferredLanguage ?? s.language,
+          dateFormat: profile.dateFormat ?? s.dateFormat,
+          ...(typeof consentMap['data_sharing'] === 'boolean' && { dataSharing: consentMap['data_sharing'] }),
+          ...(typeof consentMap['analytics'] === 'boolean' && { analyticsConsent: consentMap['analytics'] }),
+          ...(typeof consentMap['research'] === 'boolean' && { researchConsent: consentMap['research'] }),
+          ...(typeof consentMap['marketing'] === 'boolean' && { marketingEmails: consentMap['marketing'] }),
+        })
+      } catch {
+        // Silently fall back to localStorage values — don't surface noise on mount
+      }
+    }
+    hydrate()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function persistConsent(consentType: string, granted: boolean) {
+    try {
+      await consents.upsert({ consentType, granted })
+    } catch {
+      // Fire-and-forget; local state already updated
+    }
+  }
+
+  async function persistPatientSettings(patch: { preferredLanguage?: string; dateFormat?: string }) {
+    if (!patientId) return
+    try {
+      await patients.update(patientId, patch)
+    } catch {
+      // Fire-and-forget
+    }
+  }
 
   // ── Password change ──────────────────────────────────────────────────────
   const [currentPassword, setCurrentPassword] = useState('')
@@ -449,6 +501,7 @@ export function SettingsScreen() {
           checked={s.dataSharing}
           onChange={v => {
             s.set({ dataSharing: v })
+            persistConsent('data_sharing', v)
             toast.success(v ? 'Data sharing enabled.' : 'Data sharing disabled.')
           }}
         />
@@ -456,7 +509,10 @@ export function SettingsScreen() {
           label="Analytics & Usage Data"
           description="Help improve MyHealth Vault+™ with anonymous usage data"
           checked={s.analyticsConsent}
-          onChange={v => s.set({ analyticsConsent: v })}
+          onChange={v => {
+            s.set({ analyticsConsent: v })
+            persistConsent('analytics', v)
+          }}
         />
         <ToggleRow
           label="Medical Research Participation"
@@ -464,6 +520,7 @@ export function SettingsScreen() {
           checked={s.researchConsent}
           onChange={v => {
             s.set({ researchConsent: v })
+            persistConsent('research', v)
             toast.success(v ? 'Research consent recorded.' : 'Research consent withdrawn.')
           }}
         />
@@ -472,7 +529,7 @@ export function SettingsScreen() {
           <button
             className="flex items-center gap-2 text-xs font-semibold transition-colors hover:underline"
             style={{ color: 'var(--color-primary)' }}
-            onClick={() => toast.success('Opening full consent manager…')}
+            onClick={() => toast.info('Full consent manager is coming soon')}
           >
             Manage all consents <ChevronRight size={14} />
           </button>
@@ -487,7 +544,10 @@ export function SettingsScreen() {
           <FormSelect
             label="Language"
             value={s.language}
-            onChange={e => s.set({ language: e.target.value })}
+            onChange={e => {
+              s.set({ language: e.target.value })
+              persistPatientSettings({ preferredLanguage: e.target.value })
+            }}
           >
             <option value="en">English</option>
             <option value="fr">Français</option>
@@ -501,7 +561,10 @@ export function SettingsScreen() {
           <FormSelect
             label="Date Format"
             value={s.dateFormat}
-            onChange={e => s.set({ dateFormat: e.target.value })}
+            onChange={e => {
+              s.set({ dateFormat: e.target.value })
+              persistPatientSettings({ dateFormat: e.target.value })
+            }}
           >
             <option value="dd/mm/yyyy">DD/MM/YYYY</option>
             <option value="mm/dd/yyyy">MM/DD/YYYY</option>

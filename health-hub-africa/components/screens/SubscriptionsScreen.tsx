@@ -32,15 +32,19 @@ export function SubscriptionsScreen() {
   async function handleSubscribe(plan: SubscriptionPlan) {
     const isSwitch = !!activeSub
     const label = `${plan.name} (${billing})`
-    if (!window.confirm(isSwitch ? `Switch to ${label}? Your current plan will end immediately.` : `Subscribe to ${label}?`)) return
+    const confirmMsg = isSwitch
+      ? `Switch to ${label}? You'll be taken to a secure payment page.`
+      : `Subscribe to ${label}? You'll be taken to a secure payment page.`
+    if (!window.confirm(confirmMsg)) return
     try {
       setSaving(plan.id)
-      await subscriptions.subscribe(plan.id, billing)
-      toast.success(isSwitch ? `Switched to ${plan.name}!` : `Subscribed to ${plan.name}!`)
-      refetch()
+      const res = await subscriptions.upgrade(plan.id, billing)
+      // Redirect to the gateway's hosted checkout. The subscription is
+      // activated by the payment webhook once the charge succeeds.
+      toast.success(`Redirecting to ${res.gateway} to complete payment…`)
+      window.location.href = res.authorizationUrl
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Subscription failed')
-    } finally {
+      toast.error(err instanceof Error ? err.message : 'Could not start payment')
       setSaving(null)
     }
   }
