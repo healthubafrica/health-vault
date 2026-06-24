@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -44,7 +43,7 @@ export class AuthService {
 
   // ── Registration ─────────────────────────────────────────────────────────
 
-  async register(dto: RegisterDto, ipAddress?: string) {
+  async register(dto: RegisterDto, _ipAddress?: string) {
     const phone = dto.phoneNumber ?? dto.phone;
 
     // Check duplicate email
@@ -157,6 +156,12 @@ export class AuthService {
       throw new UnauthorizedException(
         'Email not verified. Request a new OTP.',
       );
+    }
+
+    // 2FA: send a one-time code and defer token issuance until verified.
+    if (user.twoFactorEnabled) {
+      await this.sendEmailOtp(user.email, user.id, 'two_factor');
+      return { requiresTwoFactor: true as const, userId: user.id };
     }
 
     const tokens = await this.issueTokens(
@@ -506,7 +511,7 @@ export class AuthService {
   private async sendEmailOtp(
     email: string,
     userId: string,
-    type: 'email' | 'password_reset',
+    type: 'email' | 'password_reset' | 'two_factor',
   ) {
     await this.prisma.verificationToken.updateMany({
       where: { userId, type, usedAt: null },
@@ -531,14 +536,54 @@ export class AuthService {
     const subject =
       type === 'password_reset'
         ? 'MyHealth Vault+™ — Password Reset OTP'
+        : type === 'two_factor'
+        ? 'MyHealth Vault+™ — Two-Factor Login Code'
         : 'MyHealth Vault+™ — Verify Your Email';
 
     const body =
       type === 'password_reset'
         ? `Your password reset OTP is: ${otp}\n\nIt expires in 10 minutes. If you did not request this, ignore this email.`
+        : type === 'two_factor'
+        ? `Your login verification code is: ${otp}\n\nIt expires in 10 minutes. If you did not attempt to log in, change your password immediately.`
         : `Your email verification OTP is: ${otp}\n\nIt expires in 10 minutes.`;
 
     await this.notifications.sendEmail(email, subject, body, userId);
+  }
+
+  // ── Two-Factor Verification ───────────────────────────────────────────────
+
+  async verify2fa(userId: string, otp: string, ipAddress?: string, userAgent?: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { patient: { select: { id: true } }, provider: { select: { id: true } } },
+    });
+    if (!user || !user.isActive || !user.twoFactorEnabled) {
+      throw new UnauthorizedException('Invalid request');
+    }
+
+    const token = await this.prisma.verificationToken.findFirst({
+      where: { userId, type: 'two_factor', usedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const valid = token ? await bcrypt.compare(otp, token.token) : false;
+    if (!token || !valid) throw new UnauthorizedException('Invalid or expired code');
+
+    await this.prisma.verificationToken.update({
+      where: { id: token.id },
+      data: { usedAt: new Date() },
+    });
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { lastLoginAt: new Date(), failedLoginAttempts: 0, lockedUntil: null },
+    });
+
+    return this.issueTokens(
+      { sub: user.id, email: user.email, role: user.role, patientId: user.patient?.id, providerId: user.provider?.id },
+      ipAddress,
+      userAgent,
+    );
   }
 
   async getUserById(id: string) {

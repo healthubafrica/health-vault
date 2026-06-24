@@ -89,6 +89,18 @@ export class AuthController {
   }
 
   @Public()
+  @Post('verify-2fa')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ auth: { ttl: 60_000, limit: 5 } })
+  @ApiOperation({ summary: 'Complete 2FA login by verifying the emailed OTP' })
+  verify2fa(
+    @Body() body: { userId: string; otp: string },
+    @Req() req: Request,
+  ) {
+    return this.authService.verify2fa(body.userId, body.otp, req.ip, req.headers['user-agent']);
+  }
+
+  @Public()
   @Post('request-otp')
   @HttpCode(HttpStatus.OK)
   @Throttle({ auth: { ttl: 60_000, limit: 3 } })
