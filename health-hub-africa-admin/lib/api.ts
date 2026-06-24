@@ -167,6 +167,7 @@ export interface AdminUser {
   fullName?: string
   phoneNumber?: string
   isActive: boolean
+  isVerified: boolean
   createdAt: string
   lastLoginAt?: string
   subscription?: {
@@ -462,6 +463,10 @@ export const adminApi = {
         method: 'PATCH',
         body: JSON.stringify({ active }),
       }),
+    resendVerification: (id: string) =>
+      request<{ message: string }>(`/admin/users/${id}/resend-verification`, { method: 'POST' }),
+    sendOnboarding: (id: string) =>
+      request<{ message: string }>(`/admin/users/${id}/resend-onboarding`, { method: 'POST' }),
   },
 
   analytics: {
