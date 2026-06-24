@@ -1,7 +1,12 @@
+'use client'
+
 import { AdminSidebar } from './AdminSidebar'
 import { AdminTopbar } from './AdminTopbar'
+import { useAuthRefresh } from '@/lib/hooks/useAuthRefresh'
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
+  useAuthRefresh()
+
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: 'var(--color-outer-bg)' }}>
       <AdminSidebar />

@@ -177,11 +177,30 @@ export class AdminService {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException('User not found');
 
-    return this.prisma.user.update({
-      where: { id },
-      data: { role: dto.role },
-      select: { id: true, email: true, role: true },
-    });
+    // No-op early so we don't churn sessions on an idempotent PATCH.
+    if (user.role === dto.role) {
+      return { id: user.id, email: user.email, role: user.role };
+    }
+
+    // Update role + revoke live sessions atomically so the target user's
+    // existing access tokens cannot outlive the role change past the next
+    // refresh (≤15 min). JwtStrategy already reads role from the DB on every
+    // request so authorization itself is correct immediately; revoking
+    // sessions also forces a re-login on the frontend, which refreshes the
+    // cached user used for UI gating (sidebar, route guards).
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id },
+        data: { role: dto.role },
+        select: { id: true, email: true, role: true },
+      }),
+      this.prisma.userSession.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    return updated;
   }
 
   async updateUserStatus(id: string, dto: UpdateUserStatusDto, currentUser: JwtPayload) {

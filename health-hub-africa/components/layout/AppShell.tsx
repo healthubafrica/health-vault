@@ -1,14 +1,16 @@
 'use client'
 
-import { useAppStore } from '@/lib/store'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { RightPanel } from './RightPanel'
 import { MobileBottomNav } from './MobileBottomNav'
 import { MobilePanelSheet } from './MobilePanelSheet'
 import { PageTransition } from './PageTransition'
+import { useAuthRefresh } from '@/lib/hooks/useAuthRefresh'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  useAuthRefresh()
+
   return (
     <div
       className="flex h-screen w-screen overflow-hidden p-0 md:p-[16px_20px] gap-0 md:gap-3"
