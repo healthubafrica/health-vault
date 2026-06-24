@@ -496,6 +496,9 @@ export const payments = {
     }),
 
   getGatewayStatus: () => request<GatewayStatus[]>('/payments/gateways/status'),
+
+  verify: (reference: string) =>
+    request<{ status: string; paymentId: string; gateway: string }>(`/payments/verify?reference=${encodeURIComponent(reference)}`),
 }
 
 // ── Subscriptions ─────────────────────────────────────────────────────────
