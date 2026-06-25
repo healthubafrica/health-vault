@@ -45,4 +45,9 @@ export class UpdateAppointmentDto {
   @IsOptional()
   @IsString()
   providerId?: string;
+
+  @ApiPropertyOptional({ description: 'Facility UUID — drives encounter sync routing' })
+  @IsOptional()
+  @IsString()
+  facilityId?: string;
 }

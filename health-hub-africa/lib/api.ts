@@ -377,6 +377,13 @@ export interface Appointment {
   provider?: { firstName: string; lastName: string; specialty: string; title: string } | null
 }
 
+export interface BookableFacility {
+  id: string
+  name: string
+  city?: string | null
+  state?: string | null
+}
+
 export const appointments = {
   list: (params?: { status?: string; upcoming?: boolean }) => {
     const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : ''
@@ -384,6 +391,11 @@ export const appointments = {
   },
 
   get: (id: string) => request<{ data: Appointment }>(`/appointments/${id}`),
+
+  // Facilities mirrored from OpenEMR — used to populate the picker on the
+  // booking screen for in-person appointment types. Telecare bookings skip
+  // this and don't send a facilityId.
+  facilities: () => request<BookableFacility[]>('/appointments/facilities'),
 
   create: (data: Record<string, unknown>) =>
     request<{ data: Appointment }>('/appointments', {

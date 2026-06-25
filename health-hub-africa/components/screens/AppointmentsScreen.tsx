@@ -10,7 +10,7 @@ import { FormInput, FormSelect, FormTextarea } from '@/components/ui/FormInput'
 import { formatDate } from '@/lib/utils'
 import { CalendarDays, Search } from 'lucide-react'
 import { toast } from 'sonner'
-import { appointments as apptApi, providers as providersApi, ApiError, type Appointment, type Provider } from '@/lib/api'
+import { appointments as apptApi, providers as providersApi, ApiError, type Appointment, type BookableFacility, type Provider } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { AppointmentsSkeleton } from '@/components/skeletons/AppointmentsSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
@@ -49,6 +49,15 @@ export function AppointmentsScreen() {
   const [scheduledAt, setScheduledAt] = useState('')
   const [reason, setReason] = useState('')
   const [isBooking, setIsBooking] = useState(false)
+
+  // Facility picker (in-person services only — telecare bookings skip it)
+  const [facilities, setFacilities] = useState<BookableFacility[]>([])
+  const [facilityId, setFacilityId] = useState<string>('')
+  useEffect(() => {
+    apptApi.facilities().then(setFacilities).catch(() => setFacilities([]))
+  }, [])
+
+  const isInPerson = SERVICE_TYPES.find((s) => s.value === serviceType)?.appointmentType === 'in_person'
 
   // Provider picker
   const [providerQuery, setProviderQuery] = useState('')
@@ -136,12 +145,20 @@ export function AppointmentsScreen() {
     setIsBooking(true)
     const selected = SERVICE_TYPES.find(s => s.value === serviceType)
     try {
+      const willBeInPerson = selected?.appointmentType === 'in_person'
+      if (willBeInPerson && !facilityId) {
+        toast.error('Please choose a facility for this in-person appointment')
+        setIsBooking(false)
+        return
+      }
+
       await apptApi.create({
         appointmentType: selected?.appointmentType ?? 'in_person',
         scheduledAt: new Date(scheduledAt).toISOString(),
         durationMinutes: 30,
         chiefComplaint: reason.trim() || undefined,
         ...(selectedProvider && { providerId: selectedProvider.id }),
+        ...(willBeInPerson && facilityId && { facilityId }),
       })
       toast.success('Appointment requested', {
         description: 'Your care team will confirm within 24 hours.',
@@ -246,6 +263,29 @@ export function AppointmentsScreen() {
             value={scheduledAt}
             onChange={e => setScheduledAt(e.target.value)}
           />
+
+          {/* Facility picker — required for in-person services, hidden for telecare.
+              List is OpenEMR-sourced so the appointment routes to a real OpenEMR
+              facility id at encounter sync time. */}
+          {isInPerson && (
+            <div className="sm:col-span-2">
+              <FormSelect
+                label="Facility"
+                value={facilityId}
+                onChange={(e) => setFacilityId(e.target.value)}
+              >
+                <option value="">
+                  {facilities.length === 0 ? 'No facilities available yet' : 'Choose a facility…'}
+                </option>
+                {facilities.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                    {f.city ? ` — ${f.city}${f.state ? `, ${f.state}` : ''}` : ''}
+                  </option>
+                ))}
+              </FormSelect>
+            </div>
+          )}
 
           {/* Provider picker */}
           <div className="sm:col-span-2 flex flex-col gap-1">

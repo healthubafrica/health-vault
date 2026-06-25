@@ -44,6 +44,13 @@ export class AppointmentsController {
     return this.appointmentsService.findAll(query, user);
   }
 
+  // MUST sit above @Get(':id') so the static path wins the route match.
+  @Get('facilities')
+  @ApiOperation({ summary: 'List facilities available for in-person booking' })
+  listFacilities() {
+    return this.appointmentsService.listFacilitiesForBooking();
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get appointment details' })
   findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {

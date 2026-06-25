@@ -729,6 +729,7 @@ export class AdminService {
           provider: {
             select: { id: true, firstName: true, lastName: true, title: true },
           },
+          facility: { select: { id: true, name: true } },
         },
       }),
       this.prisma.appointment.count({ where }),
@@ -745,6 +746,8 @@ export class AdminService {
       providerName: r.provider
         ? `${r.provider.title ?? ''} ${r.provider.firstName} ${r.provider.lastName}`.trim()
         : undefined,
+      facilityId: r.facility?.id ?? undefined,
+      facilityName: r.facility?.name ?? undefined,
       type: r.serviceType,
       status: r.status,
       scheduledAt: r.scheduledAt,
