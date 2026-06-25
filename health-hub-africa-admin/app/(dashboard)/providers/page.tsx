@@ -7,7 +7,7 @@ import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
 import { SkeletonCard } from '@/components/ui/Skeleton'
 import { FormInput } from '@/components/ui/FormInput'
-import { RefreshCw, Search, Star, Users, Download, X, Copy } from 'lucide-react'
+import { RefreshCw, Search, Star, Users, Download, X, Copy, Info } from 'lucide-react'
 import { useAuthStore } from '@/lib/stores/authStore'
 
 function getInitials(first: string, last: string): string {
@@ -109,6 +109,19 @@ export default function ProvidersPage() {
             Refresh
           </Button>
         </div>
+      </div>
+
+      {/* Source-of-truth notice */}
+      <div
+        className="mb-4 flex items-start gap-3 px-4 py-3 rounded-xl border"
+        style={{ background: 'var(--color-info-bg, #1A2C3F)', borderColor: 'var(--color-border)' }}
+      >
+        <Info className="w-4 h-4 mt-0.5 shrink-0" style={{ color: '#6AADFF' }} />
+        <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+          <span className="font-semibold" style={{ color: 'var(--color-text)' }}>OpenEMR is the source of truth for providers.</span>{' '}
+          Create the practitioner in OpenEMR first, then use <span className="font-medium" style={{ color: 'var(--color-text)' }}>Import from OpenEMR</span> to mirror the roster here.
+          Self-registration via the public API is closed by design — encounter and appointment sync rely on every provider having an OpenEMR practitioner UUID.
+        </p>
       </div>
 
       {error && (

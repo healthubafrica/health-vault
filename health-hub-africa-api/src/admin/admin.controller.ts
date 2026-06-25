@@ -429,10 +429,21 @@ export class AdminController {
     );
   }
 
+  // Kept so existing UIs that call this surface the friendly "use import"
+  // error from the service layer rather than a 404. The service itself
+  // refuses to create — OpenEMR is the source of truth for facilities.
   @Post('facilities')
-  @ApiOperation({ summary: 'Create a facility' })
+  @ApiOperation({ summary: 'Create a facility (disabled — use import-from-openemr)' })
   createFacility(@Body() dto: CreateFacilityDto) {
     return this.adminService.createFacility(dto);
+  }
+
+  @Post('facilities/import-from-openemr')
+  @Roles(UserRole.super_admin)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Import facilities from OpenEMR (super_admin only)' })
+  importFacilitiesFromOpenemr() {
+    return this.adminService.importFacilitiesFromOpenemr();
   }
 
   @Patch('facilities/:id')

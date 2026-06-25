@@ -430,6 +430,24 @@ export class OpenemrProcessor {
       return;
     }
 
+    // OpenEMR is the source of truth for facilities; the local table is a
+    // mirror keyed on openemr_facility_id. Pick the first imported facility
+    // as the encounter's location for now — there's no facility_id on
+    // Appointment yet, so we can't route an encounter to a specific clinic
+    // until that schema lands. Fall back to OpenEMR's default ('1') only
+    // when the admin hasn't run "Import from OpenEMR" yet.
+    const fallbackFacility = await this.prisma.healthcareFacility.findFirst({
+      where: { openemrFacilityId: { not: null } },
+      orderBy: { createdAt: 'asc' },
+      select: { openemrFacilityId: true },
+    });
+    if (!fallbackFacility?.openemrFacilityId) {
+      this.logger.warn(
+        `Encounter sync using OpenEMR default facility (id=1) — no facilities imported via /admin/facilities/import-from-openemr yet`,
+      );
+    }
+    const facilityId = fallbackFacility?.openemrFacilityId ?? '1';
+
     const token = await this.openemrService.getAccessToken();
     const encounter = await this.openemrService['callOpenemr'](
       token, 'POST',
@@ -438,7 +456,7 @@ export class OpenemrProcessor {
         date:        appointment.scheduledAt.toISOString().split('T')[0],
         onset_date:  appointment.scheduledAt.toISOString().split('T')[0],
         reason:      appointment.reason ?? 'Scheduled Visit',
-        facility_id: '1',
+        facility_id: facilityId,
       },
       patientId,
     );

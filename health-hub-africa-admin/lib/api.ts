@@ -557,6 +557,9 @@ export const adminApi = {
   facilities: {
     list: () => request<{ data: Facility[] }>('/admin/facilities'),
     get: (id: string) => request<{ data: Facility }>(`/admin/facilities/${id}`),
+    // Disabled — backend now rejects with a 400 since OpenEMR is the source
+    // of truth. Kept on the client for backward compatibility with anything
+    // still calling it; new UI should use importFromOpenemr instead.
     create: (data: Partial<Facility>) =>
       request<{ data: Facility }>('/admin/facilities', {
         method: 'POST',
@@ -569,6 +572,13 @@ export const adminApi = {
       }),
     delete: (id: string) =>
       request<void>(`/admin/facilities/${id}`, { method: 'DELETE' }),
+    importFromOpenemr: () =>
+      request<{
+        imported: number
+        updated: number
+        skipped: number
+        results: Array<{ name: string; openemrId: string; status: 'imported' | 'updated' | 'skipped'; reason?: string }>
+      }>('/admin/facilities/import-from-openemr', { method: 'POST' }),
   },
 
   patients: {

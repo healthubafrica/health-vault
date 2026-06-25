@@ -14,7 +14,7 @@ export const CONTACT = {
     vanity: '0700CALL-HUBCARE',
     local: '07002255482',
     e164: '+2347002255482',
-    display: '0700CALL-HUBCARE (0700 225 5482)',
+    display: '0700CALL-HUBCARE/07002255482',
     tel: 'tel:+2347002255482',
   },
 }
