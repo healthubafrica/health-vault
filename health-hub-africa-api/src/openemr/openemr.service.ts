@@ -270,12 +270,12 @@ export class OpenemrService implements OnModuleInit {
     });
   }
 
-  // Pulls every facility from OpenEMR's REST API. OpenEMR's facility table
-  // is the source of truth for clinical locations — encounter sync writes
-  // facility_id back to it, so HHA needs the same IDs available locally.
-  // The response shape is `{ data: [...] }` matching their other REST
-  // endpoints; each row carries a UUID we mirror onto
-  // healthcare_facilities.openemr_facility_id.
+  // Pulls every facility from OpenEMR via FHIR /fhir/Location. We use FHIR
+  // (rather than the legacy /api/facility REST endpoint) because the OAuth
+  // token we have grants api:fhir but not whatever scope api:oemr needs —
+  // /api/facility returns 401 in prod, same problem encounter sync hit.
+  // Encounter sync references Location/{id} so storing the FHIR id keeps
+  // both ends of the round-trip consistent.
   async fetchFacilities(): Promise<Array<{
     openemrId: string;
     name: string;
@@ -285,23 +285,33 @@ export class OpenemrService implements OnModuleInit {
     state: string | null;
   }>> {
     const token = await this.getAccessToken();
-    const response = await this.callOpenemr(token, 'GET', '/api/facility');
+    const response = await this.callOpenemr(token, 'GET', '/fhir/Location?_count=200');
 
-    // OpenEMR returns { data: [...] } from REST endpoints (vs FHIR's entry/resource shape).
-    const rows = (response.data as Array<Record<string, unknown>> | undefined) ?? [];
+    // FHIR bundle shape: { entry: [{ resource: { ... } }] }
+    const entries = (response.entry as Array<Record<string, unknown>> | undefined) ?? [];
 
-    return rows.flatMap((row) => {
-      const id = (row.uuid ?? row.id) as string | undefined;
-      const name = row.name as string | undefined;
+    return entries.flatMap((entry) => {
+      const resource = (entry.resource ?? {}) as Record<string, unknown>;
+      const id = resource.id as string | undefined;
+      const name = resource.name as string | undefined;
       if (!id || !name) return [];
+
+      const telecom = (resource.telecom as Array<{ system: string; value: string }> | undefined) ?? [];
+      const phone = telecom.find((t) => t.system === 'phone')?.value ?? null;
+
+      const address = (resource.address ?? {}) as Record<string, unknown>;
+      const lines = (address.line as string[] | undefined) ?? [];
+      const street = lines[0] ?? null;
+      const city = (address.city as string | undefined) ?? null;
+      const state = (address.state as string | undefined) ?? null;
 
       return [{
         openemrId: id,
         name,
-        phone: (row.phone as string | undefined) ?? null,
-        address: (row.street as string | undefined) ?? null,
-        city: (row.city as string | undefined) ?? null,
-        state: (row.state as string | undefined) ?? null,
+        phone,
+        address: street,
+        city,
+        state,
       }];
     });
   }
