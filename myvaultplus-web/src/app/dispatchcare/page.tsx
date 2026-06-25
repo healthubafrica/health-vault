@@ -6,6 +6,7 @@ import HeroMarquee from '@/components/HeroMarquee'
 import AnimatedSection from '@/components/AnimatedSection'
 import AnimatedCard from '@/components/AnimatedCard'
 import { Ambulance, MessageCircle } from 'lucide-react'
+import { CONTACT } from '@/lib/contact'
 
 const steps = [
   { num: '1', title: 'One Tap', desc: 'Press the DispatchCare™ button from any screen in the MyHealth Vault+™ portal or app.' },
@@ -111,10 +112,10 @@ export default function DispatchCarePage() {
               <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 20, color: '#fff', margin: '0 0 20px' }}>Emergency Contacts</h3>
               <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, lineHeight: 1.65, margin: '0 0 24px' }}>For immediate life-threatening emergencies, use the DispatchCare™ button in your Vault, or contact us directly:</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <a href="tel:+2341234567890" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#FF5C5C', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 14, padding: '14px 24px', borderRadius: 100 }}>
-                  <Ambulance size={18} strokeWidth={2} color="#fff" /> Call Emergency Line
+                <a href={CONTACT.emergency.tel} title={`Emergency Hotline: ${CONTACT.emergency.display}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#FF5C5C', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 14, padding: '14px 24px', borderRadius: 100 }}>
+                  <Ambulance size={18} strokeWidth={2} color="#fff" /> Call {CONTACT.emergency.vanity}
                 </a>
-                <a href="https://wa.me/2341234567890" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#6DC43F', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 14, padding: '14px 24px', borderRadius: 100 }}>
+                <a href={CONTACT.whatsapp.waMe} title={`WhatsApp: ${CONTACT.whatsapp.display}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#6DC43F', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 14, padding: '14px 24px', borderRadius: 100 }}>
                   <MessageCircle size={18} strokeWidth={2} color="#07251C" /> WhatsApp Operations
                 </a>
               </div>

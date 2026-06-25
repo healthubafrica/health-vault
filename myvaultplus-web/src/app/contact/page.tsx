@@ -7,10 +7,11 @@ import AnimatedSection from '@/components/AnimatedSection'
 import AnimatedCard from '@/components/AnimatedCard'
 import { MessageCircle, Phone, Mail } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { CONTACT } from '@/lib/contact'
 
 const channels: Array<{ icon: LucideIcon; color: string; bg: string; title: string; desc: string; link: string; label: string }> = [
-  { icon: MessageCircle, color: '#137333', bg: '#EAF7F1', title: 'WhatsApp Support', desc: 'Chat with our support team directly. Fastest response time, typically under 30 minutes.', link: 'https://wa.me/2341234567890', label: 'Chat Now →' },
-  { icon: Phone, color: '#2563EB', bg: '#EFF6FF', title: 'Phone Support', desc: 'Call us during business hours and speak directly with a patient support representative.', link: 'tel:+2341234567890', label: 'Call Now →' },
+  { icon: MessageCircle, color: '#137333', bg: '#EAF7F1', title: 'WhatsApp Support', desc: 'Chat with our support team directly. Fastest response time, typically under 30 minutes.', link: CONTACT.whatsapp.waMe, label: 'Chat Now →' },
+  { icon: Phone, color: '#2563EB', bg: '#EFF6FF', title: 'Phone Support', desc: 'Call us during business hours and speak directly with a patient support representative.', link: `tel:${CONTACT.whatsapp.e164}`, label: 'Call Now →' },
   { icon: Mail, color: '#7C3AED', bg: '#F5F3FF', title: 'Email Support', desc: 'Send a detailed message and receive a thorough response within 2 business hours.', link: 'mailto:support@myvaultplus.com', label: 'Send Email →' },
 ]
 
@@ -38,7 +39,7 @@ export default function ContactPage() {
               <a href="/faq" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', border: '1.5px solid rgba(255,255,255,0.55)', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '13px 26px', borderRadius: 100 }}>
                 View FAQ
               </a>
-              <a href="https://wa.me/2341234567890" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: '#6DC43F', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '12px 12px 12px 24px', borderRadius: 100 }}>
+              <a href={CONTACT.whatsapp.waMe} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: '#6DC43F', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '12px 12px 12px 24px', borderRadius: 100 }}>
                 WhatsApp Us
                 <span style={{ width: 30, height: 30, borderRadius: '50%', background: '#07251C', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M19 5H9M19 5v10" stroke="#6DC43F" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -142,7 +143,8 @@ export default function ContactPage() {
                     { label: 'Address', value: 'Health-Hub Africa® Ltd\nLagos, Nigeria' },
                     { label: 'Corporate Email', value: 'enquiries@myvaultplus.com' },
                     { label: 'Support Email', value: 'support@myvaultplus.com' },
-                    { label: 'WhatsApp', value: '+234 XXX XXX XXXX' },
+                    { label: 'WhatsApp', value: CONTACT.whatsapp.display },
+                    { label: 'Emergency Hotline', value: CONTACT.emergency.display },
                   ].map((item) => (
                     <div key={item.label}>
                       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(109,196,63,0.7)', marginBottom: 6 }}>{item.label}</div>
