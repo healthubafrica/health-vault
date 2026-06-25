@@ -517,6 +517,10 @@ export class OpenemrService implements OnModuleInit {
       'user/MedicationRequest.write',
       'user/Practitioner.read',
       'user/Practitioner.write',
+      'user/Encounter.read',
+      'user/Encounter.write',
+      'user/Appointment.read',
+      'user/Appointment.write',
       'offline_access',
     ].join(' ');
 
@@ -538,7 +542,7 @@ export class OpenemrService implements OnModuleInit {
     code: string,
     redirectUri: string,
     state: string,
-  ): Promise<{ message: string }> {
+  ): Promise<{ message: string; grantedScope: string | null }> {
     if (!ALLOWED_REDIRECT_URIS.has(redirectUri)) {
       throw new BadRequestException(`redirect_uri not in allowlist: ${redirectUri}`);
     }
@@ -573,6 +577,7 @@ export class OpenemrService implements OnModuleInit {
       access_token: string;
       refresh_token?: string;
       expires_in: number;
+      scope?: string;
     };
 
     this.cachedToken = {
@@ -585,7 +590,12 @@ export class OpenemrService implements OnModuleInit {
       this.logger.log('OpenEMR OAuth2 setup complete — refresh token stored');
     }
 
-    return { message: 'OpenEMR authentication successful. Refresh token stored.' };
+    this.logger.log(`OpenEMR granted scope: ${data.scope ?? '(not returned by token endpoint)'}`);
+
+    return {
+      message: 'OpenEMR authentication successful. Refresh token stored.',
+      grantedScope: data.scope ?? null,
+    };
   }
 
   get isAuthenticated(): boolean {
