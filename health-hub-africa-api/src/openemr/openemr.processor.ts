@@ -494,12 +494,44 @@ export class OpenemrProcessor {
     }
 
     const token = await this.openemrService.getAccessToken();
-    const created = await this.openemrService['callOpenemr'](
-      token, 'POST', '/fhir/Encounter', fhirEncounter, patientId,
-    );
 
-    const openemrId = (created as Record<string, unknown>).id as string | undefined
-      ?? (created as Record<string, unknown>).uuid as string | undefined;
+    // OpenEMR's FHIR module supports POST /fhir/Encounter on some versions
+    // and not others — prod returned 404 "Route not found". Try FHIR first
+    // (the right path); if the server doesn't expose it, fall back to the
+    // legacy REST endpoint. Either one will let the encounter land.
+    let openemrId: string | undefined;
+    try {
+      const created = await this.openemrService['callOpenemr'](
+        token, 'POST', '/fhir/Encounter', fhirEncounter, patientId,
+      );
+      openemrId = (created as Record<string, unknown>).id as string | undefined
+        ?? (created as Record<string, unknown>).uuid as string | undefined;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Only swap to REST when FHIR is unavailable (404). Anything else —
+      // 401, 5xx — is a config or scope problem the REST path won't fix.
+      if (!/OpenEMR 404/.test(msg)) throw err;
+
+      this.logger.warn(
+        `FHIR /fhir/Encounter not supported on this OpenEMR; falling back to REST /api/patient/{uuid}/encounter`,
+      );
+
+      const restBody: Record<string, unknown> = {
+        date: start.toISOString().split('T')[0],
+        onset_date: start.toISOString().split('T')[0],
+        reason: appointment.reason ?? 'Scheduled Visit',
+        ...(locationOpenemrId && { facility_id: locationOpenemrId }),
+      };
+      const created = await this.openemrService['callOpenemr'](
+        token,
+        'POST',
+        `/api/patient/${appointment.patient.openemrPatientUuid}/encounter`,
+        restBody,
+        patientId,
+      );
+      openemrId = (created as Record<string, Record<string, unknown>>).data?.eid as string | undefined;
+    }
+
     this.logger.log(
       `Encounter synced for appointment ${appointment.id} (patient ${patientId}): openemrId=${openemrId ?? 'unknown'}`,
     );
@@ -805,9 +837,13 @@ export class OpenemrProcessor {
 
   @Process({ name: 'pull-encounters' })
   async handlePullEncounters() {
+    // OpenEMR's FHIR Encounter search does not support the `status`
+    // parameter ("search field does not exist or is not supported") — it
+    // still returns 200 but logs a warning on every cycle. Filter to
+    // finished encounters client-side in upsertEncounterFromFhir instead.
     await this.handleGenericPull<FhirEncounter>(
       'Encounter',
-      '/fhir/Encounter?status=finished',
+      '/fhir/Encounter',
       async (resource) => this.upsertEncounterFromFhir(resource),
     );
   }
@@ -1140,6 +1176,7 @@ export class OpenemrProcessor {
     enc: FhirEncounter,
   ): Promise<'created' | 'skipped'> {
     if (!enc.id) return 'skipped';
+    if (enc.status !== 'finished') return 'skipped';
 
     const existing = await this.prisma.clinicalRecord.findUnique({
       where: { openemrResourceId: enc.id },

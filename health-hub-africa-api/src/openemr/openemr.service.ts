@@ -379,8 +379,12 @@ export class OpenemrService implements OnModuleInit {
       this.logger.error(`OpenEMR ${method} ${path} → ${res.status}: ${text.slice(0, 300)}`);
 
       // GET 404s are routine existence checks (e.g. "does this patient exist?"),
-      // not integration failures worth tracking in the error log.
-      if (method !== 'GET') {
+      // not integration failures worth tracking in the error log. Everything
+      // else — including 401/403/5xx on GETs and any non-GET failure — does
+      // get logged so admins can see why a sync or import failed in
+      // /system/errors.
+      const isExistenceCheck404 = method === 'GET' && res.status === 404;
+      if (!isExistenceCheck404) {
         await this.prisma.integrationError.create({
           data: {
             service: 'OpenEMR',
@@ -393,7 +397,7 @@ export class OpenemrService implements OnModuleInit {
         });
       }
 
-      throw new Error(`OpenEMR ${res.status}: ${text.slice(0, 200)}`);
+      throw new Error(`OpenEMR ${res.status} on ${method} ${path}: ${text.slice(0, 200)}`);
     }
 
     return res.json() as Promise<Record<string, unknown>>;
@@ -598,6 +602,10 @@ export class OpenemrService implements OnModuleInit {
       'user/Encounter.write',
       'user/Appointment.read',
       'user/Appointment.write',
+      'user/Location.read',
+      'user/Location.write',
+      'user/Organization.read',
+      'user/Organization.write',
       'offline_access',
     ].join(' ');
 
