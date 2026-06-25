@@ -935,7 +935,17 @@ export class AdminService {
   // and address changes but does not delete locally-known facilities that
   // OpenEMR has dropped (those need manual review).
   async importFacilitiesFromOpenemr() {
-    const facilities = await this.openemrService.fetchFacilities();
+    // Surface the underlying OpenEMR error (route not found, auth failure,
+    // etc.) as a BadRequest so the admin UI shows what's actually wrong
+    // instead of a generic 500.
+    let facilities: Awaited<ReturnType<typeof this.openemrService.fetchFacilities>>;
+    try {
+      facilities = await this.openemrService.fetchFacilities();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new BadRequestException(`OpenEMR rejected the facility import: ${msg}`);
+    }
+
     let imported = 0;
     let updated = 0;
     const results: Array<{
@@ -1337,7 +1347,13 @@ export class AdminService {
   }
 
   async importProvidersFromOpenemr() {
-    const practitioners = await this.openemrService.fetchPractitioners();
+    let practitioners: Awaited<ReturnType<typeof this.openemrService.fetchPractitioners>>;
+    try {
+      practitioners = await this.openemrService.fetchPractitioners();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new BadRequestException(`OpenEMR rejected the provider import: ${msg}`);
+    }
     let imported = 0;
     let skipped = 0;
     const results: Array<{
