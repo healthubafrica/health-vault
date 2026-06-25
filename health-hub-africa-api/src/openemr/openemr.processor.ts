@@ -416,6 +416,14 @@ export class OpenemrProcessor {
   }
 
   // ── Encounter ────────────────────────────────────────────────────────────
+  //
+  // Uses FHIR /fhir/Encounter rather than the legacy REST
+  // /api/patient/{uuid}/encounter endpoint. Production hit a 401 on every
+  // REST encounter POST in late June 2026 — the OAuth token that works
+  // for /fhir/* didn't grant whatever scope the REST API requires. FHIR
+  // works with the existing token so we route all encounter writes
+  // through it consistently with our other syncs (Patient, Observation,
+  // MedicationRequest, DocumentReference, etc.).
 
   @Process({ name: 'sync-encounter' })
   async handleSyncEncounter(job: Job<SyncJobData>) {
@@ -434,47 +442,83 @@ export class OpenemrProcessor {
       return;
     }
 
-    // Pick the OpenEMR facility id in priority order:
-    //   1. The appointment's own facility (the new, correct path).
-    //   2. The first imported facility (fallback for older appointments
-    //      booked before facility_id existed on the schema).
-    //   3. OpenEMR's default facility id '1' (last-resort fallback so we
-    //      never block encounter sync entirely; logs a warning).
-    let facilityId = appointment.facility?.openemrFacilityId ?? null;
-
-    if (!facilityId) {
+    // Resolve the location reference. Priority:
+    //   1. The appointment's own facility (the right path).
+    //   2. First imported facility (fallback for pre-facility appointments).
+    //   3. No location at all — OpenEMR accepts encounters without one,
+    //      better than spoofing a default we don't actually know about.
+    let locationOpenemrId = appointment.facility?.openemrFacilityId ?? null;
+    if (!locationOpenemrId) {
       const fallback = await this.prisma.healthcareFacility.findFirst({
         where: { openemrFacilityId: { not: null } },
         orderBy: { createdAt: 'asc' },
         select: { openemrFacilityId: true, name: true },
       });
-      facilityId = fallback?.openemrFacilityId ?? null;
-      if (fallback) {
+      locationOpenemrId = fallback?.openemrFacilityId ?? null;
+      if (!locationOpenemrId) {
         this.logger.warn(
-          `Encounter sync for appointment ${appointment.id}: no facility on appointment, falling back to "${fallback.name}"`,
+          `Encounter sync for appointment ${appointment.id}: no facilities imported via /admin/facilities/import-from-openemr yet — encounter will be created without a location reference`,
         );
-      } else {
-        this.logger.warn(
-          `Encounter sync using OpenEMR default facility (id=1) — no facilities imported via /admin/facilities/import-from-openemr yet`,
-        );
-        facilityId = '1';
       }
     }
 
-    const token = await this.openemrService.getAccessToken();
-    const encounter = await this.openemrService['callOpenemr'](
-      token, 'POST',
-      `/api/patient/${appointment.patient.openemrPatientUuid}/encounter`,
-      {
-        date:        appointment.scheduledAt.toISOString().split('T')[0],
-        onset_date:  appointment.scheduledAt.toISOString().split('T')[0],
-        reason:      appointment.reason ?? 'Scheduled Visit',
-        facility_id: facilityId,
+    const start = appointment.scheduledAt;
+    const end = new Date(start.getTime() + (appointment.durationMinutes ?? 30) * 60_000);
+
+    const fhirEncounter: Record<string, unknown> = {
+      resourceType: 'Encounter',
+      status: this.mapEncounterStatus(appointment.status),
+      class: {
+        system: 'http://terminology.hl7.org/CodeSystem/v3-ActCode',
+        code: appointment.isTelecare ? 'VR' : 'AMB',
+        display: appointment.isTelecare ? 'virtual' : 'ambulatory',
       },
-      patientId,
+      subject: { reference: `Patient/${appointment.patient.openemrPatientUuid}` },
+      period: { start: start.toISOString(), end: end.toISOString() },
+    };
+
+    if (appointment.reason) {
+      fhirEncounter.reasonCode = [{ text: appointment.reason }];
+    }
+
+    if (appointment.provider?.openemrProviderUuid) {
+      fhirEncounter.participant = [
+        { individual: { reference: `Practitioner/${appointment.provider.openemrProviderUuid}` } },
+      ];
+    }
+
+    if (locationOpenemrId) {
+      fhirEncounter.location = [
+        { location: { reference: `Location/${locationOpenemrId}` } },
+      ];
+    }
+
+    const token = await this.openemrService.getAccessToken();
+    const created = await this.openemrService['callOpenemr'](
+      token, 'POST', '/fhir/Encounter', fhirEncounter, patientId,
     );
 
-    this.logger.log(`Encounter created for patient ${patientId}: eid=${(encounter as Record<string, Record<string, unknown>>).data?.eid}`);
+    const openemrId = (created as Record<string, unknown>).id as string | undefined
+      ?? (created as Record<string, unknown>).uuid as string | undefined;
+    this.logger.log(
+      `Encounter synced for appointment ${appointment.id} (patient ${patientId}): openemrId=${openemrId ?? 'unknown'}`,
+    );
+  }
+
+  // Maps HHA's AppointmentStatus enum to FHIR's Encounter.status. FHIR's
+  // accepted values: planned | arrived | triaged | in-progress | onleave |
+  // finished | cancelled | entered-in-error | unknown.
+  private mapEncounterStatus(status: string): string {
+    switch (status) {
+      case 'requested':   return 'planned';
+      case 'confirmed':   return 'planned';
+      case 'upcoming':    return 'arrived';
+      case 'in_progress': return 'in-progress';
+      case 'completed':   return 'finished';
+      case 'cancelled':   return 'cancelled';
+      case 'no_show':     return 'cancelled';
+      default:            return 'unknown';
+    }
   }
 
   // ── Clinical Record / Prescription ───────────────────────────────────────
