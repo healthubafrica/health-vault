@@ -422,7 +422,11 @@ export class OpenemrProcessor {
     const { patientId, payload } = job.data;
     const appointment = await this.prisma.appointment.findUnique({
       where: { id: payload!.appointmentId as string },
-      include: { patient: true, provider: true },
+      include: {
+        patient: true,
+        provider: true,
+        facility: { select: { openemrFacilityId: true, name: true } },
+      },
     });
 
     if (!appointment || !appointment.patient.openemrPatientUuid) {
@@ -430,23 +434,32 @@ export class OpenemrProcessor {
       return;
     }
 
-    // OpenEMR is the source of truth for facilities; the local table is a
-    // mirror keyed on openemr_facility_id. Pick the first imported facility
-    // as the encounter's location for now — there's no facility_id on
-    // Appointment yet, so we can't route an encounter to a specific clinic
-    // until that schema lands. Fall back to OpenEMR's default ('1') only
-    // when the admin hasn't run "Import from OpenEMR" yet.
-    const fallbackFacility = await this.prisma.healthcareFacility.findFirst({
-      where: { openemrFacilityId: { not: null } },
-      orderBy: { createdAt: 'asc' },
-      select: { openemrFacilityId: true },
-    });
-    if (!fallbackFacility?.openemrFacilityId) {
-      this.logger.warn(
-        `Encounter sync using OpenEMR default facility (id=1) — no facilities imported via /admin/facilities/import-from-openemr yet`,
-      );
+    // Pick the OpenEMR facility id in priority order:
+    //   1. The appointment's own facility (the new, correct path).
+    //   2. The first imported facility (fallback for older appointments
+    //      booked before facility_id existed on the schema).
+    //   3. OpenEMR's default facility id '1' (last-resort fallback so we
+    //      never block encounter sync entirely; logs a warning).
+    let facilityId = appointment.facility?.openemrFacilityId ?? null;
+
+    if (!facilityId) {
+      const fallback = await this.prisma.healthcareFacility.findFirst({
+        where: { openemrFacilityId: { not: null } },
+        orderBy: { createdAt: 'asc' },
+        select: { openemrFacilityId: true, name: true },
+      });
+      facilityId = fallback?.openemrFacilityId ?? null;
+      if (fallback) {
+        this.logger.warn(
+          `Encounter sync for appointment ${appointment.id}: no facility on appointment, falling back to "${fallback.name}"`,
+        );
+      } else {
+        this.logger.warn(
+          `Encounter sync using OpenEMR default facility (id=1) — no facilities imported via /admin/facilities/import-from-openemr yet`,
+        );
+        facilityId = '1';
+      }
     }
-    const facilityId = fallbackFacility?.openemrFacilityId ?? '1';
 
     const token = await this.openemrService.getAccessToken();
     const encounter = await this.openemrService['callOpenemr'](

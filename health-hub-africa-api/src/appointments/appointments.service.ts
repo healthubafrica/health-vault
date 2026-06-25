@@ -83,15 +83,26 @@ export class AppointmentsService {
 
     const { serviceType, isTelecare } = toServiceFields(dto.appointmentType);
 
+    // Validate the chosen facility exists when one is supplied. We don't
+    // require it on telecare appointments (no physical location) or on
+    // home visits (location is "wherever the patient is").
+    if (dto.facilityId) {
+      const facility = await this.prisma.healthcareFacility.findUnique({
+        where: { id: dto.facilityId },
+        select: { id: true },
+      });
+      if (!facility) throw new NotFoundException('Facility not found');
+    }
+
     const appointment = await this.prisma.appointment.create({
       data: {
         hhaRef: await this.generateAppointmentRef(),
         patientId,
         providerId: dto.providerId ?? null,
+        facilityId: dto.facilityId ?? null,
         serviceType,
         isTelecare,
-        location:
-          dto.facilityId ?? (dto.appointmentType === 'home_visit' ? 'Home visit' : undefined),
+        location: dto.appointmentType === 'home_visit' ? 'Home visit' : undefined,
         scheduledAt: new Date(dto.scheduledAt),
         durationMinutes: dto.durationMinutes,
         reason: dto.chiefComplaint,
@@ -206,6 +217,23 @@ export class AppointmentsService {
       }
     }
 
+    // Same protection for facility reassignment — admin / coordinator only.
+    if (dto.facilityId !== undefined && dto.facilityId !== null) {
+      const adminRoles: UserRole[] = [
+        UserRole.admin,
+        UserRole.super_admin,
+        UserRole.coordinator,
+      ];
+      if (!adminRoles.includes(currentUser.role as UserRole)) {
+        throw new ForbiddenException('Only admin or coordinator can reassign the facility');
+      }
+      const facility = await this.prisma.healthcareFacility.findUnique({
+        where: { id: dto.facilityId },
+        select: { id: true },
+      });
+      if (!facility) throw new NotFoundException('Facility not found');
+    }
+
     const data: any = {};
     if (dto.scheduledAt) data.scheduledAt = new Date(dto.scheduledAt);
     if (dto.durationMinutes !== undefined) data.durationMinutes = dto.durationMinutes;
@@ -218,6 +246,7 @@ export class AppointmentsService {
       data.cancelledBy = currentUser.sub;
     }
     if (dto.providerId !== undefined) data.providerId = dto.providerId;
+    if (dto.facilityId !== undefined) data.facilityId = dto.facilityId;
 
     // Effective providerId for downstream logic — if the same PATCH assigns
     // *and* confirms in one shot, use the new value, not the stale row.
@@ -342,12 +371,24 @@ export class AppointmentsService {
     return where;
   }
 
+  // Lightweight facility list for the patient booking screen. Returns only
+  // facilities mirrored from OpenEMR (openemr_facility_id != null) so we
+  // never let a patient choose a facility encounter sync can't route to.
+  async listFacilitiesForBooking() {
+    return this.prisma.healthcareFacility.findMany({
+      where: { openemrFacilityId: { not: null } },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, city: true, state: true },
+    });
+  }
+
   private safeSelect() {
     return {
       id: true,
       hhaRef: true,
       patientId: true,
       providerId: true,
+      facilityId: true,
       serviceType: true,
       isTelecare: true,
       location: true,
@@ -360,6 +401,7 @@ export class AppointmentsService {
       cancellationNote: true,
       createdAt: true,
       updatedAt: true,
+      facility: { select: { id: true, name: true, openemrFacilityId: true } },
       patient: {
         select: {
           id: true,
