@@ -40,6 +40,41 @@ export function TeleCareScreen() {
     fetchSessions()
   }, [])
 
+  // Live-refresh: pull the latest session list on tab focus / visibility
+  // change and on a 20s tick while the tab is visible. Patients need this
+  // because confirmations happen elsewhere — admin assigns a provider and
+  // confirms, or a provider confirms from their own dashboard, and the
+  // patient's "Upcoming Sessions" otherwise stays stale until manual
+  // reload. Polling pauses on hidden tabs so we don't churn the API.
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null
+    const refresh = () => { if (!document.hidden) fetchSessions() }
+    const start = () => {
+      if (interval || document.hidden) return
+      interval = setInterval(refresh, 20_000)
+    }
+    const stop = () => {
+      if (!interval) return
+      clearInterval(interval)
+      interval = null
+    }
+    const onFocus = () => refresh()
+    const onVis = () => {
+      if (document.hidden) stop()
+      else { refresh(); start() }
+    }
+
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVis)
+    start()
+
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVis)
+      stop()
+    }
+  }, [])
+
   const handleJoinSession = async (sessionId: string) => {
     setJoining(true)
     try {
