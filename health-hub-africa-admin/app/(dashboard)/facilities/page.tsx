@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { FormInput } from '@/components/ui/FormInput'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { formatDate } from '@/lib/utils'
-import { Plus, Pencil, Trash2, X, Building2 } from 'lucide-react'
+import { Pencil, Trash2, X, Building2, Download, Info } from 'lucide-react'
 import { toast } from 'sonner'
 
 const EMPTY_FORM: Partial<Facility> = {
@@ -32,6 +32,21 @@ export default function FacilitiesPage() {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Facility | null>(null)
+  const [importing, setImporting] = useState(false)
+
+  const handleImport = async () => {
+    if (!window.confirm('Import the facility roster from OpenEMR? New facilities will be added; existing ones (matched by OpenEMR ID) will have their name and address refreshed.')) return
+    setImporting(true)
+    try {
+      const res = await adminApi.facilities.importFromOpenemr()
+      toast.success(`Imported ${res.imported} new, updated ${res.updated}, skipped ${res.skipped}`)
+      await load()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Import failed')
+    } finally {
+      setImporting(false)
+    }
+  }
 
   const load = async () => {
     setLoading(true)
@@ -115,10 +130,23 @@ export default function FacilitiesPage() {
             {facilities.length} facilities registered
           </p>
         </div>
-        <Button size="sm" onClick={openAdd}>
-          <Plus className="w-3.5 h-3.5" />
-          Add Facility
+        <Button size="sm" onClick={handleImport} loading={importing}>
+          <Download className="w-3.5 h-3.5" />
+          Import from OpenEMR
         </Button>
+      </div>
+
+      {/* Source-of-truth notice */}
+      <div
+        className="mb-5 flex items-start gap-3 px-4 py-3 rounded-xl border"
+        style={{ background: 'var(--color-info-bg, #1A2C3F)', borderColor: 'var(--color-border)' }}
+      >
+        <Info className="w-4 h-4 mt-0.5 shrink-0" style={{ color: '#6AADFF' }} />
+        <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+          <span className="font-semibold" style={{ color: 'var(--color-text)' }}>OpenEMR is the source of truth for facilities.</span>{' '}
+          Create the facility in OpenEMR first, then click <span className="font-medium" style={{ color: 'var(--color-text)' }}>Import from OpenEMR</span> to mirror it here.
+          Encounter sync routes to the facility's OpenEMR ID — facilities that exist only in HHA can't receive encounters.
+        </p>
       </div>
 
       <Card padding={false}>
@@ -159,11 +187,13 @@ export default function FacilitiesPage() {
                       No facilities yet
                     </p>
                     <button
-                      className="text-sm mt-2 font-medium"
-                      style={{ color: '#6DC43F' }}
-                      onClick={openAdd}
+                      className="text-sm mt-2 font-medium inline-flex items-center gap-1"
+                      style={{ color: '#6DC43F', background: 'none', border: 'none', cursor: 'pointer' }}
+                      onClick={handleImport}
+                      disabled={importing}
                     >
-                      Add the first facility
+                      <Download className="w-3.5 h-3.5" />
+                      {importing ? 'Importing…' : 'Import from OpenEMR'}
                     </button>
                   </td>
                 </tr>

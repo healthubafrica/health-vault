@@ -239,6 +239,42 @@ export class OpenemrService implements OnModuleInit {
     });
   }
 
+  // Pulls every facility from OpenEMR's REST API. OpenEMR's facility table
+  // is the source of truth for clinical locations — encounter sync writes
+  // facility_id back to it, so HHA needs the same IDs available locally.
+  // The response shape is `{ data: [...] }` matching their other REST
+  // endpoints; each row carries a UUID we mirror onto
+  // healthcare_facilities.openemr_facility_id.
+  async fetchFacilities(): Promise<Array<{
+    openemrId: string;
+    name: string;
+    phone: string | null;
+    address: string | null;
+    city: string | null;
+    state: string | null;
+  }>> {
+    const token = await this.getAccessToken();
+    const response = await this.callOpenemr(token, 'GET', '/api/facility');
+
+    // OpenEMR returns { data: [...] } from REST endpoints (vs FHIR's entry/resource shape).
+    const rows = (response.data as Array<Record<string, unknown>> | undefined) ?? [];
+
+    return rows.flatMap((row) => {
+      const id = (row.uuid ?? row.id) as string | undefined;
+      const name = row.name as string | undefined;
+      if (!id || !name) return [];
+
+      return [{
+        openemrId: id,
+        name,
+        phone: (row.phone as string | undefined) ?? null,
+        address: (row.street as string | undefined) ?? null,
+        city: (row.city as string | undefined) ?? null,
+        state: (row.state as string | undefined) ?? null,
+      }];
+    });
+  }
+
   async enqueueLabOrderSync(patientId: string, labOrderId: string) {
     await this.syncQueue.add(
       'sync-labs',

@@ -759,6 +759,7 @@ model HealthcareFacility {
   hasMaternity      Boolean   @default(false) @map("has_maternity")
   hasTrauma         Boolean   @default(false) @map("has_trauma")
   capacityUpdatedAt DateTime? @map("capacity_updated_at")
+  openemrFacilityId String?   @unique @map("openemr_facility_id")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 

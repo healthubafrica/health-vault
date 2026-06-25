@@ -915,14 +915,79 @@ export class AdminService {
     };
   }
 
-  async createFacility(dto: CreateFacilityDto) {
-    return this.prisma.healthcareFacility.create({
-      data: {
-        name: dto.name,
-        facilityType: dto.type ?? 'general',
-        ...this.toFacilityData({ ...dto, name: undefined, type: undefined }),
-      },
-    });
+  async createFacility(_dto: CreateFacilityDto) {
+    // OpenEMR is the source of truth for facilities — encounters, dispatch,
+    // and triage all reference facility_id back to OpenEMR's facility table.
+    // Creating facilities only in HHA would silently desync the two systems
+    // (encounter sync hardcodes a fallback, dispatch can't route to clinics
+    // OpenEMR doesn't know about). Use POST /admin/facilities/import-from-openemr
+    // instead, which pulls the canonical roster + UUIDs.
+    throw new BadRequestException(
+      'Facilities must be created in OpenEMR. Use the "Import from OpenEMR" action on the Facilities page to pull the latest roster.',
+    );
+  }
+
+  // Pulls every facility from OpenEMR and upserts into healthcare_facilities,
+  // keyed on openemr_facility_id. Idempotent — re-running picks up renames
+  // and address changes but does not delete locally-known facilities that
+  // OpenEMR has dropped (those need manual review).
+  async importFacilitiesFromOpenemr() {
+    const facilities = await this.openemrService.fetchFacilities();
+    let imported = 0;
+    let updated = 0;
+    const results: Array<{
+      name: string;
+      openemrId: string;
+      status: 'imported' | 'updated' | 'skipped';
+      reason?: string;
+    }> = [];
+
+    for (const f of facilities) {
+      try {
+        const existing = await this.prisma.healthcareFacility.findUnique({
+          where: { openemrFacilityId: f.openemrId },
+        });
+
+        if (existing) {
+          await this.prisma.healthcareFacility.update({
+            where: { id: existing.id },
+            data: {
+              name: f.name,
+              address: f.address,
+              city: f.city,
+              state: f.state,
+            },
+          });
+          updated++;
+          results.push({ name: f.name, openemrId: f.openemrId, status: 'updated' });
+        } else {
+          await this.prisma.healthcareFacility.create({
+            data: {
+              name: f.name,
+              facilityType: 'clinic',
+              address: f.address,
+              city: f.city,
+              state: f.state,
+              openemrFacilityId: f.openemrId,
+            },
+          });
+          imported++;
+          results.push({ name: f.name, openemrId: f.openemrId, status: 'imported' });
+        }
+      } catch (err: unknown) {
+        results.push({
+          name: f.name,
+          openemrId: f.openemrId,
+          status: 'skipped',
+          reason: err instanceof Error ? err.message : 'unknown error',
+        });
+      }
+    }
+
+    this.logger.log(
+      `Facility import: ${imported} new, ${updated} updated, ${results.filter((r) => r.status === 'skipped').length} skipped`,
+    );
+    return { imported, updated, skipped: results.filter((r) => r.status === 'skipped').length, results };
   }
 
   async updateFacility(id: string, dto: Partial<CreateFacilityDto>) {

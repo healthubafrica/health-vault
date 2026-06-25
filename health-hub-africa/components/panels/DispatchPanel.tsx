@@ -42,7 +42,7 @@ export function DispatchPanel() {
         style={{ background: 'var(--color-error-bg)', borderColor: 'var(--color-emergency)' }}
       >
         <p className="text-xs font-semibold" style={{ color: 'var(--color-emergency)' }}>Emergency Hotline</p>
-        <p className="text-lg font-bold mt-0.5" style={{ color: 'var(--color-emergency)', fontFamily: 'var(--font-mono)' }}>0800-HHA-911</p>
+        <p className="text-lg font-bold mt-0.5" style={{ color: 'var(--color-emergency)', fontFamily: 'var(--font-mono)' }}>{CONTACT.emergency.display}</p>
       </div>
     </div>
   )
