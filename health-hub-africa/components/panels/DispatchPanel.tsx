@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button'
 import { DispatchTimeline } from '@/components/dispatch/DispatchTimeline'
 import { Phone, Siren } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
+import { CONTACT } from '@/lib/contact'
 
 export function DispatchPanel() {
   const { closeMobilePanel } = useAppStore()
@@ -29,7 +30,8 @@ export function DispatchPanel() {
           variant="emergency-outline"
           fullWidth
           size="md"
-          onClick={() => { window.location.href = 'tel:0800442911' }}
+          onClick={() => { window.location.href = CONTACT.emergency.tel }}
+          title={`Emergency Hotline: ${CONTACT.emergency.display}`}
         >
           <Phone size={14} />Call Emergency
         </Button>

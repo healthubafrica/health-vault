@@ -9,6 +9,7 @@ import { MapPin, Phone, Siren, Heart, Bone, Brain, Activity, AlertTriangle, Wind
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { dispatch, ApiError, type DispatchCase } from '@/lib/api'
+import { CONTACT } from '@/lib/contact'
 
 // EmergencyType enum values from backend Prisma schema
 const EMERGENCY_TYPES = [
@@ -317,7 +318,8 @@ export function DispatchScreen() {
           variant="emergency-outline"
           size="lg"
           fullWidth
-          onClick={() => { window.location.href = 'tel:0800442911' }}
+          onClick={() => { window.location.href = CONTACT.emergency.tel }}
+          title={`Emergency Hotline: ${CONTACT.emergency.display}`}
         >
           <Phone size={16} /> Call Emergency
         </Button>

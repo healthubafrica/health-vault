@@ -2,6 +2,7 @@ import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
 import HeroSplit from '@/components/HeroSplit'
+import { CONTACT } from '@/lib/contact'
 
 const faqGroups = [
   {
@@ -44,7 +45,7 @@ const faqGroups = [
   {
     group: 'Support',
     items: [
-      { q: 'How do I contact support?', a: 'You can reach us via WhatsApp (+234 XXX XXX XXXX), phone, or email (support@myvaultplus.com). You can also use the contact form on our Contact page. Our team is available 7 days a week.' },
+      { q: 'How do I contact support?', a: `You can reach us via WhatsApp (${CONTACT.whatsapp.display}), phone, or email (support@myvaultplus.com). You can also use the contact form on our Contact page. Our team is available 7 days a week.` },
       { q: 'What is the response time?', a: 'WhatsApp and phone support typically respond within 30 minutes. Email support typically responds within 2 business hours. Complex queries may take longer but will be acknowledged immediately.' },
     ],
   },
@@ -176,7 +177,7 @@ export default function FAQPage() {
               <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 15, lineHeight: 1.6, margin: 0 }}>Our support team is available 7 days a week: WhatsApp, phone, or email.</p>
             </div>
             <div style={{ display: 'flex', gap: 12, flexShrink: 0, flexWrap: 'wrap' }}>
-              <a href="https://wa.me/2341234567890" style={{ display: 'inline-flex', alignItems: 'center', background: '#fff', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '12px 22px', borderRadius: 100 }}>WhatsApp Support</a>
+              <a href={CONTACT.whatsapp.waMe} style={{ display: 'inline-flex', alignItems: 'center', background: '#fff', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '12px 22px', borderRadius: 100 }}>WhatsApp Support</a>
               <a href="mailto:support@myvaultplus.com" style={{ display: 'inline-flex', alignItems: 'center', background: '#6DC43F', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '12px 22px', borderRadius: 100 }}>Email Support</a>
             </div>
           </div>
