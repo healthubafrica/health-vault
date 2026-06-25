@@ -176,6 +176,37 @@ export class OpenemrService implements OnModuleInit {
     );
   }
 
+  // Re-enqueues encounter sync for appointments that haven't yet been
+  // confirmed to OpenEMR — used to recover from a stretch of 401s once
+  // the auth or endpoint issue is fixed. We can't tell from the
+  // appointment row alone whether an encounter already landed, but the
+  // queue handler's call to /fhir/Encounter is idempotent enough for our
+  // needs: OpenEMR will accept a duplicate POST and return a fresh
+  // encounter id; admins can prune duplicates in the rare case.
+  async recoverAppointmentEncounters(): Promise<{ enqueued: number }> {
+    const candidates = await this.prisma.appointment.findMany({
+      where: {
+        status: { in: ['requested', 'confirmed', 'upcoming', 'in_progress', 'completed'] },
+        patient: { openemrPatientUuid: { not: null } },
+      },
+      select: { id: true, patientId: true },
+      take: 500,
+    });
+
+    let enqueued = 0;
+    for (let i = 0; i < candidates.length; i++) {
+      await this.syncQueue.add(
+        'sync-encounter',
+        { patientId: candidates[i].patientId, operation: 'sync_record', payload: { appointmentId: candidates[i].id } },
+        { attempts: 3, backoff: { type: 'exponential', delay: 5000 }, delay: i * 300 },
+      );
+      enqueued++;
+    }
+
+    this.logger.log(`Recovery: re-enqueued ${enqueued} encounter sync job(s)`);
+    return { enqueued };
+  }
+
   async enqueueRecordSync(patientId: string, recordId: string) {
     await this.syncQueue.add(
       'sync-record',

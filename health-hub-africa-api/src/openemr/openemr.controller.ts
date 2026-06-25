@@ -38,6 +38,19 @@ export class OpenemrController {
     return this.openemrService.recoverUnsyncedPatients();
   }
 
+  @Post('recover-appointment-encounters')
+  @Roles(UserRole.super_admin)
+  @ApiOperation({
+    summary: 'Re-enqueue encounter sync for all confirmed appointments (super_admin only)',
+    description:
+      'Use after fixing an OpenEMR auth or endpoint issue to flush the backlog of ' +
+      'appointments whose encounter sync failed. Posts via FHIR /fhir/Encounter; ' +
+      'duplicates are possible if encounters already exist on the OpenEMR side.',
+  })
+  recoverAppointmentEncounters() {
+    return this.openemrService.recoverAppointmentEncounters();
+  }
+
   // ── One-time OAuth2 Setup ──────────────────────────────────────────────────
 
   @Get('auth/init')
