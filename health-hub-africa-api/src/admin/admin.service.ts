@@ -763,7 +763,7 @@ export class AdminService {
     const skip = (page - 1) * limit;
     const where: any = status ? { status } : {};
 
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.telecareSession.findMany({
         where,
         skip,
@@ -777,14 +777,44 @@ export class AdminService {
           startedAt: true,
           endedAt: true,
           durationSeconds: true,
+          recordingUrl: true,
           platform: true,
           createdAt: true,
-          patient: { select: { id: true, firstName: true, lastName: true } },
-          provider: { select: { id: true, firstName: true, lastName: true } },
+          patient: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              user: { select: { email: true } },
+            },
+          },
+          provider: {
+            select: { id: true, firstName: true, lastName: true, title: true },
+          },
         },
       }),
       this.prisma.telecareSession.count({ where }),
     ]);
+
+    // Flatten nested relations to what the admin TeleCare table renders
+    // directly — see listAppointments above for the same pattern.
+    const data = rows.map((r) => ({
+      id: r.id,
+      hhaRef: r.hhaRef,
+      patientName: `${r.patient.firstName} ${r.patient.lastName}`.trim(),
+      patientEmail: r.patient.user?.email ?? undefined,
+      providerName: r.provider
+        ? `${r.provider.title ?? ''} ${r.provider.firstName} ${r.provider.lastName}`.trim()
+        : undefined,
+      scheduledAt: r.scheduledAt,
+      startedAt: r.startedAt ?? undefined,
+      endedAt: r.endedAt ?? undefined,
+      durationMinutes:
+        r.durationSeconds != null ? Math.round(r.durationSeconds / 60) : undefined,
+      status: r.status,
+      recordingUrl: r.recordingUrl ?? undefined,
+      createdAt: r.createdAt,
+    }));
 
     return { data, meta: { total, page, limit } };
   }
@@ -793,7 +823,7 @@ export class AdminService {
     const skip = (page - 1) * limit;
     const where: any = status ? { status } : {};
 
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.dispatchRequest.findMany({
         where,
         skip,
@@ -808,11 +838,27 @@ export class AdminService {
           etaMinutes: true,
           stridePriority: true,
           createdAt: true,
+          closedAt: true,
           patient: { select: { id: true, firstName: true, lastName: true } },
+          unit: { select: { callSign: true } },
         },
       }),
       this.prisma.dispatchRequest.count({ where }),
     ]);
+
+    // Flatten nested relations to what the admin Dispatch table renders
+    // directly — see listAppointments above for the same pattern.
+    const data = rows.map((r) => ({
+      id: r.id,
+      hhaRef: r.hhaRef,
+      patientName: `${r.patient.firstName} ${r.patient.lastName}`.trim(),
+      patientAddress: r.locationText ?? undefined,
+      triagePriority: r.stridePriority ?? undefined,
+      status: r.status,
+      responderName: r.unit?.callSign ?? undefined,
+      createdAt: r.createdAt,
+      resolvedAt: r.closedAt ?? undefined,
+    }));
 
     return { data, meta: { total, page, limit } };
   }
@@ -821,7 +867,7 @@ export class AdminService {
     const skip = (page - 1) * limit;
     const where: any = status ? { overallStatus: status } : {};
 
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.labOrder.findMany({
         where,
         skip,
@@ -836,12 +882,47 @@ export class AdminService {
           reportedAt: true,
           labFacility: true,
           createdAt: true,
-          patient: { select: { id: true, firstName: true, lastName: true } },
-          provider: { select: { id: true, firstName: true, lastName: true } },
+          patient: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              user: { select: { email: true } },
+            },
+          },
+          results: {
+            select: {
+              testName: true,
+              isFlagged: true,
+              valueDisplay: true,
+              interpretationNote: true,
+            },
+          },
         },
       }),
       this.prisma.labOrder.count({ where }),
     ]);
+
+    // Flatten nested relations to what the admin Lab Orders table renders
+    // directly — see listAppointments above for the same pattern. A LabOrder
+    // can carry multiple LabResults, so test names/summaries are joined.
+    const data = rows.map((r) => ({
+      id: r.id,
+      hhaRef: r.hhaRef,
+      patientName: `${r.patient.firstName} ${r.patient.lastName}`.trim(),
+      patientEmail: r.patient.user?.email ?? undefined,
+      testName: r.results.map((res) => res.testName).join(', ') || 'Lab Order',
+      labName: r.labFacility ?? undefined,
+      status: r.overallStatus,
+      isCritical: r.overallStatus === 'critical' || r.results.some((res) => res.isFlagged),
+      orderedAt: r.orderedAt,
+      resultAt: r.reportedAt ?? undefined,
+      resultSummary:
+        r.results
+          .map((res) => res.valueDisplay ?? res.interpretationNote)
+          .filter(Boolean)
+          .join('; ') || undefined,
+    }));
 
     return { data, meta: { total, page, limit } };
   }
@@ -850,7 +931,7 @@ export class AdminService {
     const skip = (page - 1) * limit;
     const where: any = status ? { status } : {};
 
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.expertReviewCase.findMany({
         where,
         skip,
@@ -866,11 +947,38 @@ export class AdminService {
           primaryDiagnosis: true,
           submittedAt: true,
           completedAt: true,
-          patient: { select: { id: true, firstName: true, lastName: true } },
+          patient: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              user: { select: { email: true } },
+            },
+          },
+          coordinator: { select: { email: true } },
+          specialist: { select: { firstName: true, lastName: true, specialty: true } },
         },
       }),
       this.prisma.expertReviewCase.count({ where }),
     ]);
+
+    const URGENCY_TO_PRIORITY = { routine: 'low', urgent: 'medium', emergency: 'high' } as const;
+
+    // Flatten nested relations to what the admin Expert Review table renders
+    // directly — see listAppointments above for the same pattern.
+    const data = rows.map((r) => ({
+      id: r.id,
+      hhaRef: r.hhaRef,
+      patientName: `${r.patient.firstName} ${r.patient.lastName}`.trim(),
+      patientEmail: r.patient.user?.email ?? undefined,
+      chiefComplaint: r.clinicalQuestion,
+      assignedCoordinator: r.coordinator?.email ?? undefined,
+      specialtyRequired: r.specialist?.specialty ?? undefined,
+      status: r.status,
+      priority: URGENCY_TO_PRIORITY[r.urgency],
+      submittedAt: r.submittedAt,
+      completedAt: r.completedAt ?? undefined,
+    }));
 
     return { data, meta: { total, page, limit } };
   }
