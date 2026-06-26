@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { adminApi, type AdminProvider, type ImportProviderResult } from '@/lib/api'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { adminApi, type AdminProvider, type AdminUser, type ImportProviderResult } from '@/lib/api'
 import { Card } from '@/components/ui/Card'
 import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
@@ -469,9 +469,161 @@ export default function ProvidersPage() {
   )
 }
 
-// Compact modal: admin pastes the target user's UUID (looked up via the
-// Users page), picks a provider type + specialty, optionally adds a
-// license number, and submits. Row lands in the unverified state.
+// Email-as-lookup typeahead. Debounces the admin search by 300ms, fans
+// out to adminApi.users.list, and renders a dropdown of matching users
+// with a clear flag for ones who already have a provider profile so the
+// admin doesn't pick a duplicate. On select, the parent gets the full
+// AdminUser so it can pre-fill the name fields.
+function UserPicker({
+  selected,
+  onPick,
+  onClear,
+}: {
+  selected: AdminUser | null
+  onPick: (user: AdminUser) => void
+  onClear: () => void
+}) {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<AdminUser[]>([])
+  const [loading, setLoading] = useState(false)
+  const [open, setOpen] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown on outside click — standard typeahead behaviour.
+  useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [])
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (!query.trim() || query.trim().length < 2) {
+      setResults([])
+      return
+    }
+    debounceRef.current = setTimeout(async () => {
+      setLoading(true)
+      try {
+        const res = await adminApi.users.list({ search: query.trim(), limit: 10 })
+        setResults(res.data ?? [])
+      } catch {
+        setResults([])
+      } finally {
+        setLoading(false)
+      }
+    }, 300)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [query])
+
+  if (selected) {
+    return (
+      <div className="flex flex-col gap-1">
+        <label className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
+          Target User
+        </label>
+        <div
+          className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border"
+          style={{ background: 'var(--color-bg)', borderColor: 'var(--color-border)' }}
+        >
+          <div className="min-w-0">
+            <p className="text-sm truncate" style={{ color: 'var(--color-text)' }}>
+              {selected.fullName ?? selected.email}
+            </p>
+            <p className="text-[11px] truncate" style={{ color: 'var(--color-text-muted)' }}>
+              {selected.email} · role: {selected.role}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClear}
+            className="text-[11px] underline"
+            style={{ color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}
+          >
+            Change
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-1 relative" ref={containerRef}>
+      <label className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
+        Target User
+      </label>
+      <div className="relative">
+        <Search
+          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+          style={{ color: 'var(--color-text-muted)' }}
+        />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          placeholder="Search by email or name…"
+          className="w-full h-10 pl-9 pr-3 rounded-xl text-sm border outline-none focus:border-[#6DC43F]"
+          style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+          autoComplete="off"
+        />
+      </div>
+
+      {open && (loading || results.length > 0 || (query.trim().length >= 2 && !loading)) && (
+        <div
+          className="absolute left-0 right-0 top-full mt-1 rounded-xl border z-10 max-h-72 overflow-y-auto"
+          style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+        >
+          {loading && (
+            <p className="text-xs px-3 py-2" style={{ color: 'var(--color-text-muted)' }}>Searching…</p>
+          )}
+          {!loading && results.length === 0 && (
+            <p className="text-xs px-3 py-2" style={{ color: 'var(--color-text-muted)' }}>No matches</p>
+          )}
+          {!loading && results.map((u) => {
+            const alreadyProvider = !!u.provider
+            return (
+              <button
+                key={u.id}
+                type="button"
+                disabled={alreadyProvider}
+                onClick={() => {
+                  if (alreadyProvider) return
+                  onPick(u)
+                  setOpen(false)
+                  setQuery('')
+                }}
+                className="w-full text-left px-3 py-2 hover:bg-[var(--color-bg)] border-b last:border-b-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ borderColor: 'var(--color-border)', background: 'transparent' }}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm truncate" style={{ color: 'var(--color-text)' }}>
+                      {u.fullName ?? u.email}
+                    </p>
+                    <p className="text-[11px] truncate" style={{ color: 'var(--color-text-muted)' }}>
+                      {u.email} · role: {u.role}
+                    </p>
+                  </div>
+                  {alreadyProvider && <Pill variant="neutral">Already provider</Pill>}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Compact modal: admin picks the target user via email/name typeahead,
+// picks a provider type + specialty, optionally adds a license number,
+// and submits. Row lands in the unverified state.
 function CreateProviderDialog({
   onClose,
   onCreated,
@@ -479,7 +631,7 @@ function CreateProviderDialog({
   onClose: () => void
   onCreated: () => void
 }) {
-  const [userId, setUserId] = useState('')
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [providerType, setProviderType] = useState('DOCTOR')
@@ -489,17 +641,34 @@ function CreateProviderDialog({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // When admin picks a user, pre-fill the first/last name fields from
+  // their patient profile (if any) so they don't have to retype it.
+  const handlePickUser = useCallback((user: AdminUser) => {
+    setSelectedUser(user)
+    if (!firstName && user.patient?.firstName) setFirstName(user.patient.firstName)
+    if (!lastName && user.patient?.lastName) setLastName(user.patient.lastName)
+    if (!firstName && !user.patient && user.fullName) {
+      const parts = user.fullName.split(' ')
+      setFirstName(parts[0] ?? '')
+      setLastName(parts.slice(1).join(' '))
+    }
+  }, [firstName, lastName])
+
   const submit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    if (!userId.trim() || !firstName.trim() || !lastName.trim()) {
-      setError('User ID, first name, and last name are required.')
+    if (!selectedUser) {
+      setError('Pick the target user first.')
+      return
+    }
+    if (!firstName.trim() || !lastName.trim()) {
+      setError('First name and last name are required.')
       return
     }
     setSaving(true)
     try {
       await adminApi.providers.create({
-        userId: userId.trim(),
+        userId: selectedUser.id,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         providerType,
@@ -513,7 +682,7 @@ function CreateProviderDialog({
     } finally {
       setSaving(false)
     }
-  }, [userId, firstName, lastName, providerType, specialization, licenseNumber, yearsOfExperience, onCreated])
+  }, [selectedUser, firstName, lastName, providerType, specialization, licenseNumber, yearsOfExperience, onCreated])
 
   return (
     <div
@@ -541,13 +710,7 @@ function CreateProviderDialog({
         </div>
 
         <form onSubmit={submit} className="flex flex-col gap-3">
-          <FormInput
-            label="Target User ID"
-            placeholder="Paste user UUID from /users"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-            required
-          />
+          <UserPicker selected={selectedUser} onPick={handlePickUser} onClear={() => setSelectedUser(null)} />
           <div className="grid grid-cols-2 gap-3">
             <FormInput label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
             <FormInput label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
