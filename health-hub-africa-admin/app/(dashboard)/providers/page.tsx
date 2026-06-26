@@ -510,12 +510,12 @@ function UserPicker({
     debounceRef.current = setTimeout(async () => {
       setLoading(true)
       try {
-        // Pull more than we render (20) so post-filtering for active users
-        // still has a useful 10-row dropdown when half the matches are
-        // soft-deleted or deactivated. Backend doesn't expose a status
-        // filter on listUsers; the client side handles it for now.
-        const res = await adminApi.users.list({ search: query.trim(), limit: 20 })
-        setResults((res.data ?? []).filter((u) => u.isActive).slice(0, 10))
+        const res = await adminApi.users.list({
+          search: query.trim(),
+          status: 'active',
+          limit: 10,
+        })
+        setResults(res.data ?? [])
       } catch {
         setResults([])
       } finally {
