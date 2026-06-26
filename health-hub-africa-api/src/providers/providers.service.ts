@@ -55,33 +55,71 @@ export class ProvidersService {
   // ── Create ─────────────────────────────────────────────────────────────────
 
   async create(dto: CreateProviderDto, currentUser: JwtPayload) {
-    const existing = await this.prisma.provider.findUnique({
-      where: { userId: currentUser.sub },
-    });
-    if (existing) throw new ConflictException('Provider profile already exists');
+    // Belt-and-braces — the controller @Roles already restricts to admin /
+    // super_admin, but the service-level check survives if the decorator
+    // is ever loosened by mistake.
+    this.requireAdmin(currentUser);
 
-    const provider = await this.prisma.provider.create({
-      data: {
-        userId: currentUser.sub,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        title: TITLE_BY_TYPE[dto.providerType] ?? 'Dr.',
-        specialty: dto.specialization ?? dto.providerType,
-        licenseNumber: dto.licenseNumber,
-        yearsExperience: dto.yearsOfExperience ?? 0,
-        bio: buildBio(dto),
-        isAvailable: dto.acceptsVirtualConsults ?? true,
-        profilePhotoUrl: dto.profilePhotoUrl,
-      },
-      select: this.safeSelect(),
+    // Forbid the long-standing footgun: admins (or anyone else with the
+    // role) cannot create a provider profile *for themselves* through this
+    // endpoint. If an admin should also be a provider, do it from a
+    // different admin account.
+    if (dto.userId === currentUser.sub) {
+      throw new ForbiddenException(
+        'Admins cannot create a provider profile for themselves through this endpoint',
+      );
+    }
+
+    const targetUser = await this.prisma.user.findUnique({
+      where: { id: dto.userId },
+      select: { id: true, role: true, isActive: true, deletedAt: true, provider: { select: { id: true } } },
+    });
+    if (!targetUser || targetUser.deletedAt || !targetUser.isActive) {
+      throw new NotFoundException('Target user not found or inactive');
+    }
+    if (targetUser.provider) {
+      throw new ConflictException('Provider profile already exists for this user');
+    }
+
+    // Atomic: promote role if needed, revoke any in-flight sessions so the
+    // role change takes effect on the next request, and insert the
+    // Provider row. Sessions revocation matches the pattern in
+    // AdminService.updateUserRole — the user has to re-login to pick up
+    // the new role and downstream JWT.providerId.
+    const provider = await this.prisma.$transaction(async (tx) => {
+      if (targetUser.role !== UserRole.provider) {
+        await tx.user.update({
+          where: { id: targetUser.id },
+          data: { role: UserRole.provider },
+        });
+        await tx.userSession.updateMany({
+          where: { userId: targetUser.id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+
+      return tx.provider.create({
+        data: {
+          userId: targetUser.id,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          title: TITLE_BY_TYPE[dto.providerType] ?? 'Dr.',
+          specialty: dto.specialization ?? dto.providerType,
+          licenseNumber: dto.licenseNumber,
+          yearsExperience: dto.yearsOfExperience ?? 0,
+          bio: buildBio(dto),
+          isAvailable: dto.acceptsVirtualConsults ?? true,
+          profilePhotoUrl: dto.profilePhotoUrl,
+          // verifiedAt intentionally null — sync stays paused and the
+          // appointment booking gate stays closed until an admin clicks
+          // Verify after reviewing the license.
+        },
+        select: this.safeSelect(),
+      });
     });
 
-    // Push to OpenEMR's /api/practitioner — creates the user record (login,
-    // role, NPI, specialty). Failures are swallowed so a flaky OpenEMR or
-    // expired OAuth refresh doesn't bounce the HHA create; the queue job
-    // retries 3× and integration_errors logs the failure for admin review.
-    await this.openemrService.enqueueProviderSync(provider.id).catch((err) =>
-      this.logger.error(`Failed to enqueue OpenEMR provider sync: ${err.message}`),
+    this.logger.log(
+      `Provider ${provider.id} created by admin ${currentUser.sub} for user ${dto.userId} — awaiting verification`,
     );
 
     return provider;

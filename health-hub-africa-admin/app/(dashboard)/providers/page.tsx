@@ -7,7 +7,7 @@ import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
 import { SkeletonCard } from '@/components/ui/Skeleton'
 import { FormInput } from '@/components/ui/FormInput'
-import { RefreshCw, Search, Star, Users, Download, X, Copy, Info } from 'lucide-react'
+import { RefreshCw, Search, Star, Users, Download, X, Copy, Info, Plus } from 'lucide-react'
 import { useAuthStore } from '@/lib/stores/authStore'
 import { formatDate } from '@/lib/utils'
 
@@ -114,11 +114,15 @@ export default function ProvidersPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [toggling, setToggling] = useState<string | null>(null)
+  const [verifying, setVerifying] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<ImportProviderResult | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const [selected, setSelected] = useState<AdminProvider | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
   const limit = 20
+
+  const isAdmin = authUser?.role === 'admin' || authUser?.role === 'super_admin'
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -159,6 +163,26 @@ export default function ProvidersPage() {
     }
   }, [])
 
+  const handleVerify = useCallback(async (id: string) => {
+    if (!window.confirm("Mark this provider's credentials as verified? This unblocks bookings and triggers a push to OpenEMR.")) return
+    setVerifying(id)
+    try {
+      const res = await adminApi.providers.verify(id)
+      setProviders((prev) =>
+        prev.map((p) => p.id === id ? { ...p, isVerified: true, verifiedAt: res.data.verifiedAt } : p)
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to verify provider')
+    } finally {
+      setVerifying(null)
+    }
+  }, [])
+
+  const handleCreated = useCallback(() => {
+    setCreateOpen(false)
+    load()
+  }, [load])
+
   const handleImport = useCallback(async () => {
     setImporting(true)
     setImportError(null)
@@ -188,8 +212,14 @@ export default function ProvidersPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          {isAdmin && (
+            <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus className="w-3.5 h-3.5" />
+              Add Provider
+            </Button>
+          )}
           {isSuperAdmin && (
-            <Button variant="primary" size="sm" loading={importing} onClick={handleImport}>
+            <Button variant="secondary" size="sm" loading={importing} onClick={handleImport}>
               <Download className="w-3.5 h-3.5" />
               Import from OpenEMR
             </Button>
@@ -362,11 +392,35 @@ export default function ProvidersPage() {
                 )}
               </div>
 
+              {/* Verification row — only shown when pending, so verified
+                  providers don't carry extra chrome they don't need. */}
+              {prov.isVerified === false && (
+                <div
+                  className="flex items-center justify-between gap-2 mt-auto px-2.5 py-2 rounded-lg"
+                  style={{ background: 'rgba(245, 166, 35, 0.10)' }}
+                >
+                  <Pill variant="warning">Pending verify</Pill>
+                  {isAdmin && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      loading={verifying === prov.id}
+                      onClick={(e) => { e.stopPropagation(); handleVerify(prov.id) }}
+                    >
+                      Verify
+                    </Button>
+                  )}
+                </div>
+              )}
+
               {/* Footer */}
               <div className="flex items-center justify-between mt-auto pt-2 border-t" style={{ borderColor: 'var(--color-border)' }}>
-                <Pill variant={prov.isAvailable ? 'success' : 'neutral'}>
-                  {prov.isAvailable ? 'Available' : 'Unavailable'}
-                </Pill>
+                <div className="flex items-center gap-1.5">
+                  {prov.isVerified !== false && <Pill variant="success">Verified</Pill>}
+                  <Pill variant={prov.isAvailable ? 'success' : 'neutral'}>
+                    {prov.isAvailable ? 'Available' : 'Unavailable'}
+                  </Pill>
+                </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); handleToggle(prov.id, prov.isAvailable) }}
                   disabled={toggling === prov.id}
@@ -410,6 +464,131 @@ export default function ProvidersPage() {
       )}
 
       {selected && <ProviderDetailDialog provider={selected} onClose={() => setSelected(null)} />}
+      {createOpen && <CreateProviderDialog onClose={() => setCreateOpen(false)} onCreated={handleCreated} />}
+    </div>
+  )
+}
+
+// Compact modal: admin pastes the target user's UUID (looked up via the
+// Users page), picks a provider type + specialty, optionally adds a
+// license number, and submits. Row lands in the unverified state.
+function CreateProviderDialog({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void
+  onCreated: () => void
+}) {
+  const [userId, setUserId] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [providerType, setProviderType] = useState('DOCTOR')
+  const [specialization, setSpecialization] = useState('')
+  const [licenseNumber, setLicenseNumber] = useState('')
+  const [yearsOfExperience, setYearsOfExperience] = useState<string>('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    if (!userId.trim() || !firstName.trim() || !lastName.trim()) {
+      setError('User ID, first name, and last name are required.')
+      return
+    }
+    setSaving(true)
+    try {
+      await adminApi.providers.create({
+        userId: userId.trim(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        providerType,
+        specialization: specialization.trim() || undefined,
+        licenseNumber: licenseNumber.trim() || undefined,
+        yearsOfExperience: yearsOfExperience ? parseInt(yearsOfExperience, 10) : undefined,
+      })
+      onCreated()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create provider')
+    } finally {
+      setSaving(false)
+    }
+  }, [userId, firstName, lastName, providerType, specialization, licenseNumber, yearsOfExperience, onCreated])
+
+  return (
+    <div
+      className="fixed inset-0 flex items-center justify-center z-50 px-4"
+      style={{ background: 'rgba(0,0,0,0.5)' }}
+      onClick={onClose}
+    >
+      <div
+        className="rounded-2xl w-full max-w-md p-6"
+        style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <h2 className="text-base font-semibold" style={{ color: 'var(--color-text)' }}>
+              Add Provider
+            </h2>
+            <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+              Promotes the target user to provider. Status starts as Pending — click Verify after reviewing credentials.
+            </p>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="p-1 hover:opacity-70">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="flex flex-col gap-3">
+          <FormInput
+            label="Target User ID"
+            placeholder="Paste user UUID from /users"
+            value={userId}
+            onChange={(e) => setUserId(e.target.value)}
+            required
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <FormInput label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+            <FormInput label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label
+              className="text-[11px] font-semibold uppercase tracking-wider"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              Provider Type
+            </label>
+            <select
+              value={providerType}
+              onChange={(e) => setProviderType(e.target.value)}
+              className="h-10 px-3 rounded-xl text-sm border outline-none cursor-pointer"
+              style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+            >
+              <option value="DOCTOR">Doctor</option>
+              <option value="NURSE">Nurse</option>
+              <option value="PHARMACIST">Pharmacist</option>
+              <option value="PHYSIOTHERAPIST">Physiotherapist</option>
+              <option value="SPECIALIST">Specialist</option>
+              <option value="RADIOLOGIST">Radiologist</option>
+            </select>
+          </div>
+          <FormInput label="Specialty (optional)" placeholder="e.g. Cardiology" value={specialization} onChange={(e) => setSpecialization(e.target.value)} />
+          <div className="grid grid-cols-2 gap-3">
+            <FormInput label="License / NPI (optional)" value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} />
+            <FormInput label="Years of experience" type="number" min={0} value={yearsOfExperience} onChange={(e) => setYearsOfExperience(e.target.value)} />
+          </div>
+
+          {error && (
+            <p className="text-xs" style={{ color: 'var(--color-emergency)' }}>{error}</p>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" size="md" onClick={onClose} type="button">Cancel</Button>
+            <Button variant="primary" size="md" loading={saving} type="submit">Add Provider</Button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }

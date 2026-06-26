@@ -26,8 +26,15 @@ export class ProvidersController {
   constructor(private readonly providersService: ProvidersService) {}
 
   @Post()
-  @Roles(UserRole.provider)
-  @ApiOperation({ summary: 'Create provider profile for the authenticated user' })
+  @Roles(UserRole.admin, UserRole.super_admin)
+  @ApiOperation({
+    summary: 'Create a provider profile for a target user (admin only)',
+    description:
+      'Admin supplies the target user UUID; the user is promoted to role=provider ' +
+      'if not already, and a Provider row is created in the unverified state. ' +
+      'Hit PATCH /providers/:id/verify to mark the credentials reviewed and ' +
+      'trigger OpenEMR sync.',
+  })
   create(@Body() dto: CreateProviderDto, @CurrentUser() user: JwtPayload) {
     return this.providersService.create(dto, user);
   }
