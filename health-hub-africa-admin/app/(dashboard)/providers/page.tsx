@@ -9,9 +9,98 @@ import { SkeletonCard } from '@/components/ui/Skeleton'
 import { FormInput } from '@/components/ui/FormInput'
 import { RefreshCw, Search, Star, Users, Download, X, Copy, Info } from 'lucide-react'
 import { useAuthStore } from '@/lib/stores/authStore'
+import { formatDate } from '@/lib/utils'
 
 function getInitials(first: string, last: string): string {
   return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase()
+}
+
+function ProviderDetailDialog({
+  provider,
+  onClose,
+}: {
+  provider: AdminProvider
+  onClose: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
+      <div
+        className="relative w-full max-w-lg rounded-2xl border shadow-2xl"
+        style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
+          <div className="flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold"
+              style={{ background: '#6DC43F22', color: '#6DC43F' }}
+            >
+              {getInitials(provider.firstName, provider.lastName)}
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+                {provider.title} {provider.firstName} {provider.lastName}
+              </h2>
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{provider.specialty}</p>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ color: 'var(--color-text-muted)' }}><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Email</p>
+              <p className="text-sm break-all" style={{ color: 'var(--color-text)' }}>{provider.email}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Availability</p>
+              <Pill variant={provider.isAvailable ? 'success' : 'neutral'}>{provider.isAvailable ? 'Available' : 'Unavailable'}</Pill>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>License Number</p>
+              <p className="text-sm font-mono" style={{ color: 'var(--color-text)' }}>{provider.licenseNumber ?? '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Joined</p>
+              <p className="text-sm" style={{ color: 'var(--color-text)' }}>{formatDate(provider.createdAt)}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Total Patients</p>
+              <div className="flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5" style={{ color: 'var(--color-text-muted)' }} />
+                <span className="text-sm" style={{ color: 'var(--color-text)' }}>{provider.totalPatients}</span>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Rating</p>
+              {provider.rating ? (
+                <div className="flex items-center gap-1.5">
+                  <Star className="w-3.5 h-3.5 fill-current" style={{ color: '#F5A623' }} />
+                  <span className="text-sm" style={{ color: 'var(--color-text)' }}>{provider.rating}</span>
+                </div>
+              ) : <span style={{ color: 'var(--color-text-faint)' }}>—</span>}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Provider ID</p>
+            <p className="text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>{provider.id}</p>
+          </div>
+        </div>
+
+        <div className="flex justify-end px-5 py-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
+          <Button variant="secondary" size="sm" onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function ProvidersPage() {
@@ -28,6 +117,7 @@ export default function ProvidersPage() {
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<ImportProviderResult | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
+  const [selected, setSelected] = useState<AdminProvider | null>(null)
   const limit = 20
 
   const load = useCallback(async () => {
@@ -233,7 +323,8 @@ export default function ProvidersPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {providers.map((prov) => (
-            <Card key={prov.id} className="flex flex-col gap-4">
+            <div key={prov.id} className="cursor-pointer transition-opacity hover:opacity-80" onClick={() => setSelected(prov)}>
+            <Card className="flex flex-col gap-4">
               {/* Header */}
               <div className="flex items-start gap-3">
                 <div
@@ -279,7 +370,7 @@ export default function ProvidersPage() {
                   {prov.isAvailable ? 'Available' : 'Unavailable'}
                 </Pill>
                 <button
-                  onClick={() => handleToggle(prov.id, prov.isAvailable)}
+                  onClick={(e) => { e.stopPropagation(); handleToggle(prov.id, prov.isAvailable) }}
                   disabled={toggling === prov.id}
                   className="relative w-10 h-5 rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0 disabled:opacity-60"
                   style={{
@@ -296,6 +387,7 @@ export default function ProvidersPage() {
                 </button>
               </div>
             </Card>
+            </div>
           ))}
         </div>
       )}
@@ -318,6 +410,8 @@ export default function ProvidersPage() {
           </div>
         </div>
       )}
+
+      {selected && <ProviderDetailDialog provider={selected} onClose={() => setSelected(null)} />}
     </div>
   )
 }

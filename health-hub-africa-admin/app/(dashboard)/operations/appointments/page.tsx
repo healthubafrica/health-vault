@@ -8,7 +8,7 @@ import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { formatDateTime } from '@/lib/utils'
-import { RefreshCw, Check, X, UserPlus } from 'lucide-react'
+import { RefreshCw, Check, X, UserPlus, Video } from 'lucide-react'
 import { useLiveData } from '@/lib/hooks/useLiveData'
 
 type AppStatus = 'requested' | 'confirmed' | 'upcoming' | 'in_progress' | 'completed' | 'cancelled' | 'no_show'
@@ -36,10 +36,106 @@ const STATUS_PILL: Record<AppStatus, 'success' | 'warning' | 'neutral' | 'info' 
   no_show: 'warning',
 }
 
+function AppointmentDetailDialog({
+  appt,
+  onClose,
+  onConfirm,
+  onDecline,
+  actingId,
+}: {
+  appt: Appointment
+  onClose: () => void
+  onConfirm: (id: string) => void
+  onDecline: (id: string) => void
+  actingId: string | null
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
+      <div
+        className="relative w-full max-w-lg rounded-2xl border shadow-2xl"
+        style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+              {appt.patientName ?? 'Appointment'}
+            </h2>
+            <Pill variant={STATUS_PILL[appt.status] ?? 'neutral'}>{appt.status.replace('_', ' ')}</Pill>
+            {appt.isTelecare && (
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full" style={{ background: '#1a2c3f', color: '#6AADFF' }}>
+                <Video className="w-3 h-3" />TeleCare
+              </span>
+            )}
+          </div>
+          <button onClick={onClose} style={{ color: 'var(--color-text-muted)' }}><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          {appt.patientEmail && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Patient Email</p>
+              <p className="text-sm" style={{ color: 'var(--color-text)' }}>{appt.patientEmail}</p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Provider</p>
+              <p className="text-sm" style={{ color: 'var(--color-text)' }}>{appt.providerName ?? '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Type</p>
+              <p className="text-sm" style={{ color: 'var(--color-text)' }}>{appt.type}</p>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Scheduled</p>
+            <p className="text-sm" style={{ color: 'var(--color-text)' }}>{formatDateTime(appt.scheduledAt)}</p>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Appointment ID</p>
+            <p className="text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>{appt.id}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between px-5 py-4 border-t gap-2" style={{ borderColor: 'var(--color-border)' }}>
+          <div className="flex gap-2">
+            {appt.status === 'requested' && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  loading={actingId === appt.id}
+                  onClick={() => onConfirm(appt.id)}
+                >
+                  <Check className="w-3.5 h-3.5" />Confirm
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  loading={actingId === appt.id}
+                  onClick={() => onDecline(appt.id)}
+                >
+                  <X className="w-3.5 h-3.5" />Decline
+                </Button>
+              </>
+            )}
+          </div>
+          <Button variant="secondary" size="sm" onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function AppointmentsPage() {
   const [statusTab, setStatusTab] = useState('All')
   const [page, setPage] = useState(1)
   const [actingId, setActingId] = useState<string | null>(null)
+  const [selected, setSelected] = useState<Appointment | null>(null)
   const limit = 20
 
   useEffect(() => { setPage(1) }, [statusTab])
@@ -147,8 +243,9 @@ export default function AppointmentsPage() {
                 items.map((a) => (
                   <tr
                     key={a.id}
-                    className="border-b last:border-b-0"
+                    className="border-b last:border-b-0 cursor-pointer transition-colors hover:bg-[var(--color-bg)]"
                     style={{ borderColor: 'var(--color-border)' }}
+                    onClick={() => setSelected(a)}
                   >
                     <td className="px-4 py-3">
                       <p className="font-medium" style={{ color: 'var(--color-text)' }}>
@@ -177,7 +274,7 @@ export default function AppointmentsPage() {
                         {a.status.replace('_', ' ')}
                       </Pill>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       {a.status === 'requested' && (
                         <div className="flex items-center gap-2 flex-wrap">
                           {/* Teleconsults need a provider before they can be
@@ -256,6 +353,16 @@ export default function AppointmentsPage() {
           </div>
         )}
       </Card>
+
+      {selected && (
+        <AppointmentDetailDialog
+          appt={selected}
+          onClose={() => setSelected(null)}
+          onConfirm={(id) => { handleConfirm(id); setSelected(null) }}
+          onDecline={(id) => { handleDecline(id); setSelected(null) }}
+          actingId={actingId}
+        />
+      )}
     </div>
   )
 }

@@ -9,7 +9,7 @@ import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { formatDateTime } from '@/lib/utils'
-import { RefreshCw, Video } from 'lucide-react'
+import { RefreshCw, Video, X } from 'lucide-react'
 
 type SessionStatus = 'scheduled' | 'active' | 'completed' | 'cancelled' | 'missed'
 
@@ -36,9 +36,105 @@ const STATUS_PILL: Record<SessionStatus, 'success' | 'warning' | 'neutral' | 'in
   missed: 'warning',
 }
 
+function TelecareDetailDialog({
+  session,
+  onClose,
+}: {
+  session: TelecareSession
+  onClose: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
+      <div
+        className="relative w-full max-w-lg rounded-2xl border shadow-2xl"
+        style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+              {session.patientName ?? 'TeleCare Session'}
+            </h2>
+            <Pill variant={STATUS_PILL[session.status] ?? 'neutral'}>{session.status}</Pill>
+          </div>
+          <button onClick={onClose} style={{ color: 'var(--color-text-muted)' }}><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          {session.patientEmail && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Patient Email</p>
+              <p className="text-sm" style={{ color: 'var(--color-text)' }}>{session.patientEmail}</p>
+            </div>
+          )}
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Provider</p>
+            <p className="text-sm" style={{ color: 'var(--color-text)' }}>{session.providerName ?? '—'}</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Scheduled</p>
+              <p className="text-xs" style={{ color: 'var(--color-text)' }}>{formatDateTime(session.scheduledAt)}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Duration</p>
+              <p className="text-sm" style={{ color: 'var(--color-text)' }}>
+                {session.durationMinutes != null ? `${session.durationMinutes} min` : '—'}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Started At</p>
+              <p className="text-xs" style={{ color: 'var(--color-text)' }}>
+                {session.startedAt ? formatDateTime(session.startedAt) : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Ended At</p>
+              <p className="text-xs" style={{ color: 'var(--color-text)' }}>
+                {session.endedAt ? formatDateTime(session.endedAt) : '—'}
+              </p>
+            </div>
+          </div>
+
+          {session.recordingUrl && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Recording</p>
+              <a
+                href={session.recordingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm font-medium"
+                style={{ color: '#6DC43F' }}
+              >
+                <Video className="w-3.5 h-3.5" />
+                View Recording
+              </a>
+            </div>
+          )}
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Session ID</p>
+            <p className="text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>{session.id}</p>
+          </div>
+        </div>
+
+        <div className="flex justify-end px-5 py-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
+          <Button variant="secondary" size="sm" onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function TelecarePage() {
   const [statusTab, setStatusTab] = useState('All')
   const [page, setPage] = useState(1)
+  const [selected, setSelected] = useState<TelecareSession | null>(null)
   const limit = 20
 
   useEffect(() => { setPage(1) }, [statusTab])
@@ -124,8 +220,9 @@ export default function TelecarePage() {
                 sessions.map((s) => (
                   <tr
                     key={s.id}
-                    className="border-b last:border-b-0"
+                    className="border-b last:border-b-0 cursor-pointer transition-colors hover:bg-[var(--color-bg)]"
                     style={{ borderColor: 'var(--color-border)' }}
+                    onClick={() => setSelected(s)}
                   >
                     <td className="px-4 py-3">
                       <p className="font-medium" style={{ color: 'var(--color-text)' }}>
@@ -152,7 +249,7 @@ export default function TelecarePage() {
                     <td className="px-4 py-3">
                       <Pill variant={STATUS_PILL[s.status] ?? 'neutral'}>{s.status}</Pill>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       {s.recordingUrl && (
                         <a
                           href={s.recordingUrl}
@@ -202,6 +299,8 @@ export default function TelecarePage() {
           </div>
         )}
       </Card>
+
+      {selected && <TelecareDetailDialog session={selected} onClose={() => setSelected(null)} />}
     </div>
   )
 }

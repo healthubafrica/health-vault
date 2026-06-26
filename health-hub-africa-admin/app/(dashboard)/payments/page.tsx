@@ -8,8 +8,8 @@ import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { FormInput } from '@/components/ui/FormInput'
-import { formatDate } from '@/lib/utils'
-import { RefreshCw, Search } from 'lucide-react'
+import { formatDate, formatDateTime } from '@/lib/utils'
+import { RefreshCw, Search, X } from 'lucide-react'
 
 const STATUS_TABS = ['all', 'pending', 'paid', 'failed', 'refunded']
 
@@ -29,6 +29,99 @@ function formatNaira(kobo: number): string {
   return (kobo / 100).toLocaleString('en-NG', { style: 'currency', currency: 'NGN' })
 }
 
+function PaymentDetailDialog({
+  payment,
+  onClose,
+  onConfirm,
+  confirming,
+}: {
+  payment: AdminPayment
+  onClose: () => void
+  onConfirm: (id: string) => void
+  confirming: string | null
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
+      <div
+        className="relative w-full max-w-lg rounded-2xl border shadow-2xl"
+        style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{payment.patientName}</h2>
+            <Pill variant={statusVariant(payment.status)}>{payment.status}</Pill>
+          </div>
+          <button onClick={onClose} style={{ color: 'var(--color-text-muted)' }}><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>HHA Reference</p>
+              <p className="text-xs font-mono" style={{ color: 'var(--color-text)' }}>{payment.hhaRef}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Amount</p>
+              <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>{formatNaira(payment.amountKobo)}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Gateway</p>
+              <Pill variant={payment.gateway === 'manual' ? 'warning' : 'neutral'}>{gatewayLabel(payment.gateway)}</Pill>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Currency</p>
+              <p className="text-sm" style={{ color: 'var(--color-text)' }}>{payment.currency}</p>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Description</p>
+            <p className="text-sm" style={{ color: 'var(--color-text)' }}>{payment.description}</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Created</p>
+              <p className="text-xs" style={{ color: 'var(--color-text)' }}>{formatDateTime(payment.createdAt)}</p>
+            </div>
+            {payment.paidAt && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Paid At</p>
+                <p className="text-xs" style={{ color: 'var(--color-text)' }}>{formatDateTime(payment.paidAt)}</p>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Payment ID</p>
+            <p className="text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>{payment.id}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between px-5 py-4 border-t gap-2" style={{ borderColor: 'var(--color-border)' }}>
+          <div>
+            {payment.gateway === 'manual' && payment.status === 'pending' && (
+              <Button
+                variant="primary"
+                size="sm"
+                loading={confirming === payment.id}
+                onClick={() => onConfirm(payment.id)}
+              >
+                Confirm Payment
+              </Button>
+            )}
+          </div>
+          <Button variant="secondary" size="sm" onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function PaymentsPage() {
   const [payments, setPayments] = useState<AdminPayment[]>([])
   const [total, setTotal] = useState(0)
@@ -38,6 +131,7 @@ export default function PaymentsPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [confirming, setConfirming] = useState<string | null>(null)
+  const [selected, setSelected] = useState<AdminPayment | null>(null)
   const limit = 20
 
   const load = useCallback(async () => {
@@ -160,8 +254,9 @@ export default function PaymentsPage() {
                 payments.map((p) => (
                   <tr
                     key={p.id}
-                    className="border-b last:border-b-0"
+                    className="border-b last:border-b-0 cursor-pointer transition-colors hover:bg-[var(--color-bg)]"
                     style={{ borderColor: 'var(--color-border)' }}
+                    onClick={() => setSelected(p)}
                   >
                     <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--color-text-muted)' }}>
                       {p.hhaRef}
@@ -184,7 +279,7 @@ export default function PaymentsPage() {
                     <td className="px-4 py-3 text-xs" style={{ color: 'var(--color-text-muted)' }}>
                       {formatDate(p.paidAt ?? p.createdAt)}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       {p.gateway === 'manual' && p.status === 'pending' && (
                         <Button
                           variant="primary"
@@ -222,6 +317,15 @@ export default function PaymentsPage() {
           </div>
         )}
       </Card>
+
+      {selected && (
+        <PaymentDetailDialog
+          payment={selected}
+          onClose={() => setSelected(null)}
+          onConfirm={async (id) => { await handleConfirmManual(id); setSelected(null) }}
+          confirming={confirming}
+        />
+      )}
     </div>
   )
 }

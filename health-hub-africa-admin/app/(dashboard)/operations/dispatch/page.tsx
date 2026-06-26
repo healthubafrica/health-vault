@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { adminApi } from '@/lib/api'
 import { useLiveData } from '@/lib/hooks/useLiveData'
 import { Card } from '@/components/ui/Card'
@@ -8,7 +9,7 @@ import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { formatDateTime } from '@/lib/utils'
-import { RefreshCw, Ambulance, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { RefreshCw, Ambulance, AlertTriangle, CheckCircle2, X } from 'lucide-react'
 
 type DispatchStatus = 'pending' | 'dispatched' | 'en_route' | 'on_scene' | 'resolved' | 'cancelled'
 
@@ -41,7 +42,74 @@ const TRIAGE_PILL: Record<TriagePriority, 'emergency' | 'warning' | 'info' | 'su
   minimal: 'success',
 }
 
+function DispatchDetailDialog({
+  request,
+  onClose,
+}: {
+  request: DispatchRequest
+  onClose: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
+      <div
+        className="relative w-full max-w-lg rounded-2xl border shadow-2xl"
+        style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+              {request.patientName ?? 'Dispatch Request'}
+            </h2>
+            <Pill variant={STATUS_PILL[request.status] ?? 'neutral'}>{request.status.replace('_', ' ')}</Pill>
+            <Pill variant={TRIAGE_PILL[request.triagePriority] ?? 'neutral'}>{request.triagePriority}</Pill>
+          </div>
+          <button onClick={onClose} style={{ color: 'var(--color-text-muted)' }}><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Patient Address</p>
+            <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text)' }}>
+              {request.patientAddress ?? '—'}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Responder</p>
+            <p className="text-sm" style={{ color: 'var(--color-text)' }}>{request.responderName ?? 'Not yet assigned'}</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Created</p>
+              <p className="text-xs" style={{ color: 'var(--color-text)' }}>{formatDateTime(request.createdAt)}</p>
+            </div>
+            {request.resolvedAt && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Resolved</p>
+                <p className="text-xs" style={{ color: 'var(--color-text)' }}>{formatDateTime(request.resolvedAt)}</p>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Dispatch ID</p>
+            <p className="text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>{request.id}</p>
+          </div>
+        </div>
+
+        <div className="flex justify-end px-5 py-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
+          <Button variant="secondary" size="sm" onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function DispatchPage() {
+  const [selected, setSelected] = useState<DispatchRequest | null>(null)
+
   const { data: res, isInitialLoad, refresh } = useLiveData(
     () => adminApi.operations.dispatch(),
     [],
@@ -139,8 +207,9 @@ export default function DispatchPage() {
                 requests.map((r) => (
                   <tr
                     key={r.id}
-                    className="border-b last:border-b-0"
+                    className="border-b last:border-b-0 cursor-pointer transition-colors hover:bg-[var(--color-bg)]"
                     style={{ borderColor: 'var(--color-border)' }}
+                    onClick={() => setSelected(r)}
                   >
                     <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-text)' }}>
                       {r.patientName ?? '—'}
@@ -179,6 +248,8 @@ export default function DispatchPage() {
           </table>
         </div>
       </Card>
+
+      {selected && <DispatchDetailDialog request={selected} onClose={() => setSelected(null)} />}
     </div>
   )
 }
