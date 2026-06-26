@@ -893,6 +893,18 @@ export class OpenemrProcessor {
     });
     if (!provider) return;
 
+    // Hard gate: do not push a provider to OpenEMR until an admin has
+    // verified their credentials (license, specialty). Without this an
+    // admin-promoted user could self-attest any NPI and we'd write it into
+    // OpenEMR's user table. The job log is informational; we don't throw
+    // so Bull doesn't retry forever — the next verify() call re-enqueues.
+    if (!provider.verifiedAt) {
+      this.logger.warn(
+        `sync-provider skipped for ${providerId}: provider has not been verified by an admin`,
+      );
+      return;
+    }
+
     const token = await this.openemrService.getAccessToken();
     const body: Record<string, string> = {
       fname:     provider.firstName,

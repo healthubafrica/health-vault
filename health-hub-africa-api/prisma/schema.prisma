@@ -210,6 +210,7 @@ model User {
   erCasesCoordinator    ExpertReviewCase[]    @relation("ERCoordinator")
   erStatusEvents        ExpertReviewStatusEvent[]
   blogPosts             BlogPost[]
+  verifiedProviders     Provider[]            @relation("ProviderVerifier")
 
   @@map("users")
 }
@@ -365,12 +366,15 @@ model Provider {
   totalPatients   Int      @default(0) @map("total_patients")
   yearsExperience Int      @default(0) @map("years_experience")
   isAvailable     Boolean  @default(true) @map("is_available")
+  verifiedAt      DateTime? @map("verified_at")
+  verifiedBy      String?   @map("verified_by") @db.Uuid
   openemrProviderUuid String? @unique @map("openemr_provider_uuid")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   deletedAt       DateTime? @map("deleted_at")
 
   user                  User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verifier              User?                     @relation("ProviderVerifier", fields: [verifiedBy], references: [id])
   availability          ProviderAvailability[]
   patientAssignments    PatientProviderAssignment[]
   appointments          Appointment[]
