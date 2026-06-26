@@ -70,7 +70,7 @@ export const PLANS: Plan[] = [
       'Care Navigation Support',
       'Discounted CareTest™ Services',
       'Preferred MinuteCare™ Pricing',
-      'Preferred DispatchCare™ Pricing',
+      '1 DispatchCare™ Emergency Response Annually',
       '3% No Claim Discount',
     ],
     familyPricing: [],
@@ -95,6 +95,7 @@ export const PLANS: Plan[] = [
       'Annual Wellness Assessment',
       'Chronic Disease Monitoring',
       'Annual CareTest™ Screening Package',
+      '2 DispatchCare™ Emergency Responses Annually',
       'Enhanced Care Navigation',
       '5% No Claim Discount',
     ],
@@ -125,7 +126,7 @@ export const PLANS: Plan[] = [
       'Comprehensive Annual Screening',
       'Executive Health Review',
       'Dedicated Care Coordinator',
-      'Priority DispatchCare™ Response',
+      '4 Priority DispatchCare™ Responses Annually',
       'TravelSafe™ Nigeria',
       '7% No Claim Discount',
     ],
@@ -157,7 +158,7 @@ export const PLANS: Plan[] = [
       'Monthly Wellness Check-Ins',
       'Quarterly Health Reviews',
       'Executive Care Planning',
-      'Priority DispatchCare™ Services',
+      '6 Priority DispatchCare™ Responses Annually',
       'TravelSafe™ Global',
       'Enhanced Family Coordination',
     ],
@@ -197,7 +198,7 @@ export const COMPARE_ROWS = [
   { service: 'TeleCare™ GP Sessions', free: 'Pay-per-use', basiccare: '2/year', silvercare: '12/year', goldcare: 'Expanded', conciergecare: 'Unlimited' },
   { service: 'Specialist Second Opinion', free: '—', basiccare: '—', silvercare: '2/year', goldcare: '✓', conciergecare: '✓' },
   { service: 'Annual Wellness Assessment', free: '—', basiccare: '—', silvercare: '✓', goldcare: 'Comprehensive', conciergecare: 'Quarterly' },
-  { service: 'DispatchCare™', free: 'Pay-per-use', basiccare: 'Preferred rate', silvercare: 'Preferred rate', goldcare: 'Priority', conciergecare: 'Priority' },
+  { service: 'DispatchCare™', free: 'Pay-per-use', basiccare: '1/year', silvercare: '2/year', goldcare: '4/year (Priority)', conciergecare: '6/year (Priority)' },
   { service: 'MinuteCare™', free: 'Pay-per-use', basiccare: 'Preferred rate', silvercare: 'Preferred rate', goldcare: '✓', conciergecare: '✓' },
   { service: 'CareTest™ Screening', free: 'Pay-per-use', basiccare: 'Discounted', silvercare: 'Annual package', goldcare: 'Comprehensive', conciergecare: '✓' },
   { service: 'Care Navigation', free: '—', basiccare: '✓', silvercare: 'Enhanced', goldcare: 'Dedicated coordinator', conciergecare: 'Relationship Manager' },
@@ -238,10 +239,10 @@ export const SAVINGS_SERVICES: SavingsService[] = [
 // Pre-populated usage examples per plan, keyed by SavingsService.key.
 // Any service not listed for a plan defaults to 0.
 export const SAVINGS_DEFAULTS: Record<string, Record<string, number>> = {
-  basiccare: { teleGp: 2 },
-  silvercare: { teleGp: 6, teleSpecialist: 2, basicScreening: 1 },
-  goldcare: { teleGp: 12, teleSpecialist: 4, comprehensiveScreening: 2, homeVisit: 1 },
-  conciergecare: { teleGp: 12, teleSpecialist: 6, homeVisit: 2, comprehensiveScreening: 2, dispatchCare: 1 },
+  basiccare: { teleGp: 2, dispatchCare: 1 },
+  silvercare: { teleGp: 6, teleSpecialist: 2, basicScreening: 1, dispatchCare: 2 },
+  goldcare: { teleGp: 12, teleSpecialist: 4, comprehensiveScreening: 2, homeVisit: 1, dispatchCare: 4 },
+  conciergecare: { teleGp: 12, teleSpecialist: 6, homeVisit: 2, comprehensiveScreening: 2, dispatchCare: 6 },
 }
 
 // Savings above this amount trigger the "big savings" smart message.
