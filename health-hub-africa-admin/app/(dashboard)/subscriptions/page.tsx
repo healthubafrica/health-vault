@@ -7,8 +7,104 @@ import { FilterTabs } from '@/components/ui/FilterTabs'
 import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
 import { SkeletonBox } from '@/components/ui/Skeleton'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatDateTime } from '@/lib/utils'
 import { RefreshCw, X } from 'lucide-react'
+
+function SubDetailDialog({
+  sub,
+  onClose,
+  onChangePlan,
+  onCancel,
+  cancelling,
+}: {
+  sub: AdminSubscription
+  onClose: () => void
+  onChangePlan: (s: AdminSubscription) => void
+  onCancel: (id: string) => void
+  cancelling: string | null
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
+      <div
+        className="relative w-full max-w-lg rounded-2xl border shadow-2xl"
+        style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{sub.patientName}</h2>
+            <Pill variant={statusVariant(sub.status)}>{sub.status}</Pill>
+          </div>
+          <button onClick={onClose} style={{ color: 'var(--color-text-muted)' }}><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>HHA Patient ID</p>
+              <p className="text-xs font-mono" style={{ color: 'var(--color-text)' }}>{sub.hhaPatientId}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Auto-Renew</p>
+              <Pill variant={sub.autoRenew ? 'success' : 'neutral'}>{sub.autoRenew ? 'Yes' : 'No'}</Pill>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Plan</p>
+              <p className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>{sub.planName}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Tier</p>
+              <Pill variant="neutral">{sub.tier}</Pill>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Started</p>
+              <p className="text-xs" style={{ color: 'var(--color-text)' }}>{formatDate(sub.startedAt)}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Expires</p>
+              <p className="text-xs" style={{ color: 'var(--color-text)' }}>{formatDate(sub.expiresAt)}</p>
+            </div>
+          </div>
+
+          {sub.cancelledAt && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Cancelled At</p>
+              <p className="text-xs" style={{ color: 'var(--color-emergency)' }}>{formatDateTime(sub.cancelledAt)}</p>
+            </div>
+          )}
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Subscription ID</p>
+            <p className="text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>{sub.id}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between px-5 py-4 border-t gap-2" style={{ borderColor: 'var(--color-border)' }}>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={() => { onClose(); onChangePlan(sub) }}>Change Plan</Button>
+            {sub.status === 'active' && (
+              <Button
+                variant="danger"
+                size="sm"
+                loading={cancelling === sub.id}
+                onClick={() => onCancel(sub.id)}
+              >
+                Cancel
+              </Button>
+            )}
+          </div>
+          <Button variant="secondary" size="sm" onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const STATUS_TABS = ['all', 'active', 'expired', 'cancelled']
 
@@ -31,6 +127,7 @@ export default function SubscriptionsPage() {
   const [statusTab, setStatusTab] = useState('all')
   const [page, setPage] = useState(1)
   const [cancelling, setCancelling] = useState<string | null>(null)
+  const [selected, setSelected] = useState<AdminSubscription | null>(null)
   const [overrideTarget, setOverrideTarget] = useState<OverrideTarget>(null)
   const [plans, setPlans] = useState<Plan[]>([])
   const [selectedPlanId, setSelectedPlanId] = useState('')
@@ -243,8 +340,9 @@ export default function SubscriptionsPage() {
                 subs.map((s) => (
                   <tr
                     key={s.id}
-                    className="border-b last:border-b-0"
+                    className="border-b last:border-b-0 cursor-pointer transition-colors hover:bg-[var(--color-bg)]"
                     style={{ borderColor: 'var(--color-border)' }}
+                    onClick={() => setSelected(s)}
                   >
                     <td className="px-4 py-3 font-medium" style={{ color: 'var(--color-text)' }}>
                       {s.patientName}
@@ -273,7 +371,7 @@ export default function SubscriptionsPage() {
                       </Pill>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                         <Button
                           variant="secondary"
                           size="sm"
@@ -319,6 +417,16 @@ export default function SubscriptionsPage() {
           </div>
         )}
       </Card>
+
+      {selected && (
+        <SubDetailDialog
+          sub={selected}
+          onClose={() => setSelected(null)}
+          onChangePlan={(s) => openOverrideModal(s)}
+          onCancel={handleCancel}
+          cancelling={cancelling}
+        />
+      )}
     </div>
   )
 }

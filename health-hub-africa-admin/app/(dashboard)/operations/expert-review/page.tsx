@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button'
 import { Avatar } from '@/components/ui/Avatar'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { formatDateTime } from '@/lib/utils'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, X } from 'lucide-react'
 
 type ReviewStatus = 'pending' | 'assigned' | 'in_review' | 'completed' | 'escalated'
 
@@ -43,12 +43,94 @@ const PRIORITY_PILL: Record<'high' | 'medium' | 'low', 'emergency' | 'warning' |
   low: 'neutral',
 }
 
+function ExpertReviewDetailDialog({
+  item,
+  onClose,
+}: {
+  item: ExpertReviewCase
+  onClose: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
+      <div
+        className="relative w-full max-w-lg rounded-2xl border shadow-2xl"
+        style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+              {item.patientName ?? 'Expert Review Case'}
+            </h2>
+            <Pill variant={STATUS_PILL[item.status] ?? 'neutral'}>{item.status.replace('_', ' ')}</Pill>
+            <Pill variant={PRIORITY_PILL[item.priority] ?? 'neutral'}>{item.priority} priority</Pill>
+          </div>
+          <button onClick={onClose} style={{ color: 'var(--color-text-muted)' }}><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          {item.patientEmail && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Patient Email</p>
+              <p className="text-sm" style={{ color: 'var(--color-text)' }}>{item.patientEmail}</p>
+            </div>
+          )}
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Chief Complaint</p>
+            <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text)' }}>{item.chiefComplaint}</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Specialty Required</p>
+              <p className="text-sm" style={{ color: 'var(--color-text)' }}>{item.specialtyRequired ?? '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Assigned Coordinator</p>
+              {item.assignedCoordinator ? (
+                <div className="flex items-center gap-1.5">
+                  <Avatar name={item.assignedCoordinator} size="xs" />
+                  <span className="text-sm" style={{ color: 'var(--color-text)' }}>{item.assignedCoordinator}</span>
+                </div>
+              ) : <span className="text-sm" style={{ color: 'var(--color-text-faint)' }}>Unassigned</span>}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Submitted</p>
+              <p className="text-xs" style={{ color: 'var(--color-text)' }}>{formatDateTime(item.submittedAt)}</p>
+            </div>
+            {item.completedAt && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Completed</p>
+                <p className="text-xs" style={{ color: 'var(--color-text)' }}>{formatDateTime(item.completedAt)}</p>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Case ID</p>
+            <p className="text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>{item.id}</p>
+          </div>
+        </div>
+
+        <div className="flex justify-end px-5 py-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
+          <Button variant="secondary" size="sm" onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ExpertReviewPage() {
   const [cases, setCases] = useState<ExpertReviewCase[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [statusTab, setStatusTab] = useState('All')
   const [page, setPage] = useState(1)
+  const [selected, setSelected] = useState<ExpertReviewCase | null>(null)
   const limit = 20
 
   const load = useCallback(async () => {
@@ -137,8 +219,9 @@ export default function ExpertReviewPage() {
                 cases.map((c) => (
                   <tr
                     key={c.id}
-                    className="border-b last:border-b-0"
+                    className="border-b last:border-b-0 cursor-pointer transition-colors hover:bg-[var(--color-bg)]"
                     style={{ borderColor: 'var(--color-border)' }}
+                    onClick={() => setSelected(c)}
                   >
                     <td className="px-4 py-3">
                       <p className="font-medium" style={{ color: 'var(--color-text)' }}>
@@ -224,6 +307,8 @@ export default function ExpertReviewPage() {
           </div>
         )}
       </Card>
+
+      {selected && <ExpertReviewDetailDialog item={selected} onClose={() => setSelected(null)} />}
     </div>
   )
 }
