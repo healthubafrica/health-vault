@@ -589,8 +589,12 @@ export const adminApi = {
   },
 
   openemr: {
+    authInit: () =>
+      request<{ authorizationUrl: string; state: string; instructions: string[]; isAuthenticated: boolean }>('/openemr/auth/init'),
     recoverAll: () =>
       request<{ enqueued: number }>('/openemr/recover-all', { method: 'POST' }),
+    recoverEncounters: () =>
+      request<{ enqueued: number }>('/openemr/recover-appointment-encounters', { method: 'POST' }),
   },
 
   // Provider-scoped (uses /telecare endpoints, not /admin — scoped by JWT)
