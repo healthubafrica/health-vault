@@ -1,5 +1,5 @@
 import {
-  BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -54,16 +54,37 @@ export class ProvidersService {
 
   // ── Create ─────────────────────────────────────────────────────────────────
 
-  async create(_dto: CreateProviderDto, _currentUser: JwtPayload) {
-    // OpenEMR is the source of truth for the practitioner roster. Allowing
-    // HHA-only provider creation lets a clinician log in here without ever
-    // existing in OpenEMR, then encounter / appointment sync silently fails
-    // (no openemr_provider_uuid to reference). Admins import the roster via
-    // POST /admin/providers/import-from-openemr; this self-registration path
-    // is closed by design.
-    throw new BadRequestException(
-      'Providers must be created in OpenEMR. Ask a super_admin to run "Import from OpenEMR" once the practitioner is on the OpenEMR side.',
+  async create(dto: CreateProviderDto, currentUser: JwtPayload) {
+    const existing = await this.prisma.provider.findUnique({
+      where: { userId: currentUser.sub },
+    });
+    if (existing) throw new ConflictException('Provider profile already exists');
+
+    const provider = await this.prisma.provider.create({
+      data: {
+        userId: currentUser.sub,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        title: TITLE_BY_TYPE[dto.providerType] ?? 'Dr.',
+        specialty: dto.specialization ?? dto.providerType,
+        licenseNumber: dto.licenseNumber,
+        yearsExperience: dto.yearsOfExperience ?? 0,
+        bio: buildBio(dto),
+        isAvailable: dto.acceptsVirtualConsults ?? true,
+        profilePhotoUrl: dto.profilePhotoUrl,
+      },
+      select: this.safeSelect(),
+    });
+
+    // Push to OpenEMR's /api/practitioner — creates the user record (login,
+    // role, NPI, specialty). Failures are swallowed so a flaky OpenEMR or
+    // expired OAuth refresh doesn't bounce the HHA create; the queue job
+    // retries 3× and integration_errors logs the failure for admin review.
+    await this.openemrService.enqueueProviderSync(provider.id).catch((err) =>
+      this.logger.error(`Failed to enqueue OpenEMR provider sync: ${err.message}`),
     );
+
+    return provider;
   }
 
   // ── Find All ──────────────────────────────────────────────────────────────
