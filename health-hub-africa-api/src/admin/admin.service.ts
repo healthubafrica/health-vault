@@ -946,6 +946,16 @@ export class AdminService {
       throw new BadRequestException(`OpenEMR rejected the facility import: ${msg}`);
     }
 
+    // Remove any non-facility Location records that slipped in from a previous
+    // unfiltered import (e.g. patient "Home Address" rows). We identify them by
+    // name because they have no legitimate clinical use and break encounter routing.
+    const { count: purged } = await this.prisma.healthcareFacility.deleteMany({
+      where: { name: { equals: 'Home Address', mode: 'insensitive' } },
+    });
+    if (purged > 0) {
+      this.logger.warn(`Facility import: purged ${purged} non-facility "Home Address" record(s) from previous import`);
+    }
+
     let imported = 0;
     let updated = 0;
     const results: Array<{

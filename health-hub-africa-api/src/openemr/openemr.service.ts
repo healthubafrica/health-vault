@@ -296,6 +296,15 @@ export class OpenemrService implements OnModuleInit {
       const name = resource.name as string | undefined;
       if (!id || !name) return [];
 
+      // OpenEMR creates FHIR Location records for patient home addresses as well
+      // as for real clinical facilities. Exclude them by physicalType code 'ho'
+      // (FHIR home type) and by the literal name "Home Address" as a fallback for
+      // builds that omit physicalType.
+      const physicalType = resource.physicalType as { coding?: Array<{ code?: string }> } | undefined;
+      const physicalCode = physicalType?.coding?.[0]?.code;
+      if (physicalCode === 'ho') return [];
+      if (name.trim().toLowerCase() === 'home address') return [];
+
       const telecom = (resource.telecom as Array<{ system: string; value: string }> | undefined) ?? [];
       const phone = telecom.find((t) => t.system === 'phone')?.value ?? null;
 
