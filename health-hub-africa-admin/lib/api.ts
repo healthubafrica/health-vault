@@ -239,6 +239,12 @@ export interface AdminUser {
     openemrSyncStatus: string
     openemrPatientUuid?: string | null
   }
+  provider?: {
+    id: string
+    firstName: string
+    lastName: string
+    isAvailable: boolean
+  }
 }
 
 // ── Admin: Analytics ──────────────────────────────────────────────────────
