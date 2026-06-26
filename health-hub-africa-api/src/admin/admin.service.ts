@@ -49,22 +49,38 @@ export class AdminService {
 
   // ── Users ─────────────────────────────────────────────────────────────────
 
-  async listUsers(page = 1, limit = 20, search?: string) {
+  async listUsers(
+    page = 1,
+    limit = 20,
+    search?: string,
+    status?: 'active' | 'inactive',
+  ) {
     const skip = (page - 1) * limit;
-    const where: any = search
-      ? {
-          OR: [
-            { email: { contains: search, mode: 'insensitive' } },
-            { phone: { contains: search, mode: 'insensitive' } },
-            { patient: { firstName: { contains: search, mode: 'insensitive' } } },
-            { patient: { lastName: { contains: search, mode: 'insensitive' } } },
-            { patient: { hhaPatientId: { contains: search, mode: 'insensitive' } } },
-            { patient: { openemrPatientUuid: { contains: search, mode: 'insensitive' } } },
-            { provider: { firstName: { contains: search, mode: 'insensitive' } } },
-            { provider: { lastName: { contains: search, mode: 'insensitive' } } },
-          ],
-        }
-      : {};
+
+    // Each filter is its own AND clause so the search OR and the inactive
+    // OR don't overwrite each other when both are present (object spread
+    // would collapse two OR keys to one).
+    const conditions: any[] = [];
+    if (search) {
+      conditions.push({
+        OR: [
+          { email: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search, mode: 'insensitive' } },
+          { patient: { firstName: { contains: search, mode: 'insensitive' } } },
+          { patient: { lastName: { contains: search, mode: 'insensitive' } } },
+          { patient: { hhaPatientId: { contains: search, mode: 'insensitive' } } },
+          { patient: { openemrPatientUuid: { contains: search, mode: 'insensitive' } } },
+          { provider: { firstName: { contains: search, mode: 'insensitive' } } },
+          { provider: { lastName: { contains: search, mode: 'insensitive' } } },
+        ],
+      });
+    }
+    if (status === 'active') {
+      conditions.push({ isActive: true, deletedAt: null });
+    } else if (status === 'inactive') {
+      conditions.push({ OR: [{ isActive: false }, { deletedAt: { not: null } }] });
+    }
+    const where: any = conditions.length ? { AND: conditions } : {};
 
     const [rows, total] = await Promise.all([
       this.prisma.user.findMany({

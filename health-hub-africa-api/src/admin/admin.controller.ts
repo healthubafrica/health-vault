@@ -33,11 +33,13 @@ export class AdminController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
+    @Query('status') status?: 'active' | 'inactive',
   ) {
     return this.adminService.listUsers(
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
       search,
+      status,
     );
   }
 
