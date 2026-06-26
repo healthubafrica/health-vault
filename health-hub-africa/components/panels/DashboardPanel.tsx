@@ -23,14 +23,28 @@ const SEEDED_FULL = [15, 19, 23]
 const SEEDED_CRITICAL_DAY = 17
 
 function MiniCalendar() {
-  const [viewYear, setViewYear] = useState(SEEDED_YEAR)
-  const [viewMonth, setViewMonth] = useState(SEEDED_MONTH)
-  const [selected, setSelected] = useState<number | null>(18)
+  const today = new Date()
+  const [viewYear, setViewYear] = useState(today.getFullYear())
+  const [viewMonth, setViewMonth] = useState(today.getMonth())
+  const [selected, setSelected] = useState<number | null>(null)
 
   const isSeededMonth = viewYear === SEEDED_YEAR && viewMonth === SEEDED_MONTH
   const available = isSeededMonth ? SEEDED_AVAILABLE : []
   const full = isSeededMonth ? SEEDED_FULL : []
   const criticalDay = isSeededMonth ? SEEDED_CRITICAL_DAY : null
+
+  const isViewingCurrentMonth = viewYear === today.getFullYear() && viewMonth === today.getMonth()
+  const isViewingPastMonth =
+    viewYear < today.getFullYear() ||
+    (viewYear === today.getFullYear() && viewMonth < today.getMonth())
+
+  function isDaySelectable(day: number): boolean {
+    if (full.includes(day)) return false
+    if (isSeededMonth) return available.includes(day) || day === criticalDay
+    if (isViewingPastMonth) return false
+    if (isViewingCurrentMonth) return day >= today.getDate()
+    return true
+  }
 
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
   const firstWeekday = new Date(viewYear, viewMonth, 1).getDay()
@@ -98,9 +112,9 @@ function MiniCalendar() {
           const isCritical = day === criticalDay
           const isAvail = available.includes(day)
           const isFull = full.includes(day)
+          const selectable = isDaySelectable(day)
 
           let btnClass = "relative flex flex-col items-center justify-center h-8 w-8 mx-auto rounded-full text-xs font-semibold transition-all duration-150 "
-          let style: React.CSSProperties = {}
 
           if (isSelected) {
             btnClass += "bg-[var(--color-primary)] text-white shadow-sm"
@@ -108,7 +122,7 @@ function MiniCalendar() {
             btnClass += "bg-[#C0392B] text-white shadow-sm hover:bg-[#a93226]"
           } else if (isFull) {
             btnClass += "text-[var(--color-text-faint)] cursor-not-allowed"
-          } else if (isAvail) {
+          } else if (selectable) {
             btnClass += "text-[var(--color-text)] hover:bg-[var(--color-primary-light)] cursor-pointer"
           } else {
             btnClass += "text-[var(--color-text-faint)] cursor-not-allowed"
@@ -124,14 +138,9 @@ function MiniCalendar() {
               <button
                 aria-label={`${MONTH_NAMES[viewMonth]} ${day}, ${viewYear}`}
                 aria-pressed={isSelected}
-                onClick={() => {
-                  if (isAvail || isCritical) {
-                    setSelected(day)
-                  }
-                }}
-                disabled={isFull && !isCritical && !isAvail}
+                onClick={() => { if (selectable) setSelected(day) }}
+                disabled={!selectable}
                 className={btnClass}
-                style={style}
               >
                 {day}
               </button>
