@@ -11,6 +11,16 @@ export function useAuthRefresh() {
   const fetchMe = useAuthStore((s) => s.fetchMe)
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
 
+  // Reconcile store state with the real session on mount. proxy.ts already
+  // guarantees an hha_at cookie exists for any rendered dashboard route, but
+  // isAuthenticated/user can still be stale or unset here — e.g. a login that
+  // got interrupted by a page refresh before auth.me() resolved, or a cookie
+  // that survived a cleared localStorage. Without this, the dashboard renders
+  // "logged in" (data loads via the cookie) while user is still null.
+  useEffect(() => {
+    void fetchMe()
+  }, [fetchMe])
+
   useEffect(() => {
     if (!isAuthenticated) return
 
