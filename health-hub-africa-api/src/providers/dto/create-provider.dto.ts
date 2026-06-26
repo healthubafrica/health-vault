@@ -12,6 +12,14 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ProviderType } from '../../common/enums';
 
 export class CreateProviderDto {
+  // Admin/super_admin supplies the target user this profile is for. The
+  // target user must already exist (admin can create the user via the
+  // standard signup or import flow first). Set service-side to forbid
+  // self-create — providers cannot promote themselves.
+  @ApiProperty({ description: 'UUID of the target user this provider profile belongs to' })
+  @IsString()
+  userId: string;
+
   @ApiProperty()
   @IsString()
   firstName: string;

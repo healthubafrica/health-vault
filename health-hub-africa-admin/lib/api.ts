@@ -316,6 +316,22 @@ export interface AdminProvider {
   id: string; userId: string; firstName: string; lastName: string
   title: string; specialty: string; email: string; isAvailable: boolean
   totalPatients: number; rating?: string; licenseNumber?: string; createdAt: string
+  isVerified?: boolean
+  verifiedAt?: string | null
+  openemrProviderUuid?: string | null
+}
+
+export interface CreateProviderPayload {
+  userId: string
+  firstName: string
+  lastName: string
+  providerType: string
+  specialization?: string
+  licenseNumber?: string
+  yearsOfExperience?: number
+  bio?: string
+  acceptsVirtualConsults?: boolean
+  profilePhotoUrl?: string
 }
 
 export interface ImportProviderResult {
@@ -704,6 +720,18 @@ export const adminApi = {
       request<void>(`/admin/providers/${id}/availability`, { method: 'PATCH', body: JSON.stringify({ available }) }),
     importFromOpenemr: () =>
       request<ImportProviderResult>('/admin/providers/import-from-openemr', { method: 'POST' }),
+    // Admin creates a provider profile for a target user. The user is
+    // promoted to role=provider; the row lands in the unverified state and
+    // is invisible to bookings + OpenEMR sync until verify() is called.
+    create: (payload: CreateProviderPayload) =>
+      request<{ data: AdminProvider }>('/providers', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    // Stamps verifiedAt + verifiedBy; triggers the OpenEMR push and opens
+    // up the booking gate.
+    verify: (id: string) =>
+      request<{ data: AdminProvider }>(`/providers/${id}/verify`, { method: 'PATCH' }),
   },
 
   clinicalQueue: {

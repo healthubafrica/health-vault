@@ -1458,6 +1458,12 @@ export class AdminService {
       totalPatients: r.totalPatients,
       rating: r.rating ? Number(r.rating) : null,
       licenseNumber: r.licenseNumber,
+      // Verification surface for the admin Providers table — admins need to
+      // see at a glance which clinicians still need credential review and
+      // which are already cleared to take bookings + sync to OpenEMR.
+      isVerified: r.verifiedAt != null,
+      verifiedAt: r.verifiedAt,
+      openemrProviderUuid: r.openemrProviderUuid,
       createdAt: r.createdAt,
     }));
 
