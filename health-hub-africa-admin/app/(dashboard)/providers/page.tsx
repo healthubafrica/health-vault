@@ -201,16 +201,14 @@ export default function ProvidersPage() {
         </div>
       </div>
 
-      {/* Source-of-truth notice */}
+      {/* Two-way sync notice */}
       <div
         className="mb-4 flex items-start gap-3 px-4 py-3 rounded-xl border"
         style={{ background: 'var(--color-info-bg, #1A2C3F)', borderColor: 'var(--color-border)' }}
       >
         <Info className="w-4 h-4 mt-0.5 shrink-0" style={{ color: '#6AADFF' }} />
         <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
-          <span className="font-semibold" style={{ color: 'var(--color-text)' }}>OpenEMR is the source of truth for providers.</span>{' '}
-          Create the practitioner in OpenEMR first, then use <span className="font-medium" style={{ color: 'var(--color-text)' }}>Import from OpenEMR</span> to mirror the roster here.
-          Self-registration via the public API is closed by design — encounter and appointment sync rely on every provider having an OpenEMR practitioner UUID.
+          Providers can be created on either side. New HHA provider records push to OpenEMR's user table automatically (see <span className="font-medium" style={{ color: 'var(--color-text)' }}>/system/errors</span> if a push fails). Use <span className="font-medium" style={{ color: 'var(--color-text)' }}>Import from OpenEMR</span> to pull practitioners that were added directly on the OpenEMR side.
         </p>
       </div>
 
