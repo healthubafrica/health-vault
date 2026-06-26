@@ -76,9 +76,17 @@ export class AppointmentsService {
     if (dto.providerId) {
       const provider = await this.prisma.provider.findUnique({
         where: { id: dto.providerId },
-        select: { id: true },
+        select: { id: true, verifiedAt: true, deletedAt: true },
       });
-      if (!provider) throw new NotFoundException('Provider not found');
+      if (!provider || provider.deletedAt) throw new NotFoundException('Provider not found');
+      // Block bookings against unverified providers. Cosmetic profile fields
+      // are fine to expose pre-verify (so the provider can prep their bio),
+      // but they can't take appointments — and via the auto-spawn flow, they
+      // can't be assigned a TelecareSession — until an admin has signed off
+      // on the credentials.
+      if (!provider.verifiedAt) {
+        throw new BadRequestException('Selected provider is not yet verified');
+      }
     }
 
     const { serviceType, isTelecare } = toServiceFields(dto.appointmentType);
@@ -210,10 +218,13 @@ export class AppointmentsService {
       }
       const target = await this.prisma.provider.findUnique({
         where: { id: dto.providerId },
-        select: { id: true, deletedAt: true },
+        select: { id: true, deletedAt: true, verifiedAt: true },
       });
       if (!target || target.deletedAt) {
         throw new NotFoundException('Provider not found');
+      }
+      if (!target.verifiedAt) {
+        throw new BadRequestException('Target provider is not yet verified');
       }
     }
 

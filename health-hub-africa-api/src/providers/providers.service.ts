@@ -168,6 +168,16 @@ export class ProvidersService {
 
     const bio = buildBio(dto);
 
+    // If a credential-affecting field changes, the prior admin verification
+    // no longer applies — clear it so the row stops syncing to OpenEMR and
+    // stops accepting bookings until an admin re-verifies the new values.
+    // Cosmetic edits (bio, photo, availability, years of experience) don't
+    // invalidate the verification.
+    const isCredentialChange =
+      (dto.licenseNumber !== undefined && dto.licenseNumber !== null) ||
+      (dto.specialization !== undefined && dto.specialization !== null) ||
+      (dto.providerType !== undefined);
+
     const updated = await this.prisma.provider.update({
       where: { id },
       data: {
@@ -184,11 +194,20 @@ export class ProvidersService {
           isAvailable: dto.acceptsVirtualConsults,
         }),
         ...(dto.profilePhotoUrl !== undefined && { profilePhotoUrl: dto.profilePhotoUrl }),
+        ...(isCredentialChange && { verifiedAt: null, verifiedBy: null }),
       },
       select: this.safeSelect(),
     });
 
-    await this.openemrService.enqueueProviderSync(updated.id).catch(err =>
+    if (isCredentialChange) {
+      this.logger.warn(
+        `Provider ${updated.id} credentials changed — verification reset, OpenEMR sync paused until admin re-verifies`,
+      );
+    }
+
+    // Sync handler itself no-ops when verifiedAt is null, but enqueueing is
+    // still safe: the handler logs the skip and Bull won't retry forever.
+    await this.openemrService.enqueueProviderSync(updated.id).catch((err) =>
       this.logger.error(`Failed to enqueue OpenEMR provider sync: ${err.message}`),
     );
 
@@ -203,11 +222,19 @@ export class ProvidersService {
     const provider = await this.prisma.provider.findUnique({ where: { id } });
     if (!provider) throw new NotFoundException('Provider not found');
 
-    // Verification lives on the linked user account
-    await this.prisma.user.update({
-      where: { id: provider.userId },
-      data: { isVerified: true },
+    // Stamp the provider-side verification fields. We deliberately do NOT
+    // touch User.isVerified here — that one is set by signup OTP and is
+    // about account ownership, not clinical credentials.
+    await this.prisma.provider.update({
+      where: { id },
+      data: { verifiedAt: new Date(), verifiedBy: currentUser.sub },
     });
+
+    // OpenEMR sync is gated on verifiedAt, so the original create/update
+    // enqueues were no-ops until now. Push the (now verified) profile.
+    await this.openemrService.enqueueProviderSync(provider.id).catch((err) =>
+      this.logger.error(`Failed to enqueue OpenEMR provider sync after verify: ${err.message}`),
+    );
 
     return this.prisma.provider.findUnique({
       where: { id },
