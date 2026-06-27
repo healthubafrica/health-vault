@@ -346,10 +346,10 @@ export class AppointmentsService {
     const isAdmin = adminRoles.includes(currentUser.role as UserRole);
 
     if (!isAdmin) {
-      if (currentUser.patientId) {
-        where.patientId = currentUser.patientId;
-      } else if (currentUser.providerId) {
+      if (currentUser.role === UserRole.provider && currentUser.providerId) {
         where.providerId = currentUser.providerId;
+      } else if (currentUser.patientId) {
+        where.patientId = currentUser.patientId;
       }
     } else {
       if (query.patientId) where.patientId = query.patientId;
