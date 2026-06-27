@@ -146,10 +146,13 @@ export class TelecareService implements OnModuleInit {
   async findSessions(currentUser: JwtPayload, status?: SessionStatus) {
     const where: any = {};
 
-    if (currentUser.patientId) {
-      where.patientId = currentUser.patientId;
-    } else if (currentUser.providerId) {
+    const adminRoles: UserRole[] = [UserRole.admin, UserRole.super_admin, UserRole.coordinator];
+    if (currentUser.role === UserRole.provider && currentUser.providerId) {
       where.providerId = currentUser.providerId;
+    } else if (currentUser.role === UserRole.patient && currentUser.patientId) {
+      where.patientId = currentUser.patientId;
+    } else if (adminRoles.includes(currentUser.role as UserRole)) {
+      // Admin: no scope filter — returns all sessions
     } else {
       this.requireProviderOrAdmin(currentUser);
     }
