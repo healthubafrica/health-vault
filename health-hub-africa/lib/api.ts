@@ -524,6 +524,7 @@ export interface SubscriptionPlan {
   billingPeriod: string
   features: string[]
   annualPriceKobo?: number
+  launchPriceKobo?: number
   isMostPopular?: boolean
   isBestValue?: boolean
   bestFor?: string

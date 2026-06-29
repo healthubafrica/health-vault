@@ -15,6 +15,14 @@ function planFeatures(plan: SubscriptionPlan): string[] {
   return Array.isArray(plan.features) ? (plan.features as string[]) : []
 }
 
+const PLAN_THEME: Record<string, { bg: string; accent: string; badgeBg: string; badgeText: string; isDark: boolean }> = {
+  BasicCare:     { bg: '#E6F4F0', accent: '#0E8567', badgeBg: '#0E8567', badgeText: '#fff',    isDark: false },
+  SilverCare:    { bg: '#0C3328', accent: '#34E0A0', badgeBg: '#34E0A0', badgeText: '#0C3328', isDark: true  },
+  GoldCare:      { bg: '#07251C', accent: '#B59410', badgeBg: '#B59410', badgeText: '#fff',    isDark: true  },
+  ConciergeCare: { bg: '#052018', accent: '#6DC43F', badgeBg: '#6DC43F', badgeText: '#07251C', isDark: true  },
+}
+const DEFAULT_THEME = { bg: 'var(--color-surface)', accent: '#6DC43F', badgeBg: '#6DC43F', badgeText: '#fff', isDark: false }
+
 export function SubscriptionsScreen() {
   const { data: subRes, isInitialLoad: subLoading, error, refetch } = useApi(() => subscriptions.getMy())
   const { data: plansRes, isInitialLoad: plansLoading } = useApi(() => subscriptions.listPlans())
@@ -149,7 +157,7 @@ export function SubscriptionsScreen() {
             {paidPlans.map(plan => {
               const isCurrent = currentPlanId === plan.id
               const isLoading = saving === plan.id
-              const highlighted = plan.isMostPopular === true
+              const theme = PLAN_THEME[plan.tier] ?? DEFAULT_THEME
               const price = billing === 'annually' && plan.annualPriceKobo
                 ? plan.annualPriceKobo / 100
                 : plan.priceKobo / 100
@@ -160,16 +168,16 @@ export function SubscriptionsScreen() {
                   key={plan.id}
                   className="rounded-2xl border flex flex-col p-5 relative transition-all"
                   style={{
-                    background: highlighted ? '#06241A' : 'var(--color-surface)',
-                    borderColor: isCurrent ? '#6DC43F' : highlighted ? '#6DC43F33' : 'var(--color-border)',
-                    boxShadow: isCurrent ? '0 0 0 2px #6DC43F44' : undefined,
+                    background: theme.bg,
+                    borderColor: isCurrent ? theme.accent : theme.isDark ? theme.accent + '55' : 'var(--color-border)',
+                    boxShadow: isCurrent ? `0 0 0 2px ${theme.accent}44` : undefined,
                   }}
                 >
                   {/* Badges */}
                   {isCurrent && (
                     <span
                       className="absolute top-3 right-3 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
-                      style={{ background: '#6DC43F', color: '#fff' }}
+                      style={{ background: theme.accent, color: theme.badgeText }}
                     >
                       ✓ Active
                     </span>
@@ -177,7 +185,7 @@ export function SubscriptionsScreen() {
                   {!isCurrent && plan.isMostPopular && (
                     <span
                       className="absolute top-3 right-3 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
-                      style={{ background: '#6DC43F22', color: '#6DC43F' }}
+                      style={{ background: theme.accent + '22', color: theme.accent }}
                     >
                       Most Popular
                     </span>
@@ -188,12 +196,12 @@ export function SubscriptionsScreen() {
                     <div>
                       <p
                         className="text-sm font-bold"
-                        style={{ color: highlighted ? '#fff' : 'var(--color-text)', fontFamily: 'var(--font-display)' }}
+                        style={{ color: theme.isDark ? '#fff' : 'var(--color-text)', fontFamily: 'var(--font-display)' }}
                       >
                         {plan.name}
                       </p>
                       {plan.bestFor && (
-                        <p className="text-[11px] mt-0.5" style={{ color: highlighted ? 'rgba(255,255,255,0.45)' : 'var(--color-text-faint)' }}>
+                        <p className="text-[11px] mt-0.5" style={{ color: theme.isDark ? 'rgba(255,255,255,0.45)' : 'var(--color-text-faint)' }}>
                           Best for {plan.bestFor}
                         </p>
                       )}
@@ -201,11 +209,11 @@ export function SubscriptionsScreen() {
                     <div className="text-right shrink-0">
                       <span
                         className="text-xl font-bold"
-                        style={{ color: highlighted ? '#6DC43F' : 'var(--color-text)', fontFamily: 'var(--font-display)' }}
+                        style={{ color: theme.accent, fontFamily: 'var(--font-display)' }}
                       >
                         {formatCurrency(price)}
                       </span>
-                      <span className="block text-[11px]" style={{ color: highlighted ? 'rgba(255,255,255,0.45)' : 'var(--color-text-muted)' }}>
+                      <span className="block text-[11px]" style={{ color: theme.isDark ? 'rgba(255,255,255,0.45)' : 'var(--color-text-muted)' }}>
                         /{billing === 'annually' ? 'year' : 'month'}
                       </span>
                     </div>
@@ -216,10 +224,10 @@ export function SubscriptionsScreen() {
                     <ul className="flex flex-col gap-1.5 mb-4">
                       {features.slice(0, 5).map(f => (
                         <li key={f} className="flex items-start gap-2">
-                          <Check size={12} className="mt-0.5 shrink-0" style={{ color: '#6DC43F' }} />
+                          <Check size={12} className="mt-0.5 shrink-0" style={{ color: theme.accent }} />
                           <span
                             className="text-xs leading-relaxed"
-                            style={{ color: highlighted ? 'rgba(255,255,255,0.75)' : 'var(--color-text-muted)' }}
+                            style={{ color: theme.isDark ? 'rgba(255,255,255,0.75)' : 'var(--color-text-muted)' }}
                           >
                             {f}
                           </span>
@@ -228,7 +236,7 @@ export function SubscriptionsScreen() {
                       {features.length > 5 && (
                         <li
                           className="text-xs pl-5"
-                          style={{ color: highlighted ? 'rgba(255,255,255,0.35)' : 'var(--color-text-faint)' }}
+                          style={{ color: theme.isDark ? 'rgba(255,255,255,0.35)' : 'var(--color-text-faint)' }}
                         >
                           +{features.length - 5} more features included
                         </li>
@@ -238,7 +246,7 @@ export function SubscriptionsScreen() {
 
                   {/* CTA */}
                   <Button
-                    variant={highlighted || isCurrent ? 'primary' : 'secondary'}
+                    variant={theme.isDark || isCurrent ? 'primary' : 'secondary'}
                     fullWidth
                     size="md"
                     disabled={isCurrent || !!saving}
