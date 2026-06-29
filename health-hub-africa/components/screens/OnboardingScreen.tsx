@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FormInput, FormSelect } from '@/components/ui/FormInput'
 import { Button } from '@/components/ui/Button'
-import { patients } from '@/lib/api'
+import { patients, subscriptions, type SubscriptionPlan } from '@/lib/api'
+import { formatCurrency } from '@/lib/utils'
+import { SkeletonBox } from '@/components/ui/Skeleton'
 import { useAuthStore } from '@/lib/stores/authStore'
 import {
   Heart,
@@ -21,6 +23,7 @@ import {
   Phone,
   Flame,
   Fingerprint,
+  Check,
 } from 'lucide-react'
 
 // Avatar Options
@@ -30,6 +33,14 @@ const AVATAR_OPTIONS = [
   { id: 'vault_guardian', label: 'Vault Guardian', icon: ShieldCheck, desc: 'Focus heavily on military-grade vault encryption and privacy.', color: '#10B981' },
   { id: 'vitals_sentinel', label: 'Vitals Sentinel', icon: Flame, desc: 'Real-time sync with smartwatches and emergency triggers.', color: '#F59E0B' },
 ]
+
+function getPriceKobo(plan: SubscriptionPlan, cycle: 'monthly' | 'annually'): number {
+  if (cycle === 'annually') {
+    if (plan.launchPriceKobo && plan.launchPriceKobo > 0) return plan.launchPriceKobo
+    return plan.annualPriceKobo ?? plan.priceKobo * 12
+  }
+  return plan.priceKobo
+}
 
 export function OnboardingScreen() {
   const router = useRouter()
@@ -48,6 +59,23 @@ export function OnboardingScreen() {
       }
     }
   }, [])
+
+  // Fetch plans when the user reaches Step 5
+  useEffect(() => {
+    if (step !== 5) return
+    if (plans.length > 0) return  // already loaded — skip on back-navigation
+    let cancelled = false
+    setPlansLoading(true)
+    setPlansError('')
+    subscriptions.listPlans()
+      .then(res => { if (!cancelled) setPlans(res.data ?? []) })
+      .catch((e: unknown) => {
+        if (!cancelled) setPlansError(e instanceof Error ? e.message : 'Could not load plans. Please try again.')
+      })
+      .finally(() => { if (!cancelled) setPlansLoading(false) })
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step])
 
   // Step 1: Profile Info
   const [selectedAvatar, setSelectedAvatar] = useState('care_receiver')
@@ -69,6 +97,15 @@ export function OnboardingScreen() {
   const [confirmPin, setConfirmPin] = useState<string[]>([])
   const [isConfirmingPin, setIsConfirmingPin] = useState(false)
   const [pinError, setPinError] = useState('')
+
+  // Step 5: Plan Selection
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([])
+  const [plansLoading, setPlansLoading] = useState(false)
+  const [plansError, setPlansError] = useState('')
+  const [selectedPlanId, setSelectedPlanId] = useState('')
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annually'>('monthly')
+  const [planSubmitting, setPlanSubmitting] = useState(false)
+  const [planError, setPlanError] = useState('')
 
   const handleChronicToggle = (condition: string) => {
     if (chronicConditions.includes(condition)) {
@@ -123,11 +160,12 @@ export function OnboardingScreen() {
 
   const renderProgress = () => {
     const steps = [
-      { name: 'Profile', label: '1' },
-      { name: 'Vitals', label: '2' },
-      { name: 'History', label: '3' },
+      { name: 'Profile',  label: '1' },
+      { name: 'Vitals',   label: '2' },
+      { name: 'History',  label: '3' },
       { name: 'Security', label: '4' },
-      { name: 'Ready', label: '5' },
+      { name: 'Plans',    label: '5' },
+      { name: 'Ready',    label: '6' },
     ]
 
     return (
@@ -440,8 +478,222 @@ export function OnboardingScreen() {
                 </div>
               )}
 
-              {/* STEP 5: WELCOME & LAUNCH */}
+              {/* STEP 5: CHOOSE YOUR PLAN */}
               {step === 5 && (
+                <div className="flex flex-col">
+                  <h2 className="text-xl font-bold text-white mb-1" style={{ fontFamily: 'var(--font-display)' }}>
+                    Choose Your Plan
+                  </h2>
+                  <p className="text-xs text-white/50 mb-4">
+                    Start free and upgrade anytime, or pick the care tier that fits your health goals.
+                  </p>
+
+                  {/* Loading skeletons */}
+                  {plansLoading && (
+                    <div className="flex flex-col gap-3">
+                      {[1, 2, 3].map(i => (
+                        <div key={i} className="p-4 rounded-xl border border-white/5 bg-white/5 flex flex-col gap-2.5">
+                          <div className="flex justify-between items-start">
+                            <div className="flex flex-col gap-1.5">
+                              <SkeletonBox className="h-3.5 w-24 rounded" />
+                              <SkeletonBox className="h-2.5 w-32 rounded" />
+                            </div>
+                            <SkeletonBox className="h-5 w-16 rounded" />
+                          </div>
+                          <SkeletonBox className="h-2.5 w-full rounded" />
+                          <SkeletonBox className="h-2.5 w-4/5 rounded" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Error state */}
+                  {!plansLoading && plansError && (
+                    <div className="flex flex-col items-center gap-3 py-8">
+                      <p className="text-xs text-red-400 text-center">{plansError}</p>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          setPlansError('')
+                          setPlans([])
+                        }}
+                      >
+                        Retry
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Plans loaded */}
+                  {!plansLoading && !plansError && plans.length > 0 && (
+                    <>
+                      {/* Billing toggle */}
+                      <div className="flex gap-1 p-1 rounded-full bg-white/5 border border-white/10 self-start mb-4">
+                        {(['monthly', 'annually'] as const).map(mode => (
+                          <button
+                            key={mode}
+                            type="button"
+                            onClick={() => setBillingCycle(mode)}
+                            className={`text-[11px] font-bold uppercase tracking-wider px-3.5 py-1.5 rounded-full transition-all cursor-pointer ${
+                              billingCycle === mode
+                                ? 'bg-white text-[#0d1f11]'
+                                : 'bg-transparent text-white/50 hover:text-white/80'
+                            }`}
+                          >
+                            {mode === 'monthly' ? 'Monthly' : 'Annual · Save ~20%'}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Plan cards */}
+                      <div className="flex flex-col gap-2.5 overflow-y-auto max-h-[260px] pr-1">
+                        {plans.map(plan => {
+                          const isSelected = selectedPlanId === plan.id
+                          const isFree = plan.tier === 'Free'
+                          const priceKobo = getPriceKobo(plan, billingCycle)
+                          const priceDisplay = isFree ? '₦0' : formatCurrency(priceKobo / 100)
+                          const periodLabel = isFree
+                            ? 'Pay per use'
+                            : billingCycle === 'annually' ? '/year' : '/month'
+                          const topFeatures = Array.isArray(plan.features) ? plan.features.slice(0, 3) : []
+
+                          return (
+                            <button
+                              key={plan.id}
+                              type="button"
+                              onClick={() => setSelectedPlanId(plan.id)}
+                              className={`flex items-start gap-3 p-3.5 rounded-xl border text-left transition-all duration-200 w-full ${
+                                isSelected
+                                  ? 'bg-white/10 border-[#6DC43F] shadow-[0_0_12px_rgba(109,196,63,0.15)]'
+                                  : 'bg-white/5 border-white/5 hover:border-white/10'
+                              }`}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                                  <p className="text-xs font-bold text-white">{plan.name}</p>
+                                  {plan.isMostPopular && (
+                                    <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-[#6DC43F]/20 text-[#6DC43F]">
+                                      Most Popular
+                                    </span>
+                                  )}
+                                  {plan.isBestValue && (
+                                    <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-[#F59E0B]/20 text-[#F59E0B]">
+                                      Best Value
+                                    </span>
+                                  )}
+                                </div>
+                                {plan.bestFor && (
+                                  <p className="text-[10px] text-white/40 mb-1.5">Best for {plan.bestFor}</p>
+                                )}
+                                {topFeatures.length > 0 && (
+                                  <ul className="flex flex-col gap-0.5">
+                                    {topFeatures.map(f => (
+                                      <li key={f} className="flex items-start gap-1.5">
+                                        <Check size={10} className="text-[#6DC43F] mt-0.5 shrink-0" />
+                                        <span className="text-[10px] text-white/50 leading-relaxed">{f}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                              <div className="flex flex-col items-end shrink-0 gap-1">
+                                <span className="text-sm font-bold text-white" style={{ fontFamily: 'var(--font-display)' }}>
+                                  {priceDisplay}
+                                </span>
+                                <span className="text-[10px] text-white/40">{periodLabel}</span>
+                                {isSelected && (
+                                  <div className="w-4 h-4 rounded-full bg-[#6DC43F] flex items-center justify-center mt-1">
+                                    <Check size={9} className="text-white" />
+                                  </div>
+                                )}
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      {planError && (
+                        <p className="text-xs text-red-400 mt-3 text-center">{planError}</p>
+                      )}
+
+                      {/* CTAs */}
+                      <div className="flex flex-col gap-2 mt-4 border-t border-white/10 pt-4">
+                        <div className="flex items-center gap-3">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setStep(4)}
+                            className="flex items-center gap-1"
+                          >
+                            <ArrowLeft size={13} /> Back
+                          </Button>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            disabled={!selectedPlanId || planSubmitting}
+                            onClick={async () => {
+                              const plan = plans.find(p => p.id === selectedPlanId)
+                              if (!plan) return
+                              const isFree = plan.tier === 'Free'
+                              setPlanSubmitting(true)
+                              setPlanError('')
+                              try {
+                                if (isFree) {
+                                  await subscriptions.subscribe(plan.id, 'monthly')
+                                  setStep(6)
+                                } else {
+                                  const res = await subscriptions.upgrade(plan.id, billingCycle)
+                                  window.location.href = res.authorizationUrl
+                                }
+                              } catch (e: unknown) {
+                                setPlanError(e instanceof Error ? e.message : 'Could not process. Please try again.')
+                                setPlanSubmitting(false)
+                              }
+                            }}
+                            className="flex items-center gap-1 text-xs flex-1"
+                          >
+                            {planSubmitting ? (
+                              'Processing…'
+                            ) : !selectedPlanId ? (
+                              'Select a Plan'
+                            ) : plans.find(p => p.id === selectedPlanId)?.tier === 'Free' ? (
+                              <><span>Continue</span><ArrowRight size={13} /></>
+                            ) : (
+                              <><span>Proceed to Payment</span><ArrowRight size={13} /></>
+                            )}
+                          </Button>
+                        </div>
+                        {/* Escape hatch — always available */}
+                        {plans.some(p => p.tier === 'Free') && (
+                          <button
+                            type="button"
+                            disabled={planSubmitting}
+                            onClick={async () => {
+                              const freePlan = plans.find(p => p.tier === 'Free')
+                              if (!freePlan) return
+                              setPlanSubmitting(true)
+                              setPlanError('')
+                              try {
+                                await subscriptions.subscribe(freePlan.id, 'monthly')
+                                setStep(6)
+                              } catch (e: unknown) {
+                                setPlanError(e instanceof Error ? e.message : 'Could not activate free plan.')
+                                setPlanSubmitting(false)
+                              }
+                            }}
+                            className="text-[11px] text-white/40 hover:text-white/70 underline underline-offset-2 cursor-pointer text-center transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Continue with Free Plan →
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* STEP 6: WELCOME & LAUNCH */}
+              {step === 6 && (
                 <div className="flex flex-col items-center py-2">
                   <div className="w-12 h-12 rounded-full flex items-center justify-center bg-[#6DC43F]/20 text-[#6DC43F] mb-3 shadow-[0_0_16px_rgba(109,196,63,0.3)]">
                     <CheckCircle2 size={24} />
@@ -485,10 +737,10 @@ export function OnboardingScreen() {
             </motion.div>
           </AnimatePresence>
 
-          {/* Navigation Controls */}
-          {step !== 4 && (
+          {/* Navigation Controls — Steps 1–3 and 6 only; Step 4 (PIN) and Step 5 (Plans) own their own nav */}
+          {step !== 4 && step !== 5 && (
             <div className="flex justify-between items-center border-t border-white/10 pt-4 mt-6">
-              {step > 1 && step < 5 ? (
+              {step > 1 && step < 6 ? (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -501,7 +753,7 @@ export function OnboardingScreen() {
                 <div />
               )}
 
-              {step < 5 ? (
+              {step < 6 ? (
                 <Button
                   variant="primary"
                   size="sm"
