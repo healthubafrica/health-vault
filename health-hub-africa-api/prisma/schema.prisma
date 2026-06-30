@@ -311,6 +311,7 @@ model Patient {
   invoices              Invoice[]
   syncQueueItems        OpenemrSyncQueue[]
   integrationErrors     IntegrationError[]
+  recordShares          RecordShare[]
 
   @@index([userId])
   @@index([hhaPatientId])
@@ -1259,6 +1260,63 @@ model OpenemrSyncQueue {
   @@index([status, scheduledFor(sort: Asc)])
   @@index([patientId])
   @@map("openemr_sync_queue")
+}
+
+// ─── Record Shares ────────────────────────────────────────────────────────────
+
+enum ShareAccessMode {
+  public
+  email_list
+  password
+}
+
+enum ShareAccessAction {
+  viewed
+  otp_sent
+  otp_failed
+  otp_verified
+  forward_detected
+  revoked
+}
+
+model RecordShare {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patientId        String          @map("patient_id") @db.Uuid
+  tokenHash        String          @unique @map("token_hash")
+  label            String?
+  accessMode       ShareAccessMode @default(public) @map("access_mode")
+  allowedEmails    String[]        @map("allowed_emails")
+  passwordHash     String?         @map("password_hash")
+  recordTypes      String[]        @map("record_types")
+  expiresAt        DateTime?       @map("expires_at")
+  isRevoked        Boolean         @default(false) @map("is_revoked")
+  revokedAt        DateTime?       @map("revoked_at")
+  detectForwarding Boolean         @default(false) @map("detect_forwarding")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  patient  Patient             @relation(fields: [patientId], references: [id])
+  accesses RecordShareAccess[]
+
+  @@index([patientId])
+  @@map("record_shares")
+}
+
+model RecordShareAccess {
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shareId            String            @map("share_id") @db.Uuid
+  action             ShareAccessAction
+  visitorEmail       String?           @map("visitor_email")
+  sessionFingerprint String?           @map("session_fingerprint")
+  ipAddress          String?           @map("ip_address")
+  userAgent          String?           @map("user_agent")
+  metadata           Json?
+  occurredAt         DateTime          @default(now()) @map("occurred_at")
+
+  share RecordShare @relation(fields: [shareId], references: [id], onDelete: Cascade)
+
+  @@index([shareId, occurredAt(sort: Desc)])
+  @@map("record_share_accesses")
 }
 
 // ─── Analytics ────────────────────────────────────────────────────────────────

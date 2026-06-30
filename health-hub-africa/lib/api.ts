@@ -695,3 +695,117 @@ export const consents = {
 export const features = {
   getFlags: () => request<Record<string, boolean>>('/admin/features'),
 }
+
+// ── Record Shares ──────────────────────────────────────────────────────────
+
+export type ShareAccessMode = 'public' | 'email_list' | 'password'
+
+export interface RecordShare {
+  id: string
+  label?: string
+  accessMode: ShareAccessMode
+  allowedEmails: string[]
+  recordTypes: string[]
+  expiresAt?: string
+  isRevoked: boolean
+  revokedAt?: string
+  detectForwarding: boolean
+  createdAt: string
+  _count: { accesses: number }
+}
+
+export interface CreateShareParams {
+  label?: string
+  accessMode: ShareAccessMode
+  allowedEmails?: string[]
+  password?: string
+  recordTypes?: string[]
+  expiresAt?: string
+  detectForwarding?: boolean
+}
+
+export interface ShareRecord {
+  id: string
+  hhaRef: string
+  recordType: string
+  title: string
+  description?: string
+  recordedAt: string
+  fileUrl?: string
+  fileMimeType?: string
+  isDownloadable: boolean
+  provider?: { firstName: string; lastName: string; title: string; specialty: string }
+}
+
+export interface SharePayload {
+  shareId: string
+  patientName: string
+  recordTypes: string[]
+  expiresAt?: string
+  records: ShareRecord[]
+}
+
+export const shares = {
+  create: (data: CreateShareParams) =>
+    request<{ id: string; token: string; share: RecordShare }>('/shares', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  list: () => request<RecordShare[]>('/shares'),
+
+  audit: (id: string) =>
+    request<{ share: RecordShare; accesses: Array<{ id: string; action: string; visitorEmail?: string; occurredAt: string; ipAddress?: string }> }>(
+      `/shares/${id}/audit`,
+    ),
+
+  revoke: (id: string) =>
+    request<RecordShare>(`/shares/${id}`, { method: 'DELETE' }),
+
+  reportForward: (id: string, suspectedRecipientEmail?: string) =>
+    request<{ ok: boolean }>(`/shares/${id}/report-forward`, {
+      method: 'POST',
+      body: JSON.stringify({ suspectedRecipientEmail }),
+    }),
+}
+
+// Public share functions (no auth token required)
+const PUBLIC_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000') + '/api/v1'
+
+export const publicShare = {
+  resolve: (token: string) =>
+    fetch(`${PUBLIC_BASE}/s/${token}`).then(r => {
+      if (!r.ok) return r.json().then(b => Promise.reject(new Error(b.message ?? 'Failed to load share')))
+      return r.json() as Promise<SharePayload | { shareId: string; accessMode: ShareAccessMode; recordTypes: string[]; requiresAuth: true }>
+    }),
+
+  requestOtp: (token: string, email: string) =>
+    fetch(`${PUBLIC_BASE}/s/${token}/otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    }).then(r => {
+      if (!r.ok) return r.json().then(b => Promise.reject(new Error(b.message ?? 'Failed to send code')))
+      return r.json() as Promise<{ ok: boolean }>
+    }),
+
+  verifyOtp: (token: string, email: string, code: string) =>
+    fetch(`${PUBLIC_BASE}/s/${token}/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code }),
+    }).then(r => {
+      if (!r.ok) return r.json().then(b => Promise.reject(new Error(b.message ?? 'Invalid code')))
+      return r.json() as Promise<SharePayload>
+    }),
+
+  verifyPassword: (token: string, password: string) =>
+    fetch(`${PUBLIC_BASE}/s/${token}/verify-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    }).then(r => {
+      if (!r.ok) return r.json().then(b => Promise.reject(new Error(b.message ?? 'Incorrect password')))
+      return r.json() as Promise<SharePayload>
+    }),
+}

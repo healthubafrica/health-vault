@@ -6,7 +6,8 @@ import { FilterTabs } from '@/components/ui/FilterTabs'
 import { Pill } from '@/components/ui/Pill'
 import { type RecordType } from '@/lib/data/records'
 import { formatDate, formatBytes } from '@/lib/utils'
-import { FileText, FlaskConical, Pill as PillIcon, File, Download } from 'lucide-react'
+import { FileText, FlaskConical, Pill as PillIcon, File, Download, Link2 } from 'lucide-react'
+import Link from 'next/link'
 import { records as recordsApi, type ClinicalRecord } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
@@ -72,13 +73,23 @@ export function RecordsScreen() {
 
   return (
     <div className="flex flex-col gap-5 pb-20 md:pb-5">
-      <div>
-        <h1 className="text-xl font-bold" style={{ color: 'var(--color-text)', fontFamily: 'var(--font-display)' }}>
-          Clinical Records
-        </h1>
-        <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-          Your complete medical history
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold" style={{ color: 'var(--color-text)', fontFamily: 'var(--font-display)' }}>
+            Clinical Records
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+            Your complete medical history
+          </p>
+        </div>
+        <Link
+          href="/records/share"
+          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl shrink-0 transition-all"
+          style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text)', textDecoration: 'none' }}
+        >
+          <Link2 size={13} />
+          Share
+        </Link>
       </div>
 
       {storageData?.quotaBytes != null && (

@@ -33,6 +33,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { StrideModule } from './stride/stride.module';
 import { AdminModule } from './admin/admin.module';
 import { CmsModule } from './cms/cms.module';
+import { SharesModule } from './shares/shares.module';
 import { HealthController } from './health/health.controller';
 import { AppController } from './app.controller';
 
@@ -115,6 +116,7 @@ import { AppController } from './app.controller';
     StrideModule,
     AdminModule,
     CmsModule,
+    SharesModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
