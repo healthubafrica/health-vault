@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useRef } from 'react'
 import { motion, useInView, useReducedMotion } from 'framer-motion'
 import { EASE_OUT, staggerContainer, labelVariant, headingVariant, bodyVariant } from '@/lib/motion'
@@ -62,7 +62,7 @@ export default function CorporateCTA() {
             }}
           >
             Solutions For{' '}
-            <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', color: '#137333' }}>
+            <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', color: '#137333' }}>
               Organisations
             </em>
           </motion.h2>

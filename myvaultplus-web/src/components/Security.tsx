@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useRef, useState } from 'react'
 import { motion, useInView, useReducedMotion } from 'framer-motion'
@@ -331,7 +331,7 @@ export default function Security() {
             }}
           >
             Comprehensive protection and clinically{' '}
-            <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>
+            <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', fontWeight: 700 }}>
               governed infrastructure
             </em>
           </motion.h2>

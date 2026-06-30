@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { motion, useInView, useReducedMotion } from 'framer-motion'
 import { useRef } from 'react'
 import { EASE_OUT, cardVariant, staggerContainer, labelVariant, headingVariant, bodyVariant } from '@/lib/motion'
@@ -53,7 +53,7 @@ export default function HowItWorks() {
           Where secure health records meet{' '}
           <em
             style={{
-              fontFamily: 'var(--font-playfair-display), serif',
+              fontFamily: 'var(--font-manrope), sans-serif',
               fontStyle: 'italic',
               fontWeight: 700,
             }}
@@ -225,7 +225,7 @@ export default function HowItWorks() {
                 <div style={{ marginBottom: 10 }}>
                   <div
                     style={{
-                      fontFamily: 'var(--font-playfair-display), serif',
+                      fontFamily: 'var(--font-manrope), sans-serif',
                       fontStyle: 'italic',
                       fontSize: 15,
                       fontWeight: 700,

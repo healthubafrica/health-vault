@@ -1,4 +1,4 @@
-import Image from 'next/image'
+﻿import Image from 'next/image'
 import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
@@ -58,7 +58,7 @@ export default function ExpertReviewPage() {
           <div className="hero-content">
             <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-manrope), sans-serif' }}>
               <span style={{ display: 'block', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.06 }}>A Second Opinion</span>
-              <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#6DC43F', letterSpacing: '-0.02em', lineHeight: 1.06 }}>Changes Everything.</span>
+              <span style={{ display: 'block', fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#6DC43F', letterSpacing: '-0.02em', lineHeight: 1.06 }}>Changes Everything.</span>
             </h1>
             <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 16, lineHeight: 1.65, maxWidth: 520, margin: '0 auto 32px' }}>
               Expert Review™ connects you with a panel of qualified specialists for second opinions on any diagnosis, treatment plan, or lab result.
@@ -86,7 +86,7 @@ export default function ExpertReviewPage() {
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 18 }}>— Expert Review™</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
               When you need more than{' '}
-              <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>one opinion.</em>
+              <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', fontWeight: 700 }}>one opinion.</em>
             </h2>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.3fr 1fr', gridTemplateRows: '1fr 1fr', gap: 16, minHeight: 380 }}>
@@ -143,7 +143,7 @@ export default function ExpertReviewPage() {
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 18 }}>— Review Types</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
               Seven kinds of{' '}
-              <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>expert review.</em>
+              <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', fontWeight: 700 }}>expert review.</em>
             </h2>
           </div>
           <div style={{ background: '#DEDEDE', borderRadius: 28, padding: 16 }}>
@@ -169,7 +169,7 @@ export default function ExpertReviewPage() {
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#6DC43F', marginBottom: 18 }}>— Process</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640, color: '#fff' }}>
               How Expert Review™{' '}
-              <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, color: '#6DC43F' }}>works.</em>
+              <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', fontWeight: 700, color: '#6DC43F' }}>works.</em>
             </h2>
           </div>
           <AnimatedSection stagger style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 40 }}>

@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+﻿import type { Metadata } from 'next'
 import Image from 'next/image'
 import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
@@ -120,7 +120,7 @@ export default function MinuteCarePage() {
               <span style={{ display: 'block', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.06 }}>
                 Same-Day Care.
               </span>
-              <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#6DC43F', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+              <span style={{ display: 'block', fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#6DC43F', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
                 No Long Wait.
               </span>
             </h1>
@@ -157,7 +157,7 @@ export default function MinuteCarePage() {
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 14 }}>— What You Get</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 14px', maxWidth: 560, color: '#07251C' }}>
               Clinic-quality care,{' '}
-              <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic' }}>without the wait.</em>
+              <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic' }}>without the wait.</em>
             </h2>
           </div>
           <AnimatedSection stagger className="rg-3" style={{ gap: 20 }}>
@@ -184,7 +184,7 @@ export default function MinuteCarePage() {
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#6DC43F', marginBottom: 14 }}>— How It Works</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto', maxWidth: 520, color: '#fff' }}>
               Book, arrive, and be seen{' '}
-              <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', color: '#6DC43F' }}>in four steps.</em>
+              <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', color: '#6DC43F' }}>in four steps.</em>
             </h2>
           </div>
           <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 24, padding: 16 }}>
@@ -209,7 +209,7 @@ export default function MinuteCarePage() {
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 14 }}>— Pricing</div>
               <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 0 16px', color: '#07251C' }}>
                 Pay as you go,{' '}
-                <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic' }}>or include it in your plan.</em>
+                <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic' }}>or include it in your plan.</em>
               </h2>
               <p style={{ color: '#41584E', fontSize: 15, lineHeight: 1.7, margin: '0 0 28px' }}>
                 MinuteCare™ is pay-per-use on the Starter plan with discounted rates and priority booking available on Growth and Enterprise plans.

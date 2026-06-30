@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Manrope, Playfair_Display } from 'next/font/google'
+import { Manrope } from 'next/font/google'
 import './globals.css'
 
 const manrope = Manrope({
@@ -9,13 +9,6 @@ const manrope = Manrope({
   display: 'swap',
 })
 
-const playfairDisplay = Playfair_Display({
-  subsets: ['latin'],
-  weight: ['600', '700'],
-  style: ['italic'],
-  variable: '--font-playfair-display',
-  display: 'swap',
-})
 
 export const metadata: Metadata = {
   icons: {
@@ -50,7 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${manrope.variable} ${playfairDisplay.variable}`}
+      className={manrope.variable}
     >
       <body style={{ fontFamily: 'var(--font-manrope), sans-serif' }}>
         {children}

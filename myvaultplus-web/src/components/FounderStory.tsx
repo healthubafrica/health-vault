@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { useRef } from 'react'
 import { motion, useInView, useReducedMotion } from 'framer-motion'
 import Image from 'next/image'
@@ -54,7 +54,7 @@ export default function FounderStory() {
                 border: '1px solid rgba(7,37,28,0.08)',
               }}
             >
-              <div style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontSize: 20, color: '#07251C', marginBottom: 4 }}>
+              <div style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', fontSize: 20, color: '#07251C', marginBottom: 4 }}>
                 Dr. Benjamin Obire
               </div>
               <div style={{ fontSize: 12, color: '#617870', fontWeight: 600, letterSpacing: '0.04em' }}>
@@ -100,7 +100,7 @@ export default function FounderStory() {
               }}
             >
               Why We Built{' '}
-              <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', color: '#137333' }}>
+              <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', color: '#137333' }}>
                 MyHealth Vault+™
               </em>
             </motion.h2>

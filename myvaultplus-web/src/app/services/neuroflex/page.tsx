@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+﻿import type { Metadata } from 'next'
 import Image from 'next/image'
 import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
@@ -116,7 +116,7 @@ export default function NeuroFlexPage() {
           <div className="hero-content">
             <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-manrope), sans-serif' }}>
               <span style={{ display: 'block', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.06 }}>Specialist Neurology.</span>
-              <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#6DC43F', letterSpacing: '-0.02em', lineHeight: 1.1 }}>Expert. Accessible.</span>
+              <span style={{ display: 'block', fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#6DC43F', letterSpacing: '-0.02em', lineHeight: 1.1 }}>Expert. Accessible.</span>
             </h1>
             <p style={{ color: 'rgba(255,255,255,0.78)', fontSize: 16, lineHeight: 1.65, maxWidth: 520, margin: '0 auto 32px' }}>
               NeuroFlex™ gives you direct access to board-certified neurologists, from first assessment to full treatment planning and follow-up, all delivered through MyHealth Vault+™.
@@ -143,7 +143,7 @@ export default function NeuroFlexPage() {
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 14 }}>— What You Get</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 14px', maxWidth: 560, color: '#07251C' }}>
               Neurological care that meets you{' '}
-              <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic' }}>where you are.</em>
+              <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic' }}>where you are.</em>
             </h2>
           </div>
           <AnimatedSection stagger className="rg-3" style={{ gap: 20 }}>
@@ -192,7 +192,7 @@ export default function NeuroFlexPage() {
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 14 }}>— How It Works</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto', maxWidth: 520, color: '#07251C' }}>
               From referral to care plan{' '}
-              <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic' }}>in four steps.</em>
+              <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic' }}>in four steps.</em>
             </h2>
           </div>
           <div style={{ background: '#DEDEDE', borderRadius: 24, padding: 16 }}>
@@ -217,7 +217,7 @@ export default function NeuroFlexPage() {
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 14 }}>— Pricing</div>
               <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 0 16px', color: '#07251C' }}>
                 Add-on for all plans.{' '}
-                <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic' }}>Included in Enterprise.</em>
+                <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic' }}>Included in Enterprise.</em>
               </h2>
               <p style={{ color: '#41584E', fontSize: 15, lineHeight: 1.7, margin: '0 0 28px' }}>
                 NeuroFlex™ is available as a flexible add-on for Starter and Growth plans, and fully included in Enterprise and Corporate & HMO plans.

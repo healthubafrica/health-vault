@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+﻿import type { Metadata } from 'next'
 import Image from 'next/image'
 import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
@@ -120,7 +120,7 @@ export default function TeleCarePage() {
               <span style={{ display: 'block', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#fff', letterSpacing: '-0.03em', lineHeight: 1.06 }}>
                 Consult Any Doctor.
               </span>
-              <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#6DC43F', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+              <span style={{ display: 'block', fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(32px, 5.5vw, 58px)', color: '#6DC43F', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
                 Anywhere. Anytime.
               </span>
             </h1>
@@ -157,7 +157,7 @@ export default function TeleCarePage() {
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 14 }}>— What You Get</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 14px', maxWidth: 560, color: '#07251C' }}>
               Everything a clinic visit gives you,{' '}
-              <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic' }}>from your phone.</em>
+              <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic' }}>from your phone.</em>
             </h2>
           </AnimatedSection>
           <AnimatedSection stagger className="rg-3" style={{ gap: 20 }}>
@@ -184,7 +184,7 @@ export default function TeleCarePage() {
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#6DC43F', marginBottom: 14 }}>— How It Works</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto', maxWidth: 520, color: '#fff' }}>
               From booking to prescription{' '}
-              <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', color: '#6DC43F' }}>in four steps.</em>
+              <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', color: '#6DC43F' }}>in four steps.</em>
             </h2>
           </AnimatedSection>
           <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 24, padding: 16 }}>
@@ -209,7 +209,7 @@ export default function TeleCarePage() {
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 14 }}>— Pricing</div>
               <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 0 16px', color: '#07251C' }}>
                 Available on{' '}
-                <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic' }}>every plan.</em>
+                <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic' }}>every plan.</em>
               </h2>
               <p style={{ color: '#41584E', fontSize: 15, lineHeight: 1.7, margin: '0 0 28px' }}>
                 TeleCare™ is accessible pay-per-use on the Starter plan, and included with session credits on Growth and Enterprise plans.
