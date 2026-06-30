@@ -243,11 +243,14 @@ export class ProvidersService {
       );
     }
 
-    // Sync handler itself no-ops when verifiedAt is null, but enqueueing is
-    // still safe: the handler logs the skip and Bull won't retry forever.
-    await this.openemrService.enqueueProviderSync(updated.id).catch((err) =>
-      this.logger.error(`Failed to enqueue OpenEMR provider sync: ${err.message}`),
-    );
+    // Credential changes reset verifiedAt, so no sync should happen. For
+    // cosmetic edits the processor checks verifiedAt itself and no-ops when
+    // still unverified — so it's safe to enqueue without a DB re-read.
+    if (!isCredentialChange) {
+      await this.openemrService.enqueueProviderSync(updated.id).catch((err) =>
+        this.logger.error(`Failed to enqueue OpenEMR provider sync: ${err.message}`),
+      );
+    }
 
     return updated;
   }
