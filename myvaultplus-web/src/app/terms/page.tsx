@@ -1,4 +1,4 @@
-import Navbar from '@/components/Navbar'
+﻿import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
 import HeroSplit from '@/components/HeroSplit'
@@ -119,7 +119,7 @@ export default function TermsPage() {
         heading={
           <>
             <span style={{ display: 'block' }}>Terms of Use</span>
-            <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', color: '#137333' }}>Your Rights and Ours.</span>
+            <span style={{ display: 'block', fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', color: '#137333' }}>Your Rights and Ours.</span>
           </>
         }
         description="The terms governing your use of MyHealth Vault+™ and Health-Hub Africa® services."

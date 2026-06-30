@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { motion, useInView, useReducedMotion } from 'framer-motion'
 import { useRef } from 'react'
 import Image from 'next/image'
@@ -55,7 +55,7 @@ export default function About() {
           A digital health platform dedicated to making care{' '}
           <em
             style={{
-              fontFamily: 'var(--font-playfair-display), serif',
+              fontFamily: 'var(--font-manrope), sans-serif',
               fontStyle: 'italic',
               fontWeight: 700,
             }}

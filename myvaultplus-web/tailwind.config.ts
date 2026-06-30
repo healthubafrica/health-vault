@@ -22,7 +22,7 @@ const config: Config = {
       fontFamily: {
         grotesk: ['var(--font-space-grotesk)', 'sans-serif'],
         hanken: ['var(--font-hanken-grotesk)', 'sans-serif'],
-        playfair: ['var(--font-playfair-display)', 'serif'],
+        manrope: ['var(--font-manrope)', 'sans-serif'],
       },
     },
   },

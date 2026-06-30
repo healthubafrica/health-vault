@@ -1,4 +1,4 @@
-import Navbar from '@/components/Navbar'
+﻿import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
 import HeroSplit from '@/components/HeroSplit'
@@ -61,7 +61,7 @@ export default function FAQPage() {
         heading={
           <>
             <span style={{ display: 'block' }}>Frequently Asked</span>
-            <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', color: '#137333' }}>Questions.</span>
+            <span style={{ display: 'block', fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', color: '#137333' }}>Questions.</span>
           </>
         }
         description="Everything you need to know about MyHealth Vault+™ and Health-Hub Africa® services."
@@ -108,7 +108,7 @@ export default function FAQPage() {
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 16 }}>· FAQ</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 700, fontSize: 'clamp(26px, 3vw, 38px)', lineHeight: 1.1, letterSpacing: '-0.025em', margin: '0 auto 14px', maxWidth: 560, color: '#07251C' }}>
               Frequently asked{' '}
-              <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, color: '#137333' }}>questions</em>
+              <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', fontWeight: 700, color: '#137333' }}>questions</em>
             </h2>
             <p style={{ color: '#617870', fontSize: 15, lineHeight: 1.6, margin: '0 auto', maxWidth: 460 }}>
               Everything you need to know about MyHealth Vault+™ in one place.

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useRef } from 'react'
 import { motion, useInView, useReducedMotion } from 'framer-motion'
@@ -79,7 +79,7 @@ export default function HomepageBlog({ posts = [] }: HomepageBlogProps) {
               Latest insights &amp;{' '}
               <em
                 style={{
-                  fontFamily: 'var(--font-playfair-display), serif',
+                  fontFamily: 'var(--font-manrope), sans-serif',
                   fontStyle: 'italic',
                   fontWeight: 700,
                 }}

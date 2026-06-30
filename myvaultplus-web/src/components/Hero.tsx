@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { motion, useReducedMotion } from 'framer-motion'
 import Image from 'next/image'
 import { EASE_OUT } from '@/lib/motion'
@@ -93,7 +93,7 @@ export default function Hero() {
           <span
             style={{
               display: 'block',
-              fontFamily: 'var(--font-playfair-display), serif',
+              fontFamily: 'var(--font-manrope), sans-serif',
               fontStyle: 'italic',
               fontWeight: 700,
               fontSize: 'clamp(24px, 6vw, 64px)',

@@ -1,4 +1,4 @@
-import Image from 'next/image'
+﻿import Image from 'next/image'
 import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
@@ -35,7 +35,7 @@ export default function AboutPage() {
         heading={
           <>
             <span style={{ display: 'block' }}>About MyHealth Vault+™</span>
-            <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', color: '#137333' }}>by Health-Hub Africa®</span>
+            <span style={{ display: 'block', fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', color: '#137333' }}>by Health-Hub Africa®</span>
           </>
         }
         description="The patient-facing digital health portal is a secure, intelligent, and personalised digital home for healthcare in Africa."
@@ -79,7 +79,7 @@ export default function AboutPage() {
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 18 }}>— About MyVault+</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
               A digital health platform dedicated to making care{' '}
-              <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>simpler and more accessible.</em>
+              <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', fontWeight: 700 }}>simpler and more accessible.</em>
             </h2>
           </div>
           <div className="about-bento">
@@ -137,7 +137,7 @@ export default function AboutPage() {
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 18 }}>— Infrastructure</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
               Three integrated{' '}
-              <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>layers of care.</em>
+              <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', fontWeight: 700 }}>layers of care.</em>
             </h2>
           </div>
           <div style={{ background: '#DEDEDE', borderRadius: 28, padding: 16 }}>
@@ -161,7 +161,7 @@ export default function AboutPage() {
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 18 }}>— Pillars</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
               What we stand{' '}
-              <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700 }}>for.</em>
+              <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', fontWeight: 700 }}>for.</em>
             </h2>
           </div>
           <div className="rg-2">
@@ -186,7 +186,7 @@ export default function AboutPage() {
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#6DC43F', marginBottom: 18 }}>— Organisation</div>
               <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', color: '#fff', margin: '0 0 20px' }}>
                 Built by{' '}
-                <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, color: '#6DC43F' }}>Health-Hub Africa®</em>
+                <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', fontWeight: 700, color: '#6DC43F' }}>Health-Hub Africa®</em>
               </h2>
               <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 15, lineHeight: 1.7, margin: '0 0 16px' }}>
                 Health-Hub Africa® is an integrated healthcare technology company based in Lagos, Nigeria. We build the infrastructure that connects patients to quality care, combining clinical expertise with world-class digital product development.

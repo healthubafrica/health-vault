@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+﻿import type { Metadata } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
 import Navbar from '@/components/Navbar'
@@ -33,7 +33,7 @@ export default function PlansPage() {
             </div>
             <h1 style={{ margin: '0 0 18px', lineHeight: 1.06, fontFamily: 'var(--font-manrope), sans-serif' }}>
               <span style={{ display: 'block', fontWeight: 700, fontSize: 'clamp(30px, 5vw, 56px)', color: '#fff', letterSpacing: '-0.03em' }}>Premium Healthcare Access.</span>
-              <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(30px, 5vw, 56px)', color: '#6DC43F', letterSpacing: '-0.02em' }}>Built for Every Stage of Life.</span>
+              <span style={{ display: 'block', fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', fontWeight: 700, fontSize: 'clamp(30px, 5vw, 56px)', color: '#6DC43F', letterSpacing: '-0.02em' }}>Built for Every Stage of Life.</span>
             </h1>
             <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 16, lineHeight: 1.65, maxWidth: 520, margin: '0 auto 32px' }}>
               Five plans — from a free Health Passport to concierge care management. Choose the coverage that fits your life.
@@ -60,7 +60,7 @@ export default function PlansPage() {
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 14 }}>— Pricing</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 700, fontSize: 'clamp(26px, 3.5vw, 40px)', lineHeight: 1.08, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 600 }}>
-              Five plans. <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic' }}>One platform.</em>
+              Five plans. <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic' }}>One platform.</em>
             </h2>
             <p style={{ color: '#5A7068', fontSize: 15, maxWidth: 480, margin: '0 auto', lineHeight: 1.65 }}>
               Start free and upgrade when you&apos;re ready. Annual plans include founding member pricing for the first 1,000 members.
@@ -89,7 +89,7 @@ export default function PlansPage() {
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 14 }}>— Compare</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 700, fontSize: 'clamp(26px, 3.5vw, 40px)', lineHeight: 1.08, letterSpacing: '-0.02em', margin: '0 auto', maxWidth: 560 }}>
-              Everything <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic' }}>included.</em>
+              Everything <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic' }}>included.</em>
             </h2>
           </div>
           <div style={{ background: '#DEDEDE', borderRadius: 28, padding: 16, overflowX: 'auto' }}>
@@ -132,7 +132,7 @@ export default function PlansPage() {
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
             <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 14 }}>— Pay-Per-Use</div>
             <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 700, fontSize: 'clamp(26px, 3.5vw, 40px)', lineHeight: 1.08, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 520 }}>
-              Flexible access, <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic' }}>no commitment.</em>
+              Flexible access, <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic' }}>no commitment.</em>
             </h2>
             <p style={{ color: '#5A7068', fontSize: 15, maxWidth: 480, margin: '0 auto', lineHeight: 1.65 }}>
               Every service is available individually. Members on paid plans get preferred pricing.
@@ -154,7 +154,7 @@ export default function PlansPage() {
         <section className="section-inner" style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#6DC43F', marginBottom: 16 }}>— Corporate (Coming Soon)</div>
           <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 700, fontSize: 'clamp(26px, 3.5vw, 40px)', color: '#fff', margin: '0 auto 20px', maxWidth: 560, lineHeight: 1.08 }}>
-            Group plans for <em style={{ fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', color: '#6DC43F' }}>employers.</em>
+            Group plans for <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', color: '#6DC43F' }}>employers.</em>
           </h2>
           <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 15, maxWidth: 460, margin: '0 auto 36px', lineHeight: 1.65 }}>
             Volume pricing for SMEs, mid-market, and enterprise organisations across Nigeria.

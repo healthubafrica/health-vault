@@ -1,4 +1,4 @@
-import Navbar from '@/components/Navbar'
+﻿import Navbar from '@/components/Navbar'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
 import HeroSplit from '@/components/HeroSplit'
@@ -114,7 +114,7 @@ export default function PrivacyPage() {
         heading={
           <>
             <span style={{ display: 'block' }}>Your Privacy.</span>
-            <span style={{ display: 'block', fontFamily: 'var(--font-playfair-display), serif', fontStyle: 'italic', color: '#137333' }}>Our Commitment.</span>
+            <span style={{ display: 'block', fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', color: '#137333' }}>Our Commitment.</span>
           </>
         }
         description="How we collect, use, and protect your personal health data at MyHealth Vault+™."

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 import { motion, useInView, useReducedMotion } from 'framer-motion'
 import { useRef } from 'react'
 import Image from 'next/image'
@@ -62,7 +62,7 @@ export default function Services() {
             Comprehensive care and{' '}
             <em
               style={{
-                fontFamily: 'var(--font-playfair-display), serif',
+                fontFamily: 'var(--font-manrope), sans-serif',
                 fontStyle: 'italic',
                 fontWeight: 700,
               }}
