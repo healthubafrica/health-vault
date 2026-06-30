@@ -201,7 +201,7 @@ export function SubscriptionsScreen() {
                         {plan.name}
                       </p>
                       {plan.bestFor && (
-                        <p className="text-[11px] mt-0.5" style={{ color: theme.isDark ? 'rgba(255,255,255,0.45)' : 'var(--color-text-faint)' }}>
+                        <p className="text-[11px] mt-0.5" style={{ color: theme.isDark ? 'rgba(255,255,255,0.6)' : 'var(--color-text-faint)' }}>
                           Best for {plan.bestFor}
                         </p>
                       )}
@@ -213,7 +213,7 @@ export function SubscriptionsScreen() {
                       >
                         {formatCurrency(price)}
                       </span>
-                      <span className="block text-[11px]" style={{ color: theme.isDark ? 'rgba(255,255,255,0.45)' : 'var(--color-text-muted)' }}>
+                      <span className="block text-[11px]" style={{ color: theme.isDark ? 'rgba(255,255,255,0.65)' : 'var(--color-text-muted)' }}>
                         /{billing === 'annually' ? 'year' : 'month'}
                       </span>
                     </div>
@@ -236,7 +236,7 @@ export function SubscriptionsScreen() {
                       {features.length > 5 && (
                         <li
                           className="text-xs pl-5"
-                          style={{ color: theme.isDark ? 'rgba(255,255,255,0.35)' : 'var(--color-text-faint)' }}
+                          style={{ color: theme.isDark ? 'rgba(255,255,255,0.5)' : 'var(--color-text-faint)' }}
                         >
                           +{features.length - 5} more features included
                         </li>
