@@ -345,6 +345,18 @@ export class AdminController {
     return this.adminService.importProvidersFromOpenemr();
   }
 
+  @Get('providers/openemr-status')
+  @Roles(UserRole.super_admin)
+  @ApiOperation({
+    summary: 'Diagnostic: check OpenEMR OAuth token and FHIR Practitioner endpoint (super_admin only)',
+    description:
+      'Returns token health, raw FHIR Practitioner count, local provider count, ' +
+      'and a dry-run preview of which practitioners would be imported vs skipped.',
+  })
+  openemrProviderStatus() {
+    return this.adminService.openemrProviderStatus();
+  }
+
   @Patch('providers/:id/availability')
   @ApiOperation({ summary: "Toggle a provider's availability" })
   toggleProviderAvailability(

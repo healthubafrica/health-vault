@@ -1562,6 +1562,58 @@ export class AdminService {
     return { imported, skipped, total: practitioners.length, providers: results };
   }
 
+  async openemrProviderStatus() {
+    // 1. Token health
+    let tokenConfigured = false;
+    let tokenError: string | null = null;
+    try {
+      await this.openemrService.getAccessToken();
+      tokenConfigured = true;
+    } catch (err) {
+      tokenError = err instanceof Error ? err.message : String(err);
+    }
+
+    // 2. FHIR fetch (only if token is usable)
+    type PractitionerRow = Awaited<ReturnType<typeof this.openemrService.fetchPractitioners>>[number];
+    let practitioners: PractitionerRow[] = [];
+    let fhirError: string | null = null;
+    if (tokenConfigured) {
+      try {
+        practitioners = await this.openemrService.fetchPractitioners();
+      } catch (err) {
+        fhirError = err instanceof Error ? err.message : String(err);
+      }
+    }
+
+    // 3. Local count
+    const localProviderCount = await this.prisma.provider.count({ where: { deletedAt: null } });
+
+    // 4. Dry-run: what would happen if import were triggered now
+    const preview = await Promise.all(
+      practitioners.map(async (p) => {
+        const email = p.email ?? `provider.${p.openemrId.slice(0, 8)}@hha.internal`;
+        const alreadyLinked = await this.prisma.provider.findUnique({
+          where: { openemrProviderUuid: p.openemrId },
+        });
+        if (alreadyLinked) return { ...p, email, action: 'already_linked' as const };
+
+        const emailConflict = await this.prisma.user.findUnique({ where: { email } });
+        if (emailConflict) return { ...p, email, action: 'email_conflict' as const };
+
+        return { ...p, email, action: 'would_import' as const };
+      }),
+    );
+
+    return {
+      tokenConfigured,
+      tokenError,
+      fhirError,
+      fhirPractitionerCount: practitioners.length,
+      localProviderCount,
+      practitioners: preview,
+    };
+  }
+
   async toggleProviderAvailability(id: string, available: boolean) {
     return this.prisma.provider.update({
       where: { id },

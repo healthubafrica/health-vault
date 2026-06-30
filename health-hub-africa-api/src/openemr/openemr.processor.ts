@@ -891,7 +891,11 @@ export class OpenemrProcessor {
       where: { id: providerId },
       include: { user: { select: { email: true } } },
     });
-    if (!provider) return;
+    if (!provider) {
+      // Provider was deleted after the job was queued — log and discard (no retry).
+      this.logger.error(`sync-provider: provider ${providerId} not found — discarding job`);
+      return;
+    }
 
     // Hard gate: do not push a provider to OpenEMR until an admin has
     // verified their credentials (license, specialty). Without this an
@@ -911,17 +915,33 @@ export class OpenemrProcessor {
       lname:     provider.lastName,
       title:     provider.title,
       specialty: provider.specialty,
-      npi:       provider.licenseNumber ?? '',
       email:     provider.user.email,
+      // Omit npi entirely when no license number — sending an empty string
+      // causes OpenEMR to store an invalid NPI value.
+      ...(provider.licenseNumber ? { npi: provider.licenseNumber } : {}),
     };
 
     let openemrUuid: string;
-    if (!provider.openemrProviderUuid) {
-      const result = await this.openemrService['callOpenemr'](token, 'POST', '/api/practitioner', body);
-      openemrUuid = ((result as Record<string, Record<string, string>>).data).uuid;
-    } else {
-      await this.openemrService['callOpenemr'](token, 'PUT', `/api/practitioner/${provider.openemrProviderUuid}`, body);
-      openemrUuid = provider.openemrProviderUuid;
+    try {
+      if (!provider.openemrProviderUuid) {
+        const result = await this.openemrService['callOpenemr'](token, 'POST', '/api/practitioner', body);
+        // OpenEMR may return { data: { uuid } } or { uuid } depending on version.
+        const payload = (result as Record<string, unknown>).data ?? result;
+        openemrUuid = (payload as Record<string, string>)?.uuid;
+        if (!openemrUuid) {
+          throw new Error(
+            `OpenEMR POST /api/practitioner returned no uuid. Response: ${JSON.stringify(result).slice(0, 500)}`,
+          );
+        }
+      } else {
+        await this.openemrService['callOpenemr'](token, 'PUT', `/api/practitioner/${provider.openemrProviderUuid}`, body);
+        openemrUuid = provider.openemrProviderUuid;
+      }
+    } catch (err) {
+      this.logger.error(
+        `OpenEMR sync failed for provider ${providerId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      throw err;
     }
 
     await this.prisma.provider.update({
