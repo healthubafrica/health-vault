@@ -14,10 +14,13 @@ import {
   CurrentUser,
   JwtPayload,
 } from '../common/decorators/current-user.decorator';
-import { Roles } from '../common/decorators/roles.decorator';
 
+// No controller-level @Roles gate: every method below scopes by the
+// caller's patient profile (currentUser.sub) in SharesService, not by
+// raw role. A blanket 'patient' role check would 403 dual-role accounts
+// (e.g. provider+patient) that legitimately have a patient profile —
+// the same class of bug fixed in appointments/telecare scoping.
 @Controller('shares')
-@Roles('patient' as any)
 export class SharesController {
   constructor(private readonly sharesService: SharesService) {}
 
