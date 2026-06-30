@@ -247,7 +247,6 @@ export function LoginScreen() {
               alt="Health-Hub Africa®"
               className="h-16 w-auto object-contain self-start"
             />
-            <p className="text-white/50 text-[11px] ml-1">MyHealth Vault+™</p>
           </div>
 
           <h1 className="text-3xl font-bold text-white leading-tight" style={{ fontFamily: 'var(--font-display)' }}>
@@ -291,7 +290,6 @@ export function LoginScreen() {
           {!showOtp && (
             <div className="mb-6 flex flex-col gap-1">
               <img src="/logo-white.png" alt="Health-Hub Africa®" className="h-10 w-auto object-contain self-start" />
-              <p className="text-[10px] ml-0.5" style={{ color: 'var(--color-text-muted)' }}>MyHealth Vault+™</p>
             </div>
           )}
 
@@ -464,7 +462,7 @@ export function LoginScreen() {
             </>
           ) : (
             <>
-              <h2 className="text-2xl font-bold mb-1 text-white" style={{ fontFamily: 'var(--font-display)' }}>
+              <h2 className="text-3xl font-bold mb-1 text-white" style={{ fontFamily: 'var(--font-display)' }}>
                 {isSignUp ? 'Create account' : 'Welcome back'}
               </h2>
               <p className="text-sm mb-6 text-white/70">
