@@ -36,16 +36,28 @@ const ALLOWED_TRANSITIONS: Record<AppointmentStatus, AppointmentStatus[]> = {
   [AppointmentStatus.no_show]: [],
 };
 
-// The booking DTO speaks in appointment types; the schema stores a service
-// type plus a telecare flag.
-function toServiceFields(appointmentType?: string): {
-  serviceType: ServiceType;
-  isTelecare: boolean;
-} {
-  if (appointmentType === 'virtual') {
-    return { serviceType: ServiceType.TeleCare, isTelecare: true };
+// Map appointment type + optional explicit service type to schema fields.
+// The explicit serviceType from the DTO takes precedence when provided;
+// appointmentType is used only to set the isTelecare flag.
+const TELECARE_SERVICES = new Set<ServiceType>([ServiceType.TeleCare, ServiceType.NeuroFlex]);
+
+function toServiceFields(
+  appointmentType: string,
+  explicitServiceType?: ServiceType,
+): { serviceType: ServiceType; isTelecare: boolean } {
+  const isVirtual = appointmentType === 'virtual';
+
+  if (explicitServiceType) {
+    return {
+      serviceType: explicitServiceType,
+      isTelecare: TELECARE_SERVICES.has(explicitServiceType),
+    };
   }
-  return { serviceType: ServiceType.HealthConsult, isTelecare: false };
+
+  return {
+    serviceType: isVirtual ? ServiceType.TeleCare : ServiceType.HealthConsult,
+    isTelecare: isVirtual,
+  };
 }
 
 @Injectable()
@@ -89,7 +101,7 @@ export class AppointmentsService {
       }
     }
 
-    const { serviceType, isTelecare } = toServiceFields(dto.appointmentType);
+    const { serviceType, isTelecare } = toServiceFields(dto.appointmentType, dto.serviceType);
 
     // Validate the chosen facility exists when one is supplied. We don't
     // require it on telecare appointments (no physical location) or on
@@ -382,6 +394,72 @@ export class AppointmentsService {
     return where;
   }
 
+  // Returns providers assigned to the given service type, ordered by priority
+  // (1=primary → 2=backup → 3=overflow). If scheduledAt is provided, further
+  // filters to providers whose active shift template covers that day/time.
+  async listAvailableProviders(serviceType: ServiceType, scheduledAt?: string) {
+    const requestedAt = scheduledAt ? new Date(scheduledAt) : undefined;
+    const dayOfWeek = requestedAt?.getDay(); // 0=Sun…6=Sat
+    const timeOfDay = requestedAt
+      ? requestedAt.toTimeString().slice(0, 8) // 'HH:MM:SS'
+      : undefined;
+    const today = requestedAt ? requestedAt.toISOString().slice(0, 10) : undefined;
+
+    const groups = await this.prisma.providerServiceGroup.findMany({
+      where: { serviceType, isActive: true },
+      orderBy: { priority: 'asc' },
+      select: {
+        priority: true,
+        provider: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            title: true,
+            specialty: true,
+            rating: true,
+            isAvailable: true,
+            verifiedAt: true,
+            deletedAt: true,
+          },
+        },
+        shiftAssignments: requestedAt
+          ? {
+              where: {
+                effectiveFrom: { lte: new Date(today!) },
+                OR: [{ effectiveTo: null }, { effectiveTo: { gte: new Date(today!) } }],
+                shiftTemplate: {
+                  dayOfWeek,
+                  isActive: true,
+                  startTime: { lte: new Date(`1970-01-01T${timeOfDay}Z`) },
+                  endTime: { gte: new Date(`1970-01-01T${timeOfDay}Z`) },
+                },
+              },
+              select: { id: true },
+            }
+          : undefined,
+      },
+    });
+
+    return groups
+      .filter(
+        (g) =>
+          !g.provider.deletedAt &&
+          g.provider.verifiedAt &&
+          (!requestedAt || g.shiftAssignments!.length > 0),
+      )
+      .map((g) => ({
+        id: g.provider.id,
+        firstName: g.provider.firstName,
+        lastName: g.provider.lastName,
+        title: g.provider.title,
+        specialty: g.provider.specialty,
+        rating: g.provider.rating,
+        isAvailable: g.provider.isAvailable,
+        priority: g.priority,
+      }));
+  }
+
   // Lightweight facility list for the patient booking screen. Returns only
   // facilities mirrored from OpenEMR (openemr_facility_id != null) so we
   // never let a patient choose a facility encounter sync can't route to.
@@ -435,7 +513,7 @@ export class AppointmentsService {
   }
 
   private assertAccess(
-    appt: { patient?: { userId?: string } | null; providerId?: string },
+    appt: { patient?: { userId?: string } | null; providerId?: string | null },
     currentUser: JwtPayload,
   ) {
     const adminRoles: UserRole[] = [

@@ -7,6 +7,7 @@ import {
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ServiceType } from '@prisma/client';
 import { AppointmentType } from '../../common/enums';
 
 export class CreateAppointmentDto {
@@ -23,6 +24,11 @@ export class CreateAppointmentDto {
   @ApiProperty({ enum: AppointmentType })
   @IsEnum(AppointmentType)
   appointmentType: AppointmentType;
+
+  @ApiPropertyOptional({ enum: ServiceType, description: 'Service type for the appointment; overrides appointmentType-based inference' })
+  @IsOptional()
+  @IsEnum(ServiceType)
+  serviceType?: ServiceType;
 
   @ApiProperty({ example: '2026-05-25T10:00:00Z' })
   @IsDateString()
