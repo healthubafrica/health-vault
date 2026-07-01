@@ -10,8 +10,8 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ServiceType, UserRole } from '@prisma/client';
 import { AdminService } from './admin.service';
 import { UpdateUserRoleDto, UpdateUserStatusDto, CreateFacilityDto } from './dto/admin.dto';
 import { SetStorageOverrideDto } from './dto/set-storage-override.dto';
@@ -483,5 +483,73 @@ export class AdminController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.adminService.setPatientStorageOverride(patientId, dto, user);
+  }
+
+  // ── Scheduling ────────────────────────────────────────────────────────────
+
+  @Get('scheduling/service-groups')
+  @ApiOperation({ summary: 'List provider service group assignments' })
+  @ApiQuery({ name: 'serviceType', enum: ServiceType, required: false })
+  listServiceGroups(@Query('serviceType') serviceType?: ServiceType) {
+    return this.adminService.listServiceGroups(serviceType);
+  }
+
+  @Post('scheduling/service-groups')
+  @ApiOperation({ summary: 'Assign a provider to a service type with priority' })
+  createServiceGroup(@Body() dto: { providerId: string; serviceType: ServiceType; priority: number }) {
+    return this.adminService.createServiceGroup(dto);
+  }
+
+  @Patch('scheduling/service-groups/:id')
+  @ApiOperation({ summary: 'Update priority or active status of a service group' })
+  updateServiceGroup(
+    @Param('id') id: string,
+    @Body() dto: { priority?: number; isActive?: boolean },
+  ) {
+    return this.adminService.updateServiceGroup(id, dto);
+  }
+
+  @Delete('scheduling/service-groups/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Remove a provider from a service group' })
+  deleteServiceGroup(@Param('id') id: string) {
+    return this.adminService.deleteServiceGroup(id);
+  }
+
+  @Get('scheduling/shift-templates')
+  @ApiOperation({ summary: 'List shift templates' })
+  @ApiQuery({ name: 'serviceType', enum: ServiceType, required: false })
+  listShiftTemplates(@Query('serviceType') serviceType?: ServiceType) {
+    return this.adminService.listShiftTemplates(serviceType);
+  }
+
+  @Post('scheduling/shift-templates')
+  @ApiOperation({ summary: 'Create a shift template' })
+  createShiftTemplate(
+    @Body() dto: { name: string; serviceType: ServiceType; dayOfWeek: number; startTime: string; endTime: string },
+  ) {
+    return this.adminService.createShiftTemplate(dto);
+  }
+
+  @Delete('scheduling/shift-templates/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a shift template' })
+  deleteShiftTemplate(@Param('id') id: string) {
+    return this.adminService.deleteShiftTemplate(id);
+  }
+
+  @Post('scheduling/shift-assignments')
+  @ApiOperation({ summary: 'Assign a provider service group to a shift template' })
+  createShiftAssignment(
+    @Body() dto: { providerServiceGroupId: string; shiftTemplateId: string; effectiveFrom: string; effectiveTo?: string },
+  ) {
+    return this.adminService.createShiftAssignment(dto);
+  }
+
+  @Delete('scheduling/shift-assignments/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Remove a shift assignment' })
+  deleteShiftAssignment(@Param('id') id: string) {
+    return this.adminService.deleteShiftAssignment(id);
   }
 }
