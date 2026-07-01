@@ -384,6 +384,29 @@ export interface BookableFacility {
   state?: string | null
 }
 
+export interface ServiceProvider {
+  id: string
+  firstName: string
+  lastName: string
+  title?: string
+  specialty?: string
+  rating?: number
+  isAvailable: boolean
+  priority: number
+}
+
+export interface CreateAppointmentPayload {
+  appointmentType: 'in_person' | 'virtual' | 'home_visit'
+  serviceType?: string
+  scheduledAt: string
+  durationMinutes: number
+  chiefComplaint?: string
+  notes?: string
+  providerId?: string
+  facilityId?: string
+  patientId?: string
+}
+
 export const appointments = {
   list: (params?: { status?: string; upcoming?: boolean }) => {
     const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : ''
@@ -397,7 +420,15 @@ export const appointments = {
   // this and don't send a facilityId.
   facilities: () => request<BookableFacility[]>('/appointments/facilities'),
 
-  create: (data: Record<string, unknown>) =>
+  // Returns providers assigned to the given service type, ordered by priority.
+  // Pass scheduledAt to further restrict to providers whose shift covers that time.
+  listProviders: (serviceType: string, scheduledAt?: string) => {
+    const params = new URLSearchParams({ serviceType })
+    if (scheduledAt) params.set('scheduledAt', scheduledAt)
+    return request<ServiceProvider[]>(`/appointments/providers?${params}`)
+  },
+
+  create: (data: CreateAppointmentPayload) =>
     request<{ data: Appointment }>('/appointments', {
       method: 'POST',
       body: JSON.stringify(data),

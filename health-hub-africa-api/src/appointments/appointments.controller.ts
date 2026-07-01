@@ -8,9 +8,10 @@ import {
   Patch,
   Post,
   Query,
+  BadRequestException,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ServiceType, UserRole } from '@prisma/client';
 import { AppointmentsService } from './appointments.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
@@ -49,6 +50,20 @@ export class AppointmentsController {
   @ApiOperation({ summary: 'List facilities available for in-person booking' })
   listFacilities() {
     return this.appointmentsService.listFacilitiesForBooking();
+  }
+
+  @Get('providers')
+  @ApiOperation({ summary: 'List providers available for a given service type, ordered by priority' })
+  @ApiQuery({ name: 'serviceType', enum: ServiceType, required: true })
+  @ApiQuery({ name: 'scheduledAt', required: false, description: 'ISO datetime; filters to providers with a matching shift' })
+  listProviders(
+    @Query('serviceType') serviceType: string,
+    @Query('scheduledAt') scheduledAt?: string,
+  ) {
+    if (!serviceType || !(serviceType in ServiceType)) {
+      throw new BadRequestException(`serviceType must be one of: ${Object.values(ServiceType).join(', ')}`);
+    }
+    return this.appointmentsService.listAvailableProviders(serviceType as ServiceType, scheduledAt);
   }
 
   @Get(':id')

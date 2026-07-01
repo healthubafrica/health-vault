@@ -116,6 +116,9 @@ export class TelecareService implements OnModuleInit {
       select: { id: true, patientId: true, providerId: true, scheduledAt: true },
     });
     if (!appointment) throw new NotFoundException('Appointment not found');
+    if (!appointment.providerId) {
+      throw new BadRequestException('Appointment must have an assigned provider before creating a telecare session');
+    }
 
     return this.prisma.telecareSession.create({
       data: {

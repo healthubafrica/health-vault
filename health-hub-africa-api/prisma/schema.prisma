@@ -377,6 +377,7 @@ model Provider {
   user                  User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
   verifier              User?                     @relation("ProviderVerifier", fields: [verifiedBy], references: [id])
   availability          ProviderAvailability[]
+  serviceGroups         ProviderServiceGroup[]
   patientAssignments    PatientProviderAssignment[]
   appointments          Appointment[]
   clinicalRecords       ClinicalRecord[]
@@ -405,6 +406,57 @@ model ProviderAvailability {
   provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@map("provider_availability")
+}
+
+// ─── HHA Scheduling Tables ───────────────────────────────────────────────────
+
+model ProviderServiceGroup {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  providerId  String      @map("provider_id") @db.Uuid
+  serviceType ServiceType @map("service_type")
+  priority    Int         @default(3)
+  isActive    Boolean     @default(true) @map("is_active")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  provider         Provider                  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  shiftAssignments ProviderShiftAssignment[]
+
+  @@unique([providerId, serviceType])
+  @@index([serviceType, isActive])
+  @@map("hha_provider_service_groups")
+}
+
+model ShiftTemplate {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  serviceType ServiceType @map("service_type")
+  dayOfWeek   Int         @map("day_of_week") @db.SmallInt
+  startTime   DateTime    @map("start_time") @db.Time
+  endTime     DateTime    @map("end_time") @db.Time
+  isActive    Boolean     @default(true) @map("is_active")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  assignments ProviderShiftAssignment[]
+
+  @@index([serviceType, isActive])
+  @@map("hha_shift_templates")
+}
+
+model ProviderShiftAssignment {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  providerServiceGroupId String  @map("provider_service_group_id") @db.Uuid
+  shiftTemplateId      String    @map("shift_template_id") @db.Uuid
+  effectiveFrom        DateTime  @map("effective_from") @db.Date
+  effectiveTo          DateTime? @map("effective_to") @db.Date
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  providerServiceGroup ProviderServiceGroup @relation(fields: [providerServiceGroupId], references: [id], onDelete: Cascade)
+  shiftTemplate        ShiftTemplate        @relation(fields: [shiftTemplateId], references: [id], onDelete: Cascade)
+
+  @@unique([providerServiceGroupId, shiftTemplateId])
+  @@map("hha_provider_shift_assignments")
 }
 
 model PatientProviderAssignment {
