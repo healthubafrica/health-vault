@@ -1486,6 +1486,75 @@ export class AdminService {
     return { data, meta: { total, page, limit } };
   }
 
+  // Manual import — used when OpenEMR FHIR /fhir/Practitioner returns empty
+  // (common when the doctors are OpenEMR login users but not configured as
+  // FHIR Practitioners in OpenEMR's provider_info table). The admin provides
+  // the provider details directly; the record is created in HHA the same way
+  // as the FHIR-driven import, but without needing OpenEMR to expose the user.
+  // An optional openemrProviderUuid links the HHA record to an existing
+  // OpenEMR Practitioner if one is known; if null, the verify() flow will
+  // push the provider to OpenEMR via FHIR and fill it in automatically.
+  async importProviderManually(dto: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    title: string;
+    specialty: string;
+    licenseNumber?: string;
+    openemrProviderUuid?: string;
+  }) {
+    const { email, firstName, lastName, title, specialty, licenseNumber, openemrProviderUuid } = dto;
+
+    if (openemrProviderUuid) {
+      const existing = await this.prisma.provider.findUnique({ where: { openemrProviderUuid } });
+      if (existing) {
+        throw new BadRequestException(`A provider is already linked to OpenEMR UUID ${openemrProviderUuid}`);
+      }
+    }
+
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      throw new BadRequestException(
+        `A user with email ${email} already exists. If this is the right account, use the verify flow instead.`,
+      );
+    }
+
+    const tempPassword = randomBytes(18).toString('base64url');
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: { email, passwordHash, role: UserRole.provider, isVerified: true },
+      });
+
+      const provider = await tx.provider.create({
+        data: {
+          userId: user.id,
+          firstName,
+          lastName,
+          title,
+          specialty,
+          ...(licenseNumber ? { licenseNumber } : {}),
+          ...(openemrProviderUuid ? { openemrProviderUuid } : {}),
+        },
+      });
+
+      return { user, provider };
+    });
+
+    return {
+      id: result.provider.id,
+      email,
+      firstName,
+      lastName,
+      title,
+      specialty,
+      tempPassword,
+      openemrProviderUuid: result.provider.openemrProviderUuid,
+      message: 'Provider account created. Share the tempPassword with the provider for first login. Verify credentials in admin to trigger OpenEMR sync.',
+    };
+  }
+
   async importProvidersFromOpenemr() {
     let practitioners: Awaited<ReturnType<typeof this.openemrService.fetchPractitioners>>;
     try {
@@ -1604,10 +1673,32 @@ export class AdminService {
       }),
     );
 
+    // 5. Explain empty FHIR list when token is healthy
+    //
+    // An empty FHIR Practitioner bundle with no error means the OpenEMR users
+    // who are the clinic's doctors have NOT been configured as FHIR Practitioners
+    // in OpenEMR. This is the most common cause: doctors can be added as OpenEMR
+    // login users (for EMR access) without being flagged as providers in OpenEMR's
+    // provider_info table (which is what FHIR /Practitioner exposes).
+    //
+    // Fix in OpenEMR: Administration → Practice → Providers → make sure each
+    // doctor has an entry with "Active" status. Alternatively, use the
+    // POST /admin/providers/manual-import endpoint to create HHA accounts for
+    // them directly, then verify and let the sync push them to OpenEMR via FHIR.
+    const fhirEmptyNote =
+      tokenConfigured && !fhirError && practitioners.length === 0
+        ? 'OpenEMR FHIR /fhir/Practitioner returned 0 results. ' +
+          'This means the clinic doctors are OpenEMR login users but are NOT configured ' +
+          'as clinical providers in OpenEMR (Administration → Practice → Providers). ' +
+          'Use POST /admin/providers/manual-import to create their HHA accounts directly, ' +
+          'then verify them to trigger an OpenEMR FHIR sync.'
+        : null;
+
     return {
       tokenConfigured,
       tokenError,
       fhirError,
+      fhirEmptyNote,
       fhirPractitionerCount: practitioners.length,
       localProviderCount,
       practitioners: preview,

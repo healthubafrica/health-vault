@@ -345,6 +345,30 @@ export class AdminController {
     return this.adminService.importProvidersFromOpenemr();
   }
 
+  @Post('providers/manual-import')
+  @Roles(UserRole.super_admin)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Manually create a provider account when OpenEMR FHIR returns no practitioners (super_admin only)',
+    description:
+      'Use this when GET /admin/providers/openemr-status shows fhirPractitionerCount=0. ' +
+      'Creates a User (role=provider) + Provider record directly. ' +
+      'If openemrProviderUuid is omitted, the verify flow will push the provider to OpenEMR via FHIR.',
+  })
+  importProviderManually(
+    @Body() dto: {
+      email: string;
+      firstName: string;
+      lastName: string;
+      title: string;
+      specialty: string;
+      licenseNumber?: string;
+      openemrProviderUuid?: string;
+    },
+  ) {
+    return this.adminService.importProviderManually(dto);
+  }
+
   @Get('providers/openemr-status')
   @Roles(UserRole.super_admin)
   @ApiOperation({

@@ -120,6 +120,8 @@ export default function ProvidersPage() {
   const [importError, setImportError] = useState<string | null>(null)
   const [selected, setSelected] = useState<AdminProvider | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
+  const [manualImportOpen, setManualImportOpen] = useState(false)
+  const [manualImportResult, setManualImportResult] = useState<{ email: string; firstName: string; lastName: string; tempPassword: string; message: string } | null>(null)
   const limit = 20
 
   const isAdmin = authUser?.role === 'admin' || authUser?.role === 'super_admin'
@@ -183,6 +185,12 @@ export default function ProvidersPage() {
     load()
   }, [load])
 
+  const handleManualImported = useCallback((result: { email: string; firstName: string; lastName: string; tempPassword: string; message: string }) => {
+    setManualImportOpen(false)
+    setManualImportResult(result)
+    setTimeout(load, 1500)
+  }, [load])
+
   const handleImport = useCallback(async () => {
     setImporting(true)
     setImportError(null)
@@ -219,10 +227,16 @@ export default function ProvidersPage() {
             </Button>
           )}
           {isSuperAdmin && (
-            <Button variant="secondary" size="sm" loading={importing} onClick={handleImport}>
-              <Download className="w-3.5 h-3.5" />
-              Import from OpenEMR
-            </Button>
+            <>
+              <Button variant="secondary" size="sm" onClick={() => setManualImportOpen(true)}>
+                <Plus className="w-3.5 h-3.5" />
+                Manual Import
+              </Button>
+              <Button variant="secondary" size="sm" loading={importing} onClick={handleImport}>
+                <Download className="w-3.5 h-3.5" />
+                Import from OpenEMR
+              </Button>
+            </>
           )}
           <Button variant="secondary" size="sm" onClick={load}>
             <RefreshCw className="w-3.5 h-3.5" />
@@ -465,6 +479,163 @@ export default function ProvidersPage() {
 
       {selected && <ProviderDetailDialog provider={selected} onClose={() => setSelected(null)} />}
       {createOpen && <CreateProviderDialog onClose={() => setCreateOpen(false)} onCreated={handleCreated} />}
+      {manualImportOpen && <ManualImportDialog onClose={() => setManualImportOpen(false)} onImported={handleManualImported} />}
+
+      {manualImportResult && (
+        <div
+          className="fixed bottom-4 right-4 z-50 max-w-sm rounded-2xl border shadow-2xl p-4 space-y-2"
+          style={{ background: 'var(--color-surface)', borderColor: '#6DC43F' }}
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold" style={{ color: '#6DC43F' }}>Provider created</p>
+            <button onClick={() => setManualImportResult(null)} className="opacity-50 hover:opacity-100">
+              <X className="w-4 h-4" style={{ color: 'var(--color-text)' }} />
+            </button>
+          </div>
+          <p className="text-xs" style={{ color: 'var(--color-text)' }}>
+            {manualImportResult.firstName} {manualImportResult.lastName} — {manualImportResult.email}
+          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs font-mono px-2 py-1 rounded-lg flex-1 truncate" style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
+              {manualImportResult.tempPassword}
+            </p>
+            <button
+              onClick={() => navigator.clipboard.writeText(`Email: ${manualImportResult.email}\nPassword: ${manualImportResult.tempPassword}`)}
+              className="opacity-60 hover:opacity-100 transition-opacity"
+              title="Copy credentials"
+            >
+              <Copy className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
+            </button>
+          </div>
+          <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+            Share the temp password. Provider remains in Pending state — click Verify after reviewing credentials.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Bypass the OpenEMR FHIR fetch when the clinic doctors are admin users not
+// configured as FHIR Practitioners. Creates an HHA user+provider record
+// directly from the supplied details; verify() then triggers the FHIR push.
+function ManualImportDialog({
+  onClose,
+  onImported,
+}: {
+  onClose: () => void
+  onImported: (result: { email: string; firstName: string; lastName: string; tempPassword: string; message: string }) => void
+}) {
+  const [email, setEmail] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [title, setTitle] = useState('Dr.')
+  const [specialty, setSpecialty] = useState('')
+  const [licenseNumber, setLicenseNumber] = useState('')
+  const [openemrUuid, setOpenemrUuid] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    if (!email.trim() || !firstName.trim() || !lastName.trim() || !specialty.trim()) {
+      setError('Email, name, and specialty are required.')
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await adminApi.providers.manualImport({
+        email: email.trim(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        title: title.trim(),
+        specialty: specialty.trim(),
+        licenseNumber: licenseNumber.trim() || undefined,
+        openemrProviderUuid: openemrUuid.trim() || undefined,
+      })
+      onImported(res)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to import provider')
+    } finally {
+      setSaving(false)
+    }
+  }, [email, firstName, lastName, title, specialty, licenseNumber, openemrUuid, onImported])
+
+  return (
+    <div
+      className="fixed inset-0 flex items-center justify-center z-50 px-4"
+      style={{ background: 'rgba(0,0,0,0.5)' }}
+      onClick={onClose}
+    >
+      <div
+        className="rounded-2xl w-full max-w-md p-6"
+        style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <h2 className="text-base font-semibold" style={{ color: 'var(--color-text)' }}>
+              Manual Provider Import
+            </h2>
+            <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+              Use this when OpenEMR doctors are not configured as FHIR Practitioners. Creates an HHA account directly — click Verify afterward to push to OpenEMR.
+            </p>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="p-1 hover:opacity-70">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="flex flex-col gap-3">
+          <FormInput label="Email" type="email" placeholder="doctor@clinic.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <div className="grid grid-cols-3 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>Title</label>
+              <select
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="h-10 px-3 rounded-xl text-sm border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+              >
+                <option>Dr.</option>
+                <option>Prof.</option>
+                <option>Mr.</option>
+                <option>Mrs.</option>
+                <option>Ms.</option>
+              </select>
+            </div>
+            <FormInput label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+            <FormInput label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+          </div>
+          <FormInput label="Specialty" placeholder="e.g. General Practice" value={specialty} onChange={(e) => setSpecialty(e.target.value)} required />
+          <div className="grid grid-cols-2 gap-3">
+            <FormInput label="License / NPI (optional)" value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} />
+            <FormInput
+              label="OpenEMR UUID (optional)"
+              placeholder="If already in OpenEMR"
+              value={openemrUuid}
+              onChange={(e) => setOpenemrUuid(e.target.value)}
+            />
+          </div>
+
+          <div
+            className="text-xs px-3 py-2 rounded-xl"
+            style={{ background: 'rgba(109,196,63,0.08)', color: 'var(--color-text-muted)' }}
+          >
+            A temporary password will be generated — share it with the provider so they can log in and change it.
+          </div>
+
+          {error && (
+            <p className="text-xs" style={{ color: 'var(--color-emergency)' }}>{error}</p>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" size="md" onClick={onClose} type="button">Cancel</Button>
+            <Button variant="primary" size="md" loading={saving} type="submit">Import Provider</Button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }

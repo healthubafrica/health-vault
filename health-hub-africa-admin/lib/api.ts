@@ -754,6 +754,19 @@ export const adminApi = {
       request<void>(`/admin/providers/${id}/availability`, { method: 'PATCH', body: JSON.stringify({ available }) }),
     importFromOpenemr: () =>
       request<ImportProviderResult>('/admin/providers/import-from-openemr', { method: 'POST' }),
+    manualImport: (dto: {
+      email: string
+      firstName: string
+      lastName: string
+      title: string
+      specialty: string
+      licenseNumber?: string
+      openemrProviderUuid?: string
+    }) =>
+      request<{ id: string; email: string; firstName: string; lastName: string; tempPassword: string; message: string }>(
+        '/admin/providers/manual-import',
+        { method: 'POST', body: JSON.stringify(dto) },
+      ),
     // Admin creates a provider profile for a target user. The user is
     // promoted to role=provider; the row lands in the unverified state and
     // is invisible to bookings + OpenEMR sync until verify() is called.
