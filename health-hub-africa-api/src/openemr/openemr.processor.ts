@@ -910,31 +910,46 @@ export class OpenemrProcessor {
     }
 
     const token = await this.openemrService.getAccessToken();
-    const body: Record<string, string> = {
-      fname:     provider.firstName,
-      lname:     provider.lastName,
-      title:     provider.title,
-      specialty: provider.specialty,
-      email:     provider.user.email,
-      // Omit npi entirely when no license number — sending an empty string
-      // causes OpenEMR to store an invalid NPI value.
-      ...(provider.licenseNumber ? { npi: provider.licenseNumber } : {}),
+
+    // Build a FHIR Practitioner resource.  We use /fhir/Practitioner (which
+    // needs user/Practitioner.write scope) instead of the legacy REST
+    // /api/practitioner endpoint (which needs api:oemr scope).  In production
+    // the api:oemr scope is not granted for our OAuth client, so REST calls
+    // return 401 — FHIR is the only path that works with our token.
+    const fhirPractitioner: Record<string, unknown> = {
+      resourceType: 'Practitioner',
+      active: true,
+      name: [{
+        use: 'official',
+        family: provider.lastName,
+        given: [provider.firstName],
+        prefix: [provider.title],
+      }],
+      telecom: [{ system: 'email', value: provider.user.email }],
+      qualification: [{ code: { text: provider.specialty } }],
+      ...(provider.licenseNumber
+        ? { identifier: [{ system: 'http://hl7.org/fhir/sid/us-npi', value: provider.licenseNumber }] }
+        : {}),
     };
 
     let openemrUuid: string;
     try {
       if (!provider.openemrProviderUuid) {
-        const result = await this.openemrService['callOpenemr'](token, 'POST', '/api/practitioner', body);
-        // OpenEMR may return { data: { uuid } } or { uuid } depending on version.
-        const payload = (result as Record<string, unknown>).data ?? result;
-        openemrUuid = (payload as Record<string, string>)?.uuid;
+        const result = await this.openemrService['callOpenemr'](
+          token, 'POST', '/fhir/Practitioner', fhirPractitioner,
+        );
+        // FHIR POST returns a Practitioner resource with an `id` field.
+        openemrUuid = (result as Record<string, unknown>).id as string;
         if (!openemrUuid) {
           throw new Error(
-            `OpenEMR POST /api/practitioner returned no uuid. Response: ${JSON.stringify(result).slice(0, 500)}`,
+            `OpenEMR POST /fhir/Practitioner returned no id. Response: ${JSON.stringify(result).slice(0, 500)}`,
           );
         }
       } else {
-        await this.openemrService['callOpenemr'](token, 'PUT', `/api/practitioner/${provider.openemrProviderUuid}`, body);
+        await this.openemrService['callOpenemr'](
+          token, 'PUT', `/fhir/Practitioner/${provider.openemrProviderUuid}`,
+          { ...fhirPractitioner, id: provider.openemrProviderUuid },
+        );
         openemrUuid = provider.openemrProviderUuid;
       }
     } catch (err) {
