@@ -418,6 +418,34 @@ export interface ProviderAppointment {
   patient?: { firstName: string; lastName: string } | null
 }
 
+// ── Admin: Scheduling ────────────────────────────────────────────────────
+
+export type ServiceType = 'MinuteCare' | 'TeleCare' | 'CareTest' | 'HealthConsult' | 'ExpertReview' | 'NeuroFlex' | 'DispatchCare'
+
+export interface ServiceGroup {
+  id: string
+  serviceType: ServiceType
+  priority: number
+  isActive: boolean
+  provider: { id: string; firstName: string; lastName: string; title: string; specialty: string }
+  shiftAssignments: Array<{
+    id: string
+    effectiveFrom: string
+    effectiveTo: string | null
+    shiftTemplate: { id: string; name: string; dayOfWeek: number; startTime: string; endTime: string }
+  }>
+}
+
+export interface ShiftTemplate {
+  id: string
+  name: string
+  serviceType: ServiceType
+  dayOfWeek: number
+  startTime: string
+  endTime: string
+  isActive: boolean
+}
+
 // ── Admin: Clinical Queue ─────────────────────────────────────────────────
 
 export interface ClinicalQueueItem {
@@ -875,5 +903,48 @@ export const adminApi = {
 
   plans: {
     list: () => request<{ data: Array<{ id: string; name: string; tier: string; slug: string }> }>('/subscriptions/plans'),
+  },
+
+  scheduling: {
+    serviceGroups: {
+      list: (serviceType?: ServiceType) => {
+        const qs = serviceType ? `?serviceType=${serviceType}` : ''
+        return request<ServiceGroup[]>(`/admin/scheduling/service-groups${qs}`)
+      },
+      create: (dto: { providerId: string; serviceType: ServiceType; priority: number }) =>
+        request<ServiceGroup>('/admin/scheduling/service-groups', {
+          method: 'POST',
+          body: JSON.stringify(dto),
+        }),
+      update: (id: string, dto: { priority?: number; isActive?: boolean }) =>
+        request<ServiceGroup>(`/admin/scheduling/service-groups/${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(dto),
+        }),
+      delete: (id: string) =>
+        request<void>(`/admin/scheduling/service-groups/${id}`, { method: 'DELETE' }),
+    },
+    shiftTemplates: {
+      list: (serviceType?: ServiceType) => {
+        const qs = serviceType ? `?serviceType=${serviceType}` : ''
+        return request<ShiftTemplate[]>(`/admin/scheduling/shift-templates${qs}`)
+      },
+      create: (dto: { name: string; serviceType: ServiceType; dayOfWeek: number; startTime: string; endTime: string }) =>
+        request<ShiftTemplate>('/admin/scheduling/shift-templates', {
+          method: 'POST',
+          body: JSON.stringify(dto),
+        }),
+      delete: (id: string) =>
+        request<void>(`/admin/scheduling/shift-templates/${id}`, { method: 'DELETE' }),
+    },
+    shiftAssignments: {
+      create: (dto: { providerServiceGroupId: string; shiftTemplateId: string; effectiveFrom: string; effectiveTo?: string }) =>
+        request<{ id: string; effectiveFrom: string; effectiveTo: string | null }>('/admin/scheduling/shift-assignments', {
+          method: 'POST',
+          body: JSON.stringify(dto),
+        }),
+      delete: (id: string) =>
+        request<void>(`/admin/scheduling/shift-assignments/${id}`, { method: 'DELETE' }),
+    },
   },
 }

@@ -6,7 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { AppointmentStatus, DispatchStatus, UserRole } from '@prisma/client';
+import { AppointmentStatus, DispatchStatus, ServiceType, UserRole } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import Redis from 'ioredis';
@@ -1751,6 +1751,100 @@ export class AdminService {
     } catch {
       throw new NotFoundException('Notification delivery record not found');
     }
+  }
+
+  // ── Scheduling ────────────────────────────────────────────────────────────
+
+  async listServiceGroups(serviceType?: ServiceType) {
+    return this.prisma.providerServiceGroup.findMany({
+      where: serviceType ? { serviceType } : undefined,
+      orderBy: [{ serviceType: 'asc' }, { priority: 'asc' }],
+      select: {
+        id: true,
+        serviceType: true,
+        priority: true,
+        isActive: true,
+        provider: {
+          select: { id: true, firstName: true, lastName: true, title: true, specialty: true },
+        },
+        shiftAssignments: {
+          select: {
+            id: true,
+            effectiveFrom: true,
+            effectiveTo: true,
+            shiftTemplate: {
+              select: { id: true, name: true, dayOfWeek: true, startTime: true, endTime: true },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  async createServiceGroup(dto: { providerId: string; serviceType: ServiceType; priority: number }) {
+    const provider = await this.prisma.provider.findUnique({ where: { id: dto.providerId }, select: { id: true, deletedAt: true } });
+    if (!provider || provider.deletedAt) throw new NotFoundException('Provider not found');
+    return this.prisma.providerServiceGroup.upsert({
+      where: { providerId_serviceType: { providerId: dto.providerId, serviceType: dto.serviceType } },
+      create: { providerId: dto.providerId, serviceType: dto.serviceType, priority: dto.priority },
+      update: { priority: dto.priority, isActive: true },
+      select: { id: true, serviceType: true, priority: true, isActive: true },
+    });
+  }
+
+  async updateServiceGroup(id: string, dto: { priority?: number; isActive?: boolean }) {
+    const group = await this.prisma.providerServiceGroup.findUnique({ where: { id } });
+    if (!group) throw new NotFoundException('Service group not found');
+    return this.prisma.providerServiceGroup.update({
+      where: { id },
+      data: dto,
+      select: { id: true, serviceType: true, priority: true, isActive: true },
+    });
+  }
+
+  async deleteServiceGroup(id: string) {
+    const group = await this.prisma.providerServiceGroup.findUnique({ where: { id } });
+    if (!group) throw new NotFoundException('Service group not found');
+    await this.prisma.providerServiceGroup.delete({ where: { id } });
+  }
+
+  async listShiftTemplates(serviceType?: ServiceType) {
+    return this.prisma.shiftTemplate.findMany({
+      where: serviceType ? { serviceType } : undefined,
+      orderBy: [{ serviceType: 'asc' }, { dayOfWeek: 'asc' }, { startTime: 'asc' }],
+      select: { id: true, name: true, serviceType: true, dayOfWeek: true, startTime: true, endTime: true, isActive: true },
+    });
+  }
+
+  async createShiftTemplate(dto: { name: string; serviceType: ServiceType; dayOfWeek: number; startTime: string; endTime: string }) {
+    return this.prisma.shiftTemplate.create({
+      data: dto,
+      select: { id: true, name: true, serviceType: true, dayOfWeek: true, startTime: true, endTime: true, isActive: true },
+    });
+  }
+
+  async deleteShiftTemplate(id: string) {
+    const tmpl = await this.prisma.shiftTemplate.findUnique({ where: { id } });
+    if (!tmpl) throw new NotFoundException('Shift template not found');
+    await this.prisma.shiftTemplate.delete({ where: { id } });
+  }
+
+  async createShiftAssignment(dto: { providerServiceGroupId: string; shiftTemplateId: string; effectiveFrom: string; effectiveTo?: string }) {
+    return this.prisma.providerShiftAssignment.create({
+      data: {
+        providerServiceGroupId: dto.providerServiceGroupId,
+        shiftTemplateId: dto.shiftTemplateId,
+        effectiveFrom: new Date(dto.effectiveFrom),
+        effectiveTo: dto.effectiveTo ? new Date(dto.effectiveTo) : null,
+      },
+      select: { id: true, effectiveFrom: true, effectiveTo: true },
+    });
+  }
+
+  async deleteShiftAssignment(id: string) {
+    const asgn = await this.prisma.providerShiftAssignment.findUnique({ where: { id } });
+    if (!asgn) throw new NotFoundException('Shift assignment not found');
+    await this.prisma.providerShiftAssignment.delete({ where: { id } });
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

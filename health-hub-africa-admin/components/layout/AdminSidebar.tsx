@@ -33,6 +33,7 @@ import {
   Newspaper,
   MessageSquareQuote,
   Settings,
+  Network,
 } from 'lucide-react'
 
 interface NavItem {
@@ -56,6 +57,7 @@ const NAV: NavItem[] = [
   { label: 'Facilities', href: '/facilities', icon: Building2, roles: ['admin', 'super_admin'], group: 'Management' },
   { label: 'Patients', href: '/patients', icon: UserCircle, roles: ['admin', 'super_admin'], group: 'Management' },
   { label: 'Providers', href: '/providers', icon: Stethoscope, roles: ['admin', 'super_admin'], group: 'Management' },
+  { label: 'Scheduling', href: '/scheduling', icon: Network, roles: ['admin', 'super_admin'], group: 'Management' },
   { label: 'Subscriptions', href: '/subscriptions', icon: CreditCard, roles: ['admin', 'super_admin'], group: 'Management' },
   { label: 'Payments', href: '/payments', icon: DollarSign, roles: ['admin', 'super_admin'], group: 'Management' },
 
