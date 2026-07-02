@@ -465,6 +465,10 @@ export const records = {
 
   get: (id: string) => request<{ data: ClinicalRecord }>(`/records/${id}`),
 
+  // DEAD CODE — field names and response shape don't match the backend
+  // (expects { filename, contentType, sizeBytes }, returns { uploadUrl, objectKey }
+  // unwrapped). Kept only to avoid breaking imports; use `documents.getUploadUrl`
+  // for vault uploads instead. TODO: remove once confirmed unused.
   getUploadUrl: (filename: string, mimeType: string) =>
     request<{ data: { uploadUrl: string; fileUrl: string } }>('/records/upload-url', {
       method: 'POST',
@@ -475,7 +479,140 @@ export const records = {
     request<{ data: { downloadUrl: string } }>(`/records/download-url/${encodeURIComponent(objectKey)}`),
 
   getStorageUsage: () =>
-    request<{ data: { usedBytes: number; quotaBytes: number | null } | null }>('/records/storage'),
+    request<{ data: StorageUsage | null }>('/records/storage'),
+}
+
+export interface StorageUsage {
+  usedBytes: number
+  quotaBytes: number | null
+  fileCount: number
+  maxFiles: number | null
+  maxFileSizeBytes: number | null
+}
+
+// ── Vault Documents (patient uploads) ─────────────────────────────────────
+
+export type DocumentCategory =
+  | 'personal_identification'
+  | 'medical_history'
+  | 'providers'
+  | 'specialists'
+  | 'emergency'
+  | 'hospital'
+  | 'laboratory'
+  | 'imaging'
+  | 'medications'
+  | 'vaccinations'
+  | 'chronic_disease'
+  | 'womens_health'
+  | 'childrens_health'
+  | 'mental_health'
+  | 'dental'
+  | 'vision'
+  | 'travel'
+  | 'legal'
+  | 'wearables'
+  | 'miscellaneous'
+
+export interface VaultDocument {
+  id: string
+  hhaRef: string
+  recordType: string
+  title: string
+  description?: string | null
+  category: DocumentCategory | null
+  tags: string[]
+  originalFileName?: string | null
+  source: string
+  fileUrl?: string | null
+  fileMimeType?: string | null
+  fileSizeBytes?: number | null
+  providerVisibility: boolean
+  recordedAt: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DocumentListParams {
+  q?: string
+  category?: DocumentCategory
+  sort?: 'title' | 'createdAt' | 'fileSizeBytes'
+  order?: 'asc' | 'desc'
+  dateFrom?: string
+  dateTo?: string
+  page?: number
+  pageSize?: number
+}
+
+export interface DocumentUploadTicket {
+  uploadUrl: string
+  objectKey: string
+  expiresIn: number
+}
+
+export const documents = {
+  getUploadUrl: (data: { fileName: string; contentType: string; sizeBytes: number }) =>
+    request<{ data: DocumentUploadTicket }>('/documents/upload-url', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  create: (data: {
+    objectKey: string
+    fileName: string
+    title?: string
+    category: DocumentCategory
+    tags?: string[]
+    description?: string
+    documentDate?: string
+  }) =>
+    request<{ data: VaultDocument }>('/documents', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  list: (params?: DocumentListParams) => {
+    const qs = new URLSearchParams()
+    Object.entries(params ?? {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') qs.set(key, String(value))
+    })
+    const suffix = qs.toString() ? `?${qs.toString()}` : ''
+    return request<{ data: VaultDocument[]; meta: { total: number; page: number; pageSize: number } }>(
+      `/documents${suffix}`,
+    )
+  },
+
+  get: (id: string) => request<{ data: VaultDocument }>(`/documents/${id}`),
+
+  update: (
+    id: string,
+    data: Partial<{
+      title: string
+      description: string
+      category: DocumentCategory
+      tags: string[]
+      documentDate: string
+      providerVisibility: boolean
+    }>,
+  ) =>
+    request<{ data: VaultDocument }>(`/documents/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  getReplaceUrl: (id: string, data: { fileName: string; contentType: string; sizeBytes: number }) =>
+    request<{ data: DocumentUploadTicket }>(`/documents/${id}/replace-url`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  replace: (id: string, data: { objectKey: string; fileName: string }) =>
+    request<{ data: VaultDocument }>(`/documents/${id}/replace`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  remove: (id: string) => request<void>(`/documents/${id}`, { method: 'DELETE' }),
 }
 
 // ── Lab Orders & Results ──────────────────────────────────────────────────
