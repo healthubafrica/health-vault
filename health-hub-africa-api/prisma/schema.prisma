@@ -1366,6 +1366,7 @@ enum ShareAccessAction {
   otp_verified
   forward_detected
   revoked
+  link_sent
 }
 
 model RecordShare {
