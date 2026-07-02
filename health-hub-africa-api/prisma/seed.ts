@@ -20,6 +20,8 @@ async function main() {
       launchPriceKobo: 0,
       billingPeriod: 'monthly',
       storageQuotaBytes: MB(500),
+      maxFiles: 100,
+      maxFileSizeBytes: MB(10),
       features: [
         'TeleCare™ Physician Consultations: Pay-per-visit',
         'MinuteCare™ Walk-in/Urgent Care: Pay-per-visit',
@@ -53,6 +55,8 @@ async function main() {
       launchPriceKobo: 9_900_000,
       billingPeriod: 'monthly',
       storageQuotaBytes: GB(2),
+      maxFiles: 500,
+      maxFileSizeBytes: MB(25),
       features: [
         'TeleCare™ Physician Consultations: 2 visits/year',
         'MinuteCare™ Walk-in/Urgent Care: 1 visit/year',
@@ -85,7 +89,9 @@ async function main() {
       annualPriceKobo: 29_900_000,
       launchPriceKobo: 24_900_000,
       billingPeriod: 'monthly',
-      storageQuotaBytes: GB(5),
+      storageQuotaBytes: GB(10),
+      maxFiles: 2000,
+      maxFileSizeBytes: MB(100),
       features: [
         'TeleCare™ Physician Consultations: 6 visits/year',
         'MinuteCare™ Walk-in/Urgent Care: 3 visits/year',
@@ -124,7 +130,9 @@ async function main() {
       annualPriceKobo: 59_900_000,
       launchPriceKobo: 49_900_000,
       billingPeriod: 'monthly',
-      storageQuotaBytes: GB(20),
+      storageQuotaBytes: GB(50),
+      maxFiles: 10000,
+      maxFileSizeBytes: MB(500),
       features: [
         'TeleCare™ Physician Consultations: 24 visits/year',
         'MinuteCare™ Walk-in/Urgent Care: 6 visits/year',
@@ -165,6 +173,8 @@ async function main() {
       launchPriceKobo: 99_900_000,
       billingPeriod: 'monthly',
       storageQuotaBytes: null, // Unlimited
+      maxFiles: null, // Unlimited
+      maxFileSizeBytes: GB(2),
       features: [
         'TeleCare™ Physician Consultations: Unlimited (Fair Use Policy)',
         'MinuteCare™ Walk-in/Urgent Care: Unlimited (Fair Use Policy)',
@@ -218,6 +228,8 @@ async function main() {
         isBestValue: plan.isBestValue,
         bestFor: plan.bestFor,
         storageQuotaBytes: plan.storageQuotaBytes,
+        maxFileSizeBytes: plan.maxFileSizeBytes,
+        maxFiles: plan.maxFiles,
       },
       create: plan,
     });
