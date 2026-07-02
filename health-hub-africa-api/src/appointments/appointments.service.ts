@@ -12,6 +12,9 @@ import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { QueryAppointmentsDto } from './dto/query-appointments.dto';
 import { OpenemrService } from '../openemr/openemr.service';
+import { NotificationsService } from '../notifications/notifications.service';
+
+type AppointmentEmailEvent = 'requested' | 'confirmed' | 'cancelled' | 'rescheduled';
 
 // Valid FSM transitions: status → allowed next statuses
 const ALLOWED_TRANSITIONS: Record<AppointmentStatus, AppointmentStatus[]> = {
@@ -67,6 +70,7 @@ export class AppointmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly openemrService: OpenemrService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ── Create ─────────────────────────────────────────────────────────────────
@@ -134,6 +138,8 @@ export class AppointmentsService {
     await this.openemrService.enqueueEncounterSync(appointment.patientId, appointment.id).catch(err =>
       this.logger.error(`Failed to enqueue OpenEMR encounter sync: ${err.message}`),
     );
+
+    void this.notifyAppointmentEvent(appointment.id, 'requested');
 
     return appointment;
   }
@@ -292,9 +298,22 @@ export class AppointmentsService {
       );
     }
 
+    // Which lifecycle email (if any) this mutation should trigger. Status
+    // changes win over a bare time change so a confirm+reschedule in one
+    // PATCH sends a single "confirmed" email with the new time in it.
+    const emailEvent: AppointmentEmailEvent | null =
+      dto.status === AppointmentStatus.confirmed && appt.status !== AppointmentStatus.confirmed
+        ? 'confirmed'
+        : dto.status === AppointmentStatus.cancelled
+          ? 'cancelled'
+          : !dto.status && dto.scheduledAt && new Date(dto.scheduledAt).getTime() !== appt.scheduledAt.getTime()
+            ? 'rescheduled'
+            : null;
+
+    let updatedAppointment;
     if (shouldSpawnTelecareSession) {
       const hhaRef = await this.generateTelecareRef();
-      return this.prisma.$transaction(async (tx) => {
+      updatedAppointment = await this.prisma.$transaction(async (tx) => {
         const updated = await tx.appointment.update({
           where: { id },
           data,
@@ -312,13 +331,17 @@ export class AppointmentsService {
         });
         return updated;
       });
+    } else {
+      updatedAppointment = await this.prisma.appointment.update({
+        where: { id },
+        data,
+        select: this.safeSelect(),
+      });
     }
 
-    return this.prisma.appointment.update({
-      where: { id },
-      data,
-      select: this.safeSelect(),
-    });
+    if (emailEvent) void this.notifyAppointmentEvent(id, emailEvent);
+
+    return updatedAppointment;
   }
 
   // TLC-YYYY-0001 sequential session reference. Duplicates the helper in
@@ -469,6 +492,129 @@ export class AppointmentsService {
       orderBy: { name: 'asc' },
       select: { id: true, name: true, city: true, state: true },
     });
+  }
+
+  // ── Lifecycle notifications ────────────────────────────────────────────────
+
+  // Emails (and SMS when the patient has a phone) the patient about
+  // appointment lifecycle changes; the assigned provider is copied on
+  // confirmations and cancellations. Fire-and-forget: failures are logged
+  // and never fail the mutation that triggered them.
+  private async notifyAppointmentEvent(appointmentId: string, event: AppointmentEmailEvent) {
+    try {
+      const appt = await this.prisma.appointment.findUnique({
+        where: { id: appointmentId },
+        select: {
+          hhaRef: true,
+          serviceType: true,
+          isTelecare: true,
+          location: true,
+          scheduledAt: true,
+          durationMinutes: true,
+          cancellationNote: true,
+          facility: { select: { name: true, city: true } },
+          patient: {
+            select: {
+              firstName: true,
+              userId: true,
+              user: { select: { email: true, phone: true } },
+            },
+          },
+          provider: {
+            select: {
+              firstName: true,
+              lastName: true,
+              title: true,
+              user: { select: { email: true, id: true } },
+            },
+          },
+        },
+      });
+      if (!appt?.patient?.user?.email) return;
+
+      const when = appt.scheduledAt.toLocaleString('en-GB', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos',
+      }) + ' (WAT)';
+      const providerName = appt.provider
+        ? `${appt.provider.title} ${appt.provider.firstName} ${appt.provider.lastName}`
+        : null;
+      const where = appt.isTelecare
+        ? 'This is a virtual consultation — join from your Health Hub Africa portal a few minutes before the start time.'
+        : appt.facility
+          ? `Location: ${appt.facility.name}${appt.facility.city ? `, ${appt.facility.city}` : ''}`
+          : appt.location
+            ? `Location: ${appt.location}`
+            : '';
+
+      const details =
+        `Reference: ${appt.hhaRef}\n` +
+        `Service: ${appt.serviceType}\n` +
+        `Date & time: ${when}\n` +
+        `Duration: ${appt.durationMinutes} minutes\n` +
+        (providerName ? `Provider: ${providerName}\n` : '') +
+        (where ? `${where}\n` : '');
+
+      const templates: Record<AppointmentEmailEvent, { subject: string; intro: string; outro: string; sms: string }> = {
+        requested: {
+          subject: `Appointment request received — ${appt.hhaRef}`,
+          intro: 'We have received your appointment request.',
+          outro: 'You will get another email as soon as your appointment is confirmed.',
+          sms: `Health Hub Africa: appointment request ${appt.hhaRef} received for ${when}. We'll confirm shortly.`,
+        },
+        confirmed: {
+          subject: `Appointment confirmed — ${appt.hhaRef}`,
+          intro: 'Good news — your appointment is confirmed.',
+          outro: 'Need to make changes? Manage your appointment in your Health Hub Africa portal.',
+          sms: `Health Hub Africa: appointment ${appt.hhaRef} confirmed for ${when}${providerName ? ` with ${providerName}` : ''}.`,
+        },
+        cancelled: {
+          subject: `Appointment cancelled — ${appt.hhaRef}`,
+          intro:
+            'Your appointment has been cancelled.' +
+            (appt.cancellationNote ? `\nReason: ${appt.cancellationNote}` : ''),
+          outro: 'You can book a new appointment any time from your Health Hub Africa portal.',
+          sms: `Health Hub Africa: appointment ${appt.hhaRef} (${when}) has been cancelled.`,
+        },
+        rescheduled: {
+          subject: `Appointment rescheduled — ${appt.hhaRef}`,
+          intro: 'Your appointment has been moved to a new time.',
+          outro: 'If the new time does not work for you, you can reschedule or cancel in your portal.',
+          sms: `Health Hub Africa: appointment ${appt.hhaRef} rescheduled to ${when}.`,
+        },
+      };
+      const t = templates[event];
+
+      const body =
+        `Hi ${appt.patient.firstName},\n\n${t.intro}\n\n${details}\n${t.outro}\n\n— Health Hub Africa`;
+
+      await this.notifications.sendEmail(appt.patient.user.email, t.subject, body, appt.patient.userId);
+      if (appt.patient.user.phone) {
+        await this.notifications.sendSms(appt.patient.user.phone, t.sms, appt.patient.userId);
+      }
+
+      // Copy the assigned provider on confirmations and cancellations so
+      // their schedule stays trustworthy without polling the dashboard.
+      if ((event === 'confirmed' || event === 'cancelled') && appt.provider?.user?.email) {
+        const providerBody =
+          `Hello ${appt.provider.firstName},\n\n` +
+          (event === 'confirmed'
+            ? `An appointment has been confirmed on your schedule.\n\n`
+            : `An appointment on your schedule has been cancelled.\n\n`) +
+          details +
+          `\n— Health Hub Africa`;
+        await this.notifications.sendEmail(
+          appt.provider.user.email,
+          `${event === 'confirmed' ? 'Confirmed' : 'Cancelled'}: appointment ${appt.hhaRef}`,
+          providerBody,
+          appt.provider.user.id,
+        );
+      }
+    } catch (err) {
+      this.logger.error(
+        `Failed to send ${event} notification for appointment ${appointmentId}: ${err instanceof Error ? err.message : err}`,
+      );
+    }
   }
 
   private safeSelect() {
