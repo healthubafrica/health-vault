@@ -66,7 +66,12 @@ export class AuditLogInterceptor implements NestInterceptor {
   }
 
   private deriveResourceType(path: string): string {
+    // Every route is prefixed /api/{version}/{resource}/... by the global URI
+    // versioning config — segments[1] was always the literal version string
+    // (e.g. "v1"), so every audit log entry recorded action="post.v1" /
+    // resourceType="v1" regardless of what was actually touched. segments[2]
+    // is the real resource. Falls back gracefully for any unversioned route.
     const segments = path.split('/').filter(Boolean);
-    return segments[1] ?? segments[0] ?? 'unknown';
+    return segments[2] ?? segments[1] ?? segments[0] ?? 'unknown';
   }
 }
