@@ -1,4 +1,5 @@
 import {
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsDateString,
@@ -7,6 +8,7 @@ import {
   IsIn,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
 } from 'class-validator';
 
@@ -44,4 +46,26 @@ export class CreateShareDto {
   @IsOptional()
   @IsBoolean()
   detectForwarding?: boolean;
+
+  // When true (default), the secure link is delivered automatically:
+  // email_list shares notify every allowed email; other modes notify the
+  // explicit recipientEmails / recipientPhones below.
+  @IsOptional()
+  @IsBoolean()
+  notifyRecipients?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsEmail({}, { each: true })
+  recipientEmails?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @Matches(/^\+?[0-9][0-9 ()-]{6,19}$/, {
+    each: true,
+    message: 'each recipient phone must be a valid phone number',
+  })
+  recipientPhones?: string[];
 }

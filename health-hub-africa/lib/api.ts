@@ -890,6 +890,9 @@ export interface CreateShareParams {
   recordTypes?: string[]
   expiresAt?: string
   detectForwarding?: boolean
+  notifyRecipients?: boolean
+  recipientEmails?: string[]
+  recipientPhones?: string[]
 }
 
 export interface ShareRecord {
@@ -915,7 +918,7 @@ export interface SharePayload {
 
 export const shares = {
   create: (data: CreateShareParams) =>
-    request<{ id: string; token: string; share: RecordShare }>('/shares', {
+    request<{ id: string; token: string; share: RecordShare; notified: { emails: number; phones: number } }>('/shares', {
       method: 'POST',
       body: JSON.stringify(data),
     }),

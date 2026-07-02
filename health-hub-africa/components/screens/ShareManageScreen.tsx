@@ -168,8 +168,12 @@ function CreateShareWizard({ onDone }: { onDone: () => void }) {
   const [selectedTypes, setSelectedTypes] = useState<string[]>([])
   const [expiry, setExpiry] = useState('')
   const [detectForwarding, setDetectForwarding] = useState(false)
+  const [notifyRecipients, setNotifyRecipients] = useState(true)
+  const [recipientEmails, setRecipientEmails] = useState('')
+  const [recipientPhones, setRecipientPhones] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [createdToken, setCreatedToken] = useState<string | null>(null)
+  const [notified, setNotified] = useState<{ emails: number; phones: number } | null>(null)
   const [copiedCreated, setCopiedCreated] = useState(false)
 
   function toggleType(t: string) {
@@ -193,10 +197,19 @@ function CreateShareWizard({ onDone }: { onDone: () => void }) {
       if (!params.password) { toast.error('Enter a password'); return }
     }
 
+    params.notifyRecipients = notifyRecipients
+    if (notifyRecipients) {
+      const emails = recipientEmails.split(',').map(e => e.trim()).filter(Boolean)
+      const phones = recipientPhones.split(',').map(p => p.trim()).filter(Boolean)
+      if (emails.length) params.recipientEmails = emails
+      if (phones.length) params.recipientPhones = phones
+    }
+
     setSubmitting(true)
     try {
       const res = await shares.create(params)
       setCreatedToken(res.token)
+      setNotified(res.notified ?? null)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create share')
     } finally {
@@ -213,6 +226,16 @@ function CreateShareWizard({ onDone }: { onDone: () => void }) {
           <Shield size={16} style={{ color: 'var(--color-success)' }} />
           <span className="text-sm font-bold" style={{ color: 'var(--color-success)' }}>Link created — copy it now</span>
         </div>
+        {notified && (notified.emails > 0 || notified.phones > 0) && (
+          <p className="text-xs font-semibold" style={{ color: 'var(--color-success)' }}>
+            ✓ Secure link sent to{' '}
+            {[
+              notified.emails > 0 ? `${notified.emails} email recipient${notified.emails !== 1 ? 's' : ''}` : null,
+              notified.phones > 0 ? `${notified.phones} phone number${notified.phones !== 1 ? 's' : ''}` : null,
+            ].filter(Boolean).join(' and ')}{' '}
+            with access instructions and expiry details.
+          </p>
+        )}
         <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
           This link will not be shown again. Store it somewhere safe.
         </p>
@@ -377,6 +400,59 @@ function CreateShareWizard({ onDone }: { onDone: () => void }) {
             </div>
           </label>
 
+          <div className="rounded-xl p-3 flex flex-col gap-3" style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={notifyRecipients}
+                onChange={e => setNotifyRecipients(e.target.checked)}
+                className="mt-0.5"
+              />
+              <div>
+                <p className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>Send the link to recipients automatically</p>
+                <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                  {accessMode === 'email_list'
+                    ? 'Each allowed email above receives the secure link with access instructions and expiry details.'
+                    : 'Recipients receive the secure link with access instructions and expiry details.'}
+                </p>
+              </div>
+            </label>
+
+            {notifyRecipients && (
+              <>
+                {accessMode !== 'email_list' && (
+                  <div>
+                    <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--color-text-muted)' }}>
+                      Recipient emails (optional)
+                    </label>
+                    <input
+                      value={recipientEmails}
+                      onChange={e => setRecipientEmails(e.target.value)}
+                      placeholder="doctor@clinic.com, family@example.com"
+                      className="w-full rounded-xl px-3 py-2 text-sm"
+                      style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
+                    />
+                  </div>
+                )}
+                <div>
+                  <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--color-text-muted)' }}>
+                    Recipient phone numbers for SMS (optional)
+                  </label>
+                  <input
+                    value={recipientPhones}
+                    onChange={e => setRecipientPhones(e.target.value)}
+                    placeholder="+2348012345678, +2348098765432"
+                    className="w-full rounded-xl px-3 py-2 text-sm"
+                    style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
+                  />
+                  <p className="text-[11px] mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                    Separate multiple entries with commas. Up to 10 each.
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+
           <div className="flex gap-2 mt-1">
             <Button variant="secondary" size="sm" onClick={() => setStep('mode')}>Back</Button>
             <Button variant="primary" size="sm" onClick={() => setStep('confirm')}>Review</Button>
@@ -393,6 +469,18 @@ function CreateShareWizard({ onDone }: { onDone: () => void }) {
             <Row label="Record types" value={selectedTypes.length ? selectedTypes.map(t => RECORD_TYPE_LABELS[t]).join(', ') : 'All'} />
             {expiry && <Row label="Expires" value={new Date(expiry).toLocaleString()} />}
             <Row label="Forwarding detection" value={detectForwarding ? 'Enabled' : 'Disabled'} />
+            <Row
+              label="Auto-delivery"
+              value={
+                !notifyRecipients
+                  ? 'Off — share the link yourself'
+                  : [
+                      accessMode === 'email_list' ? 'allowed emails' : null,
+                      recipientEmails.trim() ? 'email' : null,
+                      recipientPhones.trim() ? 'SMS' : null,
+                    ].filter(Boolean).join(' + ') || 'No recipients entered'
+              }
+            />
           </div>
           <div className="flex gap-2">
             <Button variant="secondary" size="sm" onClick={() => setStep('details')}>Back</Button>
@@ -425,6 +513,7 @@ function AuditDrawer({ shareId, onClose }: { shareId: string; onClose: () => voi
     otp_verified: '✓ Verified via OTP',
     forward_detected: '⚠ Forwarding detected',
     revoked: '✕ Revoked',
+    link_sent: '📤 Link delivered',
   }
 
   return (

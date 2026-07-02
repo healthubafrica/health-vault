@@ -54,7 +54,7 @@ export class SharesService {
   async createShare(dto: CreateShareDto, currentUser: JwtPayload) {
     const patient = await this.prisma.patient.findUnique({
       where: { userId: currentUser.sub },
-      select: { id: true },
+      select: { id: true, firstName: true, lastName: true },
     });
     if (!patient) throw new NotFoundException('Patient profile not found');
 
@@ -84,7 +84,118 @@ export class SharesService {
       },
     });
 
-    return { id: share.id, token: raw, share };
+    const notified = await this.deliverShareLink(share, raw, dto, patient, currentUser.sub);
+
+    return { id: share.id, token: raw, share, notified };
+  }
+
+  // ── Automatic link delivery ────────────────────────────────────────────────
+
+  // Sends the secure link to the intended recipients right after creation.
+  // email_list shares notify every allowed email by default; all modes also
+  // honour explicit recipientEmails / recipientPhones. Delivery failures are
+  // logged but never fail share creation — the patient still gets the link
+  // in the UI and can copy it manually.
+  private async deliverShareLink(
+    share: { id: string; accessMode: string; expiresAt: Date | null; label: string | null; recordTypes: string[] },
+    rawToken: string,
+    dto: CreateShareDto,
+    patient: { firstName: string; lastName: string },
+    userId: string,
+  ): Promise<{ emails: number; phones: number }> {
+    if (dto.notifyRecipients === false) return { emails: 0, phones: 0 };
+
+    const emailSet = new Set<string>(
+      (dto.recipientEmails ?? []).map(e => e.toLowerCase().trim()),
+    );
+    if (dto.accessMode === 'email_list') {
+      for (const e of dto.allowedEmails ?? []) emailSet.add(e.toLowerCase().trim());
+    }
+    const phones = [...new Set((dto.recipientPhones ?? []).map(p => p.trim()))];
+
+    if (emailSet.size === 0 && phones.length === 0) return { emails: 0, phones: 0 };
+
+    const portalUrl = (this.config.get<string>('FRONTEND_URL') ?? 'https://portal.myvaultplus.com').replace(/\/$/, '');
+    const shareUrl = `${portalUrl}/share/${rawToken}`;
+    const senderName = `${patient.firstName} ${patient.lastName}`.trim() || 'A Health Hub Africa patient';
+
+    const expiryLong = share.expiresAt
+      ? `This link expires on ${share.expiresAt.toLocaleString('en-GB', {
+          day: 'numeric', month: 'long', year: 'numeric',
+          hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos',
+        })} (WAT). After that, the records will no longer be accessible.`
+      : 'This link does not expire, but the sender can revoke it at any time.';
+
+    const modeInstructions: Record<string, string> = {
+      public: 'Open the link in your browser — no sign-in is required.',
+      email_list:
+        'Open the link and enter this email address. We will send you a one-time verification code to confirm it is really you.',
+      password:
+        'Open the link and enter the access password. The sender will give you the password separately — for security, it is not included in this message.',
+    };
+
+    const emailBody =
+      `Hello,\n\n` +
+      `${senderName} has securely shared health records with you through Health Hub Africa.\n\n` +
+      `View the records here:\n${shareUrl}\n\n` +
+      `How to access:\n${modeInstructions[share.accessMode] ?? modeInstructions.public}\n\n` +
+      `${expiryLong}\n\n` +
+      `For your security:\n` +
+      `- This link is intended only for you — please do not forward it.\n` +
+      `- Every access is logged and visible to the sender.\n` +
+      `- The sender can revoke access at any time.\n\n` +
+      `If you were not expecting this, you can safely ignore this message.\n\n` +
+      `— Health Hub Africa`;
+
+    const expiryShort = share.expiresAt
+      ? ` Expires ${share.expiresAt.toLocaleDateString('en-GB', { timeZone: 'Africa/Lagos' })}.`
+      : '';
+    const smsBody =
+      `${senderName} shared health records with you via Health Hub Africa. ` +
+      `View: ${shareUrl}${expiryShort} Do not forward — all access is logged.`;
+
+    let emailCount = 0;
+    let phoneCount = 0;
+
+    for (const email of emailSet) {
+      try {
+        await this.notifications.sendEmail(
+          email,
+          `${senderName} shared health records with you — Health Hub Africa`,
+          emailBody,
+          userId,
+        );
+        await this.prisma.recordShareAccess.create({
+          data: {
+            shareId: share.id,
+            action: 'link_sent',
+            visitorEmail: email,
+            metadata: { channel: 'email' },
+          },
+        });
+        emailCount++;
+      } catch (err) {
+        this.logger.error(`Failed to email share link for ${share.id} to ${email}: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+
+    for (const phone of phones) {
+      try {
+        await this.notifications.sendSms(phone, smsBody, userId);
+        await this.prisma.recordShareAccess.create({
+          data: {
+            shareId: share.id,
+            action: 'link_sent',
+            metadata: { channel: 'sms', phone },
+          },
+        });
+        phoneCount++;
+      } catch (err) {
+        this.logger.error(`Failed to SMS share link for ${share.id} to ${phone}: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+
+    return { emails: emailCount, phones: phoneCount };
   }
 
   async listMyShares(currentUser: JwtPayload) {
