@@ -6,7 +6,7 @@ import { FilterTabs } from '@/components/ui/FilterTabs'
 import { Pill } from '@/components/ui/Pill'
 import { type RecordType } from '@/lib/data/records'
 import { formatDate, formatBytes } from '@/lib/utils'
-import { FileText, FlaskConical, Pill as PillIcon, File, Download, Link2 } from 'lucide-react'
+import { FileText, FlaskConical, Pill as PillIcon, File, Download, Link2, Upload } from 'lucide-react'
 import Link from 'next/link'
 import { records as recordsApi, type ClinicalRecord } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
@@ -82,14 +82,24 @@ export function RecordsScreen() {
             Your complete medical history
           </p>
         </div>
-        <Link
-          href="/records/share"
-          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl shrink-0 transition-all"
-          style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text)', textDecoration: 'none' }}
-        >
-          <Link2 size={13} />
-          Share
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href="/vault"
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl transition-all"
+            style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text)', textDecoration: 'none' }}
+          >
+            <Upload size={13} />
+            My Vault
+          </Link>
+          <Link
+            href="/records/share"
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl transition-all"
+            style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text)', textDecoration: 'none' }}
+          >
+            <Link2 size={13} />
+            Share
+          </Link>
+        </div>
       </div>
 
       {storageData?.quotaBytes != null && (
