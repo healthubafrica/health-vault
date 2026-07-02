@@ -53,10 +53,3 @@ export const VAULT_CATEGORIES = Object.keys(CATEGORY_LABELS) as DocumentCategory
 export function isVaultMimeSupported(mime: string): boolean {
   return (VAULT_MIME_TYPES as readonly string[]).includes(mime)
 }
-
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
-}
