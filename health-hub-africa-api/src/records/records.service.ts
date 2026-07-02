@@ -6,13 +6,6 @@ import {
 } from '@nestjs/common';
 import { OpenemrService } from '../openemr/openemr.service';
 import { UserRole, RecordType } from '@prisma/client';
-import {
-  S3Client,
-  PutObjectCommand,
-  GetObjectCommand,
-} from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
@@ -20,33 +13,19 @@ import { CreateRecordDto } from './dto/create-record.dto';
 import { CreatePrescriptionDto } from './dto/create-prescription.dto';
 import { RequestUploadUrlDto } from './dto/upload-url.dto';
 import { StorageService } from '../storage/storage.service';
+import { S3Service } from '../storage/s3.service';
 import { PaymentRequiredException } from '../common/exceptions/payment-required.exception';
 
 @Injectable()
 export class RecordsService {
   private readonly logger = new Logger(RecordsService.name);
-  private readonly s3: S3Client;
-  private readonly bucket: string;
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
     private readonly openemrService: OpenemrService,
     private readonly storageService: StorageService,
-  ) {
-    // Static keys are optional — when absent the SDK default credential
-    // provider chain resolves the ECS task role (or local AWS profile).
-    const accessKeyId = config.get<string>('AWS_ACCESS_KEY_ID');
-    const secretAccessKey = config.get<string>('AWS_SECRET_ACCESS_KEY');
-    this.s3 = new S3Client({
-      region: config.get('AWS_REGION', 'us-east-1'),
-      ...(accessKeyId && secretAccessKey
-        ? { credentials: { accessKeyId, secretAccessKey } }
-        : {}),
-      endpoint: config.get('S3_ENDPOINT'), // R2 endpoint if used
-    });
-    this.bucket = config.getOrThrow('S3_BUCKET');
-  }
+    private readonly s3Service: S3Service,
+  ) {}
 
   // ── Upload URL ─────────────────────────────────────────────────────────────
 
@@ -74,15 +53,12 @@ export class RecordsService {
     const ext = RecordsService.MIME_TO_EXT[dto.contentType] ?? 'bin';
     const objectKey = `records/${currentUser.sub}/${randomUUID()}.${ext}`;
 
-    const command = new PutObjectCommand({
-      Bucket: this.bucket,
-      Key: objectKey,
-      ContentType: dto.contentType,
-      ContentLength: dto.sizeBytes,
-      Metadata: { uploadedBy: currentUser.sub },
-    });
-
-    const uploadUrl = await getSignedUrl(this.s3, command, { expiresIn: 600 }); // 10 min
+    const uploadUrl = await this.s3Service.presignPut(
+      objectKey,
+      dto.contentType,
+      dto.sizeBytes,
+      { uploadedBy: currentUser.sub },
+    );
 
     return { uploadUrl, objectKey };
   }
@@ -103,12 +79,7 @@ export class RecordsService {
     if (!record) throw new NotFoundException('File not found');
     await this.assertReadAccess(record, currentUser);
 
-    const command = new GetObjectCommand({
-      Bucket: this.bucket,
-      Key: objectKey,
-    });
-
-    const downloadUrl = await getSignedUrl(this.s3, command, { expiresIn: 300 }); // 5 min
+    const downloadUrl = await this.s3Service.presignGet(objectKey); // 5 min
     return { downloadUrl, expiresIn: 300 };
   }
 
