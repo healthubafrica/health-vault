@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { OpenemrService } from '../openemr/openemr.service';
-import { UserRole, RecordType } from '@prisma/client';
+import { UserRole, RecordType, DocumentSource } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
@@ -15,6 +15,7 @@ import { RequestUploadUrlDto } from './dto/upload-url.dto';
 import { StorageService } from '../storage/storage.service';
 import { S3Service } from '../storage/s3.service';
 import { PaymentRequiredException } from '../common/exceptions/payment-required.exception';
+import { generateRecordRef } from '../common/utils/record-ref.util';
 
 @Injectable()
 export class RecordsService {
@@ -113,7 +114,7 @@ export class RecordsService {
 
     const created = await this.prisma.clinicalRecord.create({
       data: {
-        hhaRef: await this.generateRecordRef(),
+        hhaRef: await generateRecordRef(this.prisma),
         patientId,
         providerId: currentUser.providerId,
         appointmentId: dto.appointmentId,
@@ -136,19 +137,6 @@ export class RecordsService {
     return created;
   }
 
-  // REC-YYYY-000001 sequential record reference
-  private async generateRecordRef(): Promise<string> {
-    const year = new Date().getFullYear();
-    const prefix = `REC-${year}-`;
-    const last = await this.prisma.clinicalRecord.findFirst({
-      where: { hhaRef: { startsWith: prefix } },
-      orderBy: { hhaRef: 'desc' },
-      select: { hhaRef: true },
-    });
-    const seq = last ? parseInt(last.hhaRef.split('-')[2], 10) + 1 : 1;
-    return `${prefix}${String(seq).padStart(6, '0')}`;
-  }
-
   async findRecords(patientId: string | undefined, currentUser: JwtPayload, type?: string) {
     let resolvedPatientId = patientId;
 
@@ -163,10 +151,19 @@ export class RecordsService {
       this.requireProviderOrAdmin(currentUser);
     }
 
+    // Providers don't see patient vault uploads the patient marked hidden.
+    // Patients always see their own; admins see everything.
+    const hideFromProvider =
+      currentUser.role === UserRole.provider
+        ? { NOT: { source: DocumentSource.patient_upload, providerVisibility: false } }
+        : {};
+
     return this.prisma.clinicalRecord.findMany({
       where: {
         patientId: resolvedPatientId,
+        deletedAt: null,
         ...(type ? { recordType: type as RecordType } : {}),
+        ...hideFromProvider,
       },
       orderBy: { createdAt: 'desc' },
       select: this.recordSelect(),
@@ -202,7 +199,7 @@ export class RecordsService {
     // Schema models one drug per Prescription row, each 1:1 with a clinical
     // record — so a multi-item prescription becomes one record+prescription
     // pair per drug, created atomically.
-    const baseRef = await this.generateRecordRef();
+    const baseRef = await generateRecordRef(this.prisma);
     const sharedNotes = [
       dto.diagnosis ? `Diagnosis: ${dto.diagnosis}` : null,
       dto.notes,
