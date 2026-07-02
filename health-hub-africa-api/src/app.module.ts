@@ -18,6 +18,7 @@ import { PatientsModule } from './patients/patients.module';
 import { ProvidersModule } from './providers/providers.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { RecordsModule } from './records/records.module';
+import { DocumentsModule } from './documents/documents.module';
 import { LabsModule } from './labs/labs.module';
 import { VitalsModule } from './vitals/vitals.module';
 import { TelecareModule } from './telecare/telecare.module';
@@ -101,6 +102,7 @@ import { AppController } from './app.controller';
     ProvidersModule,
     AppointmentsModule,
     RecordsModule,
+    DocumentsModule,
     LabsModule,
     VitalsModule,
     TelecareModule,
