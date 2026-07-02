@@ -51,6 +51,35 @@ enum RecordType {
   expert_review
 }
 
+enum DocumentCategory {
+  personal_identification
+  medical_history
+  providers
+  specialists
+  emergency
+  hospital
+  laboratory
+  imaging
+  medications
+  vaccinations
+  chronic_disease
+  womens_health
+  childrens_health
+  mental_health
+  dental
+  vision
+  travel
+  legal
+  wearables
+  miscellaneous
+}
+
+enum DocumentSource {
+  patient_upload
+  provider_upload
+  imported
+}
+
 enum LabStatus {
   pending
   normal
@@ -545,6 +574,11 @@ model ClinicalRecord {
   isDownloadable Boolean   @default(true) @map("is_downloadable")
   recordedAt    DateTime   @map("recorded_at") @db.Date
   openemrResourceId String? @unique @map("openemr_resource_id")
+  category           DocumentCategory?
+  tags               String[]          @default([])
+  originalFileName   String?           @map("original_file_name")
+  source             DocumentSource    @default(provider_upload)
+  providerVisibility Boolean           @default(true) @map("provider_visibility")
   createdAt     DateTime   @default(now()) @map("created_at")
   updatedAt     DateTime   @updatedAt @map("updated_at")
   deletedAt     DateTime?  @map("deleted_at")
@@ -560,6 +594,7 @@ model ClinicalRecord {
   @@index([patientId])
   @@index([recordType])
   @@index([recordedAt(sort: Desc)])
+  @@index([patientId, category])
   @@map("clinical_records")
 }
 
@@ -847,6 +882,8 @@ model SubscriptionPlan {
   bestFor           String    @default("") @map("best_for")
   billingPeriod     String  @default("monthly") @map("billing_period")
   storageQuotaBytes BigInt? @map("storage_quota_bytes")
+  maxFileSizeBytes BigInt? @map("max_file_size_bytes")
+  maxFiles         Int?    @map("max_files")
   features      Json      @default("[]")
   isActive      Boolean   @default(true) @map("is_active")
   displayOrder  Int       @default(0) @map("display_order") @db.SmallInt
