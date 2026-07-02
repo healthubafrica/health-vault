@@ -7,7 +7,8 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { documents, type DocumentCategory, type VaultDocument } from '../api'
-import { formatBytes, isVaultMimeSupported } from '../vault'
+import { isVaultMimeSupported } from '../vault'
+import { formatBytes } from '../utils'
 
 const MAX_CONCURRENT_UPLOADS = 3
 
