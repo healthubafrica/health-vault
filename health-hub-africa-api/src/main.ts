@@ -8,6 +8,16 @@ import helmet from 'helmet';
 import compression from 'compression';
 import { AppModule } from './app.module';
 
+// JSON.stringify (and therefore Express's res.json) throws on BigInt with no
+// built-in conversion. Several Prisma columns (storage quotas, max file
+// sizes) are BigInt and get returned in raw entities/relations across
+// multiple controllers — without this, any of those responses 500s. All of
+// our BigInt columns hold byte counts capped in the tens of gigabytes, far
+// under Number.MAX_SAFE_INTEGER, so converting to Number is lossless.
+(BigInt.prototype as unknown as { toJSON(): number }).toJSON = function () {
+  return Number(this);
+};
+
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
