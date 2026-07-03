@@ -62,6 +62,28 @@ export class PatientsService {
     this.bucket = config.getOrThrow('S3_BUCKET');
   }
 
+  // Canonical bucket URL prefix — same shape signProfilePhotoUrl derives keys
+  // from and the same one requestProfilePhotoUploadUrl mints publicUrls with.
+  private get photoUrlBase(): string {
+    const endpoint = this.config.get<string>('S3_ENDPOINT');
+    return endpoint
+      ? `${endpoint}/${this.bucket}/`
+      : `https://${this.bucket}.s3.${this.config.get('AWS_REGION', 'us-east-1')}.amazonaws.com/`;
+  }
+
+  // A stored photo URL must be an object this user uploaded through the
+  // presign flow. Anything else — another user's photo, a clinical-record
+  // object, an external URL — would otherwise be signed and served by the
+  // photo read paths, turning the avatar field into an arbitrary-object read.
+  private assertOwnPhotoUrl(url: string, userId: string): void {
+    const requiredPrefix = `${this.photoUrlBase}profile-photos/${userId}/`;
+    if (!url.startsWith(requiredPrefix)) {
+      throw new BadRequestException(
+        'profilePhotoUrl must be the publicUrl returned by the profile-photo upload endpoint',
+      );
+    }
+  }
+
   // ── HHA-ID Generator ──────────────────────────────────────────────────────
 
   private async generateHhaId(country?: string): Promise<string> {
@@ -92,6 +114,8 @@ export class PatientsService {
       where: { userId: currentUser.sub },
     });
     if (existing) throw new ConflictException('Patient profile already exists');
+
+    if (dto.profilePhotoUrl) this.assertOwnPhotoUrl(dto.profilePhotoUrl, currentUser.sub);
 
     const regionCode = dto.regionCode ?? (dto.country && REGION_MAP[dto.country]) ?? 'HHA';
     const hhaPatientId = await this.generateHhaId(dto.country);
@@ -227,7 +251,9 @@ export class PatientsService {
 
     // Keep the user-level canonical photo in sync so admin/provider
     // dashboards (which read users) show the portal-uploaded photo too.
+    // Ownership check guards both this write and the patient-row write below.
     if (dto.profilePhotoUrl) {
+      this.assertOwnPhotoUrl(dto.profilePhotoUrl, patient.userId);
       await this.prisma.user
         .update({ where: { id: patient.userId }, data: { profilePhotoUrl: dto.profilePhotoUrl } })
         .catch(() => null);
@@ -287,18 +313,18 @@ export class PatientsService {
   // URL we derive the object key from.
   private async signProfilePhotoUrl(storedUrl: string | null | undefined): Promise<string | null> {
     if (!storedUrl) return null;
+    const base = this.photoUrlBase;
+    if (!storedUrl.startsWith(base)) return storedUrl; // external image — not our object
+    const objectKey = storedUrl.slice(base.length);
+    // Same avatar-only gate as S3Service.signStoredUrl: never presign a
+    // non-avatar bucket object (e.g. a clinical record) that ended up in a
+    // photo column — return null so the UI falls back to initials.
+    if (!/^profile-photos\/[0-9a-f-]{36}\/[A-Za-z0-9._-]+$/i.test(objectKey)) return null;
     try {
-      const region = this.config.get<string>('AWS_REGION', 'us-east-1');
-      const endpoint = this.config.get<string>('S3_ENDPOINT');
-      const base = endpoint
-        ? `${endpoint}/${this.bucket}/`
-        : `https://${this.bucket}.s3.${region}.amazonaws.com/`;
-      if (!storedUrl.startsWith(base)) return storedUrl; // unknown format — return as-is
-      const objectKey = storedUrl.slice(base.length);
       const command = new GetObjectCommand({ Bucket: this.bucket, Key: objectKey });
       return await getSignedUrl(this.s3, command, { expiresIn: 3600 });
     } catch {
-      return storedUrl; // fall back to stored URL rather than breaking the response
+      return null;
     }
   }
 

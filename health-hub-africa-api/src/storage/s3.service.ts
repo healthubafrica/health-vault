@@ -42,19 +42,28 @@ export class S3Service {
     return `${this.publicBase}${key}`;
   }
 
+  // Only avatar objects are signable through signStoredUrl. Without this
+  // gate, any bucket URL that lands in a *_photo_url column (however it got
+  // there) would be presigned and served — turning avatar fields into an
+  // arbitrary-object read against clinical records and exports.
+  private static readonly SIGNABLE_KEY = /^profile-photos\/[0-9a-f-]{36}\/[A-Za-z0-9._-]+$/i;
+
   /**
-   * Converts a stored canonical URL into a short-lived presigned GET URL.
-   * Objects are private on S3, so raw stored URLs 403 in a browser. URLs in
-   * an unknown format (external images, legacy rows) pass through untouched,
-   * and null/undefined stays null so callers can spread the result directly.
+   * Converts a stored canonical avatar URL into a short-lived presigned GET
+   * URL. Objects are private on S3, so raw stored URLs 403 in a browser.
+   * External (non-bucket) URLs pass through untouched; bucket URLs that are
+   * not avatar objects resolve to null so the UI falls back to initials
+   * rather than exposing a signed link to something else.
    */
   async signStoredUrl(storedUrl: string | null | undefined): Promise<string | null> {
     if (!storedUrl) return null;
     if (!storedUrl.startsWith(this.publicBase)) return storedUrl;
+    const key = storedUrl.slice(this.publicBase.length);
+    if (!S3Service.SIGNABLE_KEY.test(key)) return null;
     try {
-      return await this.presignGet(storedUrl.slice(this.publicBase.length));
+      return await this.presignGet(key);
     } catch {
-      return storedUrl;
+      return null;
     }
   }
 
