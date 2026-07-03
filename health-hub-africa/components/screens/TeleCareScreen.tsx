@@ -18,6 +18,7 @@ export function TeleCareScreen() {
   // Call state
   const [activeToken, setActiveToken] = useState<string | null>(null)
   const [activeRoom, setActiveRoom] = useState<string | null>(null)
+  const [activeServerUrl, setActiveServerUrl] = useState<string | null>(null)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [joining, setJoining] = useState(false)
 
@@ -82,6 +83,10 @@ export function TeleCareScreen() {
       if (res && res.token) {
         setActiveToken(res.token)
         setActiveRoom(res.roomName)
+        // The API returns the LiveKit server URL alongside the token — use it
+        // so the call works even when NEXT_PUBLIC_LIVEKIT_URL isn't set on
+        // this deployment. The env var remains as a fallback.
+        setActiveServerUrl(res.serverUrl ?? process.env.NEXT_PUBLIC_LIVEKIT_URL ?? null)
         setActiveSessionId(sessionId)
       } else {
         setError("We couldn't set up your call. Kindly try again in a moment.")
@@ -105,19 +110,20 @@ export function TeleCareScreen() {
     }
     setActiveToken(null)
     setActiveRoom(null)
+    setActiveServerUrl(null)
     setActiveSessionId(null)
     fetchSessions()
   }
 
   // Live video room view
   if (activeToken && activeRoom) {
-    const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL
+    const livekitUrl = activeServerUrl
 
     if (!livekitUrl) {
       return (
         <div className="flex items-center gap-2 p-3 text-sm rounded-lg bg-red-50 border border-red-200 text-red-700">
           <AlertCircle size={16} className="shrink-0" />
-          <p>LiveKit is not configured. Set NEXT_PUBLIC_LIVEKIT_URL to enable video consultations.</p>
+          <p>Video calling is not configured on the server. Kindly contact support.</p>
         </div>
       )
     }

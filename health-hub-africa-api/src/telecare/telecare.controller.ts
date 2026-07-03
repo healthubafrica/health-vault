@@ -78,6 +78,13 @@ export class TelecareController {
     return this.telecareService.setAvailability(body.isAvailable, user);
   }
 
+  @Get('availability')
+  @Roles(UserRole.provider)
+  @ApiOperation({ summary: 'Get my current online/offline availability' })
+  getAvailability(@CurrentUser() user: JwtPayload) {
+    return this.telecareService.getAvailability(user);
+  }
+
   @Post('sessions/:id/accept')
   @Roles(UserRole.provider)
   @ApiOperation({ summary: 'Provider accepts a waiting session' })
