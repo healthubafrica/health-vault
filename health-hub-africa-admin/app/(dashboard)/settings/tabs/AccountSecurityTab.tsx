@@ -9,9 +9,46 @@ import { Pill } from '@/components/ui/Pill'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { auth } from '@/lib/api'
 import { useAuthStore } from '@/lib/stores/authStore'
+import { Avatar } from '@/components/ui/Avatar'
+
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024
+const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
 export function AccountSecurityTab() {
   const user = useAuthStore((s) => s.user)
+  const fetchMe = useAuthStore((s) => s.fetchMe)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!ALLOWED_PHOTO_TYPES.includes(file.type)) {
+      toast.error('Use a JPEG, PNG, or WebP image')
+      return
+    }
+    if (file.size > MAX_PHOTO_BYTES) {
+      toast.error('Photo must be 5MB or smaller')
+      return
+    }
+    setUploadingPhoto(true)
+    try {
+      const { uploadUrl, publicUrl } = await auth.requestProfilePhotoUploadUrl(file.type, file.size)
+      const put = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      })
+      if (!put.ok) throw new Error('Upload to storage failed')
+      await auth.setProfilePhoto(publicUrl)
+      await fetchMe()
+      toast.success('Profile photo updated')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update photo')
+    } finally {
+      setUploadingPhoto(false)
+    }
+  }
 
   const [twoFa, setTwoFa] = useState<boolean | null>(null)
   const [twoFaLoading, setTwoFaLoading] = useState(true)
@@ -70,9 +107,30 @@ export function AccountSecurityTab() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Profile (read-only) */}
+      {/* Profile */}
       <Card>
         <CardTitle>Profile</CardTitle>
+        <div className="flex items-center gap-4 mb-4">
+          <Avatar name={user?.fullName ?? user?.email} src={user?.profilePhotoUrl ?? undefined} size="lg" />
+          <div>
+            <label
+              className="inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-xl border cursor-pointer transition-colors hover:bg-[var(--color-bg)]"
+              style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+            >
+              {uploadingPhoto ? 'Uploading…' : 'Change photo'}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                disabled={uploadingPhoto}
+                onChange={handlePhotoUpload}
+              />
+            </label>
+            <p className="text-[11px] mt-1.5" style={{ color: 'var(--color-text-faint)' }}>
+              JPEG, PNG, or WebP up to 5MB. Shown across all Health Hub dashboards.
+            </p>
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <ReadOnlyField label="Email" value={user?.email ?? '—'} />
           <ReadOnlyField label="Role" value={user?.role ? formatRole(user.role) : '—'} />

@@ -24,7 +24,15 @@ export function CallOverlay({
         className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b"
         style={{ borderColor: '#222', background: '#111' }}
       >
-        <div>
+        <div className="flex items-center gap-3">
+          {session.patient?.profilePhotoUrl && (
+            <img
+              src={session.patient.profilePhotoUrl}
+              alt=""
+              className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+            />
+          )}
+          <div>
           <div className="flex items-center gap-2">
             <p className="text-sm font-semibold text-white">
               {session.patient
@@ -56,6 +64,7 @@ export function CallOverlay({
               <span>· {session.patient.subscriptions[0].plan.name}</span>
             )}
           </p>
+          </div>
         </div>
         <Button
           variant="secondary"

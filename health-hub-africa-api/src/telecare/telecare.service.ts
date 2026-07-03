@@ -12,6 +12,7 @@ import { SessionStatus, UserRole } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { AccessToken, WebhookReceiver } from 'livekit-server-sdk';
 import { PrismaService } from '../prisma/prisma.service';
+import { S3Service } from '../storage/s3.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import {
   CreateTelecareSessionDto,
@@ -41,6 +42,7 @@ export class TelecareService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     @InjectQueue(TELECARE_QUEUE) private readonly maintenanceQueue: Queue,
+    private readonly s3: S3Service,
   ) {}
 
   async onModuleInit() {
@@ -162,7 +164,7 @@ export class TelecareService implements OnModuleInit {
 
     if (status) where.status = status;
 
-    return this.prisma.telecareSession.findMany({
+    const sessions = await this.prisma.telecareSession.findMany({
       where,
       orderBy: { scheduledAt: 'asc' },
       include: {
@@ -174,6 +176,7 @@ export class TelecareService implements OnModuleInit {
             dateOfBirth: true,
             gender: true,
             openemrPatientUuid: true,
+            profilePhotoUrl: true,
             subscriptions: {
               where: { status: 'active' },
               orderBy: { startedAt: 'desc' },
@@ -182,9 +185,23 @@ export class TelecareService implements OnModuleInit {
             },
           },
         },
-        provider: { select: { firstName: true, lastName: true, title: true } },
+        provider: { select: { firstName: true, lastName: true, title: true, profilePhotoUrl: true } },
       },
     });
+
+    // Photos are private S3 objects — swap stored URLs for short-lived
+    // signed ones so session cards can render them directly.
+    return Promise.all(
+      sessions.map(async (s) => ({
+        ...s,
+        patient: s.patient
+          ? { ...s.patient, profilePhotoUrl: await this.s3.signStoredUrl(s.patient.profilePhotoUrl) }
+          : s.patient,
+        provider: s.provider
+          ? { ...s.provider, profilePhotoUrl: await this.s3.signStoredUrl(s.provider.profilePhotoUrl) }
+          : s.provider,
+      })),
+    );
   }
 
   async createOnDemandSession(dto: CreateOnDemandSessionDto, currentUser: JwtPayload) {

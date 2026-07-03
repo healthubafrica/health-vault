@@ -16,6 +16,7 @@ const GET_URL_EXPIRY_SECONDS = 300; // 5 min
 export class S3Service {
   private readonly s3: S3Client;
   readonly bucket: string;
+  private readonly publicBase: string;
 
   constructor(config: ConfigService) {
     // Static keys are optional — when absent the SDK default credential
@@ -30,6 +31,31 @@ export class S3Service {
       endpoint: config.get('S3_ENDPOINT'), // R2 endpoint if used
     });
     this.bucket = config.getOrThrow('S3_BUCKET');
+    const endpoint = config.get<string>('S3_ENDPOINT');
+    this.publicBase = endpoint
+      ? `${endpoint}/${this.bucket}/`
+      : `https://${this.bucket}.s3.${config.get('AWS_REGION', 'us-east-1')}.amazonaws.com/`;
+  }
+
+  /** Canonical (key-derivable) URL for an object — what we persist in the DB. */
+  publicUrlFor(key: string): string {
+    return `${this.publicBase}${key}`;
+  }
+
+  /**
+   * Converts a stored canonical URL into a short-lived presigned GET URL.
+   * Objects are private on S3, so raw stored URLs 403 in a browser. URLs in
+   * an unknown format (external images, legacy rows) pass through untouched,
+   * and null/undefined stays null so callers can spread the result directly.
+   */
+  async signStoredUrl(storedUrl: string | null | undefined): Promise<string | null> {
+    if (!storedUrl) return null;
+    if (!storedUrl.startsWith(this.publicBase)) return storedUrl;
+    try {
+      return await this.presignGet(storedUrl.slice(this.publicBase.length));
+    } catch {
+      return storedUrl;
+    }
   }
 
   /** Presigned PUT URL for direct client upload (10-minute expiry). */

@@ -4,16 +4,13 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { adminApi, type AdminProvider, type AdminUser, type ImportProviderResult } from '@/lib/api'
 import { Card } from '@/components/ui/Card'
 import { Pill } from '@/components/ui/Pill'
+import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { SkeletonCard } from '@/components/ui/Skeleton'
 import { FormInput } from '@/components/ui/FormInput'
 import { RefreshCw, Search, Star, Users, Download, X, Copy, Info, Plus } from 'lucide-react'
 import { useAuthStore } from '@/lib/stores/authStore'
 import { formatDate } from '@/lib/utils'
-
-function getInitials(first: string, last: string): string {
-  return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase()
-}
 
 function ProviderDetailDialog({
   provider,
@@ -31,12 +28,11 @@ function ProviderDetailDialog({
       >
         <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
           <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold"
-              style={{ background: '#6DC43F22', color: '#6DC43F' }}
-            >
-              {getInitials(provider.firstName, provider.lastName)}
-            </div>
+            <Avatar
+              name={`${provider.firstName} ${provider.lastName}`}
+              src={provider.profilePhotoUrl ?? undefined}
+              size="md"
+            />
             <div>
               <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
                 {provider.title} {provider.firstName} {provider.lastName}
@@ -369,12 +365,11 @@ export default function ProvidersPage() {
             <Card className="flex flex-col gap-4">
               {/* Header */}
               <div className="flex items-start gap-3">
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold"
-                  style={{ background: '#6DC43F22', color: '#6DC43F' }}
-                >
-                  {getInitials(prov.firstName, prov.lastName)}
-                </div>
+                <Avatar
+                  name={`${prov.firstName} ${prov.lastName}`}
+                  src={prov.profilePhotoUrl ?? undefined}
+                  size="md"
+                />
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold truncate" style={{ color: 'var(--color-text)' }}>
                     {prov.title} {prov.firstName} {prov.lastName}

@@ -26,16 +26,23 @@ import {
 } from './dto/verify-otp.dto';
 import { ChangePasswordDto, Toggle2faDto } from './dto/account-settings.dto';
 import { UpdateNotificationPrefsDto } from './dto/notification-prefs.dto';
+import { RequestProfilePhotoUploadDto, SetProfilePhotoDto } from './dto/profile-photo.dto';
 import { Public } from '../common/decorators/roles.decorator';
 import {
   CurrentUser,
   JwtPayload,
 } from '../common/decorators/current-user.decorator';
+import { S3Service } from '../storage/s3.service';
+import { randomUUID } from 'crypto';
+import { BadRequestException } from '@nestjs/common';
 
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly s3: S3Service,
+  ) {}
 
   @Public()
   @Post('register')
@@ -184,8 +191,51 @@ export class AuthController {
         id: dbUser.id,
         email: dbUser.email,
         role: dbUser.role,
+        profilePhotoUrl: await this.s3.signStoredUrl(dbUser.profilePhotoUrl),
       },
     };
+  }
+
+  // Unified profile-photo flow for every role (admins and coordinators have
+  // no patient/provider profile to hang a photo on; providers had no upload
+  // path at all). Patients keep their portal flow — both write the same
+  // canonical URL shape.
+  @ApiBearerAuth()
+  @Post('me/profile-photo-upload-url')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  @ApiOperation({ summary: 'Request a pre-signed S3 upload URL for my profile photo (any role)' })
+  async requestProfilePhotoUploadUrl(
+    @Body() dto: RequestProfilePhotoUploadDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const ext =
+      dto.contentType === 'image/png' ? 'png' : dto.contentType === 'image/webp' ? 'webp' : 'jpg';
+    const objectKey = `profile-photos/${user.sub}/${randomUUID()}.${ext}`;
+    const uploadUrl = await this.s3.presignPut(objectKey, dto.contentType, dto.sizeBytes, {
+      uploadedBy: user.sub,
+    });
+    return { uploadUrl, objectKey, publicUrl: this.s3.publicUrlFor(objectKey) };
+  }
+
+  @ApiBearerAuth()
+  @Patch('me/profile-photo')
+  @ApiOperation({ summary: 'Set my profile photo after uploading (any role)' })
+  async setProfilePhoto(
+    @Body() dto: SetProfilePhotoDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    // Only accept objects this user uploaded through the presign flow —
+    // an arbitrary URL here would let one user point their avatar at
+    // another user's private object (or an external tracker).
+    const requiredPrefix = this.s3.publicUrlFor(`profile-photos/${user.sub}/`);
+    if (!dto.profilePhotoUrl.startsWith(requiredPrefix)) {
+      throw new BadRequestException(
+        'profilePhotoUrl must be the publicUrl returned by profile-photo-upload-url',
+      );
+    }
+    const saved = await this.authService.setProfilePhoto(user.sub, dto.profilePhotoUrl);
+    return { profilePhotoUrl: await this.s3.signStoredUrl(saved.profilePhotoUrl) };
   }
 
   @ApiBearerAuth()
