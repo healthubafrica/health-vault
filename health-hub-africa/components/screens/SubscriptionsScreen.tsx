@@ -173,24 +173,6 @@ export function SubscriptionsScreen() {
                     boxShadow: isCurrent ? `0 0 0 2px ${theme.accent}44` : undefined,
                   }}
                 >
-                  {/* Badges */}
-                  {isCurrent && (
-                    <span
-                      className="absolute top-3 right-3 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
-                      style={{ background: theme.accent, color: theme.badgeText }}
-                    >
-                      ✓ Active
-                    </span>
-                  )}
-                  {!isCurrent && plan.isMostPopular && (
-                    <span
-                      className="absolute top-3 right-3 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
-                      style={{ background: theme.accent + '22', color: theme.accent }}
-                    >
-                      Most Popular
-                    </span>
-                  )}
-
                   {/* Header: name + price */}
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <div>
@@ -206,16 +188,35 @@ export function SubscriptionsScreen() {
                         </p>
                       )}
                     </div>
-                    <div className="text-right shrink-0">
-                      <span
-                        className="text-xl font-bold"
-                        style={{ color: theme.accent, fontFamily: 'var(--font-display)' }}
-                      >
-                        {formatCurrency(price)}
-                      </span>
-                      <span className="block text-[11px]" style={{ color: theme.isDark ? 'rgba(255,255,255,0.65)' : 'var(--color-text-muted)' }}>
-                        /{billing === 'annually' ? 'year' : 'month'}
-                      </span>
+                    <div className="flex flex-col items-end shrink-0 gap-1">
+                      {/* Badges */}
+                      {isCurrent && (
+                        <span
+                          className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full mb-0.5"
+                          style={{ background: theme.accent, color: theme.badgeText }}
+                        >
+                          ✓ Active
+                        </span>
+                      )}
+                      {!isCurrent && plan.isMostPopular && (
+                        <span
+                          className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full mb-0.5"
+                          style={{ background: theme.accent + '22', color: theme.accent }}
+                        >
+                          Most Popular
+                        </span>
+                      )}
+                      <div className="text-right">
+                        <span
+                          className="text-xl font-bold leading-none"
+                          style={{ color: theme.accent, fontFamily: 'var(--font-display)' }}
+                        >
+                          {formatCurrency(price)}
+                        </span>
+                        <span className="block text-[11px] mt-0.5" style={{ color: theme.isDark ? 'rgba(255,255,255,0.65)' : 'var(--color-text-muted)' }}>
+                          /{billing === 'annually' ? 'year' : 'month'}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
