@@ -167,7 +167,7 @@ export function AppointmentsScreen() {
         ...(isInPerson && facilityId && { facilityId }),
       })
       toast.success('Appointment requested', {
-        description: 'Your care team will confirm within 10 hours.',
+        description: 'Your care team will confirm shortly.',
       })
       setScheduledAt('')
       setReason('')
