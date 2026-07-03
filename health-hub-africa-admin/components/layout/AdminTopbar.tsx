@@ -41,10 +41,15 @@ export function AdminTopbar() {
           <Bell className="w-4 h-4" />
         </button>
 
-        <div className="flex items-center gap-2">
+        {/* Opens Settings → Account & Security, where the profile photo is set */}
+        <button
+          onClick={() => router.push('/settings?tab=account')}
+          title="Profile settings — change your photo here"
+          className="flex items-center gap-2 rounded-xl px-1.5 py-1 transition-colors hover:bg-[var(--color-bg)] cursor-pointer"
+        >
           <Avatar name={user?.fullName ?? user?.email} src={user?.profilePhotoUrl ?? undefined} size="sm" />
           {user && (
-            <div className="hidden sm:flex flex-col">
+            <div className="hidden sm:flex flex-col text-left">
               <span className="text-xs font-semibold leading-tight" style={{ color: 'var(--color-text)' }}>
                 {user.fullName ?? user.email}
               </span>
@@ -53,7 +58,7 @@ export function AdminTopbar() {
               </span>
             </div>
           )}
-        </div>
+        </button>
 
         <button
           onClick={handleLogout}

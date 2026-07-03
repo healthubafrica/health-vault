@@ -111,13 +111,15 @@ export function Topbar() {
           <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-[#C0392B]" aria-hidden="true" />
         </button>
 
-        {/* User Avatar */}
-        <div
-          aria-label={`Logged in as ${displayName}`}
+        {/* User Avatar — opens the profile page where the photo can be changed */}
+        <button
+          aria-label={`Logged in as ${displayName} — open profile`}
+          title="View profile"
+          onClick={() => router.push('/profile')}
           className="shrink-0 cursor-pointer shadow-sm rounded-full overflow-hidden border border-[var(--color-border)] flex items-center justify-center hover:scale-105 transition-transform"
         >
           <Avatar seed={displayName} src={profile?.profilePhotoUrl} size="sm" shape="circle" />
-        </div>
+        </button>
 
         {/* Plan badge — colour follows the active tier */}
         <span
