@@ -30,7 +30,7 @@ Health-Hub Africa® does not employ the specialists, physicians, or healthcare p
 • Provide accurate, complete, and current information during registration
 • Maintain the accuracy of your account information and update it promptly if it changes
 • Maintain the security and confidentiality of your login credentials
-• Immediately notify us at support@myvaultplus.com if you suspect unauthorised access to your account
+• Immediately notify us at support@healthubafrica.com if you suspect unauthorised access to your account
 • Accept responsibility for all activities that occur under your account
 
 You must be at least 18 years of age to create an account. Accounts for minors must be created and managed by a parent or legal guardian.
@@ -105,7 +105,7 @@ If any provision of these Terms is found to be unlawful, void, or unenforceable,
 
 Your continued use of the Platform after the effective date of any changes constitutes your acceptance of the revised Terms. If you do not agree to the revised Terms, you must stop using the Platform and may request account closure.
 
-For questions about these Terms, contact us at: legal@myvaultplus.com`,
+For questions about these Terms, contact us at: support@healthubafrica.com`,
   },
 ]
 

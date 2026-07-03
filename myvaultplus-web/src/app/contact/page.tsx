@@ -12,7 +12,7 @@ import { CONTACT } from '@/lib/contact'
 const channels: Array<{ icon: LucideIcon; color: string; bg: string; title: string; desc: string; link: string; label: string }> = [
   { icon: MessageCircle, color: '#137333', bg: '#EAF7F1', title: 'WhatsApp Support', desc: 'Chat with our support team directly. Fastest response time, typically under 30 minutes.', link: CONTACT.whatsapp.waMe, label: 'Chat Now →' },
   { icon: Phone, color: '#2563EB', bg: '#EFF6FF', title: 'Phone Support', desc: 'Call us during business hours and speak directly with a patient support representative.', link: `tel:${CONTACT.whatsapp.e164}`, label: 'Call Now →' },
-  { icon: Mail, color: '#7C3AED', bg: '#F5F3FF', title: 'Email Support', desc: 'Send a detailed message and receive a thorough response within 2 business hours.', link: 'mailto:support@myvaultplus.com', label: 'Send Email →' },
+  { icon: Mail, color: '#7C3AED', bg: '#F5F3FF', title: 'Email Support', desc: 'Send a detailed message and receive a thorough response within 2 business hours.', link: 'mailto:support@healthubafrica.com', label: 'Send Email →' },
 ]
 
 export default function ContactPage() {
@@ -141,8 +141,8 @@ export default function ContactPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                   {[
                     { label: 'Address', value: 'Health-Hub Africa® Ltd\nLagos, Nigeria' },
-                    { label: 'Corporate Email', value: 'enquiries@myvaultplus.com' },
-                    { label: 'Support Email', value: 'support@myvaultplus.com' },
+                    { label: 'Corporate Email', value: 'enquiries@healthubafrica.com' },
+                    { label: 'Support Email', value: 'support@healthubafrica.com' },
                     { label: 'WhatsApp', value: CONTACT.whatsapp.display },
                     { label: 'Emergency Hotline', value: CONTACT.emergency.display },
                   ].map((item) => (

@@ -875,7 +875,7 @@ Complete the form below or contact us directly. A Health-Hub Africa® account ma
 
 **CTA:**
 > **Send an Enquiry →**
-> → form submission to enquiries@myvaultplus.com
+> → form submission to enquiries@healthubafrica.com
 
 > **Prefer to speak to someone? →**
 > [Contact Us on WhatsApp] | [Call Us]
@@ -1066,7 +1066,7 @@ Speak directly with the Health-Hub Africa® support team.
 
 **Email:**
 For non-urgent queries, send us an email.
-> support@myvaultplus.com
+> support@healthubafrica.com
 
 ---
 
@@ -1081,7 +1081,7 @@ For non-urgent queries, send us an email.
 ## Corporate & HMO Enquiries
 
 For group enrolment, HMO partnerships, employer health programmes, or event coverage enquiries:
-> enquiries@myvaultplus.com
+> enquiries@healthubafrica.com
 > Or complete the Corporate Enquiry Form → /corporate
 
 ---
@@ -1189,7 +1189,7 @@ MyHealth Vault+™ employs industry-standard security practices including end-to
 
 ## 7. Data Retention
 
-We retain your health records for as long as your account is active and as required by applicable clinical data retention regulations. You may request deletion of non-clinical account data at any time by contacting support@myvaultplus.com. Clinical records may be subject to minimum retention periods under Nigerian health regulations.
+We retain your health records for as long as your account is active and as required by applicable clinical data retention regulations. You may request deletion of non-clinical account data at any time by contacting support@healthubafrica.com. Clinical records may be subject to minimum retention periods under Nigerian health regulations.
 
 ---
 
@@ -1197,7 +1197,7 @@ We retain your health records for as long as your account is active and as requi
 
 You have the right to access the personal information we hold about you, correct inaccurate personal information, request deletion of non-clinical account data, opt out of non-essential communications, and request a copy of your clinical records in a structured digital format.
 
-Contact us at: support@myvaultplus.com
+Contact us at: support@healthubafrica.com
 
 ---
 
@@ -1216,7 +1216,7 @@ We may update this Privacy Policy from time to time. Changes will be communicate
 ## 11. Contact — Privacy Matters
 
 For privacy-related enquiries or to exercise your rights:
-📧 privacy@myvaultplus.com
+📧 support@healthubafrica.com
 🏢 Health-Hub Africa® | MyHealth Vault+™ Platform
 
 ---
@@ -1257,7 +1257,7 @@ You must be at least 18 years of age to create an independent MyHealth Vault+™
 
 ## 4. Account Responsibilities
 
-You are responsible for maintaining the confidentiality of your login credentials. You must not share your account with any other person. You must provide accurate registration information and keep it up to date. You must notify us immediately of any unauthorised access to your account at support@myvaultplus.com.
+You are responsible for maintaining the confidentiality of your login credentials. You must not share your account with any other person. You must provide accurate registration information and keep it up to date. You must notify us immediately of any unauthorised access to your account at support@healthubafrica.com.
 
 ---
 
@@ -1274,7 +1274,7 @@ You are responsible for maintaining the confidentiality of your login credential
 
 ## 6. Subscriptions & Payments
 
-Subscription plan pricing and benefits are as displayed at the time of purchase. All payments are processed via Paystack or Flutterwave. Subscription status activates only after successful payment confirmation. Refund policy is available on request at support@myvaultplus.com.
+Subscription plan pricing and benefits are as displayed at the time of purchase. All payments are processed via Paystack or Flutterwave. Subscription status activates only after successful payment confirmation. Refund policy is available on request at support@healthubafrica.com.
 
 ---
 
@@ -1305,7 +1305,7 @@ These Terms of Use are governed by the laws of the Federal Republic of Nigeria. 
 ## 11. Contact
 
 For questions about these Terms of Use:
-📧 legal@myvaultplus.com
+📧 support@healthubafrica.com
 🏢 Health-Hub Africa® | MyHealth Vault+™ Platform
 
 ---

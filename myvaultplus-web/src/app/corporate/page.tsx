@@ -57,7 +57,7 @@ export default function CorporatePage() {
               <a href="/plans" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', border: '1.5px solid rgba(255,255,255,0.55)', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '13px 26px', borderRadius: 100 }}>
                 View Plans
               </a>
-              <a href="mailto:enquiries@myvaultplus.com" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: '#6DC43F', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '12px 12px 12px 24px', borderRadius: 100 }}>
+              <a href="mailto:enquiries@healthubafrica.com" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: '#6DC43F', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '12px 12px 12px 24px', borderRadius: 100 }}>
                 Enquire Now
                 <span style={{ width: 30, height: 30, borderRadius: '50%', background: '#07251C', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M19 5H9M19 5v10" stroke="#6DC43F" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -230,7 +230,7 @@ export default function CorporatePage() {
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#07251C', marginBottom: 6 }}>Message (optional)</label>
                   <textarea placeholder="Tell us more about your requirements..." rows={4} style={{ width: '100%', border: '1px solid rgba(7,37,28,0.15)', borderRadius: 10, padding: '11px 14px', fontSize: 14, color: '#07251C', background: '#F7FAF7', boxSizing: 'border-box', outline: 'none', resize: 'vertical' }} />
                 </div>
-                <a href="mailto:enquiries@myvaultplus.com" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 10, background: '#07251C', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '14px 28px', borderRadius: 100 }}>
+                <a href="mailto:enquiries@healthubafrica.com" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 10, background: '#07251C', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.07em', textTransform: 'uppercase', padding: '14px 28px', borderRadius: 100 }}>
                   Send Enquiry
                   <span style={{ width: 28, height: 28, borderRadius: '50%', background: '#6DC43F', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M19 5H9M19 5v10" stroke="#07251C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>

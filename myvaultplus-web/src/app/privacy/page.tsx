@@ -9,7 +9,7 @@ const sections = [
     label: 'Who We Are',
     content: `Health-Hub Africa® Limited ("Health-Hub Africa®", "we", "us", or "our") is the data controller responsible for your personal health data collected through MyHealth Vault+™. We are registered in Nigeria and committed to protecting your privacy in accordance with the Nigeria Data Protection Regulation (NDPR) 2019 and all applicable laws.
 
-Our registered address is in Lagos, Nigeria. For all privacy-related inquiries, contact our Data Protection Officer at: dpo@myvaultplus.com.`,
+Our registered address is in Lagos, Nigeria. For all privacy-related inquiries, contact our Data Protection Officer at: support@healthubafrica.com.`,
   },
   {
     id: 'data-collected',
@@ -78,7 +78,7 @@ We do not share your health data with employers, insurers, or third parties with
 • Right to object: object to processing based on legitimate interests
 • Right to withdraw consent: for consent-based processing, withdraw consent at any time
 
-To exercise any of these rights, contact us at: privacy@myvaultplus.com or write to our DPO at our registered Lagos address.`,
+To exercise any of these rights, contact us at: support@healthubafrica.com or write to our DPO at our registered Lagos address.`,
   },
   {
     id: 'cookies',
@@ -96,8 +96,8 @@ You can control cookie settings through your browser settings. Essential cookies
     label: 'Contact Us',
     content: `For any privacy-related questions, requests, or complaints, contact us:
 
-Data Protection Officer: dpo@myvaultplus.com
-Privacy Team: privacy@myvaultplus.com
+Data Protection Officer: support@healthubafrica.com
+Privacy Team: support@healthubafrica.com
 Address: Health-Hub Africa® Limited, Lagos, Nigeria
 
 If you are dissatisfied with our response, you have the right to lodge a complaint with the Nigeria Data Protection Bureau (NDPB).`,
