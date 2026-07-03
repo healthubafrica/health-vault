@@ -3,7 +3,7 @@ import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Job } from 'bull';
 import { Resend } from 'resend';
-import { NOTIFICATIONS_QUEUE, NotificationJobData } from './notifications.service';
+import { NOTIFICATIONS_QUEUE, NotificationJobData, AppointmentNotificationData } from './notifications.service';
 
 @Processor(NOTIFICATIONS_QUEUE)
 export class NotificationsProcessor {
@@ -17,12 +17,25 @@ export class NotificationsProcessor {
   @Process({ name: 'send-email', concurrency: 5 })
   async handleEmail(job: Job<NotificationJobData>) {
     const { to, subject, body } = job.data;
+    if (!this.isProd) this.logger.log(`[DEV ONLY] Email Body: ${body}`);
+    const isOtp = subject?.toLowerCase().includes('otp') || subject?.toLowerCase().includes('verify');
+    const html = isOtp ? buildOtpHtml(subject ?? '', body) : buildGenericHtml(subject ?? '', body);
+    await this.doSendEmail(to, subject ?? 'MyHealth Vault+™', html, body);
+  }
+
+  @Process({ name: 'send-appointment-email', concurrency: 5 })
+  async handleAppointmentEmail(job: Job<NotificationJobData>) {
+    const { to, subject, body, metadata } = job.data;
+    if (!this.isProd) this.logger.log(`[DEV ONLY] Appointment email to ${to}: ${subject}`);
+    const apptData = metadata?.appt as AppointmentNotificationData | undefined;
+    const html = apptData
+      ? buildAppointmentHtml(subject ?? '', apptData)
+      : buildGenericHtml(subject ?? '', body);
+    await this.doSendEmail(to, subject ?? 'MyHealth Vault+™', html, body);
+  }
+
+  private async doSendEmail(to: string, subject: string, html: string, text: string): Promise<void> {
     this.logger.log(`Sending email to ${to}: ${subject}`);
-    // Never log message bodies in production — they contain OTP codes and PHI
-    // and would end up in CloudWatch Logs.
-    if (!this.isProd) {
-      this.logger.log(`[DEV ONLY] Email Body: ${body}`);
-    }
 
     const apiKey = this.config.get<string>('RESEND_API_KEY');
     const from = this.config.get<string>(
@@ -36,22 +49,8 @@ export class NotificationsProcessor {
     }
 
     const resend = new Resend(apiKey);
-
-    const isOtp = subject?.toLowerCase().includes('otp') || subject?.toLowerCase().includes('verify');
-    const html = isOtp ? buildOtpHtml(subject ?? '', body) : buildGenericHtml(subject ?? '', body);
-
-    const { error } = await resend.emails.send({
-      from,
-      to,
-      subject: subject ?? 'MyHealth Vault+™',
-      html,
-      text: body,
-    });
-
-    if (error) {
-      throw new Error(`Resend error: ${error.message}`);
-    }
-
+    const { error } = await resend.emails.send({ from, to, subject, html, text });
+    if (error) throw new Error(`Resend error: ${error.message}`);
     this.logger.log(`Email sent via Resend to ${to}`);
   }
 
@@ -294,6 +293,98 @@ function buildGenericHtml(subject: string, body: string): string {
   const content = `
     <h1 style="margin:0 0 20px;font-size:22px;font-weight:800;color:#1A1A1A;">${escapeHtml(subject)}</h1>
     ${paragraphs}`;
+
+  return emailShell(content);
+}
+
+function buildAppointmentHtml(subject: string, d: AppointmentNotificationData): string {
+  const isCancelled = subject.toLowerCase().includes('cancel');
+  const isReminder = subject.toLowerCase().includes('reminder');
+  const isCompleted = subject.toLowerCase().includes('complete');
+  const isNoShow = subject.toLowerCase().includes('missed');
+
+  const accentColor = isCancelled || isNoShow ? '#C0392B' : isCompleted ? '#137333' : '#0E4A30';
+  const badgeBg = isCancelled || isNoShow ? '#FDF0EE' : isCompleted ? '#EBF5EC' : '#E6F4F0';
+
+  const statusIcon = isCancelled ? '✕' : isNoShow ? '✕' : isCompleted ? '✓' : isReminder ? '⏰' : '✓';
+  const statusLabel = isCancelled ? 'Cancelled' : isNoShow ? 'Missed' : isCompleted ? 'Completed' : isReminder ? 'Reminder' : 'Confirmed';
+
+  const detailRows: string[] = [
+    `<tr>
+      <td style="padding:8px 0;font-size:13px;color:#6B6B6B;width:120px;vertical-align:top;">Reference</td>
+      <td style="padding:8px 0;font-size:13px;color:#1A1A1A;font-weight:600;">${escapeHtml(d.hhaRef)}</td>
+    </tr>`,
+    `<tr>
+      <td style="padding:8px 0;font-size:13px;color:#6B6B6B;vertical-align:top;">Service</td>
+      <td style="padding:8px 0;font-size:13px;color:#1A1A1A;">${escapeHtml(d.serviceType)}</td>
+    </tr>`,
+    `<tr>
+      <td style="padding:8px 0;font-size:13px;color:#6B6B6B;vertical-align:top;">Date &amp; Time</td>
+      <td style="padding:8px 0;font-size:13px;color:#1A1A1A;font-weight:600;">${escapeHtml(d.when)}</td>
+    </tr>`,
+    `<tr>
+      <td style="padding:8px 0;font-size:13px;color:#6B6B6B;vertical-align:top;">Duration</td>
+      <td style="padding:8px 0;font-size:13px;color:#1A1A1A;">${d.durationMinutes} minutes</td>
+    </tr>`,
+  ];
+
+  if (d.providerName) {
+    detailRows.push(`<tr>
+      <td style="padding:8px 0;font-size:13px;color:#6B6B6B;vertical-align:top;">Provider</td>
+      <td style="padding:8px 0;font-size:13px;color:#1A1A1A;">${escapeHtml(d.providerName)}</td>
+    </tr>`);
+  }
+
+  if (d.locationLine) {
+    const label = d.isVirtual ? 'How to join' : 'Location';
+    detailRows.push(`<tr>
+      <td style="padding:8px 0;font-size:13px;color:#6B6B6B;vertical-align:top;">${label}</td>
+      <td style="padding:8px 0;font-size:13px;color:#1A1A1A;">${escapeHtml(d.locationLine)}</td>
+    </tr>`);
+  }
+
+  const cancelBlock = d.cancelReason
+    ? `<div style="margin:16px 0 0;padding:12px 16px;background:#FDF0EE;border-left:3px solid #C0392B;border-radius:4px;">
+        <p style="margin:0;font-size:13px;color:#C0392B;font-weight:600;">Reason</p>
+        <p style="margin:4px 0 0;font-size:13px;color:#4A1A1A;">${escapeHtml(d.cancelReason)}</p>
+       </div>`
+    : '';
+
+  const outroBlock = d.outro
+    ? `<p style="margin:20px 0 0;font-size:13px;color:#6B6B6B;line-height:1.6;">${escapeHtml(d.outro)}</p>`
+    : '';
+
+  const content = `
+    <!-- Status badge -->
+    <div style="display:inline-block;background:${badgeBg};border-radius:20px;padding:6px 14px;margin-bottom:20px;">
+      <span style="font-size:13px;font-weight:700;color:${accentColor};">${statusIcon}&nbsp;&nbsp;${statusLabel}</span>
+    </div>
+
+    <h1 style="margin:0 0 6px;font-size:22px;font-weight:800;color:#1A1A1A;">
+      Hi ${escapeHtml(d.recipientName)},
+    </h1>
+    <p style="margin:0 0 24px;font-size:15px;color:#3D3D3D;line-height:1.6;">
+      ${escapeHtml(d.intro)}
+    </p>
+
+    <!-- Appointment card -->
+    <div style="background:#F8FAFA;border:1.5px solid #E0EAED;border-radius:12px;padding:20px 24px;margin-bottom:20px;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tbody>
+          ${detailRows.join('\n          ')}
+        </tbody>
+      </table>
+      ${cancelBlock}
+    </div>
+
+    ${outroBlock}
+
+    <!-- CTA -->
+    <div style="margin:28px 0 0;text-align:center;">
+      <a href="https://app.myvaultplus.com" style="display:inline-block;background:${accentColor};color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:13px 32px;border-radius:8px;">
+        Go to your portal
+      </a>
+    </div>`;
 
   return emailShell(content);
 }

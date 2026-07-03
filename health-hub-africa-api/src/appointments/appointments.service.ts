@@ -5,6 +5,8 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 import { AppointmentStatus, ServiceType, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
@@ -12,9 +14,11 @@ import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { QueryAppointmentsDto } from './dto/query-appointments.dto';
 import { OpenemrService } from '../openemr/openemr.service';
-import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationsService, AppointmentNotificationData } from '../notifications/notifications.service';
 
-type AppointmentEmailEvent = 'requested' | 'confirmed' | 'cancelled' | 'rescheduled';
+export const APPOINTMENT_REMINDERS_QUEUE = 'appointment-reminders';
+
+type AppointmentEmailEvent = 'requested' | 'confirmed' | 'cancelled' | 'rescheduled' | 'no_show' | 'completed';
 
 // Valid FSM transitions: status → allowed next statuses
 const ALLOWED_TRANSITIONS: Record<AppointmentStatus, AppointmentStatus[]> = {
@@ -71,6 +75,7 @@ export class AppointmentsService {
     private readonly prisma: PrismaService,
     private readonly openemrService: OpenemrService,
     private readonly notifications: NotificationsService,
+    @InjectQueue(APPOINTMENT_REMINDERS_QUEUE) private readonly reminderQueue: Queue,
   ) {}
 
   // ── Create ─────────────────────────────────────────────────────────────────
@@ -306,9 +311,13 @@ export class AppointmentsService {
         ? 'confirmed'
         : dto.status === AppointmentStatus.cancelled
           ? 'cancelled'
-          : !dto.status && dto.scheduledAt && new Date(dto.scheduledAt).getTime() !== appt.scheduledAt.getTime()
-            ? 'rescheduled'
-            : null;
+          : dto.status === AppointmentStatus.no_show
+            ? 'no_show'
+            : dto.status === AppointmentStatus.completed
+              ? 'completed'
+              : !dto.status && dto.scheduledAt && new Date(dto.scheduledAt).getTime() !== appt.scheduledAt.getTime()
+                ? 'rescheduled'
+                : null;
 
     let updatedAppointment;
     if (shouldSpawnTelecareSession) {
@@ -340,6 +349,19 @@ export class AppointmentsService {
     }
 
     if (emailEvent) void this.notifyAppointmentEvent(id, emailEvent);
+
+    // Schedule 24h + 1h reminder jobs when confirmed; cancel them when the
+    // appointment reaches a terminal state. Reschedule cancels any existing
+    // jobs and re-queues for the new time.
+    if (emailEvent === 'confirmed') {
+      void this.scheduleReminders(id, updatedAppointment.scheduledAt);
+    } else if (emailEvent === 'cancelled' || emailEvent === 'no_show' || emailEvent === 'completed') {
+      void this.cancelReminders(id);
+    } else if (emailEvent === 'rescheduled') {
+      void this.cancelReminders(id).then(() =>
+        this.scheduleReminders(id, updatedAppointment.scheduledAt),
+      );
+    }
 
     // Mirror the booking onto the OpenEMR calendar so the provider sees it
     // in OpenEMR: confirmed/rescheduled → (re)create the event, cancelled →
@@ -511,10 +533,6 @@ export class AppointmentsService {
 
   // ── Lifecycle notifications ────────────────────────────────────────────────
 
-  // Emails (and SMS when the patient has a phone) the patient about
-  // appointment lifecycle changes; the assigned provider is copied on
-  // confirmations and cancellations. Fire-and-forget: failures are logged
-  // and never fail the mutation that triggered them.
   private async notifyAppointmentEvent(appointmentId: string, event: AppointmentEmailEvent) {
     try {
       const appt = await this.prisma.appointment.findUnique({
@@ -551,84 +569,164 @@ export class AppointmentsService {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
         hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos',
       }) + ' (WAT)';
+
       const providerName = appt.provider
         ? `${appt.provider.title} ${appt.provider.firstName} ${appt.provider.lastName}`
         : null;
-      const where = appt.isTelecare
-        ? 'This is a virtual consultation — join from your Health Hub Africa portal a few minutes before the start time.'
+
+      const locationLine = appt.isTelecare
+        ? 'Join from your Health Hub Africa portal a few minutes before the start time.'
         : appt.facility
-          ? `Location: ${appt.facility.name}${appt.facility.city ? `, ${appt.facility.city}` : ''}`
-          : appt.location
-            ? `Location: ${appt.location}`
-            : '';
+          ? `${appt.facility.name}${appt.facility.city ? `, ${appt.facility.city}` : ''}`
+          : appt.location ?? null;
 
-      const details =
-        `Reference: ${appt.hhaRef}\n` +
-        `Service: ${appt.serviceType}\n` +
-        `Date & time: ${when}\n` +
-        `Duration: ${appt.durationMinutes} minutes\n` +
-        (providerName ? `Provider: ${providerName}\n` : '') +
-        (where ? `${where}\n` : '');
+      const baseData = {
+        hhaRef: appt.hhaRef,
+        serviceType: appt.serviceType,
+        when,
+        durationMinutes: appt.durationMinutes,
+        isVirtual: appt.isTelecare,
+        providerName,
+        locationLine,
+        cancelReason: appt.cancellationNote ?? null,
+      };
 
-      const templates: Record<AppointmentEmailEvent, { subject: string; intro: string; outro: string; sms: string }> = {
+      type EventTemplate = { subject: string; intro: string; outro: string; sms: string };
+      const templates: Record<AppointmentEmailEvent, EventTemplate> = {
         requested: {
           subject: `Appointment request received — ${appt.hhaRef}`,
-          intro: 'We have received your appointment request.',
-          outro: 'You will get another email as soon as your appointment is confirmed.',
+          intro: 'We have received your appointment request and it is now pending confirmation.',
+          outro: 'You will receive another email as soon as your appointment is confirmed.',
           sms: `Health Hub Africa: appointment request ${appt.hhaRef} received for ${when}. We'll confirm shortly.`,
         },
         confirmed: {
           subject: `Appointment confirmed — ${appt.hhaRef}`,
-          intro: 'Good news — your appointment is confirmed.',
+          intro: 'Great news — your appointment has been confirmed.',
           outro: 'Need to make changes? Manage your appointment in your Health Hub Africa portal.',
           sms: `Health Hub Africa: appointment ${appt.hhaRef} confirmed for ${when}${providerName ? ` with ${providerName}` : ''}.`,
         },
         cancelled: {
           subject: `Appointment cancelled — ${appt.hhaRef}`,
-          intro:
-            'Your appointment has been cancelled.' +
-            (appt.cancellationNote ? `\nReason: ${appt.cancellationNote}` : ''),
-          outro: 'You can book a new appointment any time from your Health Hub Africa portal.',
+          intro: 'Your appointment has been cancelled.',
+          outro: 'You can book a new appointment at any time from your Health Hub Africa portal.',
           sms: `Health Hub Africa: appointment ${appt.hhaRef} (${when}) has been cancelled.`,
         },
         rescheduled: {
           subject: `Appointment rescheduled — ${appt.hhaRef}`,
-          intro: 'Your appointment has been moved to a new time.',
-          outro: 'If the new time does not work for you, you can reschedule or cancel in your portal.',
+          intro: 'Your appointment has been moved to a new date and time.',
+          outro: 'If the new time does not work for you, you can reschedule or cancel from your portal.',
           sms: `Health Hub Africa: appointment ${appt.hhaRef} rescheduled to ${when}.`,
+        },
+        no_show: {
+          subject: `Missed appointment — ${appt.hhaRef}`,
+          intro: 'We noticed you were unable to attend your appointment.',
+          outro: 'You can easily rebook at any time from your Health Hub Africa portal.',
+          sms: `Health Hub Africa: you missed your appointment ${appt.hhaRef} on ${when}. Book a new one anytime via the portal.`,
+        },
+        completed: {
+          subject: `Appointment complete — ${appt.hhaRef}`,
+          intro: 'Your appointment is now complete. We hope it went well!',
+          outro: 'If you have follow-up questions, message your provider or book another appointment from the portal.',
+          sms: `Health Hub Africa: your appointment ${appt.hhaRef} is complete. Book follow-ups anytime via the portal.`,
         },
       };
       const t = templates[event];
 
-      const body =
-        `Hi ${appt.patient.firstName},\n\n${t.intro}\n\n${details}\n${t.outro}\n\n— Health Hub Africa`;
-
-      await this.notifications.sendEmail(appt.patient.user.email, t.subject, body, appt.patient.userId);
+      // Patient notification
+      const patientData: AppointmentNotificationData = {
+        ...baseData,
+        recipientName: appt.patient.firstName,
+        intro: t.intro,
+        outro: t.outro,
+      };
+      await this.notifications.sendAppointmentEmail(
+        appt.patient.user.email,
+        t.subject,
+        appt.patient.userId,
+        patientData,
+      );
       if (appt.patient.user.phone) {
         await this.notifications.sendSms(appt.patient.user.phone, t.sms, appt.patient.userId);
       }
 
-      // Copy the assigned provider on confirmations and cancellations so
-      // their schedule stays trustworthy without polling the dashboard.
-      if ((event === 'confirmed' || event === 'cancelled') && appt.provider?.user?.email) {
-        const providerBody =
-          `Hello ${appt.provider.firstName},\n\n` +
-          (event === 'confirmed'
-            ? `An appointment has been confirmed on your schedule.\n\n`
-            : `An appointment on your schedule has been cancelled.\n\n`) +
-          details +
-          `\n— Health Hub Africa`;
-        await this.notifications.sendEmail(
+      // Provider notifications:
+      //  requested  → new booking alert
+      //  confirmed  → schedule confirmed
+      //  cancelled  → schedule removed
+      //  rescheduled → time changed
+      // (no_show and completed do not generate provider emails)
+      const providerEvents: AppointmentEmailEvent[] = ['requested', 'confirmed', 'cancelled', 'rescheduled'];
+      if (providerEvents.includes(event) && appt.provider?.user?.email) {
+        const providerIntros: Record<string, string> = {
+          requested: 'A new appointment request is awaiting your confirmation.',
+          confirmed: 'An appointment has been confirmed on your schedule.',
+          cancelled: 'An appointment on your schedule has been cancelled.',
+          rescheduled: 'An appointment on your schedule has been moved to a new time.',
+        };
+        const providerSubjects: Record<string, string> = {
+          requested: `New appointment request — ${appt.hhaRef}`,
+          confirmed: `Appointment confirmed on your schedule — ${appt.hhaRef}`,
+          cancelled: `Appointment cancelled — ${appt.hhaRef}`,
+          rescheduled: `Appointment rescheduled — ${appt.hhaRef}`,
+        };
+        const providerData: AppointmentNotificationData = {
+          ...baseData,
+          recipientName: appt.provider.firstName,
+          intro: providerIntros[event],
+          outro: 'View your full schedule in the Health Hub Africa provider portal.',
+        };
+        await this.notifications.sendAppointmentEmail(
           appt.provider.user.email,
-          `${event === 'confirmed' ? 'Confirmed' : 'Cancelled'}: appointment ${appt.hhaRef}`,
-          providerBody,
+          providerSubjects[event],
           appt.provider.user.id,
+          providerData,
         );
       }
     } catch (err) {
       this.logger.error(
         `Failed to send ${event} notification for appointment ${appointmentId}: ${err instanceof Error ? err.message : err}`,
       );
+    }
+  }
+
+  // ── Reminder scheduling ────────────────────────────────────────────────────
+
+  private async scheduleReminders(appointmentId: string, scheduledAt: Date): Promise<void> {
+    const now = Date.now();
+    const apptMs = scheduledAt.getTime();
+    const slots: Array<{ suffix: string; delay: number }> = [];
+
+    const ms24h = apptMs - 24 * 60 * 60 * 1000 - now;
+    const ms1h = apptMs - 60 * 60 * 1000 - now;
+
+    if (ms24h > 0) slots.push({ suffix: '24h', delay: ms24h });
+    if (ms1h > 0) slots.push({ suffix: '1h', delay: ms1h });
+
+    for (const { suffix, delay } of slots) {
+      const jobId = `appt:${appointmentId}:${suffix}`;
+      // Remove any existing delayed job for this slot before re-queuing
+      const existing = await this.reminderQueue.getJob(jobId);
+      if (existing) await existing.remove().catch(() => undefined);
+      await this.reminderQueue.add(
+        'send-reminder',
+        { appointmentId, type: suffix },
+        { delay, jobId, removeOnComplete: true, removeOnFail: false },
+      );
+      this.logger.log(`Scheduled ${suffix} reminder for appointment ${appointmentId} (delay ${Math.round(delay / 60000)} min)`);
+    }
+  }
+
+  private async cancelReminders(appointmentId: string): Promise<void> {
+    for (const suffix of ['24h', '1h']) {
+      try {
+        const job = await this.reminderQueue.getJob(`appt:${appointmentId}:${suffix}`);
+        if (job) {
+          await job.remove();
+          this.logger.log(`Cancelled ${suffix} reminder for appointment ${appointmentId}`);
+        }
+      } catch {
+        // Job may have already fired — no action needed
+      }
     }
   }
 

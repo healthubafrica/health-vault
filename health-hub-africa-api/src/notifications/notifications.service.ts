@@ -17,6 +17,22 @@ export interface NotificationJobData {
   metadata?: Record<string, unknown>;
 }
 
+// Structured data for appointment lifecycle and reminder emails.
+// Passed in job metadata so the processor can render a rich HTML card.
+export interface AppointmentNotificationData {
+  recipientName: string;
+  hhaRef: string;
+  serviceType: string;
+  when: string;           // pre-formatted date/time string
+  durationMinutes: number;
+  isVirtual: boolean;
+  providerName?: string | null;
+  locationLine?: string | null;
+  intro: string;
+  outro?: string | null;
+  cancelReason?: string | null;
+}
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
@@ -64,6 +80,30 @@ export class NotificationsService {
     return this.sendEmail(email, 'Verify your Health Hub Africa account', body, userId);
   }
 
+  // Rich HTML appointment email — routes to the dedicated appointment card template.
+  async sendAppointmentEmail(
+    to: string,
+    subject: string,
+    userId: string,
+    data: AppointmentNotificationData,
+  ) {
+    if (!(await this.rateLimiter.allow('email', to))) return;
+    const body =
+      `Hi ${data.recipientName},\n\n${data.intro}\n\n` +
+      `Reference: ${data.hhaRef}\nService: ${data.serviceType}\n` +
+      `Date & time: ${data.when}\nDuration: ${data.durationMinutes} minutes\n` +
+      (data.providerName ? `Provider: ${data.providerName}\n` : '') +
+      (data.locationLine ? `${data.locationLine}\n` : '') +
+      (data.outro ? `\n${data.outro}` : '') +
+      '\n\n— Health Hub Africa';
+    await this.queue.add(
+      'send-appointment-email',
+      { userId, channel: 'email', to, subject, body, metadata: { appt: data } },
+      { attempts: 3, backoff: { type: 'exponential', delay: 3000 } },
+    );
+  }
+
+  /** @deprecated Use sendAppointmentEmail for appointment-related notifications */
   async sendAppointmentReminder(
     email: string,
     phone: string | null,
