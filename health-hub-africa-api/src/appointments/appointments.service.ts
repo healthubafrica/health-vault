@@ -341,6 +341,21 @@ export class AppointmentsService {
 
     if (emailEvent) void this.notifyAppointmentEvent(id, emailEvent);
 
+    // Mirror the booking onto the OpenEMR calendar so the provider sees it
+    // in OpenEMR: confirmed/rescheduled → (re)create the event, cancelled →
+    // remove it. Fire-and-forget; failures land in /admin/system/errors.
+    const isOnCalendar =
+      appt.status === AppointmentStatus.confirmed || appt.status === AppointmentStatus.upcoming;
+    if (emailEvent === 'confirmed' || (emailEvent === 'rescheduled' && isOnCalendar)) {
+      void this.openemrService
+        .enqueueAppointmentCalendarSync(appt.patientId, id, 'upsert')
+        .catch((err) => this.logger.error(`Failed to enqueue calendar sync: ${err.message}`));
+    } else if (emailEvent === 'cancelled') {
+      void this.openemrService
+        .enqueueAppointmentCalendarSync(appt.patientId, id, 'cancel')
+        .catch((err) => this.logger.error(`Failed to enqueue calendar sync: ${err.message}`));
+    }
+
     return updatedAppointment;
   }
 

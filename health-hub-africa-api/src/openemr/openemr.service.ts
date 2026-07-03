@@ -207,6 +207,23 @@ export class OpenemrService implements OnModuleInit {
     return { enqueued };
   }
 
+  // Mirrors a confirmed booking onto the OpenEMR calendar (pc events) so the
+  // provider sees it inside OpenEMR without checking the HHA dashboard.
+  // action 'upsert' replaces any previous event (reschedule); 'cancel'
+  // deletes it. Requires the api:oemr scope — failures land in
+  // /admin/system/errors until the OpenEMR standard REST API is enabled.
+  async enqueueAppointmentCalendarSync(
+    patientId: string,
+    appointmentId: string,
+    action: 'upsert' | 'cancel',
+  ) {
+    await this.syncQueue.add(
+      'sync-appointment-calendar',
+      { patientId, operation: 'sync_record', payload: { appointmentId, action } },
+      { attempts: 3, backoff: { type: 'exponential', delay: 5000 } },
+    );
+  }
+
   async enqueueRecordSync(patientId: string, recordId: string) {
     await this.syncQueue.add(
       'sync-record',
