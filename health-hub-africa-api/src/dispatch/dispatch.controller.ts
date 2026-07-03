@@ -22,6 +22,13 @@ export class DispatchController {
     return { data: await this.dispatchService.findAll(user) };
   }
 
+  // Declared before ':id' so Nest doesn't route 'units' into findOne.
+  @Get('units')
+  @ApiOperation({ summary: 'List dispatch units (coordinator/admin)' })
+  async listUnits(@CurrentUser() user: JwtPayload) {
+    return { data: await this.dispatchService.listUnits(user) };
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get dispatch case with full status timeline' })
   async findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
