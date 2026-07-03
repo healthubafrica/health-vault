@@ -121,6 +121,20 @@ export class DispatchService {
     return dispatchCase;
   }
 
+  async listUnits(currentUser: JwtPayload) {
+    this.requireCoordinatorOrAdmin(currentUser);
+    return this.prisma.dispatchUnit.findMany({
+      orderBy: { callSign: 'asc' },
+      select: {
+        id: true,
+        callSign: true,
+        unitType: true,
+        isAvailable: true,
+        baseLocation: true,
+      },
+    });
+  }
+
   async updateStatus(id: string, dto: UpdateDispatchStatusDto, currentUser: JwtPayload) {
     this.requireCoordinatorOrAdmin(currentUser);
 

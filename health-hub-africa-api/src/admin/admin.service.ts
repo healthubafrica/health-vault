@@ -869,6 +869,8 @@ export class AdminService {
       hhaRef: r.hhaRef,
       patientName: `${r.patient.firstName} ${r.patient.lastName}`.trim(),
       patientAddress: r.locationText ?? undefined,
+      emergencyType: r.emergencyType,
+      etaMinutes: r.etaMinutes ?? undefined,
       triagePriority: r.stridePriority ?? undefined,
       status: r.status,
       responderName: r.unit?.callSign ?? undefined,
