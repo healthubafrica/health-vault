@@ -349,6 +349,13 @@ export class TelecareService implements OnModuleInit {
       if (!onlyCompletion) {
         throw new ForbiddenException('Patients may only mark a session completed');
       }
+      // A hang-up only completes a call that actually started. If the patient
+      // joined the room early (provider not there yet) and left again, the
+      // session must stay scheduled/waiting — otherwise peeking into the room
+      // silently kills the booking.
+      if (session.status !== SessionStatus.active) {
+        return session;
+      }
     }
 
     const data: any = {};
@@ -514,6 +521,16 @@ export class TelecareService implements OnModuleInit {
       data: { isAvailable },
       select: { id: true, isAvailable: true },
     });
+  }
+
+  async getAvailability(currentUser: JwtPayload) {
+    if (!currentUser.providerId) throw new ForbiddenException('Provider access required');
+    const provider = await this.prisma.provider.findUnique({
+      where: { id: currentUser.providerId },
+      select: { id: true, isAvailable: true },
+    });
+    if (!provider) throw new NotFoundException('Provider profile not found');
+    return provider;
   }
 
   async getProviderMetrics(currentUser: JwtPayload) {

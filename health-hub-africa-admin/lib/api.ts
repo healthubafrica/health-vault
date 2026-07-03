@@ -277,6 +277,40 @@ export interface UsageDataPoint {
   expertReviews: number
 }
 
+// ── Admin: Dispatch ───────────────────────────────────────────────────────
+
+export interface DispatchUnit {
+  id: string
+  callSign: string
+  unitType: string
+  isAvailable: boolean
+  baseLocation: string | null
+}
+
+export interface DispatchCaseDetail {
+  id: string
+  hhaRef: string
+  emergencyType: string
+  description: string | null
+  status: string
+  locationText: string | null
+  latitude: string | null
+  longitude: string | null
+  etaMinutes: number | null
+  stridePriority: string | null
+  strideTriageScore: number | null
+  assignedAt: string | null
+  arrivedAt: string | null
+  closedAt: string | null
+  createdAt: string
+  events: Array<{
+    id: string
+    status: string
+    notes: string | null
+    occurredAt: string
+  }>
+}
+
 // ── Admin: Audit Logs ─────────────────────────────────────────────────────
 
 export interface AuditLog {
@@ -675,6 +709,8 @@ export const adminApi = {
         method: 'PATCH',
         body: JSON.stringify({ isAvailable }),
       }),
+    getAvailability: () =>
+      request<{ id: string; isAvailable: boolean }>('/telecare/availability'),
     metrics: () =>
       request<{
         total: number
@@ -837,6 +873,17 @@ export const adminApi = {
       return request<{ data: unknown[]; meta: { total: number } }>(`/admin/operations/telecare${qs}`)
     },
     dispatch: () => request<{ data: unknown[] }>('/admin/operations/dispatch'),
+    // Full-case operations hit the /dispatch module directly (admin JWT is
+    // authorised there); the flattened list above stays on /admin.
+    dispatchDetail: (id: string) =>
+      request<{ data: DispatchCaseDetail }>(`/dispatch/${id}`),
+    dispatchUpdateStatus: (id: string, dto: { status: string; notes?: string; assignedProviderId?: string }) =>
+      request<{ id: string; status: string }>(`/dispatch/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify(dto),
+      }),
+    dispatchUnits: () =>
+      request<{ data: DispatchUnit[] }>('/dispatch/units'),
     labs: (params?: { flagged?: boolean; page?: number }) => {
       const qs = params
         ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString()
