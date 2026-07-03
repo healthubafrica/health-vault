@@ -116,7 +116,7 @@ export function Topbar() {
           aria-label={`Logged in as ${displayName}`}
           className="shrink-0 cursor-pointer shadow-sm rounded-full overflow-hidden border border-[var(--color-border)] flex items-center justify-center hover:scale-105 transition-transform"
         >
-          <Avatar seed={displayName} size="sm" shape="circle" />
+          <Avatar seed={displayName} src={profile?.profilePhotoUrl} size="sm" shape="circle" />
         </div>
 
         {/* Plan badge — colour follows the active tier */}

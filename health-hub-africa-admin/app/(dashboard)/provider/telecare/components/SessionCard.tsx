@@ -56,12 +56,20 @@ export function SessionCard({
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex items-center gap-4">
-        <div
-          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ background: 'var(--color-border)' }}
-        >
-          <User className="w-5 h-5" style={{ color: 'var(--color-text-muted)' }} />
-        </div>
+        {session.patient?.profilePhotoUrl ? (
+          <img
+            src={session.patient.profilePhotoUrl}
+            alt={patientName}
+            className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+          />
+        ) : (
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{ background: 'var(--color-border)' }}
+          >
+            <User className="w-5 h-5" style={{ color: 'var(--color-text-muted)' }} />
+          </div>
+        )}
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">

@@ -6,10 +6,11 @@ import { AdminController } from './admin.controller';
 import { OPENEMR_SYNC_QUEUE } from '../openemr/openemr.service';
 import { OpenemrModule } from '../openemr/openemr.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { StorageModule } from '../storage/storage.module';
 import { createRedisClient } from '../common/redis/redis.factory';
 
 @Module({
-  imports: [BullModule.registerQueue({ name: OPENEMR_SYNC_QUEUE }), OpenemrModule, NotificationsModule],
+  imports: [BullModule.registerQueue({ name: OPENEMR_SYNC_QUEUE }), OpenemrModule, NotificationsModule, StorageModule],
   providers: [
     {
       provide: ADMIN_REDIS,

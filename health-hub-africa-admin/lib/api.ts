@@ -135,6 +135,7 @@ export interface User {
   email: string
   role: 'super_admin' | 'admin' | 'coordinator' | 'patient' | 'provider'
   fullName?: string
+  profilePhotoUrl?: string | null
 }
 
 export interface Session {
@@ -166,6 +167,20 @@ export const auth = {
     bffFetch<{ accessToken: string }>('/api/auth/verify-2fa', { userId, otp }),
 
   me: () => request<{ data: User }>('/auth/me'),
+
+  // Unified profile-photo flow (works for every role): presign → PUT the
+  // file to S3 directly → persist the returned publicUrl.
+  requestProfilePhotoUploadUrl: (contentType: string, sizeBytes: number) =>
+    request<{ uploadUrl: string; objectKey: string; publicUrl: string }>(
+      '/auth/me/profile-photo-upload-url',
+      { method: 'POST', body: JSON.stringify({ contentType, sizeBytes }) },
+    ),
+
+  setProfilePhoto: (profilePhotoUrl: string) =>
+    request<{ profilePhotoUrl: string }>('/auth/me/profile-photo', {
+      method: 'PATCH',
+      body: JSON.stringify({ profilePhotoUrl }),
+    }),
 
   logout: () => bffFetch<void>('/api/auth/logout'),
 
@@ -225,6 +240,7 @@ export interface AdminUser {
   isVerified: boolean
   createdAt: string
   lastLoginAt?: string
+  profilePhotoUrl?: string | null
   subscription?: {
     plan: string
     tier: string
@@ -359,6 +375,7 @@ export interface AdminProvider {
   isVerified?: boolean
   verifiedAt?: string | null
   openemrProviderUuid?: string | null
+  profilePhotoUrl?: string | null
 }
 
 export interface CreateProviderPayload {
@@ -410,9 +427,10 @@ export interface ProviderSession {
     dateOfBirth?: string | null
     gender?: string | null
     openemrPatientUuid?: string | null
+    profilePhotoUrl?: string | null
     subscriptions?: Array<{ plan: { name: string; tier: string } }> | null
   } | null
-  provider?: { firstName: string; lastName: string; title: string } | null
+  provider?: { firstName: string; lastName: string; title: string; profilePhotoUrl?: string | null } | null
   notes?: SessionNote[]
 }
 

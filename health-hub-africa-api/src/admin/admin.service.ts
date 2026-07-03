@@ -21,6 +21,7 @@ import {
   CreateFacilityDto,
 } from './dto/admin.dto';
 import { OPENEMR_SYNC_QUEUE, OpenemrService, SyncJobData } from '../openemr/openemr.service';
+import { S3Service } from '../storage/s3.service';
 
 export const ADMIN_REDIS = Symbol('ADMIN_REDIS');
 
@@ -45,6 +46,7 @@ export class AdminService {
     @Inject(ADMIN_REDIS) private readonly redis: Redis,
     private readonly openemrService: OpenemrService,
     private readonly notifications: NotificationsService,
+    private readonly s3: S3Service,
   ) {}
 
   // ── Users ─────────────────────────────────────────────────────────────────
@@ -97,6 +99,7 @@ export class AdminService {
           isVerified: true,
           lastLoginAt: true,
           createdAt: true,
+          profilePhotoUrl: true,
           patient: {
             select: {
               id: true,
@@ -104,6 +107,7 @@ export class AdminService {
               lastName: true,
               hhaPatientId: true,
               openemrPatientUuid: true,
+              profilePhotoUrl: true,
               subscriptions: {
                 where: { status: { in: ['active', 'trial'] } },
                 take: 1,
@@ -117,7 +121,7 @@ export class AdminService {
             },
           },
           provider: {
-            select: { id: true, firstName: true, lastName: true, isAvailable: true },
+            select: { id: true, firstName: true, lastName: true, isAvailable: true, profilePhotoUrl: true },
           },
         },
       }),
@@ -126,7 +130,7 @@ export class AdminService {
 
     // Flatten so the admin Users table renders directly: fullName, phoneNumber,
     // and the latest active subscription (matches getUser's shape).
-    const data = rows.map((u) => {
+    const data = await Promise.all(rows.map(async (u) => {
       const sub = u.patient?.subscriptions?.[0];
       const fullName = u.patient
         ? `${u.patient.firstName} ${u.patient.lastName}`.trim()
@@ -143,6 +147,9 @@ export class AdminService {
         isVerified: u.isVerified,
         lastLoginAt: u.lastLoginAt ?? undefined,
         createdAt: u.createdAt,
+        profilePhotoUrl: await this.s3.signStoredUrl(
+          u.patient?.profilePhotoUrl ?? u.provider?.profilePhotoUrl ?? u.profilePhotoUrl,
+        ),
         patient: u.patient
           ? {
               id: u.patient.id,
@@ -169,7 +176,7 @@ export class AdminService {
             }
           : undefined,
       };
-    });
+    }));
 
     return { data, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
   }
@@ -1459,12 +1466,12 @@ export class AdminService {
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
-        include: { user: { select: { email: true } } },
+        include: { user: { select: { email: true, profilePhotoUrl: true } } },
       }),
       this.prisma.provider.count({ where }),
     ]);
 
-    const data = rows.map((r) => ({
+    const data = await Promise.all(rows.map(async (r) => ({
       id: r.id,
       userId: r.userId,
       firstName: r.firstName,
@@ -1472,6 +1479,7 @@ export class AdminService {
       title: r.title,
       specialty: r.specialty,
       email: r.user.email,
+      profilePhotoUrl: await this.s3.signStoredUrl(r.profilePhotoUrl ?? r.user.profilePhotoUrl),
       isAvailable: r.isAvailable,
       totalPatients: r.totalPatients,
       rating: r.rating ? Number(r.rating) : null,
@@ -1483,7 +1491,7 @@ export class AdminService {
       verifiedAt: r.verifiedAt,
       openemrProviderUuid: r.openemrProviderUuid,
       createdAt: r.createdAt,
-    }));
+    })));
 
     return { data, meta: { total, page, limit } };
   }

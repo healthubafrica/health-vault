@@ -42,7 +42,7 @@ export function AdminTopbar() {
         </button>
 
         <div className="flex items-center gap-2">
-          <Avatar name={user?.fullName ?? user?.email} size="sm" />
+          <Avatar name={user?.fullName ?? user?.email} src={user?.profilePhotoUrl ?? undefined} size="sm" />
           {user && (
             <div className="hidden sm:flex flex-col">
               <span className="text-xs font-semibold leading-tight" style={{ color: 'var(--color-text)' }}>

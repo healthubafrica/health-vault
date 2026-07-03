@@ -225,6 +225,14 @@ export class PatientsService {
     if (!patient) throw new NotFoundException('Patient not found');
     this.assertAccess(patient, currentUser);
 
+    // Keep the user-level canonical photo in sync so admin/provider
+    // dashboards (which read users) show the portal-uploaded photo too.
+    if (dto.profilePhotoUrl) {
+      await this.prisma.user
+        .update({ where: { id: patient.userId }, data: { profilePhotoUrl: dto.profilePhotoUrl } })
+        .catch(() => null);
+    }
+
     const updated = await this.prisma.patient.update({
       where: { id },
       data: {

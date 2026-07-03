@@ -218,6 +218,7 @@ model User {
   isVerified        Boolean   @default(false) @map("is_verified")
   isActive          Boolean   @default(true) @map("is_active")
   twoFactorEnabled  Boolean   @default(false) @map("two_factor_enabled")
+  profilePhotoUrl   String?   @map("profile_photo_url")
   lastLoginAt       DateTime? @map("last_login_at")
   failedLoginAttempts Int     @default(0) @map("failed_login_attempts")
   lockedUntil       DateTime? @map("locked_until")

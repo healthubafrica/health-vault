@@ -589,9 +589,47 @@ export class AuthService {
   async getUserById(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
-      select: { id: true, email: true, role: true },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        profilePhotoUrl: true,
+        // Role-profile photos win over the user-level one so a patient who
+        // uploaded via the portal (which writes the patient row) is shown
+        // consistently everywhere.
+        patient: { select: { profilePhotoUrl: true } },
+        provider: { select: { profilePhotoUrl: true } },
+      },
     });
     if (!user) throw new NotFoundException('User not found');
-    return user;
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      profilePhotoUrl:
+        user.patient?.profilePhotoUrl ??
+        user.provider?.profilePhotoUrl ??
+        user.profilePhotoUrl ??
+        null,
+    };
+  }
+
+  // Persists the canonical photo URL on the user and mirrors it into the
+  // patient/provider profile when one exists, so every dashboard — patient
+  // portal, admin lists, provider telecare — reads the same image.
+  async setProfilePhoto(userId: string, profilePhotoUrl: string) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { profilePhotoUrl },
+    });
+    await this.prisma.patient.updateMany({
+      where: { userId },
+      data: { profilePhotoUrl },
+    });
+    await this.prisma.provider.updateMany({
+      where: { userId },
+      data: { profilePhotoUrl },
+    });
+    return { profilePhotoUrl };
   }
 }

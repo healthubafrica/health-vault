@@ -199,7 +199,7 @@ export default function UsersPage() {
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
-                          <Avatar name={u.fullName ?? u.email} size="sm" />
+                          <Avatar name={u.fullName ?? u.email} src={u.profilePhotoUrl ?? undefined} size="sm" />
                           <div className="min-w-0">
                             <p className="font-medium truncate" style={{ color: 'var(--color-text)' }}>
                               {u.fullName ?? '—'}
