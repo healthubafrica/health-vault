@@ -39,13 +39,13 @@ const faqGroups = [
       { q: "What's the difference between plans?", a: 'The Starter (Free) plan gives portal access and pay-per-use services. The Growth plan (₦4,900/month) adds TeleCare™ sessions and HealthConsult™. The Enterprise plan (₦9,900/month) adds priority access, 2–4 Expert Reviews/year, and NeuroFlex™. Corporate plans are customised for organisations.' },
       { q: 'Can I upgrade?', a: 'You can upgrade or downgrade your plan at any time from your account settings. Upgrades take effect immediately; downgrades take effect at the start of the next billing cycle.' },
       { q: 'How is billing handled?', a: 'Billing is monthly via card payment, bank transfer, or supported mobile money. All transactions are processed securely. Receipts are emailed and stored in your Vault.' },
-      { q: 'Are there corporate plans?', a: 'Health-Hub Africa® offers tailored corporate and HMO plans for employers, estates, schools, and government institutions. Visit our Corporate page or email enquiries@myvaultplus.com for details.' },
+      { q: 'Are there corporate plans?', a: 'Health-Hub Africa® offers tailored corporate and HMO plans for employers, estates, schools, and government institutions. Visit our Corporate page or email enquiries@healthubafrica.com for details.' },
     ],
   },
   {
     group: 'Support',
     items: [
-      { q: 'How do I contact support?', a: `You can reach us via WhatsApp (${CONTACT.whatsapp.display}), phone, or email (support@myvaultplus.com). You can also use the contact form on our Contact page. Our team is available 7 days a week.` },
+      { q: 'How do I contact support?', a: `You can reach us via WhatsApp (${CONTACT.whatsapp.display}), phone, or email (support@healthubafrica.com). You can also use the contact form on our Contact page. Our team is available 7 days a week.` },
       { q: 'What is the response time?', a: 'WhatsApp and phone support typically respond within 30 minutes. Email support typically responds within 2 business hours. Complex queries may take longer but will be acknowledged immediately.' },
     ],
   },
@@ -178,7 +178,7 @@ export default function FAQPage() {
             </div>
             <div style={{ display: 'flex', gap: 12, flexShrink: 0, flexWrap: 'wrap' }}>
               <a href={CONTACT.whatsapp.waMe} style={{ display: 'inline-flex', alignItems: 'center', background: '#fff', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '12px 22px', borderRadius: 100 }}>WhatsApp Support</a>
-              <a href="mailto:support@myvaultplus.com" style={{ display: 'inline-flex', alignItems: 'center', background: '#6DC43F', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '12px 22px', borderRadius: 100 }}>Email Support</a>
+              <a href="mailto:support@healthubafrica.com" style={{ display: 'inline-flex', alignItems: 'center', background: '#6DC43F', color: '#07251C', textDecoration: 'none', fontWeight: 700, fontSize: 13, letterSpacing: '0.06em', textTransform: 'uppercase', padding: '12px 22px', borderRadius: 100 }}>Email Support</a>
             </div>
           </div>
         </section>
