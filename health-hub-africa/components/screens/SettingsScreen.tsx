@@ -545,17 +545,20 @@ export function SettingsScreen() {
             label="Language"
             value={s.language}
             onChange={e => {
+              // Only English is live today; the others stay visible but
+              // disabled below so patients know translations are on the way.
+              if (e.target.value !== 'en') return
               s.set({ language: e.target.value })
               persistPatientSettings({ preferredLanguage: e.target.value })
             }}
           >
             <option value="en">English</option>
-            <option value="fr">Français</option>
-            <option value="yo">Yorùbá</option>
-            <option value="ha">Hausa</option>
-            <option value="ig">Igbo</option>
-            <option value="sw">Kiswahili</option>
-            <option value="tw">Twi</option>
+            <option value="fr" disabled>Français — Coming soon</option>
+            <option value="yo" disabled>Yorùbá — Coming soon</option>
+            <option value="ha" disabled>Hausa — Coming soon</option>
+            <option value="ig" disabled>Igbo — Coming soon</option>
+            <option value="sw" disabled>Kiswahili — Coming soon</option>
+            <option value="tw" disabled>Twi — Coming soon</option>
           </FormSelect>
 
           <FormSelect
