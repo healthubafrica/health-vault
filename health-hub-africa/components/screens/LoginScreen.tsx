@@ -604,6 +604,12 @@ export function LoginScreen() {
               </p>
             </>
           )}
+
+          <div className="mt-8 text-center">
+            <span className="text-[10px] text-white/40 uppercase tracking-widest font-medium">
+              Powered by Health-hub Africa
+            </span>
+          </div>
         </div>
       </div>
     </div>
