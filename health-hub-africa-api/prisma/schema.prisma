@@ -523,6 +523,7 @@ model Appointment {
   providerNotes    String?           @map("provider_notes")
   cancelledBy      String?           @map("cancelled_by") @db.Uuid
   cancellationNote String?           @map("cancellation_note")
+  openemrAppointmentId String?       @map("openemr_appointment_id")
   createdAt        DateTime          @default(now()) @map("created_at")
   updatedAt        DateTime          @updatedAt @map("updated_at")
 

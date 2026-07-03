@@ -537,6 +537,123 @@ export class OpenemrProcessor {
     );
   }
 
+  // ── OpenEMR calendar (pc events) ─────────────────────────────────────────
+  //
+  // Unlike the FHIR Encounter above (a clinical record), calendar events are
+  // what providers actually see on the OpenEMR schedule screen. They are only
+  // writable through the legacy REST API (/api/...), which needs the
+  // api:oemr scope. If that scope is not granted, this job fails into
+  // /admin/system/errors and can be replayed after the OpenEMR admin enables
+  // "Enable OpenEMR Standard REST API" and re-runs the OAuth flow.
+
+  @Process({ name: 'sync-appointment-calendar' })
+  async handleSyncAppointmentCalendar(job: Job<SyncJobData>) {
+    const { patientId, payload } = job.data;
+    const appointmentId = payload!.appointmentId as string;
+    const action = (payload!.action as 'upsert' | 'cancel') ?? 'upsert';
+
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: {
+        patient: { select: { openemrPatientUuid: true } },
+        provider: { select: { openemrProviderUuid: true } },
+      },
+    });
+
+    if (!appointment?.patient.openemrPatientUuid) {
+      this.logger.warn(
+        `Skipping calendar sync for appointment ${appointmentId} — patient not yet synced to OpenEMR`,
+      );
+      return;
+    }
+
+    const token = await this.openemrService.getAccessToken();
+    const puuid = appointment.patient.openemrPatientUuid;
+
+    // Any existing event is removed first — covers both cancellation and the
+    // delete-and-recreate reschedule path (the REST API has no event update).
+    if (appointment.openemrAppointmentId) {
+      try {
+        await this.openemrService['callOpenemr'](
+          token,
+          'DELETE',
+          `/api/patient/${puuid}/appointment/${appointment.openemrAppointmentId}`,
+          undefined,
+          patientId,
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Could not delete OpenEMR calendar event ${appointment.openemrAppointmentId}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+      await this.prisma.appointment.update({
+        where: { id: appointmentId },
+        data: { openemrAppointmentId: null },
+      });
+    }
+
+    if (action === 'cancel') {
+      this.logger.log(`Calendar event removed for cancelled appointment ${appointmentId}`);
+      return;
+    }
+
+    // OpenEMR's calendar wants the provider's *numeric* user id (pc_aid), not
+    // the FHIR uuid we store. The REST practitioner list carries both.
+    let pcAid: string | undefined;
+    if (appointment.provider?.openemrProviderUuid) {
+      try {
+        const res = await this.openemrService['callOpenemr'](
+          token, 'GET', '/api/practitioner', undefined, patientId,
+        );
+        const list = (res.data as Array<Record<string, unknown>> | undefined) ?? [];
+        const match = list.find((p) => p.uuid === appointment.provider!.openemrProviderUuid);
+        if (match?.id != null) pcAid = String(match.id);
+      } catch (err) {
+        this.logger.warn(
+          `Could not resolve OpenEMR numeric provider id: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
+
+    // Calendar events are written in the clinic's local time (WAT).
+    const lagos = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Africa/Lagos',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(appointment.scheduledAt);
+    const part = (type: string) => lagos.find((p) => p.type === type)?.value ?? '00';
+    const eventDate = `${part('year')}-${part('month')}-${part('day')}`;
+    const startTime = `${part('hour')}:${part('minute')}`;
+
+    const body: Record<string, unknown> = {
+      pc_catid: '5', // OpenEMR default "Office Visit" category
+      pc_title: `${appointment.serviceType} — ${appointment.hhaRef}`,
+      pc_duration: String((appointment.durationMinutes ?? 30) * 60),
+      pc_hometext: appointment.reason ?? 'Booked via Health Hub Africa',
+      pc_apptstatus: '-',
+      pc_eventDate: eventDate,
+      pc_startTime: startTime,
+      ...(pcAid && { pc_aid: pcAid }),
+    };
+
+    const created = await this.openemrService['callOpenemr'](
+      token, 'POST', `/api/patient/${puuid}/appointment`, body, patientId,
+    );
+    const data = (created.data ?? created) as Record<string, unknown>;
+    const eid = data.pc_eid ?? data.id ?? data.eid;
+
+    if (eid != null) {
+      await this.prisma.appointment.update({
+        where: { id: appointmentId },
+        data: { openemrAppointmentId: String(eid) },
+      });
+    }
+
+    this.logger.log(
+      `OpenEMR calendar event ${eid ?? '(id unknown)'} created for appointment ${appointmentId}`,
+    );
+  }
+
   // Maps HHA's AppointmentStatus enum to FHIR's Encounter.status. FHIR's
   // accepted values: planned | arrived | triaged | in-progress | onleave |
   // finished | cancelled | entered-in-error | unknown.
