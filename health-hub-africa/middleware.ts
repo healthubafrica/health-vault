@@ -8,6 +8,7 @@ const PUBLIC_PATHS = [
   '/login',
   '/onboarding',
   '/payments/verify',
+  '/share',
   '/_next',
   '/favicon.ico',
   '/logo-white.png',

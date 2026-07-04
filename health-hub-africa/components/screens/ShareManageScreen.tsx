@@ -16,8 +16,6 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
-  Copy,
-  Check,
   Clock,
   Users,
   Lock,
@@ -55,15 +53,6 @@ const ACCESS_MODE_META: Record<ShareAccessMode, { icon: React.ReactNode; label: 
 }
 
 function ShareCard({ share, onRevoke, onAudit }: { share: RecordShare; onRevoke: () => void; onAudit: () => void }) {
-  const [copied, setCopied] = useState(false)
-  const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/share/${share.id}`
-
-  async function copyLink() {
-    await navigator.clipboard.writeText(shareUrl)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
   const modeMeta = ACCESS_MODE_META[share.accessMode]
   const isExpired = share.expiresAt ? new Date(share.expiresAt) < new Date() : false
 
@@ -129,14 +118,6 @@ function ShareCard({ share, onRevoke, onAudit }: { share: RecordShare; onRevoke:
 
       {!share.isRevoked && !isExpired && (
         <div className="flex gap-2 flex-wrap">
-          <button
-            onClick={copyLink}
-            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl transition-all"
-            style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text)', cursor: 'pointer' }}
-          >
-            {copied ? <Check size={12} style={{ color: 'var(--color-success)' }} /> : <Copy size={12} />}
-            {copied ? 'Copied!' : 'Copy link'}
-          </button>
           <button
             onClick={onAudit}
             className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl transition-all"
