@@ -9,6 +9,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { S3Service } from '../storage/s3.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { CreateShareDto } from './dto/create-share.dto';
 import { createRedisClient } from '../common/redis/redis.factory';
@@ -25,6 +26,7 @@ export class SharesService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly config: ConfigService,
+    private readonly s3Service: S3Service,
   ) {
     this.redis = createRedisClient(config);
   }
@@ -58,17 +60,11 @@ export class SharesService {
     });
     if (!patient) throw new NotFoundException('Patient profile not found');
 
-    if (dto.accessMode === 'email_list' && (!dto.allowedEmails?.length)) {
-      throw new BadRequestException('allowedEmails is required for email_list mode');
-    }
-    if (dto.accessMode === 'password' && !dto.password) {
-      throw new BadRequestException('password is required for password mode');
+    if (!dto.allowedEmails?.length) {
+      throw new BadRequestException('allowedEmails is required');
     }
 
     const { raw, hash } = this.generateToken();
-    const passwordHash = dto.password
-      ? await bcrypt.hash(dto.password, 10)
-      : null;
 
     const share = await this.prisma.recordShare.create({
       data: {
@@ -76,8 +72,7 @@ export class SharesService {
         tokenHash: hash,
         label: dto.label,
         accessMode: dto.accessMode as any,
-        allowedEmails: dto.allowedEmails ?? [],
-        passwordHash,
+        allowedEmails: dto.allowedEmails,
         recordTypes: dto.recordTypes ?? [],
         expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
         detectForwarding: dto.detectForwarding ?? false,
@@ -91,11 +86,10 @@ export class SharesService {
 
   // ── Automatic link delivery ────────────────────────────────────────────────
 
-  // Sends the secure link to the intended recipients right after creation.
-  // email_list shares notify every allowed email by default; all modes also
-  // honour explicit recipientEmails / recipientPhones. Delivery failures are
-  // logged but never fail share creation — the patient still gets the link
-  // in the UI and can copy it manually.
+  // Sends the secure link to every allowed email (each must verify a
+  // one-time code before viewing records) plus any recipientPhones via SMS.
+  // Delivery failures are logged but never fail share creation — the
+  // patient still gets the link in the UI and can copy it manually.
   private async deliverShareLink(
     share: { id: string; accessMode: string; expiresAt: Date | null; label: string | null; recordTypes: string[] },
     rawToken: string,
@@ -105,12 +99,7 @@ export class SharesService {
   ): Promise<{ emails: number; phones: number }> {
     if (dto.notifyRecipients === false) return { emails: 0, phones: 0 };
 
-    const emailSet = new Set<string>(
-      (dto.recipientEmails ?? []).map(e => e.toLowerCase().trim()),
-    );
-    if (dto.accessMode === 'email_list') {
-      for (const e of dto.allowedEmails ?? []) emailSet.add(e.toLowerCase().trim());
-    }
+    const emailSet = new Set<string>(dto.allowedEmails.map(e => e.toLowerCase().trim()));
     const phones = [...new Set((dto.recipientPhones ?? []).map(p => p.trim()))];
 
     if (emailSet.size === 0 && phones.length === 0) return { emails: 0, phones: 0 };
@@ -126,19 +115,14 @@ export class SharesService {
         })} (WAT). After that, the records will no longer be accessible.`
       : 'This link does not expire, but the sender can revoke it at any time.';
 
-    const modeInstructions: Record<string, string> = {
-      public: 'Open the link in your browser — no sign-in is required.',
-      email_list:
-        'Open the link and enter this email address. We will send you a one-time verification code to confirm it is really you.',
-      password:
-        'Open the link and enter the access password. The sender will give you the password separately — for security, it is not included in this message.',
-    };
+    const howToAccess =
+      'Open the link and enter this email address. We will send you a one-time verification code to confirm it is really you.';
 
     const emailBody =
       `Hello,\n\n` +
       `${senderName} has securely shared health records with you through Health Hub Africa.\n\n` +
       `View the records here:\n${shareUrl}\n\n` +
-      `How to access:\n${modeInstructions[share.accessMode] ?? modeInstructions.public}\n\n` +
+      `How to access:\n${howToAccess}\n\n` +
       `${expiryLong}\n\n` +
       `For your security:\n` +
       `- This link is intended only for you — please do not forward it.\n` +
@@ -570,12 +554,28 @@ export class SharesService {
       select: { firstName: true, lastName: true },
     });
 
+    // fileUrl is a private S3 object key, not a browsable URL — records are
+    // only downloadable by the viewer once signed into a short-lived GET URL.
+    const signedRecords = await Promise.all(
+      records.map(async record => {
+        if (!record.fileUrl || !record.isDownloadable) {
+          return { ...record, fileUrl: null };
+        }
+        try {
+          return { ...record, fileUrl: await this.s3Service.presignGet(record.fileUrl) };
+        } catch (err) {
+          this.logger.error(`Failed to presign share file ${record.fileUrl}: ${err instanceof Error ? err.message : err}`);
+          return { ...record, fileUrl: null };
+        }
+      }),
+    );
+
     return {
       shareId: share.id,
       patientName: `${patient?.firstName ?? ''} ${patient?.lastName ?? ''}`.trim(),
       recordTypes: share.recordTypes,
       expiresAt: share.expiresAt,
-      records,
+      records: signedRecords,
     };
   }
 }

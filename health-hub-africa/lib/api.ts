@@ -884,14 +884,12 @@ export interface RecordShare {
 
 export interface CreateShareParams {
   label?: string
-  accessMode: ShareAccessMode
-  allowedEmails?: string[]
-  password?: string
+  accessMode: 'email_list'
+  allowedEmails: string[]
   recordTypes?: string[]
   expiresAt?: string
   detectForwarding?: boolean
   notifyRecipients?: boolean
-  recipientEmails?: string[]
   recipientPhones?: string[]
 }
 
