@@ -1,5 +1,6 @@
 import {
   ArrayMaxSize,
+  ArrayNotEmpty,
   IsArray,
   IsBoolean,
   IsDateString,
@@ -18,18 +19,17 @@ export class CreateShareDto {
   @MaxLength(80)
   label?: string;
 
-  @IsEnum(['public', 'email_list', 'password'])
-  accessMode: 'public' | 'email_list' | 'password';
+  // New shares must always verify the recipient's email with a one-time
+  // code — 'public' (no verification) and 'password' (static shared
+  // secret) are no longer offered. Existing shares created before this
+  // change keep working via their original access mode.
+  @IsEnum(['email_list'])
+  accessMode: 'email_list';
 
-  @IsOptional()
+  @ArrayNotEmpty()
   @IsArray()
   @IsEmail({}, { each: true })
-  allowedEmails?: string[];
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(72)
-  password?: string;
+  allowedEmails: string[];
 
   @IsOptional()
   @IsArray()
@@ -47,18 +47,11 @@ export class CreateShareDto {
   @IsBoolean()
   detectForwarding?: boolean;
 
-  // When true (default), the secure link is delivered automatically:
-  // email_list shares notify every allowed email; other modes notify the
-  // explicit recipientEmails / recipientPhones below.
+  // When true (default), the secure link is delivered automatically to
+  // every allowed email, plus any recipientPhones below via SMS.
   @IsOptional()
   @IsBoolean()
   notifyRecipients?: boolean;
-
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(10)
-  @IsEmail({}, { each: true })
-  recipientEmails?: string[];
 
   @IsOptional()
   @IsArray()

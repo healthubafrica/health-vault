@@ -141,16 +141,13 @@ function ShareCard({ share, onRevoke, onAudit }: { share: RecordShare; onRevoke:
 }
 
 function CreateShareWizard({ onDone }: { onDone: () => void }) {
-  const [step, setStep] = useState<'mode' | 'details' | 'confirm'>('mode')
-  const [accessMode, setAccessMode] = useState<ShareAccessMode>('public')
+  const [step, setStep] = useState<'details' | 'confirm'>('details')
   const [label, setLabel] = useState('')
   const [allowedEmails, setAllowedEmails] = useState('')
-  const [password, setPassword] = useState('')
   const [selectedTypes, setSelectedTypes] = useState<string[]>([])
   const [expiry, setExpiry] = useState('')
   const [detectForwarding, setDetectForwarding] = useState(false)
   const [notifyRecipients, setNotifyRecipients] = useState(true)
-  const [recipientEmails, setRecipientEmails] = useState('')
   const [recipientPhones, setRecipientPhones] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [createdToken, setCreatedToken] = useState<string | null>(null)
@@ -161,28 +158,29 @@ function CreateShareWizard({ onDone }: { onDone: () => void }) {
     setSelectedTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
   }
 
+  function goToConfirm() {
+    if (!allowedEmails.split(',').map(e => e.trim()).filter(Boolean).length) {
+      toast.error('Enter at least one email address')
+      return
+    }
+    setStep('confirm')
+  }
+
   async function handleSubmit() {
+    const emails = allowedEmails.split(',').map(e => e.trim()).filter(Boolean)
+    if (!emails.length) { toast.error('Enter at least one email address'); return }
+
     const params: CreateShareParams = {
       label: label.trim() || undefined,
-      accessMode,
+      accessMode: 'email_list',
+      allowedEmails: emails,
       recordTypes: selectedTypes.length > 0 ? selectedTypes : undefined,
       expiresAt: expiry || undefined,
       detectForwarding,
+      notifyRecipients,
     }
-    if (accessMode === 'email_list') {
-      params.allowedEmails = allowedEmails.split(',').map(e => e.trim()).filter(Boolean)
-      if (!params.allowedEmails.length) { toast.error('Enter at least one email address'); return }
-    }
-    if (accessMode === 'password') {
-      params.password = password.trim()
-      if (!params.password) { toast.error('Enter a password'); return }
-    }
-
-    params.notifyRecipients = notifyRecipients
     if (notifyRecipients) {
-      const emails = recipientEmails.split(',').map(e => e.trim()).filter(Boolean)
       const phones = recipientPhones.split(',').map(p => p.trim()).filter(Boolean)
-      if (emails.length) params.recipientEmails = emails
       if (phones.length) params.recipientPhones = phones
     }
 
@@ -249,39 +247,21 @@ function CreateShareWizard({ onDone }: { onDone: () => void }) {
   return (
     <div className="flex flex-col gap-4 p-4 rounded-2xl border" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface)' }}>
       <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>
-        {step === 'mode' ? 'Who can access?' : step === 'details' ? 'Access details' : 'Confirm & create'}
+        {step === 'details' ? 'Access details' : 'Confirm & create'}
       </p>
-
-      {step === 'mode' && (
-        <div className="flex flex-col gap-2">
-          {(Object.entries(ACCESS_MODE_META) as [ShareAccessMode, typeof ACCESS_MODE_META[ShareAccessMode]][]).map(([mode, meta]) => (
-            <button
-              key={mode}
-              onClick={() => setAccessMode(mode)}
-              className="flex items-start gap-3 p-3 rounded-xl text-left transition-all"
-              style={{
-                background: accessMode === mode ? 'var(--color-primary-bg)' : 'var(--color-bg)',
-                border: `1px solid ${accessMode === mode ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                cursor: 'pointer',
-              }}
-            >
-              <span style={{ color: accessMode === mode ? 'var(--color-primary)' : 'var(--color-text-muted)', marginTop: 2 }}>
-                {meta.icon}
-              </span>
-              <div>
-                <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{meta.label}</p>
-                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{meta.desc}</p>
-              </div>
-            </button>
-          ))}
-          <Button variant="primary" size="sm" onClick={() => setStep('details')} className="mt-1">
-            Next
-          </Button>
-        </div>
-      )}
 
       {step === 'details' && (
         <div className="flex flex-col gap-3">
+          <div
+            className="flex items-start gap-2 p-3 rounded-xl"
+            style={{ background: 'var(--color-primary-bg)', border: '1px solid var(--color-primary)' }}
+          >
+            <Users size={14} style={{ color: 'var(--color-primary)', flexShrink: 0, marginTop: 2 }} />
+            <p className="text-xs" style={{ color: 'var(--color-text)' }}>
+              Recipients must verify their email with a one-time code before they can view any records.
+            </p>
+          </div>
+
           <div>
             <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--color-text-muted)' }}>
               Label (optional)
@@ -296,38 +276,20 @@ function CreateShareWizard({ onDone }: { onDone: () => void }) {
             />
           </div>
 
-          {accessMode === 'email_list' && (
-            <div>
-              <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--color-text-muted)' }}>
-                Allowed emails <span style={{ color: 'var(--color-error)' }}>*</span>
-              </label>
-              <textarea
-                value={allowedEmails}
-                onChange={e => setAllowedEmails(e.target.value)}
-                placeholder="email1@example.com, email2@example.com"
-                rows={3}
-                className="w-full rounded-xl px-3 py-2 text-sm resize-none"
-                style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
-              />
-              <p className="text-[11px] mt-1" style={{ color: 'var(--color-text-muted)' }}>Separate multiple emails with commas</p>
-            </div>
-          )}
-
-          {accessMode === 'password' && (
-            <div>
-              <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--color-text-muted)' }}>
-                Password <span style={{ color: 'var(--color-error)' }}>*</span>
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="Enter a password for this link"
-                className="w-full rounded-xl px-3 py-2 text-sm"
-                style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
-              />
-            </div>
-          )}
+          <div>
+            <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--color-text-muted)' }}>
+              Allowed emails <span style={{ color: 'var(--color-error)' }}>*</span>
+            </label>
+            <textarea
+              value={allowedEmails}
+              onChange={e => setAllowedEmails(e.target.value)}
+              placeholder="doctor@clinic.com, family@example.com"
+              rows={3}
+              className="w-full rounded-xl px-3 py-2 text-sm resize-none"
+              style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
+            />
+            <p className="text-[11px] mt-1" style={{ color: 'var(--color-text-muted)' }}>Separate multiple emails with commas</p>
+          </div>
 
           <div>
             <label className="text-xs font-semibold block mb-1.5" style={{ color: 'var(--color-text-muted)' }}>
@@ -392,29 +354,13 @@ function CreateShareWizard({ onDone }: { onDone: () => void }) {
               <div>
                 <p className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>Send the link to recipients automatically</p>
                 <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
-                  {accessMode === 'email_list'
-                    ? 'Each allowed email above receives the secure link with access instructions and expiry details.'
-                    : 'Recipients receive the secure link with access instructions and expiry details.'}
+                  Each allowed email above receives the secure link with access instructions and expiry details.
                 </p>
               </div>
             </label>
 
             {notifyRecipients && (
               <>
-                {accessMode !== 'email_list' && (
-                  <div>
-                    <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--color-text-muted)' }}>
-                      Recipient emails (optional)
-                    </label>
-                    <input
-                      value={recipientEmails}
-                      onChange={e => setRecipientEmails(e.target.value)}
-                      placeholder="doctor@clinic.com, family@example.com"
-                      className="w-full rounded-xl px-3 py-2 text-sm"
-                      style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
-                    />
-                  </div>
-                )}
                 <div>
                   <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--color-text-muted)' }}>
                     Recipient phone numbers for SMS (optional)
@@ -435,8 +381,7 @@ function CreateShareWizard({ onDone }: { onDone: () => void }) {
           </div>
 
           <div className="flex gap-2 mt-1">
-            <Button variant="secondary" size="sm" onClick={() => setStep('mode')}>Back</Button>
-            <Button variant="primary" size="sm" onClick={() => setStep('confirm')}>Review</Button>
+            <Button variant="primary" size="sm" onClick={goToConfirm}>Review</Button>
           </div>
         </div>
       )}
@@ -444,9 +389,9 @@ function CreateShareWizard({ onDone }: { onDone: () => void }) {
       {step === 'confirm' && (
         <div className="flex flex-col gap-3">
           <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
-            <Row label="Access mode" value={ACCESS_MODE_META[accessMode].label} />
+            <Row label="Access mode" value="Specific emails only (OTP verification)" />
             {label && <Row label="Label" value={label} />}
-            {accessMode === 'email_list' && <Row label="Allowed emails" value={allowedEmails} />}
+            <Row label="Allowed emails" value={allowedEmails} />
             <Row label="Record types" value={selectedTypes.length ? selectedTypes.map(t => RECORD_TYPE_LABELS[t]).join(', ') : 'All'} />
             {expiry && <Row label="Expires" value={new Date(expiry).toLocaleString()} />}
             <Row label="Forwarding detection" value={detectForwarding ? 'Enabled' : 'Disabled'} />
@@ -455,11 +400,7 @@ function CreateShareWizard({ onDone }: { onDone: () => void }) {
               value={
                 !notifyRecipients
                   ? 'Off — share the link yourself'
-                  : [
-                      accessMode === 'email_list' ? 'allowed emails' : null,
-                      recipientEmails.trim() ? 'email' : null,
-                      recipientPhones.trim() ? 'SMS' : null,
-                    ].filter(Boolean).join(' + ') || 'No recipients entered'
+                  : ['allowed emails', recipientPhones.trim() ? 'SMS' : null].filter(Boolean).join(' + ')
               }
             />
           </div>
