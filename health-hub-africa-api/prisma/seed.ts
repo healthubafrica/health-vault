@@ -1,5 +1,6 @@
 import { PrismaClient, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { SCHEDULING_POLICY_ID, DEFAULT_SCHEDULING_POLICY } from '../src/scheduling-policy/scheduling-policy.constants';
 
 const prisma = new PrismaClient();
 
@@ -251,6 +252,14 @@ async function main() {
     });
   }
   console.log(`✓ ${stridePhases.length} STRIDE phases seeded`);
+
+  // ── Scheduling policy ─────────────────────────────────────────────────────
+  await prisma.schedulingPolicy.upsert({
+    where: { id: SCHEDULING_POLICY_ID },
+    update: {},
+    create: { id: SCHEDULING_POLICY_ID, ...DEFAULT_SCHEDULING_POLICY },
+  });
+  console.log('✓ Scheduling policy seeded');
 
   // ── Admin users (development only) ───────────────────────────────────────
   if (process.env.NODE_ENV !== 'production') {
