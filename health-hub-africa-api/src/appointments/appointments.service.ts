@@ -14,6 +14,7 @@ import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { QueryAppointmentsDto } from './dto/query-appointments.dto';
+import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
 import { OpenemrService } from '../openemr/openemr.service';
 import { NotificationsService, AppointmentNotificationData } from '../notifications/notifications.service';
 import { getSchedulingPolicy } from '../scheduling-policy/scheduling-policy.constants';
@@ -44,6 +45,15 @@ const ALLOWED_TRANSITIONS: Record<AppointmentStatus, AppointmentStatus[]> = {
   [AppointmentStatus.cancelled]: [],
   [AppointmentStatus.no_show]: [],
 };
+
+// Statuses an appointment can be rescheduled from. update()'s FSM guard only
+// fires when dto.status is present, so a bare scheduledAt change skips FSM
+// validation entirely — reschedule() enforces its own allowed-status set.
+const RESCHEDULABLE_STATUSES: AppointmentStatus[] = [
+  AppointmentStatus.requested,
+  AppointmentStatus.confirmed,
+  AppointmentStatus.upcoming,
+];
 
 // Map appointment type + optional explicit service type to schema fields.
 // The explicit serviceType from the DTO takes precedence when provided;
@@ -203,7 +213,12 @@ export class AppointmentsService {
 
   // ── Update / FSM transition ───────────────────────────────────────────────
 
-  async update(id: string, dto: UpdateAppointmentDto, currentUser: JwtPayload) {
+  async update(
+    id: string,
+    dto: UpdateAppointmentDto,
+    currentUser: JwtPayload,
+    opts?: { notifyStaff?: boolean },
+  ) {
     const appt = await this.prisma.appointment.findUnique({
       where: { id },
       select: {
@@ -322,6 +337,15 @@ export class AppointmentsService {
                 ? 'rescheduled'
                 : null;
 
+    // Bookkeeping set here (rather than in cancel()/reschedule()) so it's
+    // correct regardless of entry point — self-service or a plain admin PATCH.
+    if (emailEvent === 'cancelled') {
+      data.cancelledAt = new Date();
+    } else if (emailEvent === 'rescheduled') {
+      data.previousScheduledAt = appt.scheduledAt;
+      data.rescheduleCount = { increment: 1 };
+    }
+
     let updatedAppointment;
     if (shouldSpawnTelecareSession) {
       const hhaRef = await this.generateTelecareRef();
@@ -351,7 +375,7 @@ export class AppointmentsService {
       });
     }
 
-    if (emailEvent) void this.notifyAppointmentEvent(id, emailEvent);
+    if (emailEvent) void this.notifyAppointmentEvent(id, emailEvent, opts?.notifyStaff);
 
     // Schedule 24h + 1h reminder jobs when confirmed; cancel them when the
     // appointment reaches a terminal state. Reschedule cancels any existing
@@ -401,10 +425,84 @@ export class AppointmentsService {
   // ── Cancel ────────────────────────────────────────────────────────────────
 
   async cancel(id: string, reason: string, currentUser: JwtPayload) {
+    const appt = await this.prisma.appointment.findUnique({
+      where: { id },
+      select: {
+        status: true,
+        scheduledAt: true,
+        providerId: true,
+        patient: { select: { userId: true } },
+      },
+    });
+    if (!appt) throw new NotFoundException('Appointment not found');
+    this.assertAccess(appt, currentUser);
+
+    const isSelfService = currentUser.role === UserRole.patient;
+    if (isSelfService) {
+      const policy = await getSchedulingPolicy(this.prisma);
+      if (!policy.selfServiceEnabled) {
+        throw new ForbiddenException('Self-service cancellation is currently disabled.');
+      }
+      const hoursUntil = (appt.scheduledAt.getTime() - Date.now()) / 3_600_000;
+      if (hoursUntil < policy.cancellationWindowHours) {
+        throw new BadRequestException(
+          `Appointments can only be cancelled at least ${policy.cancellationWindowHours}h in advance.`,
+        );
+      }
+    }
+
     return this.update(
       id,
       { status: AppointmentStatus.cancelled, cancellationReason: reason },
       currentUser,
+      { notifyStaff: isSelfService },
+    );
+  }
+
+  // ── Reschedule ────────────────────────────────────────────────────────────
+
+  async reschedule(id: string, dto: RescheduleAppointmentDto, currentUser: JwtPayload) {
+    const appt = await this.prisma.appointment.findUnique({
+      where: { id },
+      select: {
+        status: true,
+        scheduledAt: true,
+        providerId: true,
+        durationMinutes: true,
+        patient: { select: { userId: true } },
+      },
+    });
+    if (!appt) throw new NotFoundException('Appointment not found');
+    this.assertAccess(appt, currentUser);
+
+    if (!RESCHEDULABLE_STATUSES.includes(appt.status)) {
+      throw new BadRequestException(`Cannot reschedule an appointment with status ${appt.status}`);
+    }
+
+    const isSelfService = currentUser.role === UserRole.patient;
+    if (isSelfService) {
+      const policy = await getSchedulingPolicy(this.prisma);
+      if (!policy.selfServiceEnabled) {
+        throw new ForbiddenException('Self-service rescheduling is currently disabled.');
+      }
+      const hoursUntil = (appt.scheduledAt.getTime() - Date.now()) / 3_600_000;
+      if (hoursUntil < policy.rescheduleWindowHours) {
+        throw new BadRequestException(
+          `Appointments can only be rescheduled at least ${policy.rescheduleWindowHours}h in advance.`,
+        );
+      }
+    }
+
+    const durationMinutes = dto.durationMinutes ?? appt.durationMinutes;
+    if (appt.providerId) {
+      await this.assertSlotAvailable(appt.providerId, new Date(dto.scheduledAt), durationMinutes, id);
+    }
+
+    return this.update(
+      id,
+      { scheduledAt: dto.scheduledAt, durationMinutes: dto.durationMinutes, notes: dto.reason },
+      currentUser,
+      { notifyStaff: isSelfService },
     );
   }
 
@@ -667,7 +765,11 @@ export class AppointmentsService {
 
   // ── Lifecycle notifications ────────────────────────────────────────────────
 
-  private async notifyAppointmentEvent(appointmentId: string, event: AppointmentEmailEvent) {
+  private async notifyAppointmentEvent(
+    appointmentId: string,
+    event: AppointmentEmailEvent,
+    notifyStaff = false,
+  ) {
     try {
       const appt = await this.prisma.appointment.findUnique({
         where: { id: appointmentId },
@@ -815,6 +917,42 @@ export class AppointmentsService {
           appt.provider.user.id,
           providerData,
         );
+      }
+
+      // Staff fan-out: only fires when a patient self-service action
+      // triggered this event (opts.notifyStaff), not on admin-initiated
+      // mutations through the same update() path. Email only, no SMS.
+      if (notifyStaff && (event === 'cancelled' || event === 'rescheduled')) {
+        const staffUsers = await this.prisma.user.findMany({
+          where: {
+            role: { in: [UserRole.admin, UserRole.coordinator] },
+            isActive: true,
+            deletedAt: null,
+          },
+          select: { id: true, email: true },
+        });
+        const staffIntro =
+          event === 'cancelled'
+            ? 'A patient cancelled their own appointment via self-service.'
+            : 'A patient rescheduled their own appointment via self-service.';
+        const staffSubject =
+          event === 'cancelled'
+            ? `Patient self-service: appointment cancelled — ${appt.hhaRef}`
+            : `Patient self-service: appointment rescheduled — ${appt.hhaRef}`;
+        for (const staffUser of staffUsers) {
+          const staffData: AppointmentNotificationData = {
+            ...baseData,
+            recipientName: 'Team',
+            intro: staffIntro,
+            outro: 'View the full appointment in the admin operations dashboard.',
+          };
+          await this.notifications.sendAppointmentEmail(
+            staffUser.email,
+            staffSubject,
+            staffUser.id,
+            staffData,
+          );
+        }
       }
     } catch (err) {
       this.logger.error(
