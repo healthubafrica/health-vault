@@ -18,8 +18,13 @@ import {
   type ServiceProvider,
 } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
+import { useSchedulingPolicy } from '@/lib/hooks/useSchedulingPolicy'
 import { AppointmentsSkeleton } from '@/components/skeletons/AppointmentsSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { CancelAppointmentModal } from '@/components/appointments/CancelAppointmentModal'
+import { RescheduleAppointmentModal } from '@/components/appointments/RescheduleAppointmentModal'
+
+const RESCHEDULABLE_STATUSES = new Set(['requested', 'confirmed', 'upcoming'])
 
 const TABS = ['All', 'Upcoming', 'Completed', 'Cancelled']
 
@@ -111,8 +116,10 @@ export function AppointmentsScreen() {
     if (pid) setSelectedProviderId(pid)
   }, [searchParams])
 
-  // Cancellation in-progress tracker
-  const [cancellingId, setCancellingId] = useState<string | null>(null)
+  // Cancel/reschedule modal targets
+  const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null)
+  const [rescheduleTarget, setRescheduleTarget] = useState<Appointment | null>(null)
+  const { policy: schedulingPolicy } = useSchedulingPolicy()
 
   // Build list params — pass upcoming:true for the Upcoming tab
   const listParams = tab === 'Upcoming' ? { upcoming: true } : undefined
@@ -131,18 +138,8 @@ export function AppointmentsScreen() {
     ? allAppointments
     : allAppointments.filter(a => a.status === tab.toLowerCase())
 
-  async function handleCancel(appointment: Appointment) {
-    setCancellingId(appointment.id)
-    try {
-      await apptApi.cancel(appointment.id, 'Patient requested cancellation')
-      toast.success('Appointment cancelled')
-      refetch()
-    } catch (e: unknown) {
-      const message = e instanceof ApiError ? e.message : 'Failed to cancel appointment'
-      toast.error(message)
-    } finally {
-      setCancellingId(null)
-    }
+  function hoursUntil(appt: Appointment): number {
+    return (new Date(appt.scheduledAt).getTime() - Date.now()) / 3_600_000
   }
 
   async function handleBook() {
@@ -208,6 +205,11 @@ export function AppointmentsScreen() {
                 : 'Provider TBD'
               const { date, time } = formatScheduledAt(appt.scheduledAt)
               const appointmentType = appt.isTelecare ? 'TeleCare' : 'In-person'
+              const canManage = RESCHEDULABLE_STATUSES.has(appt.status)
+              const hrsUntil = hoursUntil(appt)
+              const selfServiceOff = !schedulingPolicy.selfServiceEnabled
+              const cancelBlocked = selfServiceOff || hrsUntil < schedulingPolicy.cancellationWindowHours
+              const rescheduleBlocked = selfServiceOff || hrsUntil < schedulingPolicy.rescheduleWindowHours
 
               return (
                 <div key={appt.id} className="flex items-center gap-3 p-4">
@@ -233,16 +235,33 @@ export function AppointmentsScreen() {
                         {appt.reason}
                       </p>
                     )}
+                    {canManage && (cancelBlocked || rescheduleBlocked) && (
+                      <p className="text-xs mt-1" style={{ color: 'var(--color-emergency)' }}>
+                        {selfServiceOff
+                          ? 'Self-service scheduling is currently disabled — contact support to make changes.'
+                          : `Too close to the appointment time to ${cancelBlocked && rescheduleBlocked ? 'cancel or reschedule' : cancelBlocked ? 'cancel' : 'reschedule'} online.`}
+                      </p>
+                    )}
                   </div>
-                  {appt.status === 'upcoming' && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      disabled={cancellingId === appt.id}
-                      onClick={() => handleCancel(appt)}
-                    >
-                      {cancellingId === appt.id ? 'Cancelling…' : 'Cancel'}
-                    </Button>
+                  {canManage && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={rescheduleBlocked}
+                        onClick={() => setRescheduleTarget(appt)}
+                      >
+                        Reschedule
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={cancelBlocked}
+                        onClick={() => setCancelTarget(appt)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
                   )}
                 </div>
               )
@@ -250,6 +269,17 @@ export function AppointmentsScreen() {
           </div>
         )}
       </Card>
+
+      <CancelAppointmentModal
+        appointment={cancelTarget}
+        onClose={() => setCancelTarget(null)}
+        onCancelled={() => refetch()}
+      />
+      <RescheduleAppointmentModal
+        appointment={rescheduleTarget}
+        onClose={() => setRescheduleTarget(null)}
+        onRescheduled={() => refetch()}
+      />
 
       {/* Book New */}
       <Card>

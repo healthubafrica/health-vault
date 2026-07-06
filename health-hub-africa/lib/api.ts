@@ -374,6 +374,7 @@ export interface Appointment {
   reason?: string
   isTelecare: boolean
   meetingUrl?: string
+  providerId?: string | null
   provider?: { firstName: string; lastName: string; specialty: string; title: string } | null
 }
 
