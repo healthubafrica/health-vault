@@ -435,11 +435,43 @@ export const appointments = {
     }),
 
   // Cancels via the dedicated cancel endpoint — body takes {reason}, not {cancellationNote}.
+  // Backend returns the appointment unwrapped (not {data: ...}) — unlike
+  // get/create above, which are wrapped. Typed correctly here.
   cancel: (id: string, reason?: string) =>
-    request<{ data: Appointment }>(`/appointments/${id}/cancel`, {
+    request<Appointment>(`/appointments/${id}/cancel`, {
       method: 'POST',
       body: JSON.stringify({ reason: reason ?? '' }),
     }),
+
+  // Real-time available slots for a service type on a given day. Pass
+  // excludeAppointmentId when rescheduling so the appointment's own current
+  // slot isn't excluded from itself by the conflict check.
+  getSlots: (params: {
+    serviceType: string
+    date: string
+    durationMinutes?: number
+    providerId?: string
+    excludeAppointmentId?: string
+  }) => {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) qs.set(key, String(value))
+    })
+    return request<Array<{ providerId: string; providerName: string; slots: string[] }>>(
+      `/appointments/slots?${qs}`,
+    )
+  },
+
+  reschedule: (id: string, data: { scheduledAt: string; durationMinutes?: number; reason?: string }) =>
+    request<Appointment>(`/appointments/${id}/reschedule`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getSchedulingPolicy: () =>
+    request<{ cancellationWindowHours: number; rescheduleWindowHours: number; selfServiceEnabled: boolean }>(
+      '/appointments/scheduling-policy',
+    ),
 }
 
 // ── Clinical Records ──────────────────────────────────────────────────────
