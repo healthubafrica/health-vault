@@ -13,7 +13,7 @@ import Redis from 'ioredis';
 import * as bcrypt from 'bcryptjs';
 import { randomBytes, randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { NotificationsService, NOTIFICATIONS_QUEUE, NotificationJobData } from '../notifications/notifications.service';
+import { NotificationsService, NOTIFICATIONS_QUEUE, NotificationJobData, NotificationChannel } from '../notifications/notifications.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import {
   UpdateUserRoleDto,
@@ -1852,6 +1852,21 @@ export class AdminService {
   async resendNotification(id: string) {
     const delivery = await this.prisma.notificationDelivery.findUnique({ where: { id } });
     if (!delivery) throw new NotFoundException('Notification delivery record not found');
+
+    // Same per-recipient budget as every other send path — without this, a
+    // resend action bypasses NotificationRateLimiterService entirely (it
+    // enqueues directly, not through NotificationsService.send*), so a
+    // recipient could be spammed past the configured per-channel limit
+    // regardless of who is triggering the resend.
+    const allowed = await this.notifications.checkRateLimit(
+      delivery.channel as NotificationChannel,
+      delivery.recipient,
+    );
+    if (!allowed) {
+      throw new BadRequestException(
+        'This recipient has hit the per-channel rate limit — try resending later.',
+      );
+    }
 
     await this.prisma.notificationDelivery.update({
       where: { id },

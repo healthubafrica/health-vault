@@ -60,6 +60,15 @@ export class NotificationsService {
     @InjectQueue(NOTIFICATIONS_QUEUE) private readonly queue: Queue<NotificationJobData>,
   ) {}
 
+  // Exposes the per-recipient rate limiter to callers outside this module
+  // (e.g. AdminService.resendNotification) that enqueue jobs without going
+  // through the send* helpers below — every enqueue path must gate on this,
+  // or a resend/replay action can spam a recipient past the configured
+  // per-channel budget regardless of who triggers it.
+  async checkRateLimit(channel: NotificationChannel, to: string): Promise<boolean> {
+    return this.rateLimiter.allow(channel, to);
+  }
+
   // Creates the durable delivery record the admin panel reads from
   // (/admin/notifications), then hands its id to the queue job so the
   // processor can update the same row through queued → sent/failed as it
