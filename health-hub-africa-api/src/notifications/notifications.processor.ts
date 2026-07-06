@@ -3,7 +3,7 @@ import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Job } from 'bull';
 import { Resend } from 'resend';
-import { NOTIFICATIONS_QUEUE, NotificationJobData, AppointmentNotificationData } from './notifications.service';
+import { NOTIFICATIONS_QUEUE, NotificationJobData, AppointmentNotificationData, ShareNotificationData } from './notifications.service';
 
 @Processor(NOTIFICATIONS_QUEUE)
 export class NotificationsProcessor {
@@ -52,6 +52,17 @@ export class NotificationsProcessor {
     const { error } = await resend.emails.send({ from, to, subject, html, text });
     if (error) throw new Error(`Resend error: ${error.message}`);
     this.logger.log(`Email sent via Resend to ${to}`);
+  }
+
+  @Process({ name: 'send-share-notification-email', concurrency: 5 })
+  async handleShareNotificationEmail(job: Job<NotificationJobData>) {
+    const { to, subject, body, metadata } = job.data;
+    if (!this.isProd) this.logger.log(`[DEV ONLY] Share notification email to ${to}: ${subject}`);
+    const shareData = metadata?.share as ShareNotificationData | undefined;
+    const html = shareData
+      ? buildShareHtml(subject ?? '', shareData)
+      : buildGenericHtml(subject ?? '', body);
+    await this.doSendEmail(to, subject ?? 'MyHealth Vault+™', html, body);
   }
 
   @Process({ name: 'send-sms', concurrency: 5 })
@@ -293,6 +304,92 @@ function buildGenericHtml(subject: string, body: string): string {
   const content = `
     <h1 style="margin:0 0 20px;font-size:22px;font-weight:800;color:#1A1A1A;">${escapeHtml(subject)}</h1>
     ${paragraphs}`;
+
+  return emailShell(content);
+}
+
+function buildShareHtml(_subject: string, d: ShareNotificationData): string {
+  const docList = d.recordTypes.length
+    ? d.recordTypes.map(t => `<li style="margin:4px 0;font-size:13px;color:#1A1A1A;">${escapeHtml(t)}</li>`).join('')
+    : `<li style="margin:4px 0;font-size:13px;color:#1A1A1A;">General health records</li>`;
+
+  const expiryLine = d.expiresAt
+    ? escapeHtml(
+        d.expiresAt.toLocaleString('en-GB', {
+          day: 'numeric', month: 'long', year: 'numeric',
+          hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos',
+        }) + ' (WAT)',
+      )
+    : 'No expiry — sender can revoke at any time';
+
+  const accessInstructions = d.accessMode === 'public'
+    ? 'No verification required — the link is publicly accessible.'
+    : d.accessMode === 'password'
+      ? 'Open the link and enter the password provided by the sender.'
+      : 'Open the link and enter your email address. A one-time code will be sent to you.';
+
+  const labelLine = d.shareLabel
+    ? `<p style="margin:0 0 8px;font-size:12px;font-weight:700;color:#0E4A30;letter-spacing:0.5px;text-transform:uppercase;">
+        ${escapeHtml(d.shareLabel)}
+       </p>`
+    : '';
+
+  const content = `
+    <!-- Header badge -->
+    <div style="display:inline-block;background:#E6F4F0;border-radius:20px;padding:6px 14px;margin-bottom:20px;">
+      <span style="font-size:13px;font-weight:700;color:#0E4A30;">🔒&nbsp;&nbsp;Secure Health Record Share</span>
+    </div>
+
+    <h1 style="margin:0 0 6px;font-size:22px;font-weight:800;color:#1A1A1A;">
+      ${escapeHtml(d.patientName)} shared records with you
+    </h1>
+    <p style="margin:0 0 24px;font-size:15px;color:#3D3D3D;line-height:1.6;">
+      You have been given secure access to health records via MyHealth Vault+™.
+    </p>
+
+    <!-- Record details card -->
+    <div style="background:#F8FAFA;border:1.5px solid #E0EAED;border-radius:12px;padding:20px 24px;margin-bottom:20px;">
+      ${labelLine}
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tbody>
+          <tr>
+            <td style="padding:8px 0;font-size:13px;color:#6B6B6B;width:130px;vertical-align:top;">Patient</td>
+            <td style="padding:8px 0;font-size:13px;color:#1A1A1A;font-weight:600;">${escapeHtml(d.patientName)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;font-size:13px;color:#6B6B6B;vertical-align:top;">Documents</td>
+            <td style="padding:8px 0;">
+              <ul style="margin:0;padding-left:16px;">${docList}</ul>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;font-size:13px;color:#6B6B6B;vertical-align:top;">Expires</td>
+            <td style="padding:8px 0;font-size:13px;color:#1A1A1A;">${expiryLine}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;font-size:13px;color:#6B6B6B;vertical-align:top;">Access</td>
+            <td style="padding:8px 0;font-size:13px;color:#1A1A1A;">${escapeHtml(accessInstructions)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- CTA -->
+    <div style="margin:28px 0 20px;text-align:center;">
+      <a href="${escapeHtml(d.shareUrl)}" style="display:inline-block;background:#0E4A30;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:13px 32px;border-radius:8px;">
+        View shared records
+      </a>
+    </div>
+
+    <!-- Security notices -->
+    <div style="background:#FFF9E6;border-left:3px solid #B59410;border-radius:4px;padding:12px 16px;">
+      <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#7A6200;">Security reminders</p>
+      <ul style="margin:4px 0 0;padding-left:16px;">
+        <li style="margin:2px 0;font-size:12px;color:#5A4A00;">This link is for <strong>${escapeHtml(d.recipientEmail)}</strong> only — do not forward it.</li>
+        <li style="margin:2px 0;font-size:12px;color:#5A4A00;">Every access is logged and visible to the sender.</li>
+        <li style="margin:2px 0;font-size:12px;color:#5A4A00;">The sender can revoke your access at any time.</li>
+      </ul>
+    </div>`;
 
   return emailShell(content);
 }

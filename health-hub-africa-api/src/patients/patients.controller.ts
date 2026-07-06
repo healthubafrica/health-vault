@@ -18,7 +18,7 @@ import { PatientsService } from './patients.service';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { QueryPatientsDto } from './dto/query-patients.dto';
-import { RequestProfilePhotoUrlDto } from './dto/profile-photo-upload.dto';
+import { RequestProfilePhotoUrlDto, ProcessProfilePhotoDto } from './dto/profile-photo-upload.dto';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 
@@ -95,11 +95,31 @@ export class PatientsController {
   @Post('me/profile-photo-upload-url')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
-  @ApiOperation({ summary: 'Request a pre-signed S3 upload URL for a profile picture' })
+  @ApiOperation({ summary: 'Request a pre-signed S3 upload URL for a profile picture (JPG/PNG/WebP/HEIC)' })
   requestProfilePhotoUploadUrl(
     @Body() dto: RequestProfilePhotoUrlDto,
     @CurrentUser() user: JwtPayload,
   ) {
     return this.patientsService.requestProfilePhotoUploadUrl(dto, user);
+  }
+
+  // After the client uploads the raw photo via the presigned URL, call this
+  // endpoint to crop, resize (max 1024 px), convert to WebP, and save.
+  @Post('me/profile-photo/process')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @ApiOperation({ summary: 'Process (crop/resize/optimize) an uploaded profile photo and save it' })
+  processProfilePhoto(
+    @Body() dto: ProcessProfilePhotoDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.patientsService.processProfilePhoto(dto, user);
+  }
+
+  @Delete('me/profile-photo')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remove the profile photo' })
+  removeProfilePhoto(@CurrentUser() user: JwtPayload) {
+    return this.patientsService.removeProfilePhoto(user);
   }
 }
