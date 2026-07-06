@@ -69,43 +69,13 @@ export default function Footer() {
         {/* ── Brand + newsletter ── */}
         <div>
           {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-            <span
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 9,
-                background: '#137333',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"
-                  stroke="#6DC43F"
-                  strokeWidth="2"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d="M12 8.5v5M9.5 11h5"
-                  stroke="#6DC43F"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </span>
-            <span
-              style={{
-                fontFamily: 'var(--font-manrope), sans-serif',
-                fontWeight: 700,
-                fontSize: 16,
-              }}
-            >
-              MyHealth Vault+
-            </span>
+          <div style={{ marginBottom: 14 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo-white.png"
+              alt="MyHealth Vault+™"
+              style={{ height: 28, width: 'auto', display: 'block' }}
+            />
           </div>
 
           <p
