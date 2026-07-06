@@ -498,6 +498,16 @@ export interface ShiftTemplate {
   isActive: boolean
 }
 
+export interface SchedulingPolicy {
+  id: string
+  cancellationWindowHours: number
+  rescheduleWindowHours: number
+  selfServiceEnabled: boolean
+  updatedBy: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 // ── Admin: Clinical Queue ─────────────────────────────────────────────────
 
 export interface ClinicalQueueItem {
@@ -1023,6 +1033,14 @@ export const adminApi = {
         }),
       delete: (id: string) =>
         request<void>(`/admin/scheduling/shift-assignments/${id}`, { method: 'DELETE' }),
+    },
+    policy: {
+      get: () => request<SchedulingPolicy>('/admin/scheduling/policy'),
+      update: (dto: Partial<Pick<SchedulingPolicy, 'cancellationWindowHours' | 'rescheduleWindowHours' | 'selfServiceEnabled'>>) =>
+        request<SchedulingPolicy>('/admin/scheduling/policy', {
+          method: 'PATCH',
+          body: JSON.stringify(dto),
+        }),
     },
   },
 }
