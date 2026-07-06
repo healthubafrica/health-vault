@@ -66,6 +66,43 @@ export class AppointmentsController {
     return this.appointmentsService.listAvailableProviders(serviceType as ServiceType, scheduledAt);
   }
 
+  // MUST sit above @Get(':id') so the static path wins the route match.
+  @Get('slots')
+  @ApiOperation({ summary: 'Get real-time available appointment slots for a service type on a given day' })
+  @ApiQuery({ name: 'serviceType', enum: ServiceType, required: true })
+  @ApiQuery({ name: 'date', required: true, description: 'YYYY-MM-DD' })
+  @ApiQuery({ name: 'durationMinutes', required: false })
+  @ApiQuery({ name: 'providerId', required: false })
+  @ApiQuery({ name: 'excludeAppointmentId', required: false, description: 'Exclude this appointment\'s own slot when rescheduling' })
+  getSlots(
+    @Query('serviceType') serviceType: string,
+    @Query('date') date: string,
+    @Query('durationMinutes') durationMinutes?: string,
+    @Query('providerId') providerId?: string,
+    @Query('excludeAppointmentId') excludeAppointmentId?: string,
+  ) {
+    if (!serviceType || !(serviceType in ServiceType)) {
+      throw new BadRequestException(`serviceType must be one of: ${Object.values(ServiceType).join(', ')}`);
+    }
+    if (!date) {
+      throw new BadRequestException('date is required (YYYY-MM-DD)');
+    }
+    return this.appointmentsService.getAvailableSlots({
+      serviceType: serviceType as ServiceType,
+      date,
+      durationMinutes: durationMinutes ? parseInt(durationMinutes, 10) : undefined,
+      providerId,
+      excludeAppointmentId,
+    });
+  }
+
+  // MUST sit above @Get(':id') so the static path wins the route match.
+  @Get('scheduling-policy')
+  @ApiOperation({ summary: 'Get the current self-service cancellation/reschedule policy' })
+  getSchedulingPolicy() {
+    return this.appointmentsService.getSchedulingPolicyForPatient();
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get appointment details' })
   findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {

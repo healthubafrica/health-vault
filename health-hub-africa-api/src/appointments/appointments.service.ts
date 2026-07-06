@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -15,6 +16,7 @@ import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { QueryAppointmentsDto } from './dto/query-appointments.dto';
 import { OpenemrService } from '../openemr/openemr.service';
 import { NotificationsService, AppointmentNotificationData } from '../notifications/notifications.service';
+import { getSchedulingPolicy } from '../scheduling-policy/scheduling-policy.constants';
 
 export const APPOINTMENT_REMINDERS_QUEUE = 'appointment-reminders';
 
@@ -108,6 +110,7 @@ export class AppointmentsService {
       if (!provider.verifiedAt) {
         throw new BadRequestException('Selected provider is not yet verified');
       }
+      await this.assertSlotAvailable(dto.providerId, new Date(dto.scheduledAt), dto.durationMinutes);
     }
 
     const { serviceType, isTelecare } = toServiceFields(dto.appointmentType, dto.serviceType);
@@ -518,6 +521,137 @@ export class AppointmentsService {
         isAvailable: g.provider.isAvailable,
         priority: g.priority,
       }));
+  }
+
+  // ── Scheduling policy (patient-facing read) ────────────────────────────────
+
+  async getSchedulingPolicyForPatient() {
+    const { cancellationWindowHours, rescheduleWindowHours, selfServiceEnabled } =
+      await getSchedulingPolicy(this.prisma);
+    return { cancellationWindowHours, rescheduleWindowHours, selfServiceEnabled };
+  }
+
+  // ── Slot computation ────────────────────────────────────────────────────────
+
+  // Same-UTC-day non-cancelled appointments for a provider, as {start,end} ms
+  // ranges — the raw material for both conflict detection and slot display.
+  private async getProviderAppointmentsForDay(
+    providerId: string,
+    dateStr: string,
+    excludeAppointmentId?: string,
+  ): Promise<Array<{ start: number; end: number }>> {
+    const dayStart = new Date(`${dateStr}T00:00:00.000Z`);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+    const appointments = await this.prisma.appointment.findMany({
+      where: {
+        providerId,
+        scheduledAt: { gte: dayStart, lt: dayEnd },
+        status: { notIn: [AppointmentStatus.cancelled, AppointmentStatus.no_show] },
+        ...(excludeAppointmentId ? { id: { not: excludeAppointmentId } } : {}),
+      },
+      select: { scheduledAt: true, durationMinutes: true },
+    });
+
+    return appointments.map((a) => ({
+      start: a.scheduledAt.getTime(),
+      end: a.scheduledAt.getTime() + a.durationMinutes * 60_000,
+    }));
+  }
+
+  // Throws if the requested [scheduledAt, scheduledAt+duration) range overlaps
+  // any existing non-cancelled appointment the provider already has that day.
+  private async assertSlotAvailable(
+    providerId: string,
+    scheduledAt: Date,
+    durationMinutes: number,
+    excludeAppointmentId?: string,
+  ): Promise<void> {
+    const dateStr = scheduledAt.toISOString().slice(0, 10);
+    const existing = await this.getProviderAppointmentsForDay(providerId, dateStr, excludeAppointmentId);
+
+    const newStart = scheduledAt.getTime();
+    const newEnd = newStart + durationMinutes * 60_000;
+
+    const conflict = existing.some((a) => a.start < newEnd && a.end > newStart);
+    if (conflict) {
+      throw new ConflictException('This provider is already booked for the selected time.');
+    }
+  }
+
+  // Real-time available slots for a service type on a given day, in
+  // durationMinutes increments, cross-referencing each matching provider's
+  // shift coverage (same filter shape as listAvailableProviders) against
+  // their existing bookings for that day. Past slots are dropped.
+  async getAvailableSlots(params: {
+    serviceType: ServiceType;
+    date: string;
+    durationMinutes?: number;
+    providerId?: string;
+    excludeAppointmentId?: string;
+  }): Promise<Array<{ providerId: string; providerName: string; slots: string[] }>> {
+    const durationMinutes = params.durationMinutes ?? 30;
+    const dayOfWeek = new Date(`${params.date}T00:00:00.000Z`).getUTCDay();
+    const now = Date.now();
+
+    const groups = await this.prisma.providerServiceGroup.findMany({
+      where: {
+        serviceType: params.serviceType,
+        isActive: true,
+        ...(params.providerId ? { providerId: params.providerId } : {}),
+      },
+      select: {
+        provider: {
+          select: { id: true, firstName: true, lastName: true, title: true, verifiedAt: true, deletedAt: true },
+        },
+        shiftAssignments: {
+          where: {
+            effectiveFrom: { lte: new Date(`${params.date}T00:00:00.000Z`) },
+            OR: [{ effectiveTo: null }, { effectiveTo: { gte: new Date(`${params.date}T00:00:00.000Z`) } }],
+            shiftTemplate: { dayOfWeek, isActive: true },
+          },
+          select: { shiftTemplate: { select: { startTime: true, endTime: true } } },
+        },
+      },
+    });
+
+    const result: Array<{ providerId: string; providerName: string; slots: string[] }> = [];
+
+    for (const g of groups) {
+      if (g.provider.deletedAt || !g.provider.verifiedAt || g.shiftAssignments.length === 0) continue;
+
+      const booked = await this.getProviderAppointmentsForDay(
+        g.provider.id,
+        params.date,
+        params.excludeAppointmentId,
+      );
+
+      const slots: string[] = [];
+      for (const assignment of g.shiftAssignments) {
+        const { startTime, endTime } = assignment.shiftTemplate;
+        // startTime/endTime are stored as @db.Time — the date portion is a
+        // Prisma artifact (epoch), only the time-of-day component is real.
+        const shiftStartMs = new Date(`${params.date}T${startTime.toISOString().slice(11, 19)}Z`).getTime();
+        const shiftEndMs = new Date(`${params.date}T${endTime.toISOString().slice(11, 19)}Z`).getTime();
+
+        for (let slotStart = shiftStartMs; slotStart + durationMinutes * 60_000 <= shiftEndMs; slotStart += durationMinutes * 60_000) {
+          const slotEnd = slotStart + durationMinutes * 60_000;
+          if (slotStart <= now) continue; // drop past slots
+          const overlaps = booked.some((b) => b.start < slotEnd && b.end > slotStart);
+          if (!overlaps) slots.push(new Date(slotStart).toISOString());
+        }
+      }
+
+      if (slots.length > 0) {
+        result.push({
+          providerId: g.provider.id,
+          providerName: `${g.provider.title} ${g.provider.firstName} ${g.provider.lastName}`,
+          slots: slots.sort(),
+        });
+      }
+    }
+
+    return result;
   }
 
   // Lightweight facility list for the patient booking screen. Returns only
