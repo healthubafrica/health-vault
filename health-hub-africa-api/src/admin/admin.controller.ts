@@ -15,6 +15,7 @@ import { ServiceType, UserRole } from '@prisma/client';
 import { AdminService } from './admin.service';
 import { UpdateUserRoleDto, UpdateUserStatusDto, CreateFacilityDto } from './dto/admin.dto';
 import { SetStorageOverrideDto } from './dto/set-storage-override.dto';
+import { UpdateSchedulingPolicyDto } from './dto/update-scheduling-policy.dto';
 import { Roles, Public } from '../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 
@@ -575,5 +576,20 @@ export class AdminController {
   @ApiOperation({ summary: 'Remove a shift assignment' })
   deleteShiftAssignment(@Param('id') id: string) {
     return this.adminService.deleteShiftAssignment(id);
+  }
+
+  @Get('scheduling/policy')
+  @ApiOperation({ summary: 'Get the patient self-service scheduling policy' })
+  getSchedulingPolicy() {
+    return this.adminService.getSchedulingPolicy();
+  }
+
+  @Patch('scheduling/policy')
+  @ApiOperation({ summary: 'Update the patient self-service scheduling policy' })
+  updateSchedulingPolicy(
+    @Body() dto: UpdateSchedulingPolicyDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.adminService.updateSchedulingPolicy(dto, user.sub);
   }
 }
