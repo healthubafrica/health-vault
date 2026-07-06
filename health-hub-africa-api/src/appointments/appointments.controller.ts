@@ -16,6 +16,7 @@ import { AppointmentsService } from './appointments.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { QueryAppointmentsDto } from './dto/query-appointments.dto';
+import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 import { IsString } from 'class-validator';
@@ -128,5 +129,16 @@ export class AppointmentsController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.appointmentsService.cancel(id, body.reason, user);
+  }
+
+  @Post(':id/reschedule')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reschedule an appointment to a new date/time' })
+  reschedule(
+    @Param('id') id: string,
+    @Body() dto: RescheduleAppointmentDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.appointmentsService.reschedule(id, dto, user);
   }
 }
