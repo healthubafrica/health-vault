@@ -489,6 +489,18 @@ model ProviderShiftAssignment {
   @@map("hha_provider_shift_assignments")
 }
 
+model SchedulingPolicy {
+  id                      String   @id @db.Uuid
+  cancellationWindowHours Int      @default(24) @map("cancellation_window_hours")
+  rescheduleWindowHours   Int      @default(24) @map("reschedule_window_hours")
+  selfServiceEnabled      Boolean  @default(true) @map("self_service_enabled")
+  updatedBy               String?  @map("updated_by") @db.Uuid
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  @@map("hha_scheduling_policy")
+}
+
 model PatientProviderAssignment {
   id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   patientId    String    @map("patient_id") @db.Uuid
@@ -524,6 +536,9 @@ model Appointment {
   providerNotes    String?           @map("provider_notes")
   cancelledBy      String?           @map("cancelled_by") @db.Uuid
   cancellationNote String?           @map("cancellation_note")
+  cancelledAt          DateTime?         @map("cancelled_at")
+  previousScheduledAt  DateTime?         @map("previous_scheduled_at")
+  rescheduleCount      Int               @default(0) @map("reschedule_count")
   openemrAppointmentId String?       @map("openemr_appointment_id")
   createdAt        DateTime          @default(now()) @map("created_at")
   updatedAt        DateTime          @updatedAt @map("updated_at")
