@@ -22,6 +22,12 @@ import {
 } from './dto/admin.dto';
 import { OPENEMR_SYNC_QUEUE, OpenemrService, SyncJobData } from '../openemr/openemr.service';
 import { S3Service } from '../storage/s3.service';
+import { UpdateSchedulingPolicyDto } from './dto/update-scheduling-policy.dto';
+import {
+  SCHEDULING_POLICY_ID,
+  DEFAULT_SCHEDULING_POLICY,
+  getSchedulingPolicy,
+} from '../scheduling-policy/scheduling-policy.constants';
 
 export const ADMIN_REDIS = Symbol('ADMIN_REDIS');
 
@@ -1946,6 +1952,18 @@ export class AdminService {
     const asgn = await this.prisma.providerShiftAssignment.findUnique({ where: { id } });
     if (!asgn) throw new NotFoundException('Shift assignment not found');
     await this.prisma.providerShiftAssignment.delete({ where: { id } });
+  }
+
+  async getSchedulingPolicy() {
+    return getSchedulingPolicy(this.prisma);
+  }
+
+  async updateSchedulingPolicy(dto: UpdateSchedulingPolicyDto, actorId: string) {
+    return this.prisma.schedulingPolicy.upsert({
+      where: { id: SCHEDULING_POLICY_ID },
+      update: { ...dto, updatedBy: actorId },
+      create: { id: SCHEDULING_POLICY_ID, ...DEFAULT_SCHEDULING_POLICY, ...dto, updatedBy: actorId },
+    });
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
