@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Job } from 'bull';
 import { Resend } from 'resend';
+import { PrismaService } from '../prisma/prisma.service';
 import { NOTIFICATIONS_QUEUE, NotificationJobData, AppointmentNotificationData, ShareNotificationData } from './notifications.service';
 
 @Processor(NOTIFICATIONS_QUEUE)
@@ -10,31 +11,106 @@ export class NotificationsProcessor {
   private readonly logger = new Logger(NotificationsProcessor.name);
   private readonly isProd: boolean;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {
     this.isProd = config.get('NODE_ENV') === 'production';
+  }
+
+  // Marks the delivery row as sent. Best-effort: a failure to update the
+  // tracking row must never fail an otherwise-successful send.
+  private async markSent(deliveryId: string): Promise<void> {
+    await this.prisma.notificationDelivery
+      .update({ where: { id: deliveryId }, data: { status: 'sent', sentAt: new Date() } })
+      .catch((err) => this.logger.warn(`Failed to mark delivery ${deliveryId} sent: ${err.message}`));
+  }
+
+  // Marks the delivery row as skipped (channel not configured — retrying
+  // won't help, so this is terminal without throwing/consuming a retry).
+  private async markSkipped(deliveryId: string, reason: string): Promise<void> {
+    await this.prisma.notificationDelivery
+      .update({ where: { id: deliveryId }, data: { status: 'skipped', failedAt: new Date(), failureReason: reason } })
+      .catch((err) => this.logger.warn(`Failed to mark delivery ${deliveryId} skipped: ${err.message}`));
+  }
+
+  // Marks the delivery row as failed. Bull will still retry per the job's
+  // `attempts`/backoff config — only the final attempt is recorded as a
+  // terminal 'failed'; earlier attempts are recorded as 'retrying' so the
+  // admin panel doesn't show a permanent failure mid-retry-cycle.
+  private async markFailed(deliveryId: string, job: Job<NotificationJobData>, err: unknown): Promise<void> {
+    const message = (err instanceof Error ? err.message : String(err)).slice(0, 500);
+    const maxAttempts = typeof job.opts.attempts === 'number' ? job.opts.attempts : 1;
+    const isFinal = job.attemptsMade + 1 >= maxAttempts;
+    await this.prisma.notificationDelivery
+      .update({
+        where: { id: deliveryId },
+        data: {
+          status: isFinal ? 'failed' : 'retrying',
+          failedAt: isFinal ? new Date() : null,
+          failureReason: message,
+        },
+      })
+      .catch((e) => this.logger.warn(`Failed to mark delivery ${deliveryId} failed: ${e.message}`));
   }
 
   @Process({ name: 'send-email', concurrency: 5 })
   async handleEmail(job: Job<NotificationJobData>) {
-    const { to, subject, body } = job.data;
+    const { to, subject, body, deliveryId } = job.data;
     if (!this.isProd) this.logger.log(`[DEV ONLY] Email Body: ${body}`);
     const isOtp = subject?.toLowerCase().includes('otp') || subject?.toLowerCase().includes('verify');
     const html = isOtp ? buildOtpHtml(subject ?? '', body) : buildGenericHtml(subject ?? '', body);
-    await this.doSendEmail(to, subject ?? 'MyHealth Vault+™', html, body);
+    await this.sendEmailTracked(deliveryId, job, to, subject ?? 'MyHealth Vault+™', html, body);
   }
 
   @Process({ name: 'send-appointment-email', concurrency: 5 })
   async handleAppointmentEmail(job: Job<NotificationJobData>) {
-    const { to, subject, body, metadata } = job.data;
+    const { to, subject, body, metadata, deliveryId } = job.data;
     if (!this.isProd) this.logger.log(`[DEV ONLY] Appointment email to ${to}: ${subject}`);
     const apptData = metadata?.appt as AppointmentNotificationData | undefined;
     const html = apptData
       ? buildAppointmentHtml(subject ?? '', apptData)
       : buildGenericHtml(subject ?? '', body);
-    await this.doSendEmail(to, subject ?? 'MyHealth Vault+™', html, body);
+    await this.sendEmailTracked(deliveryId, job, to, subject ?? 'MyHealth Vault+™', html, body);
   }
 
-  private async doSendEmail(to: string, subject: string, html: string, text: string): Promise<void> {
+  @Process({ name: 'send-share-notification-email', concurrency: 5 })
+  async handleShareNotificationEmail(job: Job<NotificationJobData>) {
+    const { to, subject, body, metadata, deliveryId } = job.data;
+    if (!this.isProd) this.logger.log(`[DEV ONLY] Share notification email to ${to}: ${subject}`);
+    const shareData = metadata?.share as ShareNotificationData | undefined;
+    const html = shareData
+      ? buildShareHtml(subject ?? '', shareData)
+      : buildGenericHtml(subject ?? '', body);
+    await this.sendEmailTracked(deliveryId, job, to, subject ?? 'MyHealth Vault+™', html, body);
+  }
+
+  // Shared wrapper: attempts the send, updates the delivery row, and
+  // rethrows on failure so Bull's retry/backoff behavior is unaffected.
+  private async sendEmailTracked(
+    deliveryId: string,
+    job: Job<NotificationJobData>,
+    to: string,
+    subject: string,
+    html: string,
+    text: string,
+  ): Promise<void> {
+    try {
+      const skipped = await this.doSendEmail(to, subject, html, text);
+      if (skipped) {
+        await this.markSkipped(deliveryId, skipped);
+        return;
+      }
+      await this.markSent(deliveryId);
+    } catch (err) {
+      await this.markFailed(deliveryId, job, err);
+      throw err;
+    }
+  }
+
+  // Returns a skip reason string when the provider isn't configured, or
+  // undefined once the send has actually been attempted (success or throw).
+  private async doSendEmail(to: string, subject: string, html: string, text: string): Promise<string | undefined> {
     this.logger.log(`Sending email to ${to}: ${subject}`);
 
     const apiKey = this.config.get<string>('RESEND_API_KEY');
@@ -45,114 +121,118 @@ export class NotificationsProcessor {
 
     if (!apiKey) {
       this.logger.warn('RESEND_API_KEY not configured — skipping email');
-      return;
+      return 'Email provider not configured (RESEND_API_KEY missing)';
     }
 
     const resend = new Resend(apiKey);
     const { error } = await resend.emails.send({ from, to, subject, html, text });
     if (error) throw new Error(`Resend error: ${error.message}`);
     this.logger.log(`Email sent via Resend to ${to}`);
-  }
-
-  @Process({ name: 'send-share-notification-email', concurrency: 5 })
-  async handleShareNotificationEmail(job: Job<NotificationJobData>) {
-    const { to, subject, body, metadata } = job.data;
-    if (!this.isProd) this.logger.log(`[DEV ONLY] Share notification email to ${to}: ${subject}`);
-    const shareData = metadata?.share as ShareNotificationData | undefined;
-    const html = shareData
-      ? buildShareHtml(subject ?? '', shareData)
-      : buildGenericHtml(subject ?? '', body);
-    await this.doSendEmail(to, subject ?? 'MyHealth Vault+™', html, body);
+    return undefined;
   }
 
   @Process({ name: 'send-sms', concurrency: 5 })
   async handleSms(job: Job<NotificationJobData>) {
-    const { to, body } = job.data;
+    const { to, body, deliveryId } = job.data;
     this.logger.log(
       this.isProd ? `Sending SMS to ${to}` : `Sending SMS to ${to}: ${body}`,
     );
 
-    const username = this.config.get<string>('AT_USERNAME');
-    const apiKey = this.config.get<string>('AT_API_KEY');
-    const senderId = this.config.get<string>('AT_SENDER_ID');
+    try {
+      const username = this.config.get<string>('AT_USERNAME');
+      const apiKey = this.config.get<string>('AT_API_KEY');
+      const senderId = this.config.get<string>('AT_SENDER_ID');
 
-    if (!username || !apiKey) {
-      this.logger.warn("Africa's Talking not configured — skipping SMS");
-      return;
+      if (!username || !apiKey) {
+        this.logger.warn("Africa's Talking not configured — skipping SMS");
+        await this.markSkipped(deliveryId, "SMS provider not configured (AT_USERNAME/AT_API_KEY missing)");
+        return;
+      }
+
+      const isSandbox = username.toLowerCase() === 'sandbox';
+      const baseUrl = isSandbox
+        ? 'https://api.sandbox.africastalking.com'
+        : 'https://api.africastalking.com';
+
+      const params: Record<string, string> = {
+        username,
+        phoneNumbers: to,
+        message: body,
+      };
+
+      if (senderId) {
+        params.senderId = senderId;
+      }
+
+      const res = await fetch(`${baseUrl}/version1/messaging/bulk`, {
+        method: 'POST',
+        headers: {
+          apiKey,
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Accept: 'application/json',
+        },
+        body: new URLSearchParams(params),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Africa's Talking error ${res.status}: ${await res.text()}`);
+      }
+
+      const responseData = await res.json();
+      this.logger.log(`SMS sent successfully to ${to}. Response: ${JSON.stringify(responseData)}`);
+      await this.markSent(deliveryId);
+    } catch (err) {
+      await this.markFailed(deliveryId, job, err);
+      throw err;
     }
-
-    const isSandbox = username.toLowerCase() === 'sandbox';
-    const baseUrl = isSandbox
-      ? 'https://api.sandbox.africastalking.com'
-      : 'https://api.africastalking.com';
-
-    const params: Record<string, string> = {
-      username,
-      phoneNumbers: to,
-      message: body,
-    };
-
-    if (senderId) {
-      params.senderId = senderId;
-    }
-
-    const res = await fetch(`${baseUrl}/version1/messaging/bulk`, {
-      method: 'POST',
-      headers: {
-        apiKey,
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Accept: 'application/json',
-      },
-      body: new URLSearchParams(params),
-    });
-
-    if (!res.ok) {
-      throw new Error(`Africa's Talking error ${res.status}: ${await res.text()}`);
-    }
-
-    const responseData = await res.json();
-    this.logger.log(`SMS sent successfully to ${to}. Response: ${JSON.stringify(responseData)}`);
   }
 
   // FCM HTTP v1 API (replaces legacy fcm/send — shut down June 2024)
   @Process({ name: 'send-push', concurrency: 10 })
   async handlePush(job: Job<NotificationJobData>) {
-    const { to, subject, body } = job.data;
+    const { to, subject, body, deliveryId } = job.data;
     this.logger.log(`Sending push to ${to.substring(0, 20)}...`);
 
-    const projectId = this.config.get('FIREBASE_PROJECT_ID');
-    const clientEmail = this.config.get('FIREBASE_CLIENT_EMAIL');
-    const privateKey = this.config.get('FIREBASE_PRIVATE_KEY')?.replace(/\\n/g, '\n');
+    try {
+      const projectId = this.config.get('FIREBASE_PROJECT_ID');
+      const clientEmail = this.config.get('FIREBASE_CLIENT_EMAIL');
+      const privateKey = this.config.get('FIREBASE_PRIVATE_KEY')?.replace(/\\n/g, '\n');
 
-    if (!projectId || !clientEmail || !privateKey) {
-      this.logger.warn('Firebase not configured — skipping push');
-      return;
-    }
+      if (!projectId || !clientEmail || !privateKey) {
+        this.logger.warn('Firebase not configured — skipping push');
+        await this.markSkipped(deliveryId, 'Push provider not configured (Firebase credentials missing)');
+        return;
+      }
 
-    const accessToken = await this.getFcmAccessToken(clientEmail, privateKey);
+      const accessToken = await this.getFcmAccessToken(clientEmail, privateKey);
 
-    const res = await fetch(
-      `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: {
-            token: to,
-            notification: { title: subject ?? 'Health Hub Africa', body },
+      const res = await fetch(
+        `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
           },
-        }),
-      },
-    );
+          body: JSON.stringify({
+            message: {
+              token: to,
+              notification: { title: subject ?? 'Health Hub Africa', body },
+            },
+          }),
+        },
+      );
 
-    if (!res.ok) {
-      throw new Error(`FCM v1 error ${res.status}: ${await res.text()}`);
+      if (!res.ok) {
+        throw new Error(`FCM v1 error ${res.status}: ${await res.text()}`);
+      }
+
+      this.logger.log(`Push sent to ${to.substring(0, 20)}...`);
+      await this.markSent(deliveryId);
+    } catch (err) {
+      await this.markFailed(deliveryId, job, err);
+      throw err;
     }
-
-    this.logger.log(`Push sent to ${to.substring(0, 20)}...`);
   }
 
   // Generate a short-lived OAuth2 access token from the Firebase service account
