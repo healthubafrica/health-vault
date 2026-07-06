@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { adminApi, type ServiceGroup, type ServiceType, type ShiftTemplate, type AdminProvider } from '@/lib/api'
+import { adminApi, type ServiceGroup, type ServiceType, type ShiftTemplate, type AdminProvider, type SchedulingPolicy } from '@/lib/api'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
 import { SkeletonBox } from '@/components/ui/Skeleton'
+import { FormInput } from '@/components/ui/FormInput'
 import { Network, Plus, Trash2, Loader2, ChevronDown } from 'lucide-react'
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -499,9 +500,121 @@ function ShiftTemplatesTab() {
   )
 }
 
+// ── Self-Service Policy Tab ────────────────────────────────────────────────
+
+function SchedulingPolicyTab() {
+  const [policy, setPolicy] = useState<SchedulingPolicy | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [cancellationWindowHours, setCancellationWindowHours] = useState(24)
+  const [rescheduleWindowHours, setRescheduleWindowHours] = useState(24)
+  const [selfServiceEnabled, setSelfServiceEnabled] = useState(true)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await adminApi.scheduling.policy.get()
+      setPolicy(data)
+      setCancellationWindowHours(data.cancellationWindowHours)
+      setRescheduleWindowHours(data.rescheduleWindowHours)
+      setSelfServiceEnabled(data.selfServiceEnabled)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const updated = await adminApi.scheduling.policy.update({
+        cancellationWindowHours,
+        rescheduleWindowHours,
+        selfServiceEnabled,
+      })
+      setPolicy(updated)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <Card>
+        <div className="flex flex-col gap-3">
+          <SkeletonBox height={16} className="rounded" style={{ width: 220 }} />
+          <SkeletonBox height={40} className="rounded-xl" />
+          <SkeletonBox height={40} className="rounded-xl" />
+        </div>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <div className="max-w-md flex flex-col gap-4">
+        <div>
+          <h2 className="text-sm font-semibold mb-1" style={{ color: 'var(--color-text)' }}>
+            Patient self-service scheduling
+          </h2>
+          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            Controls whether patients can cancel or reschedule their own appointments, and how close
+            to the appointment time they're allowed to do so.
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 py-1">
+          <span className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
+            Self-service enabled
+          </span>
+          <button
+            onClick={() => setSelfServiceEnabled((v) => !v)}
+            className="relative w-10 h-5 rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0"
+            style={{ background: selfServiceEnabled ? '#6DC43F' : 'var(--color-border)' }}
+            aria-label={selfServiceEnabled ? 'Disable self-service scheduling' : 'Enable self-service scheduling'}
+            aria-checked={selfServiceEnabled}
+            role="switch"
+          >
+            <span
+              className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200"
+              style={{ transform: selfServiceEnabled ? 'translateX(20px)' : 'translateX(0)' }}
+            />
+          </button>
+        </div>
+
+        <FormInput
+          label="Cancellation window (hours)"
+          type="number"
+          min={0}
+          value={cancellationWindowHours}
+          onChange={(e) => setCancellationWindowHours(parseInt(e.target.value, 10) || 0)}
+        />
+        <FormInput
+          label="Reschedule window (hours)"
+          type="number"
+          min={0}
+          value={rescheduleWindowHours}
+          onChange={(e) => setRescheduleWindowHours(parseInt(e.target.value, 10) || 0)}
+        />
+
+        <Button size="sm" onClick={handleSave} disabled={saving} className="self-start">
+          {saving ? 'Saving…' : 'Save changes'}
+        </Button>
+
+        {policy?.updatedAt && (
+          <p className="text-[11px]" style={{ color: 'var(--color-text-faint)' }}>
+            Last updated {new Date(policy.updatedAt).toLocaleString()}
+          </p>
+        )}
+      </div>
+    </Card>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-type Tab = 'assignments' | 'templates'
+type Tab = 'assignments' | 'templates' | 'policy'
 
 export default function SchedulingPage() {
   const [tab, setTab] = useState<Tab>('assignments')
@@ -529,6 +642,7 @@ export default function SchedulingPage() {
         {([
           { key: 'assignments', label: 'Service Assignments' },
           { key: 'templates', label: 'Shift Templates' },
+          { key: 'policy', label: 'Self-Service Policy' },
         ] as { key: Tab; label: string }[]).map(({ key, label }) => (
           <button
             key={key}
@@ -544,7 +658,13 @@ export default function SchedulingPage() {
         ))}
       </div>
 
-      {tab === 'assignments' ? <ServiceAssignmentsTab /> : <ShiftTemplatesTab />}
+      {tab === 'assignments' ? (
+        <ServiceAssignmentsTab />
+      ) : tab === 'templates' ? (
+        <ShiftTemplatesTab />
+      ) : (
+        <SchedulingPolicyTab />
+      )}
     </div>
   )
 }
