@@ -28,6 +28,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/lib/stores/authStore'
 import { useFeatureFlags } from '@/lib/hooks/useFeatureFlags'
+import { useSettingsStore } from '@/lib/settingsStore'
 
 const NAV_ITEMS = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
@@ -47,7 +48,8 @@ export function Sidebar() {
   const pathname = usePathname()
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
-  const [isCollapsed, setIsCollapsed] = useState(true) // Collapsed by default
+  const isCollapsed = useSettingsStore((s) => s.sidebarCollapsed)
+  const setCollapsed = useSettingsStore((s) => s.set)
   const logout = useAuthStore((s) => s.logout)
   const router = useRouter()
   const { isEnabled } = useFeatureFlags()
@@ -57,7 +59,9 @@ export function Sidebar() {
     router.push('/')
   }
 
-  // Avoid hydration mismatch
+  const toggleCollapsed = () => setCollapsed({ sidebarCollapsed: !isCollapsed })
+
+  // Avoid hydration mismatch (theme from next-themes is undefined on the server)
   useEffect(() => {
     setMounted(true)
   }, [])
@@ -146,7 +150,7 @@ export function Sidebar() {
         
         {/* Toggle Collapse Button */}
         <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
+          onClick={toggleCollapsed}
           aria-label={isCollapsed ? "Expand sidebar menu" : "Collapse sidebar menu"}
           title={isCollapsed ? "Expand Menu" : undefined}
           className={cn(

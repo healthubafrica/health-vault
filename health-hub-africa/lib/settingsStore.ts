@@ -25,6 +25,9 @@ interface SettingsState {
   language: string
   dateFormat: string
 
+  // Layout — persisted so the sidebar preference survives navigation and refresh
+  sidebarCollapsed: boolean
+
   // Actions
   set: (patch: Partial<Omit<SettingsState, 'set' | 'hydrate'>>) => void
   hydrate: (patch: Partial<Omit<SettingsState, 'set' | 'hydrate'>>) => void
@@ -46,6 +49,7 @@ export const useSettingsStore = create<SettingsState>()(
       researchConsent: false,
       language: 'en',
       dateFormat: 'dd/mm/yyyy',
+      sidebarCollapsed: true,
       set: (patch) => set((s) => ({ ...s, ...patch })),
       hydrate: (patch) => set((s) => ({ ...s, ...patch })),
     }),
