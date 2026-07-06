@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationsService, ShareNotificationData } from '../notifications/notifications.service';
 import { S3Service } from '../storage/s3.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { CreateShareDto } from './dto/create-share.dto';
@@ -106,36 +106,13 @@ export class SharesService {
 
     const portalUrl = (this.config.get<string>('FRONTEND_URL') ?? 'https://portal.myvaultplus.com').replace(/\/$/, '');
     const shareUrl = `${portalUrl}/share/${rawToken}`;
-    const senderName = `${patient.firstName} ${patient.lastName}`.trim() || 'A Health Hub Africa patient';
-
-    const expiryLong = share.expiresAt
-      ? `This link expires on ${share.expiresAt.toLocaleString('en-GB', {
-          day: 'numeric', month: 'long', year: 'numeric',
-          hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos',
-        })} (WAT). After that, the records will no longer be accessible.`
-      : 'This link does not expire, but the sender can revoke it at any time.';
-
-    const howToAccess =
-      'Open the link and enter this email address. We will send you a one-time verification code to confirm it is really you.';
-
-    const emailBody =
-      `Hello,\n\n` +
-      `${senderName} has securely shared health records with you through Health Hub Africa.\n\n` +
-      `View the records here:\n${shareUrl}\n\n` +
-      `How to access:\n${howToAccess}\n\n` +
-      `${expiryLong}\n\n` +
-      `For your security:\n` +
-      `- This link is intended only for you — please do not forward it.\n` +
-      `- Every access is logged and visible to the sender.\n` +
-      `- The sender can revoke access at any time.\n\n` +
-      `If you were not expecting this, you can safely ignore this message.\n\n` +
-      `— Health Hub Africa`;
+    const patientName = `${patient.firstName} ${patient.lastName}`.trim() || 'A Health Hub Africa patient';
 
     const expiryShort = share.expiresAt
       ? ` Expires ${share.expiresAt.toLocaleDateString('en-GB', { timeZone: 'Africa/Lagos' })}.`
       : '';
     const smsBody =
-      `${senderName} shared health records with you via Health Hub Africa. ` +
+      `${patientName} shared health records with you via Health Hub Africa. ` +
       `View: ${shareUrl}${expiryShort} Do not forward — all access is logged.`;
 
     let emailCount = 0;
@@ -143,11 +120,20 @@ export class SharesService {
 
     for (const email of emailSet) {
       try {
-        await this.notifications.sendEmail(
+        const shareData: ShareNotificationData = {
+          recipientEmail: email,
+          patientName,
+          shareLabel: share.label,
+          recordTypes: share.recordTypes,
+          expiresAt: share.expiresAt,
+          shareUrl,
+          accessMode: share.accessMode,
+        };
+        await this.notifications.sendShareNotificationEmail(
           email,
-          `${senderName} shared health records with you — Health Hub Africa`,
-          emailBody,
+          `${patientName} shared health records with you — Health Hub Africa`,
           userId,
+          shareData,
         );
         await this.prisma.recordShareAccess.create({
           data: {
@@ -274,9 +260,29 @@ export class SharesService {
     });
     if (!share) throw new NotFoundException('Share link not found');
     if (share.isRevoked) throw new ForbiddenException('This link has been revoked');
-    if (share.expiresAt && share.expiresAt < new Date())
+    if (share.expiresAt && share.expiresAt < new Date()) {
+      // Log expiry once (idempotent — avoid duplicate events on repeated access)
+      void this.logExpiryOnce(share.id, share.expiresAt);
       throw new ForbiddenException('This link has expired');
+    }
     return share;
+  }
+
+  private async logExpiryOnce(shareId: string, expiresAt: Date): Promise<void> {
+    const already = await this.prisma.recordShareAccess.findFirst({
+      where: { shareId, action: 'share_expired' },
+      select: { id: true },
+    });
+    if (already) return;
+    await this.prisma.recordShareAccess.create({
+      data: {
+        shareId,
+        action: 'share_expired',
+        // Use the actual expiry timestamp so the audit log shows when it expired,
+        // not when it was first detected.
+        occurredAt: expiresAt,
+      },
+    });
   }
 
   async resolvePublicShare(rawToken: string, ip: string, ua: string) {
@@ -284,7 +290,17 @@ export class SharesService {
     const fingerprint = this.fingerprintFromRequest(ip, ua);
 
     if (share.accessMode !== 'public') {
-      // Return metadata only — caller must complete OTP/password step
+      // Log link_opened the first time this recipient opens the share URL —
+      // before any OTP/password step, so the audit captures the intent to access.
+      void this.prisma.recordShareAccess.create({
+        data: {
+          shareId: share.id,
+          action: 'link_opened',
+          sessionFingerprint: fingerprint,
+          ipAddress: ip,
+          userAgent: ua,
+        },
+      });
       return {
         shareId: share.id,
         accessMode: share.accessMode,

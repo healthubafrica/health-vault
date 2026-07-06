@@ -9,8 +9,9 @@ import {
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import sharp from 'sharp';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -19,7 +20,7 @@ import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { QueryPatientsDto } from './dto/query-patients.dto';
-import { RequestProfilePhotoUrlDto } from './dto/profile-photo-upload.dto';
+import { RequestProfilePhotoUrlDto, ProcessProfilePhotoDto } from './dto/profile-photo-upload.dto';
 import { OpenemrService } from '../openemr/openemr.service';
 import { StorageService } from '../storage/storage.service';
 import { PaymentRequiredException } from '../common/exceptions/payment-required.exception';
@@ -349,7 +350,13 @@ export class PatientsService {
       });
     }
 
-    const ext = dto.contentType === 'image/png' ? 'png' : dto.contentType === 'image/webp' ? 'webp' : 'jpg';
+    const extMap: Record<string, string> = {
+      'image/png': 'png',
+      'image/webp': 'webp',
+      'image/heic': 'heic',
+      'image/heif': 'heif',
+    };
+    const ext = extMap[dto.contentType] ?? 'jpg';
     const objectKey = `profile-photos/${currentUser.sub}/${randomUUID()}.${ext}`;
 
     const command = new PutObjectCommand({
@@ -367,6 +374,148 @@ export class PatientsService {
       : `https://${this.bucket}.s3.${this.config.get('AWS_REGION', 'us-east-1')}.amazonaws.com/${objectKey}`;
 
     return { uploadUrl, objectKey, publicUrl };
+  }
+
+  // Downloads the just-uploaded raw photo from S3, applies optional crop,
+  // resizes to max 1024 px on the longest side, converts to WebP at 85% quality,
+  // uploads the processed image, updates the patient row, and deletes the original.
+  async processProfilePhoto(dto: ProcessProfilePhotoDto, currentUser: JwtPayload) {
+    const requiredPrefix = `profile-photos/${currentUser.sub}/`;
+    if (!dto.objectKey.startsWith(requiredPrefix)) {
+      throw new BadRequestException('objectKey must be a photo you uploaded via the upload URL endpoint');
+    }
+
+    // Download original from S3
+    const getCmd = new GetObjectCommand({ Bucket: this.bucket, Key: dto.objectKey });
+    const s3Obj = await this.s3.send(getCmd);
+    const chunks: Uint8Array[] = [];
+    for await (const chunk of s3Obj.Body as AsyncIterable<Uint8Array>) {
+      chunks.push(chunk);
+    }
+    const inputBuffer = Buffer.concat(chunks);
+
+    // Build Sharp pipeline
+    let pipeline = sharp(inputBuffer);
+
+    if (
+      dto.cropLeft !== undefined &&
+      dto.cropTop !== undefined &&
+      dto.cropWidth !== undefined &&
+      dto.cropHeight !== undefined
+    ) {
+      pipeline = pipeline.extract({
+        left: Math.round(dto.cropLeft),
+        top: Math.round(dto.cropTop),
+        width: Math.round(dto.cropWidth),
+        height: Math.round(dto.cropHeight),
+      });
+    }
+
+    const processedBuffer = await pipeline
+      .resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 85 })
+      .toBuffer();
+
+    // Upload processed image under a new WebP key
+    const newKey = `profile-photos/${currentUser.sub}/${randomUUID()}.webp`;
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: newKey,
+        Body: processedBuffer,
+        ContentType: 'image/webp',
+        ContentLength: processedBuffer.byteLength,
+        Metadata: { uploadedBy: currentUser.sub, processedFrom: dto.objectKey },
+      }),
+    );
+
+    const newPublicUrl = this.config.get('S3_ENDPOINT')
+      ? `${this.config.get('S3_ENDPOINT')}/${this.bucket}/${newKey}`
+      : `https://${this.bucket}.s3.${this.config.get('AWS_REGION', 'us-east-1')}.amazonaws.com/${newKey}`;
+
+    // Retrieve old photo URL before overwriting so we can delete the S3 object
+    const patient = await this.prisma.patient.findUnique({
+      where: { userId: currentUser.sub },
+      select: { id: true, profilePhotoUrl: true },
+    });
+
+    await this.prisma.$transaction([
+      this.prisma.patient.update({
+        where: { userId: currentUser.sub },
+        data: {
+          profilePhotoUrl: newPublicUrl,
+          profilePhotoSizeBytes: processedBuffer.byteLength,
+        },
+      }),
+      this.prisma.user.update({
+        where: { id: currentUser.sub },
+        data: { profilePhotoUrl: newPublicUrl },
+      }),
+    ]);
+
+    // Clean up: delete original upload and previous photo (best-effort)
+    const oldPhotoKey = patient?.profilePhotoUrl
+      ? this.extractObjectKey(patient.profilePhotoUrl)
+      : null;
+
+    const keysToDelete = [dto.objectKey];
+    if (oldPhotoKey && oldPhotoKey !== dto.objectKey) keysToDelete.push(oldPhotoKey);
+
+    for (const key of keysToDelete) {
+      void this.s3.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }))
+        .catch(err => this.logger.warn(`Could not delete S3 object ${key}: ${err instanceof Error ? err.message : err}`));
+    }
+
+    // Enqueue OpenEMR sync to propagate the new photo URL where supported
+    if (patient) {
+      void this.openemrService.enqueuePatientSync(patient.id)
+        .catch(err => this.logger.error(`Failed to enqueue OpenEMR sync after photo update: ${err instanceof Error ? err.message : err}`));
+    }
+
+    return { profilePhotoUrl: await this.signProfilePhotoUrl(newPublicUrl) };
+  }
+
+  async removeProfilePhoto(currentUser: JwtPayload) {
+    const patient = await this.prisma.patient.findUnique({
+      where: { userId: currentUser.sub },
+      select: { id: true, profilePhotoUrl: true },
+    });
+    if (!patient?.profilePhotoUrl) {
+      throw new BadRequestException('No profile photo to remove');
+    }
+
+    const key = this.extractObjectKey(patient.profilePhotoUrl);
+
+    await this.prisma.$transaction([
+      this.prisma.patient.update({
+        where: { userId: currentUser.sub },
+        data: { profilePhotoUrl: null, profilePhotoSizeBytes: null },
+      }),
+      this.prisma.user.update({
+        where: { id: currentUser.sub },
+        data: { profilePhotoUrl: null },
+      }),
+    ]);
+
+    if (key) {
+      void this.s3.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }))
+        .catch(err => this.logger.warn(`Could not delete photo S3 object ${key}: ${err instanceof Error ? err.message : err}`));
+    }
+
+    void this.openemrService.enqueuePatientSync(patient.id)
+      .catch(err => this.logger.error(`Failed to enqueue OpenEMR sync after photo removal: ${err instanceof Error ? err.message : err}`));
+
+    return { message: 'Profile photo removed' };
+  }
+
+  // Extract the S3 object key from a stored public photo URL.
+  private extractObjectKey(url: string): string | null {
+    try {
+      const base = this.photoUrlBase;
+      return url.startsWith(base) ? url.slice(base.length) : null;
+    } catch {
+      return null;
+    }
   }
 
   // ── Self-service: Request Data Export ────────────────────────────────────
