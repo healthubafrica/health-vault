@@ -13,7 +13,7 @@ import Redis from 'ioredis';
 import * as bcrypt from 'bcryptjs';
 import { randomBytes, randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationsService, NOTIFICATIONS_QUEUE, NotificationJobData } from '../notifications/notifications.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import {
   UpdateUserRoleDto,
@@ -49,6 +49,7 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue(OPENEMR_SYNC_QUEUE) private readonly openemrQueue: Queue<SyncJobData>,
+    @InjectQueue(NOTIFICATIONS_QUEUE) private readonly notificationsQueue: Queue<NotificationJobData>,
     @Inject(ADMIN_REDIS) private readonly redis: Redis,
     private readonly openemrService: OpenemrService,
     private readonly notifications: NotificationsService,
@@ -1849,15 +1850,35 @@ export class AdminService {
   }
 
   async resendNotification(id: string) {
-    try {
-      await this.prisma.notificationDelivery.update({
-        where: { id },
-        data: { status: 'queued', failedAt: null, failureReason: null },
-      });
-      return { message: 'Requeued for delivery' };
-    } catch {
-      throw new NotFoundException('Notification delivery record not found');
-    }
+    const delivery = await this.prisma.notificationDelivery.findUnique({ where: { id } });
+    if (!delivery) throw new NotFoundException('Notification delivery record not found');
+
+    await this.prisma.notificationDelivery.update({
+      where: { id },
+      data: { status: 'queued', failedAt: null, failureReason: null },
+    });
+
+    // channel is a free-text column but only ever written as one of these
+    // three values by NotificationsService — map back to the matching job
+    // name so the processor's @Process handler actually re-attempts the send
+    // (previously this only flipped the DB status with nothing to act on it).
+    const jobName =
+      delivery.channel === 'email' ? 'send-email' : delivery.channel === 'sms' ? 'send-sms' : 'send-push';
+
+    await this.notificationsQueue.add(
+      jobName,
+      {
+        userId: delivery.userId,
+        channel: delivery.channel as NotificationJobData['channel'],
+        to: delivery.recipient,
+        subject: delivery.subject ?? undefined,
+        body: delivery.body,
+        deliveryId: delivery.id,
+      },
+      { attempts: 3, backoff: { type: 'exponential', delay: 3000 } },
+    );
+
+    return { message: 'Requeued for delivery' };
   }
 
   // ── Scheduling ────────────────────────────────────────────────────────────

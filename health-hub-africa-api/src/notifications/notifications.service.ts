@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
+import { PrismaService } from '../prisma/prisma.service';
 import { NotificationRateLimiterService } from './notification-rate-limiter.service';
 
 export const NOTIFICATIONS_QUEUE = 'notifications';
@@ -15,6 +16,10 @@ export interface NotificationJobData {
   body: string;
   to: string; // email address, phone number, or FCM token
   metadata?: Record<string, unknown>;
+  // NotificationDelivery row this job updates as it's processed (queued →
+  // sent/failed). Created before enqueueing so the admin panel has a
+  // durable record even if the job is still sitting in the queue.
+  deliveryId: string;
 }
 
 // Structured data for share notification emails.
@@ -51,8 +56,28 @@ export class NotificationsService {
   constructor(
     private readonly config: ConfigService,
     private readonly rateLimiter: NotificationRateLimiterService,
+    private readonly prisma: PrismaService,
     @InjectQueue(NOTIFICATIONS_QUEUE) private readonly queue: Queue<NotificationJobData>,
   ) {}
+
+  // Creates the durable delivery record the admin panel reads from
+  // (/admin/notifications), then hands its id to the queue job so the
+  // processor can update the same row through queued → sent/failed as it
+  // works. Called after the rate-limit check so throttled messages never
+  // get a delivery row (matches the existing "silently drop" behavior).
+  private async createDelivery(
+    userId: string,
+    channel: NotificationChannel,
+    recipient: string,
+    subject: string | undefined,
+    body: string,
+  ): Promise<string> {
+    const delivery = await this.prisma.notificationDelivery.create({
+      data: { userId, channel, recipient, subject, body, status: 'queued' },
+      select: { id: true },
+    });
+    return delivery.id;
+  }
 
   // All send-* helpers check the per-recipient limiter before enqueuing. When
   // a recipient is over budget we silently drop the message and log a warning
@@ -61,27 +86,30 @@ export class NotificationsService {
   // inbox is being protected.
   async sendEmail(to: string, subject: string, body: string, userId: string) {
     if (!(await this.rateLimiter.allow('email', to))) return;
+    const deliveryId = await this.createDelivery(userId, 'email', to, subject, body);
     await this.queue.add(
       'send-email',
-      { userId, channel: 'email', to, subject, body },
+      { userId, channel: 'email', to, subject, body, deliveryId },
       { attempts: 3, backoff: { type: 'exponential', delay: 3000 } },
     );
   }
 
   async sendSms(to: string, body: string, userId: string) {
     if (!(await this.rateLimiter.allow('sms', to))) return;
+    const deliveryId = await this.createDelivery(userId, 'sms', to, undefined, body);
     await this.queue.add(
       'send-sms',
-      { userId, channel: 'sms', to, body },
+      { userId, channel: 'sms', to, body, deliveryId },
       { attempts: 3, backoff: { type: 'exponential', delay: 3000 } },
     );
   }
 
   async sendPush(fcmToken: string, subject: string, body: string, userId: string) {
     if (!(await this.rateLimiter.allow('push', fcmToken))) return;
+    const deliveryId = await this.createDelivery(userId, 'push', fcmToken, subject, body);
     await this.queue.add(
       'send-push',
-      { userId, channel: 'push', to: fcmToken, subject, body },
+      { userId, channel: 'push', to: fcmToken, subject, body, deliveryId },
       { attempts: 3 },
     );
   }
@@ -107,9 +135,10 @@ export class NotificationsService {
       (data.locationLine ? `${data.locationLine}\n` : '') +
       (data.outro ? `\n${data.outro}` : '') +
       '\n\n— Health Hub Africa';
+    const deliveryId = await this.createDelivery(userId, 'email', to, subject, body);
     await this.queue.add(
       'send-appointment-email',
-      { userId, channel: 'email', to, subject, body, metadata: { appt: data } },
+      { userId, channel: 'email', to, subject, body, metadata: { appt: data }, deliveryId },
       { attempts: 3, backoff: { type: 'exponential', delay: 3000 } },
     );
   }
@@ -133,9 +162,10 @@ export class NotificationsService {
       `Access the records here: ${data.shareUrl}\n\n` +
       `How to access: Open the link and enter your email address. You will receive a one-time verification code to confirm your identity.\n\n` +
       `Security: This link is intended only for you. Every access is logged and visible to the sender, who can revoke access at any time.`;
+    const deliveryId = await this.createDelivery(userId, 'email', to, subject, body);
     await this.queue.add(
       'send-share-notification-email',
-      { userId, channel: 'email', to, subject, body, metadata: { share: data } },
+      { userId, channel: 'email', to, subject, body, metadata: { share: data }, deliveryId },
       { attempts: 3, backoff: { type: 'exponential', delay: 3000 } },
     );
   }
