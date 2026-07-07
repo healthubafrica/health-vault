@@ -16,6 +16,7 @@ import { AdminService } from './admin.service';
 import { UpdateUserRoleDto, UpdateUserStatusDto, CreateFacilityDto } from './dto/admin.dto';
 import { SetStorageOverrideDto } from './dto/set-storage-override.dto';
 import { UpdateSchedulingPolicyDto } from './dto/update-scheduling-policy.dto';
+import { ImportProviderManuallyDto } from './dto/import-provider-manually.dto';
 import { Roles, Public } from '../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 
@@ -356,17 +357,7 @@ export class AdminController {
       'Creates a User (role=provider) + Provider record directly. ' +
       'If openemrProviderUuid is omitted, the verify flow will push the provider to OpenEMR via FHIR.',
   })
-  importProviderManually(
-    @Body() dto: {
-      email: string;
-      firstName: string;
-      lastName: string;
-      title: string;
-      specialty: string;
-      licenseNumber?: string;
-      openemrProviderUuid?: string;
-    },
-  ) {
+  importProviderManually(@Body() dto: ImportProviderManuallyDto) {
     return this.adminService.importProviderManually(dto);
   }
 

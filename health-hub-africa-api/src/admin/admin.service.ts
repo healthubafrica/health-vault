@@ -23,6 +23,7 @@ import {
 import { OPENEMR_SYNC_QUEUE, OpenemrService, SyncJobData } from '../openemr/openemr.service';
 import { S3Service } from '../storage/s3.service';
 import { normalizeProviderName } from '../common/utils/provider-name.util';
+import { ImportProviderManuallyDto } from './dto/import-provider-manually.dto';
 import { UpdateSchedulingPolicyDto } from './dto/update-scheduling-policy.dto';
 import {
   SCHEDULING_POLICY_ID,
@@ -1512,16 +1513,9 @@ export class AdminService {
   // An optional openemrProviderUuid links the HHA record to an existing
   // OpenEMR Practitioner if one is known; if null, the verify() flow will
   // push the provider to OpenEMR via FHIR and fill it in automatically.
-  async importProviderManually(dto: {
-    email: string;
-    firstName: string;
-    lastName: string;
-    title: string;
-    specialty: string;
-    licenseNumber?: string;
-    openemrProviderUuid?: string;
-  }) {
-    const { email, firstName, lastName, title, specialty, licenseNumber, openemrProviderUuid } = dto;
+  async importProviderManually(dto: ImportProviderManuallyDto) {
+    const { email, specialty, licenseNumber, openemrProviderUuid } = dto;
+    const { firstName, lastName, title } = normalizeProviderName(dto.firstName, dto.lastName, dto.title);
 
     if (openemrProviderUuid) {
       const existing = await this.prisma.provider.findUnique({ where: { openemrProviderUuid } });
