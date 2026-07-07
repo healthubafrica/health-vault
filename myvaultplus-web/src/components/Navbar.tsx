@@ -39,13 +39,19 @@ const services = [
     name: 'DispatchCare™',
     desc: 'Emergency medical dispatch',
     href: '/dispatchcare',
-    img: 'https://images.unsplash.com/photo-1587745416684-47953f16f02f?w=160&h=100&fit=crop&q=80',
+    img: '/ambubike.jpeg',
   },
   {
     name: 'NeuroFlex™',
     desc: 'Specialist neurology service',
     href: '/services/neuroflex',
     img: 'https://images.unsplash.com/photo-1576671081837-49000212a370?w=160&h=100&fit=crop&q=80',
+  },
+  {
+    name: 'TravelSafe™',
+    desc: 'Travel health preparation',
+    href: '/services/travelsafe',
+    img: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=160&h=100&fit=crop&q=80',
   },
 ]
 
@@ -64,6 +70,7 @@ const mobileLinks = [
   { label: 'Expert Review™', href: '/expert-review' },
   { label: 'DispatchCare™', href: '/dispatchcare' },
   { label: 'NeuroFlex™', href: '/services/neuroflex' },
+  { label: 'TravelSafe™', href: '/services/travelsafe' },
   { label: 'About', href: '/about' },
   { label: 'FAQ', href: '/faq' },
   { label: 'Corporate & HMO', href: '/corporate' },

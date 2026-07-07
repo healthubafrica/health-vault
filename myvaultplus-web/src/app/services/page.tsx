@@ -173,6 +173,39 @@ export default function ServicesPage() {
         </section>
       </div>
 
+      {/* Section 4 — TravelSafe */}
+      <div className="page-card" style={{ background: '#F7FAF7' }}>
+        <section className="section-inner">
+          <div style={{ textAlign: 'center', marginBottom: 56 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 18 }}>— TravelSafe™</div>
+            <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 640 }}>
+              Travel prepared.{' '}
+              <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic', fontWeight: 700 }}>Health protected.</em>
+            </h2>
+          </div>
+          <div style={{ background: '#fff', border: '1.5px solid #D4D4D4', borderRadius: 22, overflow: 'hidden', display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+            <div style={{ padding: '40px 40px 36px' }}>
+              <h3 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 22, color: '#07251C', margin: '0 0 16px' }}>Your health profile, ready for any destination</h3>
+              <p style={{ color: '#41584E', fontSize: 15, lineHeight: 1.7, margin: '0 0 20px' }}>TravelSafe™ helps you organise medical records, build a portable health summary, and share your profile with providers worldwide before you depart.</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+                {['Vaccination cards and prescriptions', 'Emergency-ready health summary', 'Secure sharing with overseas providers', 'Partner integration (WakaNow and more)'].map((b) => (
+                  <div key={b} style={{ display: 'flex', gap: 8, fontSize: 14, color: '#27433A' }}><span style={{ color: '#137333', fontWeight: 700 }}>✓</span>{b}</div>
+                ))}
+              </div>
+              <a href="/services/travelsafe" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: '#07251C', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '12px 12px 12px 22px', borderRadius: 100 }}>
+                Learn More
+                <span style={{ width: 28, height: 28, borderRadius: '50%', background: '#6DC43F', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M19 5H9M19 5v10" stroke="#07251C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                </span>
+              </a>
+            </div>
+            <div style={{ position: 'relative', minHeight: 300 }}>
+              <Image src="https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=800&h=600&fit=crop&q=80" alt="Airplane at sunset" fill style={{ objectFit: 'cover' }} sizes="500px" />
+            </div>
+          </div>
+        </section>
+      </div>
+
       <FinalCTA />
       <Footer />
     </div>

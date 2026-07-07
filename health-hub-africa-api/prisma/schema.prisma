@@ -39,6 +39,7 @@ enum ServiceType {
   ExpertReview
   NeuroFlex
   DispatchCare
+  TravelSafe
 }
 
 enum RecordType {
@@ -342,6 +343,7 @@ model Patient {
   syncQueueItems        OpenemrSyncQueue[]
   integrationErrors     IntegrationError[]
   recordShares          RecordShare[]
+  travelsafeTrips       TravelSafeTrip[]
 
   @@index([userId])
   @@index([hhaPatientId])
@@ -1562,4 +1564,33 @@ model Testimonial {
 
   @@index([status, isFeatured])
   @@map("testimonials")
+}
+
+// ─── TravelSafe ───────────────────────────────────────────────────────────────
+
+enum TravelSafeStatus {
+  preparing
+  active
+  completed
+  cancelled
+}
+
+model TravelSafeTrip {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patientId          String           @map("patient_id") @db.Uuid
+  partnerCode        String?          @map("partner_code")
+  partnerName        String?          @map("partner_name")
+  destinationCountry String           @map("destination_country")
+  departureDate      DateTime         @map("departure_date") @db.Date
+  returnDate         DateTime?        @map("return_date") @db.Date
+  purpose            String?
+  status             TravelSafeStatus @default(preparing)
+  notes              String?
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@map("travelsafe_trips")
 }

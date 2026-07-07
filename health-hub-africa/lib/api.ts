@@ -1011,3 +1011,80 @@ export const publicShare = {
       return r.json() as Promise<SharePayload>
     }),
 }
+
+// ── TravelSafe ────────────────────────────────────────────────────────────
+
+export type TravelSafeStatus = 'preparing' | 'active' | 'completed' | 'cancelled'
+
+export interface TravelSafeTrip {
+  id: string
+  patientId: string
+  partnerCode?: string
+  partnerName?: string
+  destinationCountry: string
+  departureDate: string
+  returnDate?: string
+  purpose?: string
+  status: TravelSafeStatus
+  notes?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TravelSafeSummary {
+  trip: TravelSafeTrip
+  patient: {
+    name: string
+    dateOfBirth: string
+    bloodGroup?: string
+    genotype?: string
+    nextOfKin: { name?: string; relationship?: string; phone?: string }
+    allergies: string[]
+    chronicConditions: string[]
+    activeMedications: string[]
+  }
+}
+
+export const travelsafe = {
+  create: (data: {
+    destinationCountry: string
+    departureDate: string
+    returnDate?: string
+    purpose?: string
+    partnerCode?: string
+    partnerName?: string
+    notes?: string
+  }) =>
+    request<{ data: TravelSafeTrip }>('/travelsafe/trips', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  list: () => request<{ data: TravelSafeTrip[] }>('/travelsafe/trips'),
+
+  get: (id: string) => request<{ data: TravelSafeTrip }>(`/travelsafe/trips/${id}`),
+
+  update: (
+    id: string,
+    data: Partial<{
+      destinationCountry: string
+      departureDate: string
+      returnDate: string
+      purpose: string
+      partnerCode: string
+      partnerName: string
+      notes: string
+      status: TravelSafeStatus
+    }>,
+  ) =>
+    request<{ data: TravelSafeTrip }>(`/travelsafe/trips/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  remove: (id: string) =>
+    request<{ deleted: boolean }>(`/travelsafe/trips/${id}`, { method: 'DELETE' }),
+
+  getSummary: (id: string) =>
+    request<{ data: TravelSafeSummary }>(`/travelsafe/trips/${id}/summary`),
+}
