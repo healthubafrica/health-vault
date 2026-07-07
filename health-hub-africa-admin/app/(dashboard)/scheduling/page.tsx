@@ -8,6 +8,7 @@ import { Pill } from '@/components/ui/Pill'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { FormInput } from '@/components/ui/FormInput'
 import { Network, Plus, Trash2, Loader2, ChevronDown } from 'lucide-react'
+import { buildProviderDisplayName } from '@/lib/providerName'
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -91,7 +92,7 @@ function AddServiceGroupForm({
             <option value="">Select provider…</option>
             {providers.map(p => (
               <option key={p.id} value={p.id}>
-                {p.title} {p.firstName} {p.lastName}
+                {buildProviderDisplayName(p)}
               </option>
             ))}
           </select>
@@ -224,7 +225,7 @@ function ServiceAssignmentsTab() {
                 {/* Provider */}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate" style={{ color: 'var(--color-text)' }}>
-                    {group.provider.title} {group.provider.firstName} {group.provider.lastName}
+                    {buildProviderDisplayName(group.provider)}
                   </p>
                   <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)' }}>
                     {group.provider.specialty}

@@ -11,6 +11,7 @@ import { FormInput } from '@/components/ui/FormInput'
 import { RefreshCw, Search, Star, Users, Download, X, Copy, Info, Plus } from 'lucide-react'
 import { useAuthStore } from '@/lib/stores/authStore'
 import { formatDate } from '@/lib/utils'
+import { buildProviderDisplayName } from '@/lib/providerName'
 
 function ProviderDetailDialog({
   provider,
@@ -35,7 +36,7 @@ function ProviderDetailDialog({
             />
             <div>
               <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
-                {provider.title} {provider.firstName} {provider.lastName}
+                {buildProviderDisplayName(provider)}
               </h2>
               <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{provider.specialty}</p>
             </div>
@@ -372,7 +373,7 @@ export default function ProvidersPage() {
                 />
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold truncate" style={{ color: 'var(--color-text)' }}>
-                    {prov.title} {prov.firstName} {prov.lastName}
+                    {buildProviderDisplayName(prov)}
                   </p>
                   <p className="text-xs truncate mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
                     {prov.specialty}

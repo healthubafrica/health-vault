@@ -5,6 +5,7 @@ import { adminApi, type ProviderSession, type AvailableProvider } from '@/lib/ap
 import { Button } from '@/components/ui/Button'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { User, X, CheckCircle, ArrowRightLeft } from 'lucide-react'
+import { buildProviderDisplayName } from '@/lib/providerName'
 
 export function TransferModal({
   session,
@@ -137,7 +138,7 @@ export function TransferModal({
                           className="text-sm font-medium truncate"
                           style={{ color: selected ? '#6DC43F' : 'var(--color-text)' }}
                         >
-                          {p.title} {p.firstName} {p.lastName}
+                          {buildProviderDisplayName(p)}
                         </p>
                         <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)' }}>
                           {p.specialty}
