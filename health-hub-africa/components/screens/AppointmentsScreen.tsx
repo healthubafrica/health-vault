@@ -18,6 +18,7 @@ import {
   type ServiceProvider,
 } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
+import { buildProviderDisplayName } from '@/lib/providerName'
 import { useSchedulingPolicy } from '@/lib/hooks/useSchedulingPolicy'
 import { AppointmentsSkeleton } from '@/components/skeletons/AppointmentsSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
@@ -200,9 +201,7 @@ export function AppointmentsScreen() {
         ) : (
           <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
             {filtered.map(appt => {
-              const providerName = appt.provider
-                ? `${appt.provider.title} ${appt.provider.lastName}`
-                : 'Provider TBD'
+              const providerName = appt.provider ? buildProviderDisplayName(appt.provider) : 'Provider TBD'
               const { date, time } = formatScheduledAt(appt.scheduledAt)
               const appointmentType = appt.isTelecare ? 'TeleCare' : 'In-person'
               const canManage = RESCHEDULABLE_STATUSES.has(appt.status)
@@ -344,7 +343,7 @@ export function AppointmentsScreen() {
                 <option value="">Let the care team assign a provider</option>
                 {serviceProviders.map(p => (
                   <option key={p.id} value={p.id}>
-                    {p.title ? `${p.title} ` : ''}{p.firstName} {p.lastName}
+                    {buildProviderDisplayName(p)}
                     {p.specialty ? ` — ${p.specialty}` : ''}
                     {' '}({priorityLabel(p.priority)})
                     {!p.isAvailable ? ' [Unavailable]' : ''}

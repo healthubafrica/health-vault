@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { publicShare, type SharePayload, type ShareAccessMode } from '@/lib/api'
+import { buildProviderDisplayName } from '@/lib/providerName'
 import {
   Shield,
   FileText,
@@ -38,9 +39,7 @@ const RECORD_TYPE_LABELS: Record<string, string> = {
 }
 
 function RecordCard({ record }: { record: SharePayload['records'][number] }) {
-  const providerName = record.provider
-    ? `${record.provider.title} ${record.provider.firstName} ${record.provider.lastName}`
-    : null
+  const providerName = record.provider ? buildProviderDisplayName(record.provider) : null
 
   return (
     <div

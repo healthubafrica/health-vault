@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Avatar } from '@/components/ui/Avatar'
 import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, User, Award, Star } from 'lucide-react'
 import { providers as providersApi, type Provider } from '@/lib/api'
+import { buildProviderDisplayName } from '@/lib/providerName'
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -212,12 +213,12 @@ export function DashboardPanel() {
 
   function selectProvider(p: Provider) {
     setSelectedProvider(p)
-    setSearchQuery(`${p.title ? p.title + ' ' : ''}${p.firstName} ${p.lastName}`)
+    setSearchQuery(buildProviderDisplayName(p))
     setShowDropdown(false)
   }
 
   const displayName = selectedProvider
-    ? `${selectedProvider.title ? selectedProvider.title + ' ' : ''}${selectedProvider.firstName} ${selectedProvider.lastName}`
+    ? buildProviderDisplayName(selectedProvider)
     : 'Any Available Provider'
   const displaySpecialty = selectedProvider?.specialty ?? 'TeleCore™ Consultation'
 
@@ -264,7 +265,7 @@ export function DashboardPanel() {
                 <Avatar seed={`${p.firstName} ${p.lastName}`} size="sm" shape="circle" alt={`${p.firstName} ${p.lastName}`} />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold truncate" style={{ color: 'var(--color-text)' }}>
-                    {p.title ? `${p.title} ` : ''}{p.firstName} {p.lastName}
+                    {buildProviderDisplayName(p)}
                   </p>
                   {p.specialty && (
                     <p className="text-[10px] truncate" style={{ color: 'var(--color-text-muted)' }}>{p.specialty}</p>

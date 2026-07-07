@@ -8,6 +8,7 @@ import { Avatar } from '@/components/ui/Avatar'
 import { appointments } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { formatDate } from '@/lib/utils'
+import { buildProviderDisplayName } from '@/lib/providerName'
 
 export function AppointmentsPanel() {
   const router = useRouter()
@@ -32,7 +33,7 @@ export function AppointmentsPanel() {
             {formatDate(nextAppt.scheduledAt)}
           </p>
           <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            {new Date(nextAppt.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}{nextAppt.provider ? ` · ${nextAppt.provider.title} ${nextAppt.provider.lastName}` : ''}
+            {new Date(nextAppt.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}{nextAppt.provider ? ` · ${buildProviderDisplayName(nextAppt.provider)}` : ''}
           </p>
           <Button
             size="sm"
@@ -58,7 +59,7 @@ export function AppointmentsPanel() {
           <div className="flex items-center gap-3">
             <Avatar seed={`${nextAppt.provider.firstName} ${nextAppt.provider.lastName}`} size="md" shape="rounded" alt={`${nextAppt.provider.firstName} ${nextAppt.provider.lastName}`} />
             <div>
-              <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>{nextAppt.provider.title} {nextAppt.provider.firstName} {nextAppt.provider.lastName}</p>
+              <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>{buildProviderDisplayName(nextAppt.provider)}</p>
               <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{nextAppt.provider.specialty}</p>
             </div>
           </div>
