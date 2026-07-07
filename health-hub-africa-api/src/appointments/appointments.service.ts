@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
+import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bull';
 import { AppointmentStatus, ServiceType, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -18,8 +19,11 @@ import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
 import { OpenemrService } from '../openemr/openemr.service';
 import { NotificationsService, AppointmentNotificationData } from '../notifications/notifications.service';
 import { getSchedulingPolicy } from '../scheduling-policy/scheduling-policy.constants';
+import { buildProviderDisplayName } from '../common/utils/provider-name.util';
 
 export const APPOINTMENT_REMINDERS_QUEUE = 'appointment-reminders';
+
+const DEFAULT_APPOINTMENTS_OPS_EMAIL = 'appointments@healthhubafrica.com';
 
 type AppointmentEmailEvent = 'requested' | 'confirmed' | 'cancelled' | 'rescheduled' | 'no_show' | 'completed';
 
@@ -87,6 +91,7 @@ export class AppointmentsService {
     private readonly prisma: PrismaService,
     private readonly openemrService: OpenemrService,
     private readonly notifications: NotificationsService,
+    private readonly config: ConfigService,
     @InjectQueue(APPOINTMENT_REMINDERS_QUEUE) private readonly reminderQueue: Queue,
   ) {}
 
@@ -743,7 +748,7 @@ export class AppointmentsService {
       if (slots.length > 0) {
         result.push({
           providerId: g.provider.id,
-          providerName: `${g.provider.title} ${g.provider.firstName} ${g.provider.lastName}`,
+          providerName: buildProviderDisplayName(g.provider),
           slots: slots.sort(),
         });
       }
@@ -806,9 +811,7 @@ export class AppointmentsService {
         hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos',
       }) + ' (WAT)';
 
-      const providerName = appt.provider
-        ? `${appt.provider.title} ${appt.provider.firstName} ${appt.provider.lastName}`
-        : null;
+      const providerName = appt.provider ? buildProviderDisplayName(appt.provider) : null;
 
       const locationLine = appt.isTelecare
         ? 'Join from your Health Hub Africa portal a few minutes before the start time.'
@@ -917,6 +920,35 @@ export class AppointmentsService {
           appt.provider.user.id,
           providerData,
         );
+      }
+
+      // Ops mailbox fan-out: appointments@healthhubafrica.com gets an email for
+      // every create/cancel/reschedule, regardless of who or what triggered it
+      // (patient self-service or admin/coordinator action) — this is the
+      // operational record, distinct from the staff self-service alert below.
+      const opsEvents: AppointmentEmailEvent[] = ['requested', 'cancelled', 'rescheduled'];
+      if (opsEvents.includes(event)) {
+        const opsEmail = this.config.get<string>(
+          'APPOINTMENTS_OPS_EMAIL',
+          DEFAULT_APPOINTMENTS_OPS_EMAIL,
+        );
+        const opsIntros: Record<string, string> = {
+          requested: 'A new appointment was created.',
+          cancelled: 'An appointment was cancelled.',
+          rescheduled: 'An appointment was rescheduled.',
+        };
+        const opsSubjects: Record<string, string> = {
+          requested: `Appointment created — ${appt.hhaRef}`,
+          cancelled: `Appointment cancelled — ${appt.hhaRef}`,
+          rescheduled: `Appointment rescheduled — ${appt.hhaRef}`,
+        };
+        const opsData: AppointmentNotificationData = {
+          ...baseData,
+          recipientName: 'Team',
+          intro: opsIntros[event],
+          outro: 'View the full appointment in the admin operations dashboard.',
+        };
+        await this.notifications.sendOpsAppointmentEmail(opsEmail, opsSubjects[event], opsData);
       }
 
       // Staff fan-out: only fires when a patient self-service action

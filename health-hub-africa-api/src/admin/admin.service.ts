@@ -22,7 +22,7 @@ import {
 } from './dto/admin.dto';
 import { OPENEMR_SYNC_QUEUE, OpenemrService, SyncJobData } from '../openemr/openemr.service';
 import { S3Service } from '../storage/s3.service';
-import { normalizeProviderName } from '../common/utils/provider-name.util';
+import { normalizeProviderName, buildProviderDisplayName } from '../common/utils/provider-name.util';
 import { ImportProviderManuallyDto } from './dto/import-provider-manually.dto';
 import { UpdateSchedulingPolicyDto } from './dto/update-scheduling-policy.dto';
 import {
@@ -775,9 +775,7 @@ export class AdminService {
       hhaRef: r.hhaRef,
       patientName: `${r.patient.firstName} ${r.patient.lastName}`.trim(),
       patientEmail: r.patient.user?.email ?? undefined,
-      providerName: r.provider
-        ? `${r.provider.title ?? ''} ${r.provider.firstName} ${r.provider.lastName}`.trim()
-        : undefined,
+      providerName: r.provider ? buildProviderDisplayName(r.provider) : undefined,
       facilityId: r.facility?.id ?? undefined,
       facilityName: r.facility?.name ?? undefined,
       type: r.serviceType,
@@ -835,9 +833,7 @@ export class AdminService {
       hhaRef: r.hhaRef,
       patientName: `${r.patient.firstName} ${r.patient.lastName}`.trim(),
       patientEmail: r.patient.user?.email ?? undefined,
-      providerName: r.provider
-        ? `${r.provider.title ?? ''} ${r.provider.firstName} ${r.provider.lastName}`.trim()
-        : undefined,
+      providerName: r.provider ? buildProviderDisplayName(r.provider) : undefined,
       scheduledAt: r.scheduledAt,
       startedAt: r.startedAt ?? undefined,
       endedAt: r.endedAt ?? undefined,
@@ -1735,7 +1731,7 @@ export class AdminService {
           where: { status: { in: ['waiting', 'active', 'in_progress'] as any[] } },
           include: {
             patient: { select: { firstName: true, lastName: true } },
-            provider: { select: { firstName: true, lastName: true } },
+            provider: { select: { firstName: true, lastName: true, title: true } },
           },
           orderBy: { createdAt: 'asc' },
         })
@@ -1755,9 +1751,7 @@ export class AdminService {
       id: r.id,
       type: 'teleconsult' as const,
       patientName: `${r.patient.firstName} ${r.patient.lastName}`.trim(),
-      providerName: r.provider
-        ? `${r.provider.firstName} ${r.provider.lastName}`.trim()
-        : null,
+      providerName: r.provider ? buildProviderDisplayName(r.provider) : null,
       status: String(r.status),
       createdAt: r.createdAt,
       waitMinutes: Math.floor((Date.now() - new Date(r.createdAt).getTime()) / 60000),

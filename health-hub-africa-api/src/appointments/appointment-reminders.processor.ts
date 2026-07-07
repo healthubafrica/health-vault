@@ -8,6 +8,7 @@ import {
   AppointmentNotificationData,
 } from '../notifications/notifications.service';
 import { APPOINTMENT_REMINDERS_QUEUE } from './appointments.service';
+import { buildProviderDisplayName } from '../common/utils/provider-name.util';
 
 interface ReminderJobData {
   appointmentId: string;
@@ -72,9 +73,7 @@ export class AppointmentReminderProcessor {
       hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos',
     }) + ' (WAT)';
 
-    const providerName = appt.provider
-      ? `${appt.provider.title} ${appt.provider.firstName} ${appt.provider.lastName}`
-      : null;
+    const providerName = appt.provider ? buildProviderDisplayName(appt.provider) : null;
 
     const locationLine = appt.isTelecare
       ? 'Join from your Health Hub Africa portal a few minutes before the start time.'
