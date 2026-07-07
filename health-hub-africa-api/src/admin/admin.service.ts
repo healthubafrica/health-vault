@@ -22,6 +22,7 @@ import {
 } from './dto/admin.dto';
 import { OPENEMR_SYNC_QUEUE, OpenemrService, SyncJobData } from '../openemr/openemr.service';
 import { S3Service } from '../storage/s3.service';
+import { normalizeProviderName } from '../common/utils/provider-name.util';
 import { UpdateSchedulingPolicyDto } from './dto/update-scheduling-policy.dto';
 import {
   SCHEDULING_POLICY_ID,
@@ -1625,19 +1626,21 @@ export class AdminService {
             data: { email, passwordHash, role: UserRole.provider, isVerified: true },
           });
 
+          const normalized = normalizeProviderName(p.firstName, p.lastName, p.title);
+
           await tx.provider.create({
             data: {
               userId: user.id,
-              firstName: p.firstName,
-              lastName: p.lastName,
-              title: p.title,
+              firstName: normalized.firstName,
+              lastName: normalized.lastName,
+              title: normalized.title,
               specialty: p.specialty,
               openemrProviderUuid: p.openemrId,
             },
           });
 
           imported++;
-          results.push({ email, tempPassword, firstName: p.firstName, lastName: p.lastName, status: 'imported' });
+          results.push({ email, tempPassword, firstName: normalized.firstName, lastName: normalized.lastName, status: 'imported' });
         });
       } catch {
         skipped++;
