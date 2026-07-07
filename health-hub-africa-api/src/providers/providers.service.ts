@@ -12,6 +12,7 @@ import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { CreateProviderDto } from './dto/create-provider.dto';
 import { UpdateProviderDto } from './dto/update-provider.dto';
 import { QueryProvidersDto } from './dto/query-providers.dto';
+import { normalizeProviderName } from '../common/utils/provider-name.util';
 
 // The DTO captures a richer profile than the schema stores. Structured
 // details without dedicated columns are appended to the bio text so the
@@ -98,12 +99,18 @@ export class ProvidersService {
         });
       }
 
+      const normalized = normalizeProviderName(
+        dto.firstName,
+        dto.lastName,
+        TITLE_BY_TYPE[dto.providerType] ?? 'Dr.',
+      );
+
       return tx.provider.create({
         data: {
           userId: targetUser.id,
-          firstName: dto.firstName,
-          lastName: dto.lastName,
-          title: TITLE_BY_TYPE[dto.providerType] ?? 'Dr.',
+          firstName: normalized.firstName,
+          lastName: normalized.lastName,
+          title: normalized.title,
           specialty: dto.specialization ?? dto.providerType,
           licenseNumber: dto.licenseNumber,
           yearsExperience: dto.yearsOfExperience ?? 0,
@@ -198,7 +205,7 @@ export class ProvidersService {
   async update(id: string, dto: UpdateProviderDto, currentUser: JwtPayload) {
     const provider = await this.prisma.provider.findUnique({
       where: { id },
-      select: { id: true, userId: true },
+      select: { id: true, userId: true, firstName: true, lastName: true, title: true },
     });
 
     if (!provider) throw new NotFoundException('Provider not found');
@@ -216,13 +223,19 @@ export class ProvidersService {
       (dto.specialization !== undefined && dto.specialization !== null) ||
       (dto.providerType !== undefined);
 
+    const normalized = normalizeProviderName(
+      dto.firstName ?? provider.firstName,
+      dto.lastName ?? provider.lastName,
+      dto.providerType !== undefined ? (TITLE_BY_TYPE[dto.providerType] ?? 'Dr.') : provider.title,
+    );
+
     const updated = await this.prisma.provider.update({
       where: { id },
       data: {
-        ...(dto.firstName !== undefined && { firstName: dto.firstName }),
-        ...(dto.lastName !== undefined && { lastName: dto.lastName }),
-        ...(dto.providerType !== undefined && {
-          title: TITLE_BY_TYPE[dto.providerType] ?? 'Dr.',
+        ...(dto.firstName !== undefined && { firstName: normalized.firstName }),
+        ...(dto.lastName !== undefined && { lastName: normalized.lastName }),
+        ...((dto.firstName !== undefined || dto.lastName !== undefined || dto.providerType !== undefined) && {
+          title: normalized.title,
         }),
         ...(dto.specialization !== undefined && { specialty: dto.specialization }),
         ...(dto.licenseNumber !== undefined && { licenseNumber: dto.licenseNumber }),
