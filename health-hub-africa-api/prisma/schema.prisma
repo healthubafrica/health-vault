@@ -1034,6 +1034,11 @@ model NotificationDelivery {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId      String    @map("user_id") @db.Uuid
   alertId     String?   @map("alert_id") @db.Uuid
+  // Set when this delivery was sent on behalf of a RecordShare (e.g. the
+  // share-link email/SMS) so the Resend delivery webhook can mirror
+  // delivered/bounced status back onto that share's RecordShareAccess audit
+  // trail, not just this row.
+  shareId     String?   @map("share_id") @db.Uuid
   channel     String
   recipient   String
   subject     String?
@@ -1047,7 +1052,10 @@ model NotificationDelivery {
   createdAt   DateTime  @default(now()) @map("created_at")
 
   alert PatientAlert? @relation(fields: [alertId], references: [id])
+  share RecordShare?  @relation(fields: [shareId], references: [id], onDelete: SetNull)
 
+  @@index([shareId])
+  @@index([providerRef])
   @@map("notification_deliveries")
 }
 
@@ -1387,6 +1395,7 @@ enum ShareAccessAction {
   revoked
   link_sent
   link_opened
+  link_delivered
   share_expired
 }
 
@@ -1406,8 +1415,9 @@ model RecordShare {
   createdAt        DateTime        @default(now()) @map("created_at")
   updatedAt        DateTime        @updatedAt @map("updated_at")
 
-  patient  Patient             @relation(fields: [patientId], references: [id])
-  accesses RecordShareAccess[]
+  patient     Patient                @relation(fields: [patientId], references: [id])
+  accesses    RecordShareAccess[]
+  deliveries  NotificationDelivery[]
 
   @@index([patientId])
   @@map("record_shares")

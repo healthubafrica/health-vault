@@ -443,6 +443,26 @@ export class AdminController {
     return this.adminService.resendNotification(id);
   }
 
+  // ── Share activity ────────────────────────────────────────────────────────
+
+  @Get('shares')
+  @ApiOperation({ summary: 'List secure share links with delivery/access summary' })
+  listShares(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.adminService.listShares(
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+    );
+  }
+
+  @Get('shares/:id/activity')
+  @ApiOperation({ summary: 'Get the full sent/delivered/opened/expired audit trail for a share' })
+  getShareActivity(@Param('id') id: string) {
+    return this.adminService.getShareActivity(id);
+  }
+
   // ── Facilities ─────────────────────────────────────────────────────────────
 
   @Get('facilities')

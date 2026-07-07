@@ -555,7 +555,37 @@ export interface FeatureFlag {
 
 export interface NotificationDelivery {
   id: string; channel: string; recipient: string; subject?: string
-  status: string; sentAt?: string; failedAt?: string; failureReason?: string; createdAt: string
+  status: string; sentAt?: string; deliveredAt?: string; failedAt?: string; failureReason?: string
+  shareId?: string; createdAt: string
+}
+
+// ── Admin: Share Activity ────────────────────────────────────────────────
+// Secure-share link delivery/access audit, backed by RecordShare +
+// RecordShareAccess (see NotificationDelivery.shareId for how a sent/delivered
+// email correlates back to one of these).
+
+export interface ShareSummary {
+  id: string; patientName: string; label?: string | null; accessMode: string
+  allowedEmails: string[]; recordTypes: string[]
+  expiresAt?: string | null; isExpired: boolean
+  isRevoked: boolean; revokedAt?: string | null
+  accessCount: number; createdAt: string
+}
+
+export type ShareAccessAction =
+  | 'link_sent' | 'link_delivered' | 'link_opened' | 'viewed'
+  | 'otp_sent' | 'otp_failed' | 'otp_verified'
+  | 'forward_detected' | 'revoked' | 'share_expired'
+
+export interface ShareAccessEvent {
+  id: string; shareId: string; action: ShareAccessAction
+  visitorEmail?: string | null; ipAddress?: string | null; userAgent?: string | null
+  metadata?: unknown; occurredAt: string
+}
+
+export interface ShareActivity {
+  share: ShareSummary & { recordTypes: string[] }
+  accesses: ShareAccessEvent[]
 }
 
 // ── Admin: Audit Log Detail ───────────────────────────────────────────────
@@ -875,6 +905,14 @@ export const adminApi = {
       return request<{ data: NotificationDelivery[]; meta: { total: number } }>(`/admin/notifications${qs}`)
     },
     resend: (id: string) => request<{ message: string }>(`/admin/notifications/${id}/resend`, { method: 'POST' }),
+  },
+
+  shares: {
+    list: (params?: { page?: number; limit?: number }) => {
+      const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : ''
+      return request<{ data: ShareSummary[]; meta: { total: number } }>(`/admin/shares${qs}`)
+    },
+    activity: (id: string) => request<ShareActivity>(`/admin/shares/${id}/activity`),
   },
 
   system: {

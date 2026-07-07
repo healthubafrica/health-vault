@@ -34,6 +34,7 @@ import {
   MessageSquareQuote,
   Settings,
   Network,
+  Share2,
 } from 'lucide-react'
 
 interface NavItem {
@@ -73,6 +74,7 @@ const NAV: NavItem[] = [
   { label: 'Audit Logs', href: '/system/audit-logs', icon: ScrollText, roles: ['super_admin'], group: 'System' },
   { label: 'Feature Flags', href: '/feature-flags', icon: Flag, roles: ['super_admin'], group: 'System' },
   { label: 'Notifications', href: '/notifications', icon: Bell, roles: ['admin', 'super_admin'], group: 'System' },
+  { label: 'Share Activity', href: '/shares', icon: Share2, roles: ['admin', 'super_admin'], group: 'System' },
 
   { label: 'Blog Posts', href: '/content/blog', icon: Newspaper, roles: ['admin', 'super_admin'], group: 'Content' },
   { label: 'Testimonials', href: '/content/testimonials', icon: MessageSquareQuote, roles: ['admin', 'super_admin'], group: 'Content' },

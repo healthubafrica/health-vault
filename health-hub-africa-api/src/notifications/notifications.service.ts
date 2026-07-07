@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationRateLimiterService } from './notification-rate-limiter.service';
 
@@ -85,9 +86,10 @@ export class NotificationsService {
     recipient: string,
     subject: string | undefined,
     body: string,
+    shareId?: string,
   ): Promise<string> {
     const delivery = await this.prisma.notificationDelivery.create({
-      data: { userId, channel, recipient, subject, body, status: 'queued' },
+      data: { userId, channel, recipient, subject, body, status: 'queued', shareId },
       select: { id: true },
     });
     return delivery.id;
@@ -181,11 +183,16 @@ export class NotificationsService {
     );
   }
 
+  // shareId links this delivery back to the RecordShare it was sent for, so
+  // the Resend delivery webhook (see NotificationsService.handleResendWebhook)
+  // can mirror delivered/bounced status onto that share's RecordShareAccess
+  // audit trail, not just this delivery row.
   async sendShareNotificationEmail(
     to: string,
     subject: string,
     userId: string,
     data: ShareNotificationData,
+    shareId?: string,
   ) {
     if (!(await this.rateLimiter.allow('email', to))) return;
     const recordList = data.recordTypes.length
@@ -200,12 +207,115 @@ export class NotificationsService {
       `Access the records here: ${data.shareUrl}\n\n` +
       `How to access: Open the link and enter your email address. You will receive a one-time verification code to confirm your identity.\n\n` +
       `Security: This link is intended only for you. Every access is logged and visible to the sender, who can revoke access at any time.`;
-    const deliveryId = await this.createDelivery(userId, 'email', to, subject, body);
+    const deliveryId = await this.createDelivery(userId, 'email', to, subject, body, shareId);
     await this.queue.add(
       'send-share-notification-email',
       { userId, channel: 'email', to, subject, body, metadata: { share: data }, deliveryId },
       { attempts: 3, backoff: { type: 'exponential', delay: 3000 } },
     );
+  }
+
+  // ── Resend delivery webhook ──────────────────────────────────────────────
+  //
+  // Resend signs webhook payloads using Svix. Verifies svix-id.svix-timestamp.body
+  // against RESEND_WEBHOOK_SECRET (the "whsec_..." signing secret from the
+  // Resend dashboard), then maps the event back to the NotificationDelivery
+  // row created at send time via providerRef (Resend's email id), and — for
+  // share-link emails — mirrors delivered status onto that share's
+  // RecordShareAccess audit trail.
+  verifyResendWebhookSignature(
+    rawBody: Buffer,
+    svixId: string | undefined,
+    svixTimestamp: string | undefined,
+    svixSignature: string | undefined,
+  ): void {
+    const secret = this.config.get<string>('RESEND_WEBHOOK_SECRET');
+    if (!secret) {
+      throw new UnauthorizedException('Resend webhook not configured');
+    }
+    if (!svixId || !svixTimestamp || !svixSignature) {
+      throw new UnauthorizedException('Missing Svix signature headers');
+    }
+
+    // Reject stale payloads (5 minute tolerance) to limit replay of a captured request.
+    const ageSeconds = Math.abs(Date.now() / 1000 - Number(svixTimestamp));
+    if (!Number.isFinite(ageSeconds) || ageSeconds > 300) {
+      throw new UnauthorizedException('Webhook timestamp outside tolerance');
+    }
+
+    const secretBytes = Buffer.from(secret.replace(/^whsec_/, ''), 'base64');
+    const signedContent = `${svixId}.${svixTimestamp}.${rawBody.toString('utf8')}`;
+    const expected = createHmac('sha256', secretBytes).update(signedContent).digest();
+
+    // svix-signature is a space-separated list of "v1,<base64sig>" values —
+    // one entry per active signing secret, so a single valid match is enough.
+    const provided = svixSignature.split(' ').map((entry) => entry.split(',')[1]).filter(Boolean);
+    const isValid = provided.some((sig) => {
+      const sigBytes = Buffer.from(sig, 'base64');
+      return sigBytes.length === expected.length && timingSafeEqual(sigBytes, expected);
+    });
+    if (!isValid) {
+      throw new UnauthorizedException('Invalid Resend webhook signature');
+    }
+  }
+
+  async handleResendWebhook(
+    rawBody: Buffer,
+    svixId: string | undefined,
+    svixTimestamp: string | undefined,
+    svixSignature: string | undefined,
+  ): Promise<{ ok: true }> {
+    this.verifyResendWebhookSignature(rawBody, svixId, svixTimestamp, svixSignature);
+
+    let event: { type?: string; data?: { email_id?: string } };
+    try {
+      event = JSON.parse(rawBody.toString('utf8'));
+    } catch {
+      throw new UnauthorizedException('Malformed webhook payload');
+    }
+
+    const providerRef = event.data?.email_id;
+    if (!providerRef || !event.type) return { ok: true };
+
+    const delivery = await this.prisma.notificationDelivery.findFirst({
+      where: { providerRef },
+    });
+    if (!delivery) return { ok: true }; // Not one of ours, or already pruned — nothing to update.
+
+    if (event.type === 'email.delivered') {
+      await this.prisma.notificationDelivery.update({
+        where: { id: delivery.id },
+        data: { status: 'delivered', deliveredAt: new Date() },
+      });
+      if (delivery.shareId) {
+        await this.logShareDeliveredOnce(delivery.shareId, delivery.recipient);
+      }
+    } else if (event.type === 'email.bounced' || event.type === 'email.delivery_delayed') {
+      const reason = event.type === 'email.bounced' ? 'bounced' : 'delivery delayed';
+      await this.prisma.notificationDelivery.update({
+        where: { id: delivery.id },
+        data: { status: 'failed', failedAt: new Date(), failureReason: `Resend: ${reason}` },
+      });
+    }
+    // Other event types (email.sent, email.complained, email.opened, email.clicked)
+    // don't change delivery status here — "sent" is already recorded at send
+    // time, and complaint/open/click tracking is out of scope for this webhook.
+
+    return { ok: true };
+  }
+
+  // Idempotent: a webhook can retry, and a share can be sent to more than
+  // one recipient, so scope the "already logged" check to this share + this
+  // specific recipient rather than the share as a whole.
+  private async logShareDeliveredOnce(shareId: string, recipient: string): Promise<void> {
+    const already = await this.prisma.recordShareAccess.findFirst({
+      where: { shareId, action: 'link_delivered', visitorEmail: recipient },
+      select: { id: true },
+    });
+    if (already) return;
+    await this.prisma.recordShareAccess.create({
+      data: { shareId, action: 'link_delivered', visitorEmail: recipient, metadata: { channel: 'email' } },
+    });
   }
 
   /** @deprecated Use sendAppointmentEmail for appointment-related notifications */
