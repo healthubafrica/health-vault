@@ -10,6 +10,7 @@ import { SkeletonBox } from '@/components/ui/Skeleton'
 import { formatDateTime } from '@/lib/utils'
 import { RefreshCw, Check, X, UserPlus, Video } from 'lucide-react'
 import { useLiveData } from '@/lib/hooks/useLiveData'
+import { buildProviderDisplayName } from '@/lib/providerName'
 
 type AppStatus = 'requested' | 'confirmed' | 'upcoming' | 'in_progress' | 'completed' | 'cancelled' | 'no_show'
 
@@ -439,7 +440,7 @@ function AssignProviderControl({
       </option>
       {providers?.map((p) => (
         <option key={p.id} value={p.id}>
-          {p.title} {p.firstName} {p.lastName}
+          {buildProviderDisplayName(p)}
           {p.specialty ? ` — ${p.specialty}` : ''}
         </option>
       ))}
