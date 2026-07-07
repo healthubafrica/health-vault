@@ -1833,12 +1833,93 @@ export class AdminService {
       subject: r.subject,
       status: r.status,
       sentAt: r.sentAt,
+      deliveredAt: r.deliveredAt,
       failedAt: r.failedAt,
       failureReason: r.failureReason,
+      shareId: r.shareId,
       createdAt: r.createdAt,
     }));
 
     return { data, meta: { total, page, limit } };
+  }
+
+  // ── Share activity ────────────────────────────────────────────────────────
+  // Read-only audit surface into RecordShare / RecordShareAccess (see
+  // shares.service.ts for the create/access/revoke flows) — mirrors
+  // listNotifications above but scoped to secure-share link activity so ops
+  // can confirm a share was sent, delivered, opened, or has expired.
+
+  async listShares(page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+
+    const [rows, total] = await Promise.all([
+      this.prisma.recordShare.findMany({
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          label: true,
+          accessMode: true,
+          allowedEmails: true,
+          recordTypes: true,
+          expiresAt: true,
+          isRevoked: true,
+          revokedAt: true,
+          createdAt: true,
+          patient: { select: { firstName: true, lastName: true } },
+          _count: { select: { accesses: true } },
+        },
+      }),
+      this.prisma.recordShare.count(),
+    ]);
+
+    const data = rows.map((r) => ({
+      id: r.id,
+      patientName: `${r.patient.firstName} ${r.patient.lastName}`.trim(),
+      label: r.label,
+      accessMode: r.accessMode,
+      allowedEmails: r.allowedEmails,
+      recordTypes: r.recordTypes,
+      expiresAt: r.expiresAt,
+      isExpired: r.expiresAt ? r.expiresAt < new Date() : false,
+      isRevoked: r.isRevoked,
+      revokedAt: r.revokedAt,
+      accessCount: r._count.accesses,
+      createdAt: r.createdAt,
+    }));
+
+    return { data, meta: { total, page, limit } };
+  }
+
+  async getShareActivity(shareId: string) {
+    const share = await this.prisma.recordShare.findUnique({
+      where: { id: shareId },
+      select: {
+        id: true,
+        label: true,
+        accessMode: true,
+        allowedEmails: true,
+        recordTypes: true,
+        expiresAt: true,
+        isRevoked: true,
+        revokedAt: true,
+        createdAt: true,
+        patient: { select: { firstName: true, lastName: true } },
+      },
+    });
+    if (!share) throw new NotFoundException('Share not found');
+
+    const accesses = await this.prisma.recordShareAccess.findMany({
+      where: { shareId },
+      orderBy: { occurredAt: 'desc' },
+      take: 200,
+    });
+
+    return {
+      share: { ...share, patientName: `${share.patient.firstName} ${share.patient.lastName}`.trim() },
+      accesses,
+    };
   }
 
   async resendNotification(id: string) {

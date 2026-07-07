@@ -119,7 +119,7 @@ export default function NotificationsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b" style={{ borderColor: 'var(--color-border)' }}>
-                {['Channel', 'Recipient', 'Subject', 'Status', 'Sent At', 'Actions'].map((h) => (
+                {['Channel', 'Recipient', 'Subject', 'Status', 'Sent At', 'Delivered At', 'Actions'].map((h) => (
                   <th
                     key={h}
                     className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider"
@@ -134,7 +134,7 @@ export default function NotificationsPage() {
               {loading ? (
                 Array.from({ length: 8 }).map((_, i) => (
                   <tr key={i} className="border-b" style={{ borderColor: 'var(--color-border)' }}>
-                    {Array.from({ length: 6 }).map((__, j) => (
+                    {Array.from({ length: 7 }).map((__, j) => (
                       <td key={j} className="px-4 py-3">
                         <SkeletonBox height={14} className="rounded" style={{ width: j === 1 ? 160 : 90 }} />
                       </td>
@@ -143,7 +143,7 @@ export default function NotificationsPage() {
                 ))
               ) : notifications.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                  <td colSpan={7} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>
                     No notifications found
                   </td>
                 </tr>
@@ -168,6 +168,9 @@ export default function NotificationsPage() {
                     </td>
                     <td className="px-4 py-3 text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>
                       {n.sentAt ? formatDateTime(n.sentAt) : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>
+                      {n.deliveredAt ? formatDateTime(n.deliveredAt) : '—'}
                     </td>
                     <td className="px-4 py-3">
                       {n.status === 'failed' && (

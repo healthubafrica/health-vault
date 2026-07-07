@@ -3,6 +3,7 @@ import { BullModule } from '@nestjs/bull';
 import { ConfigService } from '@nestjs/config';
 import { NotificationsService, NOTIFICATIONS_QUEUE } from './notifications.service';
 import { NotificationsProcessor } from './notifications.processor';
+import { NotificationsController } from './notifications.controller';
 import {
   NotificationRateLimiterService,
   NOTIFICATIONS_REDIS,
@@ -22,6 +23,7 @@ import { createRedisClient } from '../common/redis/redis.factory';
       limiter: { max: 10, duration: 1000 },
     }),
   ],
+  controllers: [NotificationsController],
   providers: [
     {
       provide: NOTIFICATIONS_REDIS,
