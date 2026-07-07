@@ -12,6 +12,7 @@ import { labs } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { buildProviderDisplayName } from '@/lib/providerName'
 
 const LabBarsChart = dynamic(() => import('@/components/charts/LabBarsChart').then(m => ({ default: m.LabBarsChart })), { ssr: false })
 
@@ -36,7 +37,7 @@ export function LabsScreen() {
       status: r.isFlagged ? 'flagged' : 'normal',
       value: [r.valueDisplay, r.unit].filter(Boolean).join(' '),
       referenceRange: r.referenceRange,
-      doctor: order.provider ? `${order.provider.title} ${order.provider.lastName}` : 'Provider TBD',
+      doctor: order.provider ? buildProviderDisplayName(order.provider) : 'Provider TBD',
       date: order.orderedAt,
     }))
   )

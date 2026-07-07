@@ -12,6 +12,7 @@ import { records as recordsApi, type ClinicalRecord } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { buildProviderDisplayName } from '@/lib/providerName'
 import { toast } from 'sonner'
 
 const TABS = ['All', 'Visits', 'Labs', 'Prescriptions', 'Documents']
@@ -149,9 +150,7 @@ export function RecordsScreen() {
             {filtered.map(record => {
               const recordType = record.recordType as RecordType
               const Icon = ICON_MAP[recordType]
-              const providerName = record.provider
-                ? `${record.provider.title} ${record.provider.lastName}`
-                : null
+              const providerName = record.provider ? buildProviderDisplayName(record.provider) : null
 
               return (
                 <div key={record.id} className="flex items-start gap-3 p-4">

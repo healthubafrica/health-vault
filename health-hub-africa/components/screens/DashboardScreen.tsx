@@ -27,6 +27,7 @@ import { patients, vitals as vitalsApi, appointments, subscriptions } from '@/li
 import { useApi } from '@/lib/hooks/useApi'
 import { DashboardSkeleton } from '@/components/skeletons/DashboardSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { buildProviderDisplayName } from '@/lib/providerName'
 
 const HeartRateChart = dynamic(() => import('@/components/charts/HeartRateChart').then(m => ({ default: m.HeartRateChart })), { ssr: false })
 const SleepChart = dynamic(() => import('@/components/charts/SleepChart').then(m => ({ default: m.SleepChart })), { ssr: false })
@@ -407,7 +408,7 @@ export function DashboardScreen() {
               </p>
               {nextAppt.provider && (
                 <p className="text-xs font-medium text-[var(--color-text-muted)]">
-                  With {nextAppt.provider.title} {nextAppt.provider.lastName}
+                  With {buildProviderDisplayName(nextAppt.provider)}
                 </p>
               )}
               <Button
@@ -451,7 +452,7 @@ export function DashboardScreen() {
                 />
                 <div>
                   <p className="text-sm font-extrabold text-[var(--color-text)]">
-                    {nextAppt.provider.title} {nextAppt.provider.firstName} {nextAppt.provider.lastName}
+                    {buildProviderDisplayName(nextAppt.provider)}
                   </p>
                   <p className="text-xs text-[var(--color-text-muted)] font-medium">{nextAppt.provider.specialty}</p>
                 </div>
