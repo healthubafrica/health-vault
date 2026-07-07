@@ -247,6 +247,11 @@ export default function Services() {
               desc: 'Personalised preventive care programmes and care plan consultations.',
               href: '/services',
             },
+            {
+              name: 'TravelSafe™',
+              desc: 'Prepare your health records for international travel. Upload documents and share your health summary with providers worldwide.',
+              href: '/services/travelsafe',
+            },
           ].map((svc) => (
             <motion.div
               key={svc.name}

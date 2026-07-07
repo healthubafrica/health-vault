@@ -20,6 +20,8 @@ const navCols = [
       { label: 'Expert Review™', href: '/expert-review' },
       { label: 'DispatchCare™', href: '/dispatchcare' },
       { label: 'HealthConsult™', href: '/services' },
+      { label: 'NeuroFlex™', href: '/services/neuroflex' },
+      { label: 'TravelSafe™', href: '/services/travelsafe' },
     ],
   },
   {

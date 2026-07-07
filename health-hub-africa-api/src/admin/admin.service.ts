@@ -39,6 +39,7 @@ const DEFAULT_FLAGS: Record<string, { label: string; description: string; defaul
   expert_review_enabled: { label: 'Expert Review', description: 'Enable expert review case submissions', defaultValue: true },
   lab_orders_enabled: { label: 'Lab Orders', description: 'Enable lab test ordering', defaultValue: true },
   neuroflex_enabled: { label: 'NeuroFlex', description: 'Enable NeuroFlex AI health screening', defaultValue: false },
+  travelsafe_enabled: { label: 'TravelSafe', description: 'Travel health preparation service', defaultValue: false },
   patient_registration_open: { label: 'Patient Registration', description: 'Allow new patient signups', defaultValue: true },
 };
 
