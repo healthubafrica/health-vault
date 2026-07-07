@@ -17,6 +17,12 @@ import { randomBytes, createHash, randomInt } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import Redis from 'ioredis';
 
+// Defensive fallback for the (practically unreachable) case where a share's
+// patient record can't be found — NotificationDelivery.userId is @db.Uuid,
+// so this must be a syntactically valid UUID even though it maps to no
+// real user.
+const SYSTEM_USER_ID_FALLBACK = '00000000-0000-0000-0000-000000000000';
+
 @Injectable()
 export class SharesService {
   private readonly logger = new Logger(SharesService.name);
@@ -134,6 +140,7 @@ export class SharesService {
           `${patientName} shared health records with you — Health Hub Africa`,
           userId,
           shareData,
+          share.id,
         );
         await this.prisma.recordShareAccess.create({
           data: {
@@ -336,14 +343,22 @@ export class SharesService {
 
     const patient = await this.prisma.patient.findUnique({
       where: { id: share.patientId },
-      select: { firstName: true, lastName: true, user: { select: { email: true } } },
+      select: { firstName: true, lastName: true, userId: true, user: { select: { email: true } } },
     });
 
+    // Bug: this used to pass the patient's *email* (or the literal string
+    // 'system') as the userId argument — harmless while userId was only
+    // opaque job metadata, but NotificationDelivery.userId is a @db.Uuid
+    // column, so a non-UUID value now hard-fails the insert. Use the
+    // patient's real user id (the recipient here is an anonymous external
+    // party with no User row at all, so we attribute the delivery record
+    // to the patient whose share triggered it, same as every other call
+    // site in this file).
     await this.notifications.sendEmail(
       normalEmail,
       'Your Health Hub Africa record access code',
       `Someone shared health records with you via Health Hub Africa.\n\nYour one-time access code is:\n\n${code}\n\nThis code expires in 10 minutes. If you did not request this, please ignore this email.`,
-      patient?.user?.email ?? 'system',
+      patient?.userId ?? SYSTEM_USER_ID_FALLBACK,
     );
 
     await this.prisma.recordShareAccess.create({
@@ -475,14 +490,14 @@ export class SharesService {
       // Notify the share owner
       const patient = await this.prisma.patient.findUnique({
         where: { id: share.patientId },
-        select: { firstName: true, user: { select: { email: true } } },
+        select: { firstName: true, userId: true, user: { select: { email: true } } },
       });
-      if (patient?.user?.email) {
+      if (patient && patient.user?.email) {
         await this.notifications.sendEmail(
           patient.user.email,
           'Health Hub Africa: Potential share forwarding detected',
           `Hi ${patient.firstName},\n\nYour shared health record link (${share.label ?? 'Unnamed share'}) was accessed by ${email} from a new device/location — this may indicate the link was forwarded.\n\nIf you did not expect this, you can revoke the link in your Health Hub Africa portal.\n\nThis is an automated security notice.`,
-          patient.user.email,
+          patient.userId,
         );
       }
     }
@@ -529,14 +544,14 @@ export class SharesService {
   private async notifyHighViralReach(share: any, uniqueCount: number) {
     const patient = await this.prisma.patient.findUnique({
       where: { id: share.patientId },
-      select: { firstName: true, user: { select: { email: true } } },
+      select: { firstName: true, userId: true, user: { select: { email: true } } },
     });
-    if (!patient?.user?.email) return;
+    if (!patient || !patient.user?.email) return;
     await this.notifications.sendEmail(
       patient.user.email,
       'Health Hub Africa: Your shared link is getting wide reach',
       `Hi ${patient.firstName},\n\nYour shared health record link (${share.label ?? 'Unnamed share'}) has been accessed from ${uniqueCount} different devices in the past hour. If this is unexpected, you can revoke the link in your portal.\n\nThis is an automated security notice.`,
-      patient.user.email,
+      patient.userId,
     );
   }
 
