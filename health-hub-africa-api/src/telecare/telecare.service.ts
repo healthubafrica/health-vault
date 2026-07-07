@@ -22,6 +22,7 @@ import {
   TransferSessionDto,
   CreateShiftDto,
 } from './dto/create-session.dto';
+import { buildProviderDisplayName } from '../common/utils/provider-name.util';
 
 export const TELECARE_QUEUE = 'telecare-maintenance';
 
@@ -76,7 +77,7 @@ export class TelecareService implements OnModuleInit {
     if (currentUser.patientId && session.patient) {
       participantName = `${session.patient.firstName} ${session.patient.lastName}`;
     } else if (currentUser.providerId && session.provider) {
-      participantName = `${session.provider.title} ${session.provider.firstName} ${session.provider.lastName}`;
+      participantName = buildProviderDisplayName(session.provider);
     } else {
       participantName = currentUser.email || 'Admin/Coordinator';
     }
