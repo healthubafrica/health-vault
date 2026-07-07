@@ -7,6 +7,11 @@ import { NotificationRateLimiterService } from './notification-rate-limiter.serv
 
 export const NOTIFICATIONS_QUEUE = 'notifications';
 
+// Sentinel userId for deliveries to internal mailboxes (e.g. the ops
+// appointments inbox) that aren't backed by a User row. notification_deliveries.userId
+// has no FK constraint, so this is safe to use purely for admin-panel display.
+export const OPS_NOTIFICATION_USER_ID = '00000000-0000-0000-0000-000000000099';
+
 export type NotificationChannel = 'email' | 'sms' | 'push' | 'whatsapp';
 
 export interface NotificationJobData {
@@ -128,6 +133,18 @@ export class NotificationsService {
     return this.sendEmail(email, 'Verify your Health Hub Africa account', body, userId);
   }
 
+  private buildAppointmentEmailBody(data: AppointmentNotificationData): string {
+    return (
+      `Hi ${data.recipientName},\n\n${data.intro}\n\n` +
+      `Reference: ${data.hhaRef}\nService: ${data.serviceType}\n` +
+      `Date & time: ${data.when}\nDuration: ${data.durationMinutes} minutes\n` +
+      (data.providerName ? `Provider: ${data.providerName}\n` : '') +
+      (data.locationLine ? `${data.locationLine}\n` : '') +
+      (data.outro ? `\n${data.outro}` : '') +
+      '\n\n— Health Hub Africa'
+    );
+  }
+
   // Rich HTML appointment email — routes to the dedicated appointment card template.
   async sendAppointmentEmail(
     to: string,
@@ -136,18 +153,30 @@ export class NotificationsService {
     data: AppointmentNotificationData,
   ) {
     if (!(await this.rateLimiter.allow('email', to))) return;
-    const body =
-      `Hi ${data.recipientName},\n\n${data.intro}\n\n` +
-      `Reference: ${data.hhaRef}\nService: ${data.serviceType}\n` +
-      `Date & time: ${data.when}\nDuration: ${data.durationMinutes} minutes\n` +
-      (data.providerName ? `Provider: ${data.providerName}\n` : '') +
-      (data.locationLine ? `${data.locationLine}\n` : '') +
-      (data.outro ? `\n${data.outro}` : '') +
-      '\n\n— Health Hub Africa';
+    const body = this.buildAppointmentEmailBody(data);
     const deliveryId = await this.createDelivery(userId, 'email', to, subject, body);
     await this.queue.add(
       'send-appointment-email',
       { userId, channel: 'email', to, subject, body, metadata: { appt: data }, deliveryId },
+      { attempts: 3, backoff: { type: 'exponential', delay: 3000 } },
+    );
+  }
+
+  // Appointment email to an internal ops mailbox (e.g. appointments@healthhubafrica.com)
+  // rather than an individual user. Deliberately skips the per-recipient rate limiter:
+  // that limiter protects a single person's inbox from abuse across many trigger paths,
+  // but this is a shared operational address whose volume is bounded by real appointment
+  // events — throttling it would silently hide legitimate activity from ops during busy periods.
+  async sendOpsAppointmentEmail(
+    to: string,
+    subject: string,
+    data: AppointmentNotificationData,
+  ) {
+    const body = this.buildAppointmentEmailBody(data);
+    const deliveryId = await this.createDelivery(OPS_NOTIFICATION_USER_ID, 'email', to, subject, body);
+    await this.queue.add(
+      'send-appointment-email',
+      { userId: OPS_NOTIFICATION_USER_ID, channel: 'email', to, subject, body, metadata: { appt: data }, deliveryId },
       { attempts: 3, backoff: { type: 'exponential', delay: 3000 } },
     );
   }
