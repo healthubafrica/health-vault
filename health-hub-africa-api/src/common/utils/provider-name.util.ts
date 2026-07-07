@@ -79,7 +79,7 @@ export function normalizeProviderName(
   const { token: doubledTitleToken } = stripLeadingTitles(trimmedRawTitle);
 
   const resolvedToken = cleanedTitleToken ?? doubledTitleToken ?? firstNameToken ?? lastNameToken;
-  const title = resolvedToken ? TITLE_ALIASES[resolvedToken] : trimmedRawTitle || 'Dr.';
+  const title = resolvedToken ? TITLE_ALIASES[resolvedToken] : trimmedRawTitle;
 
   return { firstName, lastName, title };
 }
