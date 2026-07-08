@@ -53,11 +53,12 @@ export interface AppointmentNotificationData {
   intro: string;
   outro?: string | null;
   cancelReason?: string | null;
-  // Determines which portal the email's CTA button links to. Defaults to the
-  // patient portal — providers, ops, and internal staff recipients must set
-  // this to 'provider' so the button lands on the admin/provider dashboard
-  // instead of the patient app.
-  portalType?: 'patient' | 'provider';
+  // Determines which portal the email's CTA button links to, and its label.
+  // Defaults to the patient portal. Providers get 'provider' (labeled "Go to
+  // provider dashboard"); ops mailbox / admin / coordinator recipients get
+  // 'staff' (labeled "Go to admin dashboard") — both resolve to the same
+  // admin.myvaultplus.com destination, only the label differs.
+  portalType?: 'patient' | 'provider' | 'staff';
 }
 
 @Injectable()
