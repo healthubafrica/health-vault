@@ -494,6 +494,12 @@ function buildAppointmentHtml(subject: string, d: AppointmentNotificationData): 
   const statusIcon = isCancelled ? '✕' : isNoShow ? '✕' : isCompleted ? '✓' : isReminder ? '⏰' : '✓';
   const statusLabel = isCancelled ? 'Cancelled' : isNoShow ? 'Missed' : isCompleted ? 'Completed' : isReminder ? 'Reminder' : 'Confirmed';
 
+  const isProviderPortal = d.portalType === 'provider';
+  const portalUrl = isProviderPortal
+    ? (process.env.ADMIN_URL ?? 'https://admin.myvaultplus.com')
+    : (process.env.FRONTEND_URL ?? 'https://app.myvaultplus.com');
+  const portalLabel = isProviderPortal ? 'Go to provider dashboard' : 'Go to your portal';
+
   const detailRows: string[] = [
     `<tr>
       <td style="padding:8px 0;font-size:13px;color:#6B6B6B;width:120px;vertical-align:top;">Reference</td>
@@ -566,8 +572,8 @@ function buildAppointmentHtml(subject: string, d: AppointmentNotificationData): 
 
     <!-- CTA -->
     <div style="margin:28px 0 0;text-align:center;">
-      <a href="https://app.myvaultplus.com" style="display:inline-block;background:${accentColor};color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:13px 32px;border-radius:8px;">
-        Go to your portal
+      <a href="${portalUrl}" style="display:inline-block;background:${accentColor};color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:13px 32px;border-radius:8px;">
+        ${portalLabel}
       </a>
     </div>`;
 
