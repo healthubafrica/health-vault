@@ -369,7 +369,7 @@ export class AdminService {
     if (!user.isVerified) throw new BadRequestException('User has not verified their email yet');
     if (user.patient) throw new BadRequestException('User has already completed onboarding');
 
-    const frontendUrl = process.env.FRONTEND_URL ?? 'https://app.myvaultplus.com';
+    const frontendUrl = process.env.FRONTEND_URL ?? 'https://portal.myvaultplus.com';
 
     await this.notifications.sendEmail(
       user.email,

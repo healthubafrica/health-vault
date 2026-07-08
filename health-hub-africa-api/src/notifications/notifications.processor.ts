@@ -494,11 +494,14 @@ function buildAppointmentHtml(subject: string, d: AppointmentNotificationData): 
   const statusIcon = isCancelled ? '✕' : isNoShow ? '✕' : isCompleted ? '✓' : isReminder ? '⏰' : '✓';
   const statusLabel = isCancelled ? 'Cancelled' : isNoShow ? 'Missed' : isCompleted ? 'Completed' : isReminder ? 'Reminder' : 'Confirmed';
 
-  const isProviderPortal = d.portalType === 'provider';
-  const portalUrl = isProviderPortal
+  const isAdminPortal = d.portalType === 'provider' || d.portalType === 'staff';
+  const portalUrl = isAdminPortal
     ? (process.env.ADMIN_URL ?? 'https://admin.myvaultplus.com')
-    : (process.env.FRONTEND_URL ?? 'https://app.myvaultplus.com');
-  const portalLabel = isProviderPortal ? 'Go to provider dashboard' : 'Go to your portal';
+    : (process.env.FRONTEND_URL ?? 'https://portal.myvaultplus.com');
+  const portalLabel =
+    d.portalType === 'provider' ? 'Go to provider dashboard'
+    : d.portalType === 'staff' ? 'Go to admin dashboard'
+    : 'Go to your portal';
 
   const detailRows: string[] = [
     `<tr>

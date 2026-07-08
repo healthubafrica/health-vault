@@ -948,7 +948,7 @@ export class AppointmentsService {
           recipientName: 'Team',
           intro: opsIntros[event],
           outro: 'View the full appointment in the admin operations dashboard.',
-          portalType: 'provider',
+          portalType: 'staff',
         };
         await this.notifications.sendOpsAppointmentEmail(opsEmail, opsSubjects[event], opsData);
       }
@@ -979,7 +979,7 @@ export class AppointmentsService {
             recipientName: 'Team',
             intro: staffIntro,
             outro: 'View the full appointment in the admin operations dashboard.',
-            portalType: 'provider',
+            portalType: 'staff',
           };
           await this.notifications.sendAppointmentEmail(
             staffUser.email,
