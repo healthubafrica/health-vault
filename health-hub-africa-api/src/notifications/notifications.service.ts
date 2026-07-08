@@ -53,6 +53,11 @@ export interface AppointmentNotificationData {
   intro: string;
   outro?: string | null;
   cancelReason?: string | null;
+  // Determines which portal the email's CTA button links to. Defaults to the
+  // patient portal — providers, ops, and internal staff recipients must set
+  // this to 'provider' so the button lands on the admin/provider dashboard
+  // instead of the patient app.
+  portalType?: 'patient' | 'provider';
 }
 
 @Injectable()
