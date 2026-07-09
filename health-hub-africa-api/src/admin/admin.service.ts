@@ -24,6 +24,8 @@ import { OPENEMR_SYNC_QUEUE, OpenemrService, SyncJobData } from '../openemr/open
 import { S3Service } from '../storage/s3.service';
 import { normalizeProviderName, buildProviderDisplayName } from '../common/utils/provider-name.util';
 import { ImportProviderManuallyDto } from './dto/import-provider-manually.dto';
+import { CreateNotificationRecipientDto, UpdateNotificationRecipientDto } from './dto/notification-recipient.dto';
+import { CreateProviderNotificationEmailDto } from '../providers/dto/provider-notification-email.dto';
 import { UpdateSchedulingPolicyDto } from './dto/update-scheduling-policy.dto';
 import {
   SCHEDULING_POLICY_ID,
@@ -2088,5 +2090,67 @@ export class AdminService {
     const date = new Date();
     date.setDate(date.getDate() - days);
     return date;
+  }
+
+  // ── Notification Recipients (global) ────────────────────────────────────
+
+  async listNotificationRecipients() {
+    return this.prisma.notificationRecipient.findMany({ orderBy: { createdAt: 'asc' } });
+  }
+
+  async createNotificationRecipient(dto: CreateNotificationRecipientDto, currentUser: JwtPayload) {
+    return this.prisma.notificationRecipient.create({
+      data: { label: dto.label, email: dto.email, createdBy: currentUser.sub },
+    });
+  }
+
+  async updateNotificationRecipient(id: string, dto: UpdateNotificationRecipientDto) {
+    const existing = await this.prisma.notificationRecipient.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Notification recipient not found');
+    return this.prisma.notificationRecipient.update({
+      where: { id },
+      data: {
+        ...(dto.label !== undefined && { label: dto.label }),
+        ...(dto.email !== undefined && { email: dto.email }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      },
+    });
+  }
+
+  async deleteNotificationRecipient(id: string) {
+    const existing = await this.prisma.notificationRecipient.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Notification recipient not found');
+    await this.prisma.notificationRecipient.delete({ where: { id } });
+    return { message: 'Notification recipient deleted' };
+  }
+
+  // ── Provider Notification Emails (admin-managed) ─────────────────────────
+
+  async listProviderNotificationEmails(providerId: string) {
+    const provider = await this.prisma.provider.findUnique({ where: { id: providerId }, select: { id: true } });
+    if (!provider) throw new NotFoundException('Provider not found');
+    return this.prisma.providerNotificationEmail.findMany({
+      where: { providerId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async addProviderNotificationEmail(
+    providerId: string,
+    dto: CreateProviderNotificationEmailDto,
+    currentUser: JwtPayload,
+  ) {
+    const provider = await this.prisma.provider.findUnique({ where: { id: providerId }, select: { id: true } });
+    if (!provider) throw new NotFoundException('Provider not found');
+    return this.prisma.providerNotificationEmail.create({
+      data: { providerId, label: dto.label, email: dto.email, addedBy: currentUser.sub },
+    });
+  }
+
+  async removeProviderNotificationEmail(providerId: string, emailId: string) {
+    const row = await this.prisma.providerNotificationEmail.findUnique({ where: { id: emailId } });
+    if (!row || row.providerId !== providerId) throw new NotFoundException('Notification email not found');
+    await this.prisma.providerNotificationEmail.delete({ where: { id: emailId } });
+    return { message: 'Notification email removed' };
   }
 }
