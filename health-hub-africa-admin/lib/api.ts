@@ -559,6 +559,15 @@ export interface NotificationRecipient {
   createdAt: string
 }
 
+export interface ProviderNotificationEmail {
+  id: string
+  providerId: string
+  label: string | null
+  email: string
+  isActive: boolean
+  createdAt: string
+}
+
 // ── Admin: Notifications ──────────────────────────────────────────────────
 
 export interface NotificationDelivery {
@@ -881,6 +890,20 @@ export const adminApi = {
     // up the booking gate.
     verify: (id: string) =>
       request<{ data: AdminProvider }>(`/providers/${id}/verify`, { method: 'PATCH' }),
+  },
+
+  providerNotificationEmails: {
+    list: (providerId: string) =>
+      request<ProviderNotificationEmail[]>(`/admin/providers/${providerId}/notification-emails`),
+    add: (providerId: string, label: string | undefined, email: string) =>
+      request<ProviderNotificationEmail>(`/admin/providers/${providerId}/notification-emails`, {
+        method: 'POST',
+        body: JSON.stringify({ label, email }),
+      }),
+    remove: (providerId: string, emailId: string) =>
+      request<{ message: string }>(`/admin/providers/${providerId}/notification-emails/${emailId}`, {
+        method: 'DELETE',
+      }),
   },
 
   clinicalQueue: {
