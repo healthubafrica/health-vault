@@ -6,6 +6,7 @@ import Footer from '@/components/Footer'
 import HeroMarquee from '@/components/HeroMarquee'
 import AnimatedSection from '@/components/AnimatedSection'
 import AnimatedCard from '@/components/AnimatedCard'
+import TravelSafePricing from '@/components/TravelSafePricing'
 import { Plane, Shield, FileUp, Globe, Share2, ClipboardList } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -69,13 +70,6 @@ const steps = [
     title: 'Travel with Confidence',
     desc: 'Your TravelSafe™ summary is ready to share with providers, border health officials, or travel insurers worldwide.',
   },
-]
-
-const planRows = [
-  { plan: 'Free / Starter', access: 'Add-on', highlight: false },
-  { plan: 'Growth', access: '✓ Included', highlight: true },
-  { plan: 'Enterprise', access: '✓ Included', highlight: true },
-  { plan: 'Corporate & HMO', access: 'Custom allocation', highlight: false },
 ]
 
 export default function TravelSafePage() {
@@ -180,45 +174,20 @@ export default function TravelSafePage() {
         </section>
       </div>
 
-      {/* ── Plans ── */}
+      {/* ── Pricing ── */}
       <div className="page-card" style={{ background: '#EBEBEB' }}>
         <section className="section-inner">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 56, alignItems: 'center' }}>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 14 }}>— Pricing</div>
-              <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 0 16px', color: '#07251C' }}>
-                Included from Growth.{' '}
-                <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic' }}>Available as add-on.</em>
-              </h2>
-              <p style={{ color: '#41584E', fontSize: 15, lineHeight: 1.7, margin: '0 0 28px' }}>
-                TravelSafe™ is included in Growth, Enterprise, and Corporate plans. Starter members can activate it as a flexible add-on.
-              </p>
-              <a href="/plans" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: '#07251C', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', padding: '12px 12px 12px 22px', borderRadius: 100 }}>
-                See All Plans
-                <span style={{ width: 28, height: 28, borderRadius: '50%', background: '#6DC43F', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M5 19L19 5M19 5H9M19 5v10" stroke="#07251C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                </span>
-              </a>
-            </div>
-            <div style={{ background: '#fff', borderRadius: 20, overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: '#07251C' }}>
-                    <th style={{ padding: '14px 20px', textAlign: 'left', fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 13, color: 'rgba(255,255,255,0.75)', letterSpacing: '0.05em' }}>Plan</th>
-                    <th style={{ padding: '14px 20px', textAlign: 'left', fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 13, color: 'rgba(255,255,255,0.75)', letterSpacing: '0.05em' }}>TravelSafe™</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {planRows.map((row, i) => (
-                    <tr key={row.plan} style={{ background: i % 2 === 0 ? '#F7FAF7' : '#fff', borderBottom: '1px solid rgba(7,37,28,0.06)' }}>
-                      <td style={{ padding: '14px 20px', fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 500, fontSize: 14, color: '#07251C' }}>{row.plan}</td>
-                      <td style={{ padding: '14px 20px', fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 14, color: row.highlight ? '#137333' : '#41584E' }}>{row.access}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <div style={{ textAlign: 'center', marginBottom: 48 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#137333', marginBottom: 14 }}>— TravelSafe™ Pricing</div>
+            <h2 style={{ fontFamily: 'var(--font-manrope), sans-serif', fontWeight: 600, fontSize: 'clamp(28px, 3.5vw, 40px)', lineHeight: 1.1, letterSpacing: '-0.02em', margin: '0 auto 16px', maxWidth: 560, color: '#07251C' }}>
+              Choose your level of{' '}
+              <em style={{ fontFamily: 'var(--font-manrope), sans-serif', fontStyle: 'italic' }}>travel health protection.</em>
+            </h2>
+            <p style={{ color: '#41584E', fontSize: 15, lineHeight: 1.7, maxWidth: 520, margin: '0 auto' }}>
+              Four tiers, family plans, and corporate coverage — all built on your MyHealth Vault+™ profile.
+            </p>
           </div>
+          <TravelSafePricing />
         </section>
       </div>
 
