@@ -5,8 +5,10 @@
 
 const REGISTER_URL = 'https://portal.myvaultplus.com/register'
 
+export type TravelSafeTierSlug = 'essential' | 'plus' | 'premium' | 'executive'
+
 export interface TravelSafeTier {
-  slug: string
+  slug: TravelSafeTierSlug
   name: string
   priceKobo: number
   bestFor: string[]
