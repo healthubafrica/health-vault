@@ -8,9 +8,10 @@ import {
   TRAVELSAFE_ADDITIONAL_MEMBER_KOBO,
   TRAVELSAFE_ADDONS,
   TRAVELSAFE_COMPARE_ROWS,
+  type TravelSafeTierSlug,
 } from '@/lib/travelsafePlanData'
 
-const TIER_THEME: Record<string, { bg: string; accent: string; badgeBg: string; badgeText: string; isDark: boolean }> = {
+const TIER_THEME: Record<TravelSafeTierSlug, { bg: string; accent: string; badgeBg: string; badgeText: string; isDark: boolean }> = {
   essential: { bg: '#EBF5EC', accent: '#137333', badgeBg: '#137333', badgeText: '#fff', isDark: false },
   plus: { bg: '#E6F4F0', accent: '#0E8567', badgeBg: '#0E8567', badgeText: '#fff', isDark: false },
   premium: { bg: '#0C3328', accent: '#34E0A0', badgeBg: '#34E0A0', badgeText: '#0C3328', isDark: true },
