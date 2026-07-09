@@ -12,6 +12,7 @@ import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { CreateProviderDto } from './dto/create-provider.dto';
 import { UpdateProviderDto } from './dto/update-provider.dto';
 import { QueryProvidersDto } from './dto/query-providers.dto';
+import { CreateProviderNotificationEmailDto } from './dto/provider-notification-email.dto';
 import { normalizeProviderName } from '../common/utils/provider-name.util';
 
 // The DTO captures a richer profile than the schema stores. Structured
@@ -310,6 +311,44 @@ export class ProvidersService {
     });
 
     return { message: 'Provider account deactivated' };
+  }
+
+  // ── Notification Emails (self-service) ────────────────────────────────────
+
+  async listMyNotificationEmails(currentUser: JwtPayload) {
+    const providerId = await this.resolveOwnProviderId(currentUser);
+    return this.prisma.providerNotificationEmail.findMany({
+      where: { providerId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async addMyNotificationEmail(dto: CreateProviderNotificationEmailDto, currentUser: JwtPayload) {
+    const providerId = await this.resolveOwnProviderId(currentUser);
+    return this.prisma.providerNotificationEmail.create({
+      data: { providerId, label: dto.label, email: dto.email, addedBy: currentUser.sub },
+    });
+  }
+
+  async removeMyNotificationEmail(emailId: string, currentUser: JwtPayload) {
+    const providerId = await this.resolveOwnProviderId(currentUser);
+    const row = await this.prisma.providerNotificationEmail.findUnique({ where: { id: emailId } });
+    if (!row || row.providerId !== providerId) throw new NotFoundException('Notification email not found');
+    await this.prisma.providerNotificationEmail.delete({ where: { id: emailId } });
+    return { message: 'Notification email removed' };
+  }
+
+  // Prefers the providerId already embedded in the JWT (set at login); falls
+  // back to a DB lookup only for tokens issued before the provider row
+  // existed. Never trusts a client-supplied provider id for /me routes.
+  private async resolveOwnProviderId(currentUser: JwtPayload): Promise<string> {
+    if (currentUser.providerId) return currentUser.providerId;
+    const provider = await this.prisma.provider.findUnique({
+      where: { userId: currentUser.sub },
+      select: { id: true },
+    });
+    if (!provider) throw new NotFoundException('Provider profile not found');
+    return provider.id;
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
