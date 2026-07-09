@@ -551,6 +551,14 @@ export interface FeatureFlag {
   key: string; label: string; description: string; enabled: boolean
 }
 
+export interface NotificationRecipient {
+  id: string
+  label: string
+  email: string
+  isActive: boolean
+  createdAt: string
+}
+
 // ── Admin: Notifications ──────────────────────────────────────────────────
 
 export interface NotificationDelivery {
@@ -897,6 +905,22 @@ export const adminApi = {
     list: () => request<FeatureFlag[]>('/admin/feature-flags'),
     set: (key: string, enabled: boolean) =>
       request<FeatureFlag[]>(`/admin/feature-flags/${key}`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
+  },
+
+  notificationRecipients: {
+    list: () => request<NotificationRecipient[]>('/admin/notification-recipients'),
+    create: (label: string, email: string) =>
+      request<NotificationRecipient>('/admin/notification-recipients', {
+        method: 'POST',
+        body: JSON.stringify({ label, email }),
+      }),
+    update: (id: string, patch: { label?: string; email?: string; isActive?: boolean }) =>
+      request<NotificationRecipient>(`/admin/notification-recipients/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+      }),
+    remove: (id: string) =>
+      request<{ message: string }>(`/admin/notification-recipients/${id}`, { method: 'DELETE' }),
   },
 
   notifications: {
