@@ -1129,3 +1129,16 @@ export const adminApi = {
     },
   },
 }
+
+export const providerSelf = {
+  notificationEmails: {
+    list: () => request<ProviderNotificationEmail[]>('/providers/me/notification-emails'),
+    add: (label: string | undefined, email: string) =>
+      request<ProviderNotificationEmail>('/providers/me/notification-emails', {
+        method: 'POST',
+        body: JSON.stringify({ label, email }),
+      }),
+    remove: (emailId: string) =>
+      request<{ message: string }>(`/providers/me/notification-emails/${emailId}`, { method: 'DELETE' }),
+  },
+}
