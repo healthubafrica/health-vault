@@ -4,8 +4,11 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { FormInput } from '@/components/ui/FormInput'
 import { SkeletonBox } from '@/components/ui/Skeleton'
-import { auth, type NotificationPrefs } from '@/lib/api'
+import { auth, providerSelf, type NotificationPrefs, type ProviderNotificationEmail } from '@/lib/api'
+import { useAuthStore } from '@/lib/stores/authStore'
+import { Mail, Trash2, Plus } from 'lucide-react'
 
 const CHANNELS: Array<{ key: keyof NotificationPrefs; label: string; desc: string }> = [
   { key: 'emailEnabled', label: 'Email', desc: 'Receive notifications via email' },
@@ -24,6 +27,7 @@ const CATEGORIES: Array<{ key: keyof NotificationPrefs; label: string; desc: str
 ]
 
 export function NotificationsTab() {
+  const isProvider = useAuthStore((s) => s.user)?.role === 'provider'
   const [prefs, setPrefs] = useState<NotificationPrefs | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -118,6 +122,8 @@ export function NotificationsTab() {
           Save preferences
         </Button>
       </div>
+
+      {isProvider && <AdditionalRecipientsCard />}
     </div>
   )
 }
@@ -165,5 +171,114 @@ function Switch({ checked }: { checked: boolean }) {
         style={{ transform: checked ? 'translateX(16px)' : 'translateX(0)' }}
       />
     </span>
+  )
+}
+
+function AdditionalRecipientsCard() {
+  const [emails, setEmails] = useState<ProviderNotificationEmail[]>([])
+  const [loading, setLoading] = useState(true)
+  const [label, setLabel] = useState('')
+  const [email, setEmail] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [removingId, setRemovingId] = useState<string | null>(null)
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const data = await providerSelf.notificationEmails.list()
+      setEmails(data)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load notification emails')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [])
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email.trim()) return
+    setAdding(true)
+    try {
+      await providerSelf.notificationEmails.add(label.trim() || undefined, email.trim())
+      setLabel('')
+      setEmail('')
+      toast.success('Recipient added')
+      await load()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add recipient')
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  const handleRemove = async (emailId: string) => {
+    setRemovingId(emailId)
+    try {
+      await providerSelf.notificationEmails.remove(emailId)
+      toast.success('Recipient removed')
+      await load()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove recipient')
+    } finally {
+      setRemovingId(null)
+    }
+  }
+
+  return (
+    <Card>
+      <CardTitle>Additional recipients</CardTitle>
+      <p className="text-[11px] mb-3" style={{ color: 'var(--color-text-muted)' }}>
+        Extra people who should also get an email when one of your appointments changes — e.g. your nurse or secretary.
+      </p>
+      {loading ? (
+        <SkeletonBox className="h-14 rounded-xl" />
+      ) : (
+        <div className="flex flex-col gap-2 mb-3">
+          {emails.length === 0 ? (
+            <p className="text-xs" style={{ color: 'var(--color-text-faint)' }}>No additional recipients added</p>
+          ) : (
+            emails.map((e) => (
+              <div key={e.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg" style={{ background: 'var(--color-bg)' }}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <Mail className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--color-text-muted)' }} />
+                  <span className="text-xs truncate" style={{ color: 'var(--color-text)' }}>
+                    {e.label ? `${e.label} — ` : ''}{e.email}
+                  </span>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={removingId === e.id}
+                  onClick={() => handleRemove(e.id)}
+                >
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+      <form onSubmit={handleAdd} className="flex items-end gap-2 flex-wrap">
+        <FormInput
+          value={label}
+          onChange={(ev) => setLabel(ev.target.value)}
+          placeholder="Label (optional)"
+          className="flex-1 min-w-[120px]"
+        />
+        <FormInput
+          type="email"
+          value={email}
+          onChange={(ev) => setEmail(ev.target.value)}
+          placeholder="email@example.com"
+          className="flex-1 min-w-[160px]"
+        />
+        <Button type="submit" size="sm" loading={adding} disabled={!email.trim()}>
+          <Plus className="w-3.5 h-3.5" />
+          Add
+        </Button>
+      </form>
+    </Card>
   )
 }

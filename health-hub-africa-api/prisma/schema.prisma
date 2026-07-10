@@ -421,8 +421,36 @@ model Provider {
   erCasesSpecialist     ExpertReviewCase[]         @relation("ERSpecialist")
   erSpecialistNotes     ExpertReviewSpecialistNote[]
   erFinalReports        ExpertReviewFinalReport[]
+  notificationEmails    ProviderNotificationEmail[]
 
   @@map("providers")
+}
+
+model NotificationRecipient {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  label     String
+  email     String
+  isActive  Boolean  @default(true) @map("is_active")
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("notification_recipients")
+}
+
+model ProviderNotificationEmail {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  providerId String   @map("provider_id") @db.Uuid
+  label      String?
+  email      String
+  isActive   Boolean  @default(true) @map("is_active")
+  addedBy    String?  @map("added_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+  @@map("provider_notification_emails")
 }
 
 model ProviderAvailability {

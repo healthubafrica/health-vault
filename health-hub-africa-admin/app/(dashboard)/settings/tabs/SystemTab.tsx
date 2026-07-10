@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Pill } from '@/components/ui/Pill'
-import { Flag, FileText, ArrowRight } from 'lucide-react'
+import { Flag, FileText, ArrowRight, Mail } from 'lucide-react'
 import { useAuthStore } from '@/lib/stores/authStore'
 
 export function SystemTab() {
@@ -43,6 +43,12 @@ export function SystemTab() {
             icon={<FileText className="w-4 h-4" />}
             title="Audit logs"
             description="Every state-change action by every user, searchable"
+          />
+          <LinkCard
+            href="/notification-recipients"
+            icon={<Mail className="w-4 h-4" />}
+            title="Notification recipients"
+            description="Who gets emailed on every appointment event"
           />
         </div>
       </Card>

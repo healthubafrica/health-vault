@@ -551,6 +551,23 @@ export interface FeatureFlag {
   key: string; label: string; description: string; enabled: boolean
 }
 
+export interface NotificationRecipient {
+  id: string
+  label: string
+  email: string
+  isActive: boolean
+  createdAt: string
+}
+
+export interface ProviderNotificationEmail {
+  id: string
+  providerId: string
+  label: string | null
+  email: string
+  isActive: boolean
+  createdAt: string
+}
+
 // ── Admin: Notifications ──────────────────────────────────────────────────
 
 export interface NotificationDelivery {
@@ -875,6 +892,20 @@ export const adminApi = {
       request<{ data: AdminProvider }>(`/providers/${id}/verify`, { method: 'PATCH' }),
   },
 
+  providerNotificationEmails: {
+    list: (providerId: string) =>
+      request<ProviderNotificationEmail[]>(`/admin/providers/${providerId}/notification-emails`),
+    add: (providerId: string, label: string | undefined, email: string) =>
+      request<ProviderNotificationEmail>(`/admin/providers/${providerId}/notification-emails`, {
+        method: 'POST',
+        body: JSON.stringify({ label, email }),
+      }),
+    remove: (providerId: string, emailId: string) =>
+      request<{ message: string }>(`/admin/providers/${providerId}/notification-emails/${emailId}`, {
+        method: 'DELETE',
+      }),
+  },
+
   clinicalQueue: {
     get: () => request<{ teleconsults: ClinicalQueueItem[]; expertReviews: ClinicalQueueItem[]; total: number }>('/admin/clinical-queue'),
   },
@@ -897,6 +928,22 @@ export const adminApi = {
     list: () => request<FeatureFlag[]>('/admin/feature-flags'),
     set: (key: string, enabled: boolean) =>
       request<FeatureFlag[]>(`/admin/feature-flags/${key}`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
+  },
+
+  notificationRecipients: {
+    list: () => request<NotificationRecipient[]>('/admin/notification-recipients'),
+    create: (label: string, email: string) =>
+      request<NotificationRecipient>('/admin/notification-recipients', {
+        method: 'POST',
+        body: JSON.stringify({ label, email }),
+      }),
+    update: (id: string, patch: { label?: string; email?: string; isActive?: boolean }) =>
+      request<NotificationRecipient>(`/admin/notification-recipients/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+      }),
+    remove: (id: string) =>
+      request<{ message: string }>(`/admin/notification-recipients/${id}`, { method: 'DELETE' }),
   },
 
   notifications: {
@@ -1080,5 +1127,18 @@ export const adminApi = {
           body: JSON.stringify(dto),
         }),
     },
+  },
+}
+
+export const providerSelf = {
+  notificationEmails: {
+    list: () => request<ProviderNotificationEmail[]>('/providers/me/notification-emails'),
+    add: (label: string | undefined, email: string) =>
+      request<ProviderNotificationEmail>('/providers/me/notification-emails', {
+        method: 'POST',
+        body: JSON.stringify({ label, email }),
+      }),
+    remove: (emailId: string) =>
+      request<{ message: string }>(`/providers/me/notification-emails/${emailId}`, { method: 'DELETE' }),
   },
 }

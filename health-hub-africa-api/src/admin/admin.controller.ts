@@ -17,6 +17,8 @@ import { UpdateUserRoleDto, UpdateUserStatusDto, CreateFacilityDto } from './dto
 import { SetStorageOverrideDto } from './dto/set-storage-override.dto';
 import { UpdateSchedulingPolicyDto } from './dto/update-scheduling-policy.dto';
 import { ImportProviderManuallyDto } from './dto/import-provider-manually.dto';
+import { CreateNotificationRecipientDto, UpdateNotificationRecipientDto } from './dto/notification-recipient.dto';
+import { CreateProviderNotificationEmailDto } from '../providers/dto/provider-notification-email.dto';
 import { Roles, Public } from '../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 
@@ -602,5 +604,66 @@ export class AdminController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.adminService.updateSchedulingPolicy(dto, user.sub);
+  }
+
+  // ── Notification Recipients ─────────────────────────────────────────────
+
+  @Get('notification-recipients')
+  @ApiOperation({ summary: 'List global appointment notification recipients' })
+  listNotificationRecipients() {
+    return this.adminService.listNotificationRecipients();
+  }
+
+  @Post('notification-recipients')
+  @ApiOperation({ summary: 'Add a global appointment notification recipient' })
+  createNotificationRecipient(
+    @Body() dto: CreateNotificationRecipientDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.adminService.createNotificationRecipient(dto, user);
+  }
+
+  @Patch('notification-recipients/:id')
+  @ApiOperation({ summary: 'Update a global appointment notification recipient' })
+  updateNotificationRecipient(
+    @Param('id') id: string,
+    @Body() dto: UpdateNotificationRecipientDto,
+  ) {
+    return this.adminService.updateNotificationRecipient(id, dto);
+  }
+
+  @Delete('notification-recipients/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remove a global appointment notification recipient' })
+  deleteNotificationRecipient(@Param('id') id: string) {
+    return this.adminService.deleteNotificationRecipient(id);
+  }
+
+  // ── Provider Notification Emails (admin-managed) ─────────────────────────
+
+  @Get('providers/:id/notification-emails')
+  @ApiOperation({ summary: "List a provider's extra notification emails" })
+  listProviderNotificationEmails(@Param('id') id: string) {
+    return this.adminService.listProviderNotificationEmails(id);
+  }
+
+  @Post('providers/:id/notification-emails')
+  @ApiOperation({ summary: 'Add an extra notification email for a provider' })
+  addProviderNotificationEmail(
+    @Param('id') id: string,
+    @Body() dto: CreateProviderNotificationEmailDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.adminService.addProviderNotificationEmail(id, dto, user);
+  }
+
+  @Delete('providers/:id/notification-emails/:emailId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Remove a provider's extra notification email" })
+  removeProviderNotificationEmail(
+    @Param('id') id: string,
+    @Param('emailId') emailId: string,
+  ) {
+    return this.adminService.removeProviderNotificationEmail(id, emailId);
   }
 }
