@@ -207,6 +207,37 @@ export class OpenemrService implements OnModuleInit {
     return { enqueued };
   }
 
+  // Re-enqueues calendar sync for every confirmed/upcoming appointment that
+  // never got an openemrAppointmentId — the visible symptom of the OAuth
+  // scope / "Enable OpenEMR Standard REST API" misconfiguration this method
+  // exists to recover from. Run once that's fixed and re-authorized to
+  // backfill the entire backlog in one shot, rather than waiting for each
+  // appointment's next status change to re-trigger its own sync attempt.
+  async recoverAppointmentCalendarSync(): Promise<{ enqueued: number }> {
+    const candidates = await this.prisma.appointment.findMany({
+      where: {
+        status: { in: ['confirmed', 'upcoming'] },
+        openemrAppointmentId: null,
+        patient: { openemrPatientUuid: { not: null } },
+      },
+      select: { id: true, patientId: true },
+      take: 500,
+    });
+
+    let enqueued = 0;
+    for (let i = 0; i < candidates.length; i++) {
+      await this.syncQueue.add(
+        'sync-appointment-calendar',
+        { patientId: candidates[i].patientId, operation: 'sync_record', payload: { appointmentId: candidates[i].id, action: 'upsert' } },
+        { attempts: 3, backoff: { type: 'exponential', delay: 5000 }, delay: i * 300 },
+      );
+      enqueued++;
+    }
+
+    this.logger.log(`Recovery: re-enqueued ${enqueued} appointment calendar sync job(s)`);
+    return { enqueued };
+  }
+
   // Mirrors a confirmed booking onto the OpenEMR calendar (pc events) so the
   // provider sees it inside OpenEMR without checking the HHA dashboard.
   // action 'upsert' replaces any previous event (reschedule); 'cancel'
@@ -386,6 +417,7 @@ export class OpenemrService implements OnModuleInit {
     path: string,
     body?: Record<string, unknown>,
     patientId?: string,
+    appointmentId?: string,
   ): Promise<Record<string, unknown>> {
     const isFhir = path.startsWith('/fhir');
     const url = `${this.openemrBase}/apis/default${path}`;
@@ -419,6 +451,7 @@ export class OpenemrService implements OnModuleInit {
             errorCode: String(res.status),
             errorMessage: text.slice(0, 500),
             patientId: patientId ?? null,
+            appointmentId: appointmentId ?? null,
           },
         });
       }
