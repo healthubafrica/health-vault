@@ -415,6 +415,26 @@ export class OpenemrProcessor {
     }
   }
 
+  // Shared failure bookkeeping for queue-tracked jobs (encounter + calendar
+  // sync). Mirrors the inline catch block in handleSyncPatient above so both
+  // job families behave consistently in /admin/system/sync-queue.
+  private async failQueueItem(queueItemId: string, job: Job<SyncJobData>, error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    this.logger.error(`Job ${job.name} failed: ${message}`);
+
+    const isFinalAttempt = job.attemptsMade >= (job.opts.attempts ?? 3) - 1;
+
+    await this.prisma.openemrSyncQueue.update({
+      where: { id: queueItemId },
+      data: {
+        status: isFinalAttempt ? 'failed' : 'pending',
+        errorMessage: message,
+        attempts: { increment: 1 },
+        lastAttemptedAt: new Date(),
+      },
+    });
+  }
+
   // ── Encounter ────────────────────────────────────────────────────────────
   //
   // Uses FHIR /fhir/Encounter rather than the legacy REST
@@ -428,8 +448,9 @@ export class OpenemrProcessor {
   @Process({ name: 'sync-encounter' })
   async handleSyncEncounter(job: Job<SyncJobData>) {
     const { patientId, payload } = job.data;
+    const appointmentId = payload!.appointmentId as string;
     const appointment = await this.prisma.appointment.findUnique({
-      where: { id: payload!.appointmentId as string },
+      where: { id: appointmentId },
       include: {
         patient: true,
         provider: true,
@@ -441,6 +462,37 @@ export class OpenemrProcessor {
       this.logger.warn(`Skipping encounter sync — patient ${patientId} not yet synced to OpenEMR`);
       return;
     }
+
+    const queueItem = await this.prisma.openemrSyncQueue.create({
+      data: {
+        patientId,
+        operation: 'sync_record',
+        jobType: 'sync-encounter',
+        status: 'processing',
+        payload: { appointmentId },
+      },
+    });
+
+    try {
+      await this.runSyncEncounter(job, appointment, patientId, appointmentId);
+      await this.prisma.openemrSyncQueue.update({
+        where: { id: queueItem.id },
+        data: { status: 'completed', completedAt: new Date() },
+      });
+    } catch (error: unknown) {
+      await this.failQueueItem(queueItem.id, job, error);
+      throw error;
+    }
+  }
+
+  private async runSyncEncounter(
+    job: Job<SyncJobData>,
+    appointment: Prisma.AppointmentGetPayload<{
+      include: { patient: true; provider: true; facility: { select: { openemrFacilityId: true; name: true } } };
+    }>,
+    patientId: string,
+    appointmentId: string,
+  ) {
 
     // Resolve the location reference. Priority:
     //   1. The appointment's own facility (the right path).
@@ -502,7 +554,7 @@ export class OpenemrProcessor {
     let openemrId: string | undefined;
     try {
       const created = await this.openemrService['callOpenemr'](
-        token, 'POST', '/fhir/Encounter', fhirEncounter, patientId,
+        token, 'POST', '/fhir/Encounter', fhirEncounter, patientId, appointmentId,
       );
       openemrId = (created as Record<string, unknown>).id as string | undefined
         ?? (created as Record<string, unknown>).uuid as string | undefined;
@@ -528,6 +580,7 @@ export class OpenemrProcessor {
         `/api/patient/${appointment.patient.openemrPatientUuid}/encounter`,
         restBody,
         patientId,
+        appointmentId,
       );
       openemrId = (created as Record<string, Record<string, unknown>>).data?.eid as string | undefined;
     }
@@ -567,8 +620,39 @@ export class OpenemrProcessor {
       return;
     }
 
+    const queueItem = await this.prisma.openemrSyncQueue.create({
+      data: {
+        patientId,
+        operation: 'sync_record',
+        jobType: 'sync-appointment-calendar',
+        status: 'processing',
+        payload: { appointmentId, action },
+      },
+    });
+
+    try {
+      await this.runSyncAppointmentCalendar(job, appointment, patientId, appointmentId, action);
+      await this.prisma.openemrSyncQueue.update({
+        where: { id: queueItem.id },
+        data: { status: 'completed', completedAt: new Date() },
+      });
+    } catch (error: unknown) {
+      await this.failQueueItem(queueItem.id, job, error);
+      throw error;
+    }
+  }
+
+  private async runSyncAppointmentCalendar(
+    job: Job<SyncJobData>,
+    appointment: Prisma.AppointmentGetPayload<{
+      include: { patient: { select: { openemrPatientUuid: true } }; provider: { select: { openemrProviderUuid: true } } };
+    }>,
+    patientId: string,
+    appointmentId: string,
+    action: 'upsert' | 'cancel',
+  ) {
     const token = await this.openemrService.getAccessToken();
-    const puuid = appointment.patient.openemrPatientUuid;
+    const puuid = appointment.patient.openemrPatientUuid!;
 
     // Any existing event is removed first — covers both cancellation and the
     // delete-and-recreate reschedule path (the REST API has no event update).
@@ -580,6 +664,7 @@ export class OpenemrProcessor {
           `/api/patient/${puuid}/appointment/${appointment.openemrAppointmentId}`,
           undefined,
           patientId,
+          appointmentId,
         );
       } catch (err) {
         this.logger.warn(
@@ -603,7 +688,7 @@ export class OpenemrProcessor {
     if (appointment.provider?.openemrProviderUuid) {
       try {
         const res = await this.openemrService['callOpenemr'](
-          token, 'GET', '/api/practitioner', undefined, patientId,
+          token, 'GET', '/api/practitioner', undefined, patientId, appointmentId,
         );
         const list = (res.data as Array<Record<string, unknown>> | undefined) ?? [];
         const match = list.find((p) => p.uuid === appointment.provider!.openemrProviderUuid);
@@ -637,7 +722,7 @@ export class OpenemrProcessor {
     };
 
     const created = await this.openemrService['callOpenemr'](
-      token, 'POST', `/api/patient/${puuid}/appointment`, body, patientId,
+      token, 'POST', `/api/patient/${puuid}/appointment`, body, patientId, appointmentId,
     );
     const data = (created.data ?? created) as Record<string, unknown>;
     const eid = data.pc_eid ?? data.id ?? data.eid;
