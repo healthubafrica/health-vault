@@ -9,6 +9,7 @@ import { Video, PhoneOff, Clock, Loader2, AlertCircle } from 'lucide-react'
 import { telecare, TelecareSession } from '@/lib/api'
 import { LiveKitRoom, VideoConference } from '@livekit/components-react'
 import '@livekit/components-styles'
+import { useCallStore } from '@/lib/stores/callStore'
 
 export function TeleCareScreen() {
   const [sessions, setSessions] = useState<TelecareSession[]>([])
@@ -21,6 +22,7 @@ export function TeleCareScreen() {
   const [activeServerUrl, setActiveServerUrl] = useState<string | null>(null)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [joining, setJoining] = useState(false)
+  const setInCall = useCallStore((s) => s.setInCall)
 
   const fetchSessions = () => {
     setLoading(true)
@@ -88,6 +90,7 @@ export function TeleCareScreen() {
         // this deployment. The env var remains as a fallback.
         setActiveServerUrl(res.serverUrl ?? process.env.NEXT_PUBLIC_LIVEKIT_URL ?? null)
         setActiveSessionId(sessionId)
+        setInCall(true)
       } else {
         setError("We couldn't set up your call. Kindly try again in a moment.")
       }
@@ -112,6 +115,7 @@ export function TeleCareScreen() {
     setActiveRoom(null)
     setActiveServerUrl(null)
     setActiveSessionId(null)
+    setInCall(false)
     fetchSessions()
   }
 
