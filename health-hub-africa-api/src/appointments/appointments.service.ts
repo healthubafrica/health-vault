@@ -801,7 +801,7 @@ export class AppointmentsService {
           },
         },
       });
-      if (!appt?.patient?.user?.email) return;
+      if (!appt) return;
 
       const when = appt.scheduledAt.toLocaleString('en-GB', {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
@@ -868,21 +868,25 @@ export class AppointmentsService {
       };
       const t = templates[event];
 
-      // Patient notification
-      const patientData: AppointmentNotificationData = {
-        ...baseData,
-        recipientName: appt.patient.firstName,
-        intro: t.intro,
-        outro: t.outro,
-      };
-      await this.notifications.sendAppointmentEmail(
-        appt.patient.user.email,
-        t.subject,
-        appt.patient.userId,
-        patientData,
-      );
-      if (appt.patient.user.phone) {
-        await this.notifications.sendSms(appt.patient.user.phone, t.sms, appt.patient.userId);
+      // Patient notification — skipped (not the whole method) when the
+      // patient has no email on file, so ops/provider/staff fan-out below
+      // still fires for these appointments.
+      if (appt.patient.user.email) {
+        const patientData: AppointmentNotificationData = {
+          ...baseData,
+          recipientName: appt.patient.firstName,
+          intro: t.intro,
+          outro: t.outro,
+        };
+        await this.notifications.sendAppointmentEmail(
+          appt.patient.user.email,
+          t.subject,
+          appt.patient.userId,
+          patientData,
+        );
+        if (appt.patient.user.phone) {
+          await this.notifications.sendSms(appt.patient.user.phone, t.sms, appt.patient.userId);
+        }
       }
 
       // Provider notifications:
