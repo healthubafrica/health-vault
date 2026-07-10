@@ -754,6 +754,8 @@ export const adminApi = {
       request<{ enqueued: number }>('/openemr/recover-all', { method: 'POST' }),
     recoverEncounters: () =>
       request<{ enqueued: number }>('/openemr/recover-appointment-encounters', { method: 'POST' }),
+    recoverAppointmentCalendarSync: () =>
+      request<{ enqueued: number }>('/openemr/recover-appointment-calendar-sync', { method: 'POST' }),
   },
 
   // Provider-scoped (uses /telecare endpoints, not /admin — scoped by JWT)
