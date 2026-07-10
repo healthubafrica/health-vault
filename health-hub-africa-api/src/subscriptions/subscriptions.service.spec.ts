@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { SubscriptionsService } from './subscriptions.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { PaymentsService } from '../payments/payments.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { BillingCycle } from '../common/enums';
 
@@ -31,6 +32,12 @@ const mockPrisma = {
   $transaction: jest.fn(),
 };
 
+// None of the tests below exercise upgrade() (the only method that calls
+// paymentsService), so a no-op mock is enough to satisfy the constructor.
+const mockPaymentsService = {
+  initiate: jest.fn(),
+};
+
 // ----- Fixtures -------------------------------------------------------------
 
 const patientUser: JwtPayload = { sub: 'user-p1', email: 'p@test.com', role: 'patient' };
@@ -51,6 +58,7 @@ describe('SubscriptionsService', () => {
       providers: [
         SubscriptionsService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: PaymentsService, useValue: mockPaymentsService },
       ],
     }).compile();
 
