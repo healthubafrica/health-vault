@@ -51,6 +51,19 @@ export class OpenemrController {
     return this.openemrService.recoverAppointmentEncounters();
   }
 
+  @Post('recover-appointment-calendar-sync')
+  @Roles(UserRole.super_admin)
+  @ApiOperation({
+    summary: 'Re-enqueue calendar sync for all confirmed appointments missing an OpenEMR event (super_admin only)',
+    description:
+      'Use after fixing an OpenEMR OAuth scope / "Enable OpenEMR Standard REST API" issue to flush ' +
+      'the backlog of confirmed appointments that never got an openemrAppointmentId — the ones ' +
+      'invisible on the OpenEMR Provider Calendar and Front Desk Schedule.',
+  })
+  recoverAppointmentCalendarSync() {
+    return this.openemrService.recoverAppointmentCalendarSync();
+  }
+
   // ── One-time OAuth2 Setup ──────────────────────────────────────────────────
 
   @Get('auth/init')

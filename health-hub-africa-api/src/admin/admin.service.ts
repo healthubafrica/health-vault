@@ -695,6 +695,14 @@ export class AdminService {
     return { data, meta: { total, page, limit } };
   }
 
+  // IntegrationError rows are raw HTTP-call failures (patient sync, encounter
+  // sync, calendar sync, practitioner/facility lookups, etc.) — not all of
+  // them map to a re-runnable job. When the error is tied to an appointment
+  // (appointmentId set), we know enough to actually replay it: the endpoint
+  // shape tells us whether it was an encounter or calendar sync attempt.
+  // Everything else (patient-level, practitioner/facility directory errors)
+  // falls back to the old behaviour of just tracking the retry count, since
+  // there's no single appointment to re-sync.
   async retryIntegrationError(id: string) {
     const record = await this.prisma.integrationError.findUnique({ where: { id } });
     if (!record) throw new NotFoundException('Integration error not found');
@@ -703,7 +711,27 @@ export class AdminService {
       where: { id },
       data: { retryCount: { increment: 1 } },
     });
-    return { message: 'Queued for retry' };
+
+    if (record.appointmentId) {
+      const appointment = await this.prisma.appointment.findUnique({
+        where: { id: record.appointmentId },
+        select: { patientId: true },
+      });
+      if (appointment) {
+        if (record.endpoint.includes('/appointment') || record.endpoint === '/api/practitioner') {
+          await this.openemrService.enqueueAppointmentCalendarSync(
+            appointment.patientId,
+            record.appointmentId,
+            'upsert',
+          );
+        } else if (record.endpoint.includes('/encounter') || record.endpoint === '/fhir/Encounter') {
+          await this.openemrService.enqueueEncounterSync(appointment.patientId, record.appointmentId);
+        }
+        return { message: 'Sync re-enqueued for this appointment' };
+      }
+    }
+
+    return { message: 'Retry count recorded (no single appointment to re-sync for this error)' };
   }
 
   async retrySyncQueueItem(id: string) {
@@ -715,8 +743,12 @@ export class AdminService {
       data: { status: 'pending', errorMessage: null, lastAttemptedAt: null },
     });
 
+    // jobType is the actual Bull job name (sync-patient, sync-encounter,
+    // sync-appointment-calendar, ...). Older rows predating this field
+    // default to sync-patient, the only job type that wrote to this table
+    // before encounter/calendar sync gained tracking.
     await this.openemrQueue.add(
-      'sync-patient',
+      item.jobType ?? 'sync-patient',
       {
         patientId: item.patientId,
         operation: item.operation as SyncJobData['operation'],
