@@ -5,6 +5,11 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
+  // Unset by default (Playwright auto-detects from CPU cores). Set
+  // PLAYWRIGHT_WORKERS=1 in constrained/shared environments where parallel
+  // Chromium workers cause navigation-timeout false failures under
+  // resource contention rather than genuine test failures.
+  workers: process.env.PLAYWRIGHT_WORKERS ? Number(process.env.PLAYWRIGHT_WORKERS) : undefined,
   reporter: 'list',
   use: {
     baseURL: 'http://localhost:3002',

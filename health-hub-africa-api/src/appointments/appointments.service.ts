@@ -7,7 +7,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
-import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bull';
 import { AppointmentStatus, ServiceType, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -22,8 +21,6 @@ import { getSchedulingPolicy } from '../scheduling-policy/scheduling-policy.cons
 import { buildProviderDisplayName } from '../common/utils/provider-name.util';
 
 export const APPOINTMENT_REMINDERS_QUEUE = 'appointment-reminders';
-
-const DEFAULT_APPOINTMENTS_OPS_EMAIL = 'appointments@healthhubafrica.com';
 
 type AppointmentEmailEvent = 'requested' | 'confirmed' | 'cancelled' | 'rescheduled' | 'no_show' | 'completed';
 
@@ -91,7 +88,6 @@ export class AppointmentsService {
     private readonly prisma: PrismaService,
     private readonly openemrService: OpenemrService,
     private readonly notifications: NotificationsService,
-    private readonly config: ConfigService,
     @InjectQueue(APPOINTMENT_REMINDERS_QUEUE) private readonly reminderQueue: Queue,
   ) {}
 
@@ -796,6 +792,7 @@ export class AppointmentsService {
           },
           provider: {
             select: {
+              id: true,
               firstName: true,
               lastName: true,
               title: true,
@@ -804,7 +801,7 @@ export class AppointmentsService {
           },
         },
       });
-      if (!appt?.patient?.user?.email) return;
+      if (!appt) return;
 
       const when = appt.scheduledAt.toLocaleString('en-GB', {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
@@ -871,21 +868,25 @@ export class AppointmentsService {
       };
       const t = templates[event];
 
-      // Patient notification
-      const patientData: AppointmentNotificationData = {
-        ...baseData,
-        recipientName: appt.patient.firstName,
-        intro: t.intro,
-        outro: t.outro,
-      };
-      await this.notifications.sendAppointmentEmail(
-        appt.patient.user.email,
-        t.subject,
-        appt.patient.userId,
-        patientData,
-      );
-      if (appt.patient.user.phone) {
-        await this.notifications.sendSms(appt.patient.user.phone, t.sms, appt.patient.userId);
+      // Patient notification — skipped (not the whole method) when the
+      // patient has no email on file, so ops/provider/staff fan-out below
+      // still fires for these appointments.
+      if (appt.patient.user.email) {
+        const patientData: AppointmentNotificationData = {
+          ...baseData,
+          recipientName: appt.patient.firstName,
+          intro: t.intro,
+          outro: t.outro,
+        };
+        await this.notifications.sendAppointmentEmail(
+          appt.patient.user.email,
+          t.subject,
+          appt.patient.userId,
+          patientData,
+        );
+        if (appt.patient.user.phone) {
+          await this.notifications.sendSms(appt.patient.user.phone, t.sms, appt.patient.userId);
+        }
       }
 
       // Provider notifications:
@@ -923,34 +924,23 @@ export class AppointmentsService {
         );
       }
 
-      // Ops mailbox fan-out: appointments@healthhubafrica.com gets an email for
-      // every create/cancel/reschedule, regardless of who or what triggered it
-      // (patient self-service or admin/coordinator action) — this is the
-      // operational record, distinct from the staff self-service alert below.
-      const opsEvents: AppointmentEmailEvent[] = ['requested', 'cancelled', 'rescheduled'];
-      if (opsEvents.includes(event)) {
-        const opsEmail = this.config.get<string>(
-          'APPOINTMENTS_OPS_EMAIL',
-          DEFAULT_APPOINTMENTS_OPS_EMAIL,
-        );
-        const opsIntros: Record<string, string> = {
-          requested: 'A new appointment was created.',
-          cancelled: 'An appointment was cancelled.',
-          rescheduled: 'An appointment was rescheduled.',
-        };
-        const opsSubjects: Record<string, string> = {
-          requested: `Appointment created — ${appt.hhaRef}`,
-          cancelled: `Appointment cancelled — ${appt.hhaRef}`,
-          rescheduled: `Appointment rescheduled — ${appt.hhaRef}`,
-        };
+      // Ops mailbox fan-out: every admin-configured recipient (global list +
+      // this appointment's provider-specific extras) gets an email for every
+      // lifecycle event — the operational record, distinct from the staff
+      // self-service alert below. Recipients are DB-managed (see
+      // NotificationRecipient / ProviderNotificationEmail), not hardcoded.
+      const opsRecipients = await this.resolveOpsRecipients(appt.provider?.id ?? null);
+      if (opsRecipients.length > 0) {
         const opsData: AppointmentNotificationData = {
           ...baseData,
           recipientName: 'Team',
-          intro: opsIntros[event],
+          intro: t.intro,
           outro: 'View the full appointment in the admin operations dashboard.',
           portalType: 'staff',
         };
-        await this.notifications.sendOpsAppointmentEmail(opsEmail, opsSubjects[event], opsData);
+        for (const recipient of opsRecipients) {
+          await this.notifications.sendOpsAppointmentEmail(recipient.email, t.subject, opsData);
+        }
       }
 
       // Staff fan-out: only fires when a patient self-service action
@@ -994,6 +984,36 @@ export class AppointmentsService {
         `Failed to send ${event} notification for appointment ${appointmentId}: ${err instanceof Error ? err.message : err}`,
       );
     }
+  }
+
+  // Merges the global recipient list with this appointment's provider-specific
+  // extras, deduping case-insensitively (a provider's extra email could
+  // coincidentally match a global one). providerId is null when an
+  // appointment has no assigned provider yet — the provider query is skipped
+  // entirely in that case rather than querying with an impossible filter.
+  private async resolveOpsRecipients(providerId: string | null): Promise<Array<{ email: string }>> {
+    const [globalRecipients, providerRecipients] = await Promise.all([
+      this.prisma.notificationRecipient.findMany({
+        where: { isActive: true },
+        select: { email: true },
+      }),
+      providerId
+        ? this.prisma.providerNotificationEmail.findMany({
+            where: { providerId, isActive: true },
+            select: { email: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const seen = new Set<string>();
+    const result: Array<{ email: string }> = [];
+    for (const recipient of [...globalRecipients, ...providerRecipients]) {
+      const key = recipient.email.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push(recipient);
+    }
+    return result;
   }
 
   // ── Reminder scheduling ────────────────────────────────────────────────────
