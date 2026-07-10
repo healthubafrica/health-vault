@@ -46,7 +46,7 @@ export class SubscriptionsController {
   @ApiOperation({
     summary: 'Upgrade to a paid plan via payment gateway',
     description:
-      'Creates a pending Payment and returns the Paystack/Flutterwave authorization URL. ' +
+      'Creates a pending Payment and returns the Paystack authorization URL. ' +
       'The webhook activates the subscription on successful payment.',
   })
   async upgrade(@Body() dto: UpgradeSubscriptionDto, @CurrentUser() user: JwtPayload) {

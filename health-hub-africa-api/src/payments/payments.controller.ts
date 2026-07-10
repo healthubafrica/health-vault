@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -10,13 +11,16 @@ import {
   Query,
   RawBodyRequest,
   Req,
+  Res,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
-import { Request } from 'express';
-import { Public } from '../common/decorators/roles.decorator';
+import { Request, Response } from 'express';
+import { Public, Roles } from '../common/decorators/roles.decorator';
+import { UserRole } from '@prisma/client';
 import { PaymentsService } from './payments.service';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
+import { RefundPaymentDto } from './dto/refund-payment.dto';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 
 @ApiTags('Payments')
@@ -24,9 +28,9 @@ import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decor
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
-  // Each initiation creates a record with the upstream PSP (Paystack /
-  // Flutterwave). Legitimate users retry on failure but rarely more than a
-  // few times in a minute; 10/min blocks scripted enumeration / card-testing.
+  // Each initiation creates a record with the upstream PSP (Paystack).
+  // Legitimate users retry on failure but rarely more than a few times in a
+  // minute; 10/min blocks scripted enumeration / card-testing.
   @ApiBearerAuth()
   @Post()
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
@@ -64,6 +68,23 @@ export class PaymentsController {
     return this.paymentsService.findPayment(id, user);
   }
 
+  @ApiBearerAuth()
+  @Get(':id/receipt')
+  @ApiOperation({ summary: 'Printable HTML receipt for a paid payment' })
+  async getReceipt(@Param('id') id: string, @CurrentUser() user: JwtPayload, @Res() res: Response) {
+    const html = await this.paymentsService.getReceiptHtml(id, user);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  }
+
+  @ApiBearerAuth()
+  @Roles(UserRole.admin, UserRole.super_admin)
+  @Post(':id/refund')
+  @ApiOperation({ summary: 'Refund a paid payment (full or partial)' })
+  refundPayment(@Param('id') id: string, @Body() dto: RefundPaymentDto) {
+    return this.paymentsService.refundPayment(id, dto);
+  }
+
   @Public()
   @SkipThrottle()
   @Post('webhooks/paystack')
@@ -73,18 +94,9 @@ export class PaymentsController {
     @Req() req: RawBodyRequest<Request>,
     @Headers('x-paystack-signature') signature: string,
   ) {
-    return this.paymentsService.handlePaystackWebhook(req.rawBody!, signature);
-  }
-
-  @Public()
-  @SkipThrottle()
-  @Post('webhooks/flutterwave')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Flutterwave webhook receiver' })
-  flutterwaveWebhook(
-    @Req() req: RawBodyRequest<Request>,
-    @Headers('verif-hash') signature: string,
-  ) {
-    return this.paymentsService.handleFlutterwaveWebhook(req.rawBody!, signature);
+    if (!req.rawBody) {
+      throw new BadRequestException('Missing raw request body');
+    }
+    return this.paymentsService.handlePaystackWebhook(req.rawBody, signature);
   }
 }

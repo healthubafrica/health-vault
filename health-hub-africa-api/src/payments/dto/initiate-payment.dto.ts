@@ -33,4 +33,9 @@ export class InitiatePaymentDto {
   @IsOptional()
   @IsString()
   referenceId?: string;
+
+  @ApiPropertyOptional({ description: 'Free-text description shown on the payment record and receipt' })
+  @IsOptional()
+  @IsString()
+  description?: string;
 }
