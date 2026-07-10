@@ -24,6 +24,8 @@ import { OPENEMR_SYNC_QUEUE, OpenemrService, SyncJobData } from '../openemr/open
 import { S3Service } from '../storage/s3.service';
 import { normalizeProviderName, buildProviderDisplayName } from '../common/utils/provider-name.util';
 import { ImportProviderManuallyDto } from './dto/import-provider-manually.dto';
+import { CreateNotificationRecipientDto, UpdateNotificationRecipientDto } from './dto/notification-recipient.dto';
+import { CreateProviderNotificationEmailDto } from '../providers/dto/provider-notification-email.dto';
 import { UpdateSchedulingPolicyDto } from './dto/update-scheduling-policy.dto';
 import {
   SCHEDULING_POLICY_ID,
@@ -369,7 +371,7 @@ export class AdminService {
     if (!user.isVerified) throw new BadRequestException('User has not verified their email yet');
     if (user.patient) throw new BadRequestException('User has already completed onboarding');
 
-    const frontendUrl = process.env.FRONTEND_URL ?? 'https://app.myvaultplus.com';
+    const frontendUrl = process.env.FRONTEND_URL ?? 'https://portal.myvaultplus.com';
 
     await this.notifications.sendEmail(
       user.email,
@@ -1833,12 +1835,93 @@ export class AdminService {
       subject: r.subject,
       status: r.status,
       sentAt: r.sentAt,
+      deliveredAt: r.deliveredAt,
       failedAt: r.failedAt,
       failureReason: r.failureReason,
+      shareId: r.shareId,
       createdAt: r.createdAt,
     }));
 
     return { data, meta: { total, page, limit } };
+  }
+
+  // ── Share activity ────────────────────────────────────────────────────────
+  // Read-only audit surface into RecordShare / RecordShareAccess (see
+  // shares.service.ts for the create/access/revoke flows) — mirrors
+  // listNotifications above but scoped to secure-share link activity so ops
+  // can confirm a share was sent, delivered, opened, or has expired.
+
+  async listShares(page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+
+    const [rows, total] = await Promise.all([
+      this.prisma.recordShare.findMany({
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          label: true,
+          accessMode: true,
+          allowedEmails: true,
+          recordTypes: true,
+          expiresAt: true,
+          isRevoked: true,
+          revokedAt: true,
+          createdAt: true,
+          patient: { select: { firstName: true, lastName: true } },
+          _count: { select: { accesses: true } },
+        },
+      }),
+      this.prisma.recordShare.count(),
+    ]);
+
+    const data = rows.map((r) => ({
+      id: r.id,
+      patientName: `${r.patient.firstName} ${r.patient.lastName}`.trim(),
+      label: r.label,
+      accessMode: r.accessMode,
+      allowedEmails: r.allowedEmails,
+      recordTypes: r.recordTypes,
+      expiresAt: r.expiresAt,
+      isExpired: r.expiresAt ? r.expiresAt < new Date() : false,
+      isRevoked: r.isRevoked,
+      revokedAt: r.revokedAt,
+      accessCount: r._count.accesses,
+      createdAt: r.createdAt,
+    }));
+
+    return { data, meta: { total, page, limit } };
+  }
+
+  async getShareActivity(shareId: string) {
+    const share = await this.prisma.recordShare.findUnique({
+      where: { id: shareId },
+      select: {
+        id: true,
+        label: true,
+        accessMode: true,
+        allowedEmails: true,
+        recordTypes: true,
+        expiresAt: true,
+        isRevoked: true,
+        revokedAt: true,
+        createdAt: true,
+        patient: { select: { firstName: true, lastName: true } },
+      },
+    });
+    if (!share) throw new NotFoundException('Share not found');
+
+    const accesses = await this.prisma.recordShareAccess.findMany({
+      where: { shareId },
+      orderBy: { occurredAt: 'desc' },
+      take: 200,
+    });
+
+    return {
+      share: { ...share, patientName: `${share.patient.firstName} ${share.patient.lastName}`.trim() },
+      accesses,
+    };
   }
 
   async resendNotification(id: string) {
@@ -2007,5 +2090,67 @@ export class AdminService {
     const date = new Date();
     date.setDate(date.getDate() - days);
     return date;
+  }
+
+  // ── Notification Recipients (global) ────────────────────────────────────
+
+  async listNotificationRecipients() {
+    return this.prisma.notificationRecipient.findMany({ orderBy: { createdAt: 'asc' } });
+  }
+
+  async createNotificationRecipient(dto: CreateNotificationRecipientDto, currentUser: JwtPayload) {
+    return this.prisma.notificationRecipient.create({
+      data: { label: dto.label, email: dto.email, createdBy: currentUser.sub },
+    });
+  }
+
+  async updateNotificationRecipient(id: string, dto: UpdateNotificationRecipientDto) {
+    const existing = await this.prisma.notificationRecipient.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Notification recipient not found');
+    return this.prisma.notificationRecipient.update({
+      where: { id },
+      data: {
+        ...(dto.label !== undefined && { label: dto.label }),
+        ...(dto.email !== undefined && { email: dto.email }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      },
+    });
+  }
+
+  async deleteNotificationRecipient(id: string) {
+    const existing = await this.prisma.notificationRecipient.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Notification recipient not found');
+    await this.prisma.notificationRecipient.delete({ where: { id } });
+    return { message: 'Notification recipient deleted' };
+  }
+
+  // ── Provider Notification Emails (admin-managed) ─────────────────────────
+
+  async listProviderNotificationEmails(providerId: string) {
+    const provider = await this.prisma.provider.findUnique({ where: { id: providerId }, select: { id: true } });
+    if (!provider) throw new NotFoundException('Provider not found');
+    return this.prisma.providerNotificationEmail.findMany({
+      where: { providerId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async addProviderNotificationEmail(
+    providerId: string,
+    dto: CreateProviderNotificationEmailDto,
+    currentUser: JwtPayload,
+  ) {
+    const provider = await this.prisma.provider.findUnique({ where: { id: providerId }, select: { id: true } });
+    if (!provider) throw new NotFoundException('Provider not found');
+    return this.prisma.providerNotificationEmail.create({
+      data: { providerId, label: dto.label, email: dto.email, addedBy: currentUser.sub },
+    });
+  }
+
+  async removeProviderNotificationEmail(providerId: string, emailId: string) {
+    const row = await this.prisma.providerNotificationEmail.findUnique({ where: { id: emailId } });
+    if (!row || row.providerId !== providerId) throw new NotFoundException('Notification email not found');
+    await this.prisma.providerNotificationEmail.delete({ where: { id: emailId } });
+    return { message: 'Notification email removed' };
   }
 }

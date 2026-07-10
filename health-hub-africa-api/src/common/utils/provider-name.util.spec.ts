@@ -58,11 +58,11 @@ describe('normalizeProviderName', () => {
     });
   });
 
-  it('defaults to "Dr." when nothing is supplied and nothing is embedded', () => {
+  it('returns empty title when nothing is supplied and nothing is embedded', () => {
     expect(normalizeProviderName('Jane', 'Smith', undefined)).toEqual({
       firstName: 'Jane',
       lastName: 'Smith',
-      title: 'Dr.',
+      title: '',
     });
   });
 

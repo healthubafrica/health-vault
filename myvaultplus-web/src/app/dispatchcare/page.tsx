@@ -38,7 +38,7 @@ export default function DispatchCarePage() {
 
       <div className="page-card-first">
         <section style={{ position: 'relative', background: '#041E14', overflow: 'hidden', minHeight: '88vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <Image src="https://images.unsplash.com/photo-1587745416684-47953f16f02f?w=1920&h=1080&fit=crop&q=85" alt="Emergency medical dispatch" fill priority style={{ objectFit: 'cover', objectPosition: 'center' }} sizes="100vw" />
+          <Image src="/emdru-bike-bg.png" alt="EMDRU emergency response motorcycle" fill priority style={{ objectFit: 'cover', objectPosition: 'center' }} sizes="100vw" />
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, rgba(10,20,15,0.85) 0%, rgba(7,37,28,0.70) 50%, rgba(10,15,12,0.88) 100%)', pointerEvents: 'none' }} />
 
           <div className="hero-content">

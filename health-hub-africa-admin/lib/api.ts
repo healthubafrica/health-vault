@@ -551,11 +551,58 @@ export interface FeatureFlag {
   key: string; label: string; description: string; enabled: boolean
 }
 
+export interface NotificationRecipient {
+  id: string
+  label: string
+  email: string
+  isActive: boolean
+  createdAt: string
+}
+
+export interface ProviderNotificationEmail {
+  id: string
+  providerId: string
+  label: string | null
+  email: string
+  isActive: boolean
+  createdAt: string
+}
+
 // ── Admin: Notifications ──────────────────────────────────────────────────
 
 export interface NotificationDelivery {
   id: string; channel: string; recipient: string; subject?: string
-  status: string; sentAt?: string; failedAt?: string; failureReason?: string; createdAt: string
+  status: string; sentAt?: string; deliveredAt?: string; failedAt?: string; failureReason?: string
+  shareId?: string; createdAt: string
+}
+
+// ── Admin: Share Activity ────────────────────────────────────────────────
+// Secure-share link delivery/access audit, backed by RecordShare +
+// RecordShareAccess (see NotificationDelivery.shareId for how a sent/delivered
+// email correlates back to one of these).
+
+export interface ShareSummary {
+  id: string; patientName: string; label?: string | null; accessMode: string
+  allowedEmails: string[]; recordTypes: string[]
+  expiresAt?: string | null; isExpired: boolean
+  isRevoked: boolean; revokedAt?: string | null
+  accessCount: number; createdAt: string
+}
+
+export type ShareAccessAction =
+  | 'link_sent' | 'link_delivered' | 'link_opened' | 'viewed'
+  | 'otp_sent' | 'otp_failed' | 'otp_verified'
+  | 'forward_detected' | 'revoked' | 'share_expired'
+
+export interface ShareAccessEvent {
+  id: string; shareId: string; action: ShareAccessAction
+  visitorEmail?: string | null; ipAddress?: string | null; userAgent?: string | null
+  metadata?: unknown; occurredAt: string
+}
+
+export interface ShareActivity {
+  share: ShareSummary & { recordTypes: string[] }
+  accesses: ShareAccessEvent[]
 }
 
 // ── Admin: Audit Log Detail ───────────────────────────────────────────────
@@ -845,6 +892,20 @@ export const adminApi = {
       request<{ data: AdminProvider }>(`/providers/${id}/verify`, { method: 'PATCH' }),
   },
 
+  providerNotificationEmails: {
+    list: (providerId: string) =>
+      request<ProviderNotificationEmail[]>(`/admin/providers/${providerId}/notification-emails`),
+    add: (providerId: string, label: string | undefined, email: string) =>
+      request<ProviderNotificationEmail>(`/admin/providers/${providerId}/notification-emails`, {
+        method: 'POST',
+        body: JSON.stringify({ label, email }),
+      }),
+    remove: (providerId: string, emailId: string) =>
+      request<{ message: string }>(`/admin/providers/${providerId}/notification-emails/${emailId}`, {
+        method: 'DELETE',
+      }),
+  },
+
   clinicalQueue: {
     get: () => request<{ teleconsults: ClinicalQueueItem[]; expertReviews: ClinicalQueueItem[]; total: number }>('/admin/clinical-queue'),
   },
@@ -869,12 +930,36 @@ export const adminApi = {
       request<FeatureFlag[]>(`/admin/feature-flags/${key}`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
   },
 
+  notificationRecipients: {
+    list: () => request<NotificationRecipient[]>('/admin/notification-recipients'),
+    create: (label: string, email: string) =>
+      request<NotificationRecipient>('/admin/notification-recipients', {
+        method: 'POST',
+        body: JSON.stringify({ label, email }),
+      }),
+    update: (id: string, patch: { label?: string; email?: string; isActive?: boolean }) =>
+      request<NotificationRecipient>(`/admin/notification-recipients/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+      }),
+    remove: (id: string) =>
+      request<{ message: string }>(`/admin/notification-recipients/${id}`, { method: 'DELETE' }),
+  },
+
   notifications: {
     list: (params?: { channel?: string; status?: string; page?: number; limit?: number }) => {
       const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : ''
       return request<{ data: NotificationDelivery[]; meta: { total: number } }>(`/admin/notifications${qs}`)
     },
     resend: (id: string) => request<{ message: string }>(`/admin/notifications/${id}/resend`, { method: 'POST' }),
+  },
+
+  shares: {
+    list: (params?: { page?: number; limit?: number }) => {
+      const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : ''
+      return request<{ data: ShareSummary[]; meta: { total: number } }>(`/admin/shares${qs}`)
+    },
+    activity: (id: string) => request<ShareActivity>(`/admin/shares/${id}/activity`),
   },
 
   system: {
@@ -1042,5 +1127,18 @@ export const adminApi = {
           body: JSON.stringify(dto),
         }),
     },
+  },
+}
+
+export const providerSelf = {
+  notificationEmails: {
+    list: () => request<ProviderNotificationEmail[]>('/providers/me/notification-emails'),
+    add: (label: string | undefined, email: string) =>
+      request<ProviderNotificationEmail>('/providers/me/notification-emails', {
+        method: 'POST',
+        body: JSON.stringify({ label, email }),
+      }),
+    remove: (emailId: string) =>
+      request<{ message: string }>(`/providers/me/notification-emails/${emailId}`, { method: 'DELETE' }),
   },
 }

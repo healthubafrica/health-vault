@@ -19,10 +19,12 @@ export class NotificationsProcessor {
   }
 
   // Marks the delivery row as sent. Best-effort: a failure to update the
-  // tracking row must never fail an otherwise-successful send.
-  private async markSent(deliveryId: string): Promise<void> {
+  // tracking row must never fail an otherwise-successful send. providerRef
+  // (Resend's email id) is stored so the delivery webhook can later match
+  // an "email.delivered" event back to this row.
+  private async markSent(deliveryId: string, providerRef?: string): Promise<void> {
     await this.prisma.notificationDelivery
-      .update({ where: { id: deliveryId }, data: { status: 'sent', sentAt: new Date() } })
+      .update({ where: { id: deliveryId }, data: { status: 'sent', sentAt: new Date(), providerRef } })
       .catch((err) => this.logger.warn(`Failed to mark delivery ${deliveryId} sent: ${err.message}`));
   }
 
@@ -96,21 +98,27 @@ export class NotificationsProcessor {
     text: string,
   ): Promise<void> {
     try {
-      const skipped = await this.doSendEmail(to, subject, html, text);
-      if (skipped) {
-        await this.markSkipped(deliveryId, skipped);
+      const result = await this.doSendEmail(to, subject, html, text);
+      if (result.skipped) {
+        await this.markSkipped(deliveryId, result.skipped);
         return;
       }
-      await this.markSent(deliveryId);
+      await this.markSent(deliveryId, result.providerRef);
     } catch (err) {
       await this.markFailed(deliveryId, job, err);
       throw err;
     }
   }
 
-  // Returns a skip reason string when the provider isn't configured, or
-  // undefined once the send has actually been attempted (success or throw).
-  private async doSendEmail(to: string, subject: string, html: string, text: string): Promise<string | undefined> {
+  // Returns a skip reason when the provider isn't configured, or the
+  // Resend-assigned email id once the send has actually succeeded — that id
+  // is the providerRef the delivery webhook later matches events against.
+  private async doSendEmail(
+    to: string,
+    subject: string,
+    html: string,
+    text: string,
+  ): Promise<{ skipped?: string; providerRef?: string }> {
     this.logger.log(`Sending email to ${to}: ${subject}`);
 
     const apiKey = this.config.get<string>('RESEND_API_KEY');
@@ -121,14 +129,14 @@ export class NotificationsProcessor {
 
     if (!apiKey) {
       this.logger.warn('RESEND_API_KEY not configured — skipping email');
-      return 'Email provider not configured (RESEND_API_KEY missing)';
+      return { skipped: 'Email provider not configured (RESEND_API_KEY missing)' };
     }
 
     const resend = new Resend(apiKey);
-    const { error } = await resend.emails.send({ from, to, subject, html, text });
+    const { data, error } = await resend.emails.send({ from, to, subject, html, text });
     if (error) throw new Error(`Resend error: ${error.message}`);
     this.logger.log(`Email sent via Resend to ${to}`);
-    return undefined;
+    return { providerRef: data?.id };
   }
 
   @Process({ name: 'send-sms', concurrency: 5 })
@@ -486,6 +494,15 @@ function buildAppointmentHtml(subject: string, d: AppointmentNotificationData): 
   const statusIcon = isCancelled ? '✕' : isNoShow ? '✕' : isCompleted ? '✓' : isReminder ? '⏰' : '✓';
   const statusLabel = isCancelled ? 'Cancelled' : isNoShow ? 'Missed' : isCompleted ? 'Completed' : isReminder ? 'Reminder' : 'Confirmed';
 
+  const isAdminPortal = d.portalType === 'provider' || d.portalType === 'staff';
+  const portalUrl = isAdminPortal
+    ? (process.env.ADMIN_URL ?? 'https://admin.myvaultplus.com')
+    : (process.env.FRONTEND_URL ?? 'https://portal.myvaultplus.com');
+  const portalLabel =
+    d.portalType === 'provider' ? 'Go to provider dashboard'
+    : d.portalType === 'staff' ? 'Go to admin dashboard'
+    : 'Go to your portal';
+
   const detailRows: string[] = [
     `<tr>
       <td style="padding:8px 0;font-size:13px;color:#6B6B6B;width:120px;vertical-align:top;">Reference</td>
@@ -558,8 +575,8 @@ function buildAppointmentHtml(subject: string, d: AppointmentNotificationData): 
 
     <!-- CTA -->
     <div style="margin:28px 0 0;text-align:center;">
-      <a href="https://app.myvaultplus.com" style="display:inline-block;background:${accentColor};color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:13px 32px;border-radius:8px;">
-        Go to your portal
+      <a href="${portalUrl}" style="display:inline-block;background:${accentColor};color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:13px 32px;border-radius:8px;">
+        ${portalLabel}
       </a>
     </div>`;
 

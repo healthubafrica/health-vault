@@ -280,7 +280,7 @@ export class OpenemrService implements OnModuleInit {
         openemrId: id,
         firstName: given[0] ?? 'Unknown',
         lastName: (name.family as string | undefined) ?? 'Unknown',
-        title: prefix[0] ?? 'Dr.',
+        title: prefix[0] ?? '',
         email,
         specialty: qualifications[0]?.code?.text ?? 'General Practice',
       }];
