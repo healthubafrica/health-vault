@@ -7,7 +7,7 @@ on:
       - 'health-hub-africa-api/**'
       - '.github/workflows/backend.yml'
   pull_request:
-    branches: [master]
+    branches: [master, development]
     paths:
       - 'health-hub-africa-api/**'
 
