@@ -241,15 +241,7 @@ export function LoginScreen() {
         style={{ background: '#006022' }}
       >
         <div>
-          <div className="mb-10 flex flex-col gap-1">
-            <img
-              src="/logo-white.png"
-              alt="Health-Hub Africa®"
-              className="h-16 w-auto object-contain self-start"
-            />
-          </div>
-
-          <h1 className="text-3xl font-bold text-white leading-tight" style={{ fontFamily: 'var(--font-display)' }}>
+          <h1 className="text-3xl font-bold text-white leading-tight mt-0" style={{ fontFamily: 'var(--font-display)' }}>
             Your health,<br />secured and connected.
           </h1>
           <p className="text-white/60 text-sm mt-3 leading-relaxed">
@@ -605,10 +597,15 @@ export function LoginScreen() {
             </>
           )}
 
-          <div className="mt-8 text-center">
+          <div className="mt-8 flex flex-col items-center gap-2">
             <span className="text-[10px] text-white/40 uppercase tracking-widest font-medium">
-              Powered by Health-hub Africa
+              Powered by
             </span>
+            <img
+              src="/health-hub-brand-white.png"
+              alt="Health-Hub Africa®"
+              className="h-9 w-auto object-contain opacity-70"
+            />
           </div>
         </div>
       </div>
