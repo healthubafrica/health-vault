@@ -13,7 +13,7 @@ import { ErrorState } from '@/components/ui/ErrorState'
 import { toast } from 'sonner'
 
 type PillVariant = 'success' | 'warning' | 'emergency' | 'neutral'
-type Gateway = 'paystack' | 'flutterwave' | 'bank_transfer'
+type Gateway = 'paystack' | 'bank_transfer'
 
 const BANK_DETAILS = {
   bank: 'United Bank for Africa (UBA)',
@@ -70,7 +70,8 @@ export function PaymentsScreen() {
       const apiGateway = gateway === 'bank_transfer' ? 'manual' : gateway
       const result = await paymentsApi.initiate({
         gateway: apiGateway,
-        purpose: description.trim(),
+        purpose: 'other',
+        description: description.trim(),
         amountKobo: Math.round(parsed * 100),
         currency: 'NGN',
       })
@@ -228,7 +229,6 @@ export function PaymentsScreen() {
                     style={{ background: 'var(--color-bg)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
                   >
                     <option value="paystack">Paystack (Card / Bank)</option>
-                    <option value="flutterwave">Flutterwave (Card / Mobile)</option>
                     <option value="bank_transfer">Bank Transfer (UBA)</option>
                   </select>
                 </div>
@@ -295,9 +295,10 @@ export function PaymentsScreen() {
         </div>
         <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
           {allPayments.length === 0 ? (
-            <p className="text-sm text-center py-8" style={{ color: 'var(--color-text-muted)' }}>
-              No transactions yet.
-            </p>
+            <div className="flex flex-col items-center justify-center py-12 gap-2">
+              <Receipt size={32} style={{ color: 'var(--color-text-faint)' }} />
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No transactions yet</p>
+            </div>
           ) : allPayments.map((p: any) => (
             <div key={p.id} className="flex items-center gap-3 p-4">
               <div
@@ -329,7 +330,6 @@ export function PaymentsScreen() {
         <div className="flex flex-col gap-3">
           {(gatewayStatuses ?? [
             { gateway: 'paystack', name: 'Paystack', active: true },
-            { gateway: 'flutterwave', name: 'Flutterwave', active: true },
             { gateway: 'bank_transfer', name: 'Bank Transfer', active: true, bankName: 'United Bank for Africa', accountNumber: '1028358485' },
           ]).map((gw: GatewayStatus) => (
             <div

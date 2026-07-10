@@ -1396,6 +1396,8 @@ export class AdminService {
       description: r.description,
       paidAt: r.paidAt,
       createdAt: r.createdAt,
+      refundAmountKobo: r.refundAmountKobo,
+      refundedAt: r.refundedAt,
     }));
 
     return { data, meta: { total, page, limit } };
@@ -1412,24 +1414,28 @@ export class AdminService {
     }
     if (payment.status === 'paid') return { already: true };
 
-    await this.prisma.payment.update({
-      where: { id: paymentId },
-      data: { status: 'paid', paidAt: new Date() },
-    });
-
-    // Activate subscription if this payment carries subscription metadata
+    // Payment status and subscription activation happen in one transaction —
+    // same fix as PaymentsService's webhook handler: if activation throws,
+    // the payment status update rolls back too, instead of leaving a paid
+    // payment with no activated subscription and no way to safely retry.
     const meta = payment.metadata as { kind?: string; planId?: string; billingCycle?: string } | null;
-    if (meta?.kind === 'subscription_upgrade' && meta.planId) {
-      const cycle = meta.billingCycle === 'annually' ? 'annually'
-        : meta.billingCycle === 'quarterly' ? 'quarterly'
-        : 'monthly';
-      const startDate = new Date();
-      const endDate = new Date(startDate);
-      if (cycle === 'annually') endDate.setFullYear(endDate.getFullYear() + 1);
-      else if (cycle === 'quarterly') endDate.setMonth(endDate.getMonth() + 3);
-      else endDate.setMonth(endDate.getMonth() + 1);
 
-      await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.payment.update({
+        where: { id: paymentId },
+        data: { status: 'paid', paidAt: new Date() },
+      });
+
+      if (meta?.kind === 'subscription_upgrade' && meta.planId) {
+        const cycle = meta.billingCycle === 'annually' ? 'annually'
+          : meta.billingCycle === 'quarterly' ? 'quarterly'
+          : 'monthly';
+        const startDate = new Date();
+        const endDate = new Date(startDate);
+        if (cycle === 'annually') endDate.setFullYear(endDate.getFullYear() + 1);
+        else if (cycle === 'quarterly') endDate.setMonth(endDate.getMonth() + 3);
+        else endDate.setMonth(endDate.getMonth() + 1);
+
         await tx.patientSubscription.updateMany({
           where: { patientId: payment.patientId, status: { in: ['active', 'trial'] } },
           data: { status: 'cancelled' as any, cancelledAt: new Date(), cancellationReason: 'Upgraded via bank transfer confirmation' },
@@ -1443,8 +1449,8 @@ export class AdminService {
             paymentId: payment.id,
           },
         });
-      });
-    }
+      }
+    });
 
     return { confirmed: true };
   }
