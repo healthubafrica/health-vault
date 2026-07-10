@@ -604,7 +604,7 @@ export function LoginScreen() {
             <img
               src="/health-hub-brand-white.png"
               alt="Health-Hub Africa®"
-              className="h-5 w-auto object-contain opacity-70"
+              className="h-9 w-auto object-contain opacity-70"
             />
           </div>
         </div>
