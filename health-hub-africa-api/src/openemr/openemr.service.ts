@@ -20,7 +20,7 @@ const OPENEMR_SECRET_NAME = 'hha/openemr-refresh-token';
 const REDIS_REFRESH_KEY = 'openemr:refresh_token';
 const REDIS_STATE_PREFIX = 'openemr:oauth_state:';
 const REDIS_PULL_CURSOR_PREFIX = 'openemr:pull-cursor:';
-const STATE_TTL_SECONDS = 600; // 10 minutes
+const STATE_TTL_SECONDS = 1800; // 30 minutes — generous enough to cover a slow click-through of OpenEMR's own login/consent screens
 
 export type PullResourceType =
   | 'Observation'
@@ -692,7 +692,20 @@ export class OpenemrService implements OnModuleInit {
     }
 
     const stateKey = `${REDIS_STATE_PREFIX}${state}`;
-    const storedState = await this.redis.get(stateKey).catch(() => null);
+    let storedState: string | null;
+    try {
+      storedState = await this.redis.get(stateKey);
+    } catch (err) {
+      // Distinguish "the lookup itself failed" (Redis connectivity, e.g. a
+      // deploy rollover mid-flow) from "the state genuinely isn't there"
+      // (expired or already consumed) — both used to collapse into the same
+      // generic "invalid or expired" message, which made a transient Redis
+      // blip indistinguishable from a real expiry when reading the logs.
+      this.logger.error(
+        `OAuth state lookup failed for key ${stateKey}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      throw new Error('OpenEMR OAuth state lookup failed (Redis error) — check API logs and retry GET /openemr/auth/init');
+    }
     if (!storedState) {
       throw new BadRequestException('Invalid or expired OAuth state. Start over with GET /openemr/auth/init');
     }
