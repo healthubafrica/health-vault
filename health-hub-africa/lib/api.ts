@@ -89,7 +89,14 @@ async function request<T>(
       throw new ApiError(0, friendlyNetworkError())
     }
 
-    if (res.status === 401 && retry) {
+    // Only treat a 401 as "session expired" when the request actually carried
+    // a token — i.e. this was a previously-authenticated call. A 401 on a
+    // request made with no token (login, register, verify-otp, etc.) means
+    // the credentials/code were wrong, not that a session lapsed, so it must
+    // not trigger the refresh-then-hard-redirect flow below: that redirect
+    // was overwriting the real "wrong password" message and reloading the
+    // page out from under the user before they could read it.
+    if (res.status === 401 && retry && token) {
       const refreshed = await attemptTokenRefresh()
       if (refreshed) return request<T>(path, options, false)
       clearTokens()
