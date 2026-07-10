@@ -355,6 +355,7 @@ export default function SyncPage() {
   const [loading, setLoading] = useState(true)
   const [retrying, setRetrying] = useState<string | null>(null)
   const [recovering, setRecovering] = useState(false)
+  const [recoveringCalendar, setRecoveringCalendar] = useState(false)
   const [selected, setSelected] = useState<SyncItem | null>(null)
 
   const load = async () => {
@@ -397,6 +398,20 @@ export default function SyncPage() {
     }
   }
 
+  const handleRecoverAppointmentCalendarSync = async () => {
+    if (!window.confirm('Re-enqueue calendar sync for every confirmed appointment missing an OpenEMR event? Use this after fixing an OpenEMR OAuth/scope issue.')) return
+    setRecoveringCalendar(true)
+    try {
+      const res = await adminApi.openemr.recoverAppointmentCalendarSync()
+      toast.success(`${res.enqueued} appointment${res.enqueued === 1 ? '' : 's'} queued for calendar sync`)
+      await load()
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Recovery failed')
+    } finally {
+      setRecoveringCalendar(false)
+    }
+  }
+
   const counts = {
     pending: items.filter((i) => i.status === 'pending').length,
     failed: items.filter((i) => i.status === 'failed').length,
@@ -423,6 +438,15 @@ export default function SyncPage() {
           >
             <RotateCcw className="w-3.5 h-3.5" />
             Recover Unsynced
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={recoveringCalendar}
+            onClick={handleRecoverAppointmentCalendarSync}
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Recover Appointment Calendar Sync
           </Button>
           <Button variant="secondary" size="sm" onClick={load}>
             <RefreshCw className="w-3.5 h-3.5" />
