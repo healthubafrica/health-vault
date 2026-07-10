@@ -582,6 +582,7 @@ model Appointment {
   labOrders   LabOrder[]
   erCases     ExpertReviewCase[]
   erFollowUpReports ExpertReviewFinalReport[] @relation("ERFollowUpAppointment")
+  integrationErrors IntegrationError[]
 
   @@index([patientId])
   @@index([providerId])
@@ -1372,15 +1373,18 @@ model IntegrationError {
   errorCode       String?   @map("error_code")
   errorMessage    String?   @map("error_message")
   patientId       String?   @map("patient_id") @db.Uuid
+  appointmentId   String?   @map("appointment_id") @db.Uuid
   retryCount      Int       @default(0) @map("retry_count") @db.SmallInt
   resolvedAt      DateTime? @map("resolved_at")
   resolutionNotes String?   @map("resolution_notes")
   occurredAt      DateTime  @default(now()) @map("occurred_at")
 
-  patient Patient? @relation(fields: [patientId], references: [id])
+  patient     Patient?     @relation(fields: [patientId], references: [id])
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
 
   @@index([service, occurredAt(sort: Desc)])
   @@index([patientId])
+  @@index([appointmentId])
   @@map("integration_errors")
 }
 
@@ -1388,6 +1392,7 @@ model OpenemrSyncQueue {
   id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   patientId       String    @map("patient_id") @db.Uuid
   operation       String
+  jobType         String?   @map("job_type")
   payload         Json
   status          String    @default("pending")
   attempts        Int       @default(0) @db.SmallInt

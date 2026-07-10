@@ -167,7 +167,12 @@ export class AdminController {
 
   @Post('system/errors/:id/retry')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Increment retry count on an integration error' })
+  @ApiOperation({
+    summary: 'Retry an integration error',
+    description:
+      'When the error is tied to a specific appointment, re-enqueues the matching ' +
+      'encounter or calendar sync job. Otherwise just records the retry attempt.',
+  })
   retryIntegrationError(@Param('id') id: string) {
     return this.adminService.retryIntegrationError(id);
   }
