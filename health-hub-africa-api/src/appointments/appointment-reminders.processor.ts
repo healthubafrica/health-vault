@@ -124,6 +124,7 @@ export class AppointmentReminderProcessor {
         recipientName: appt.provider.firstName,
         intro: `Reminder: you have an appointment ${timeLabel}.`,
         outro: 'View your full schedule in the Health Hub Africa provider portal.',
+        portalType: 'provider',
       };
       await this.notifications.sendAppointmentEmail(
         appt.provider.user.email,

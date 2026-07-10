@@ -16,6 +16,7 @@ import { ProvidersService } from './providers.service';
 import { CreateProviderDto } from './dto/create-provider.dto';
 import { UpdateProviderDto } from './dto/update-provider.dto';
 import { QueryProvidersDto } from './dto/query-providers.dto';
+import { CreateProviderNotificationEmailDto } from './dto/provider-notification-email.dto';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 
@@ -50,6 +51,28 @@ export class ProvidersController {
   @ApiOperation({ summary: "Get the authenticated user's provider profile" })
   getMyProfile(@CurrentUser() user: JwtPayload) {
     return this.providersService.findMyProfile(user);
+  }
+
+  @Get('me/notification-emails')
+  @Roles(UserRole.provider)
+  @ApiOperation({ summary: "List the authenticated provider's extra notification emails" })
+  listMyNotificationEmails(@CurrentUser() user: JwtPayload) {
+    return this.providersService.listMyNotificationEmails(user);
+  }
+
+  @Post('me/notification-emails')
+  @Roles(UserRole.provider)
+  @ApiOperation({ summary: 'Add an extra notification email for the authenticated provider' })
+  addMyNotificationEmail(@Body() dto: CreateProviderNotificationEmailDto, @CurrentUser() user: JwtPayload) {
+    return this.providersService.addMyNotificationEmail(dto, user);
+  }
+
+  @Delete('me/notification-emails/:emailId')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.provider)
+  @ApiOperation({ summary: "Remove one of the authenticated provider's extra notification emails" })
+  removeMyNotificationEmail(@Param('emailId') emailId: string, @CurrentUser() user: JwtPayload) {
+    return this.providersService.removeMyNotificationEmail(emailId, user);
   }
 
   @Get(':id')

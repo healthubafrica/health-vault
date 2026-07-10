@@ -1,14 +1,15 @@
 'use client'
 
+import { toast } from 'sonner'
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { adminApi, type AdminProvider, type AdminUser, type ImportProviderResult } from '@/lib/api'
+import { adminApi, type AdminProvider, type AdminUser, type ImportProviderResult, type ProviderNotificationEmail } from '@/lib/api'
 import { Card } from '@/components/ui/Card'
 import { Pill } from '@/components/ui/Pill'
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { SkeletonCard } from '@/components/ui/Skeleton'
 import { FormInput } from '@/components/ui/FormInput'
-import { RefreshCw, Search, Star, Users, Download, X, Copy, Info, Plus } from 'lucide-react'
+import { RefreshCw, Search, Star, Users, Download, X, Copy, Info, Plus, Mail, Trash2 } from 'lucide-react'
 import { useAuthStore } from '@/lib/stores/authStore'
 import { formatDate } from '@/lib/utils'
 import { buildProviderDisplayName } from '@/lib/providerName'
@@ -20,6 +21,55 @@ function ProviderDetailDialog({
   provider: AdminProvider
   onClose: () => void
 }) {
+  const [emails, setEmails] = useState<ProviderNotificationEmail[]>([])
+  const [loadingEmails, setLoadingEmails] = useState(true)
+  const [newLabel, setNewLabel] = useState('')
+  const [newEmail, setNewEmail] = useState('')
+  const [addingEmail, setAddingEmail] = useState(false)
+  const [removingEmailId, setRemovingEmailId] = useState<string | null>(null)
+
+  const loadEmails = useCallback(async () => {
+    setLoadingEmails(true)
+    try {
+      const data = await adminApi.providerNotificationEmails.list(provider.id)
+      setEmails(data)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load notification emails')
+    } finally {
+      setLoadingEmails(false)
+    }
+  }, [provider.id])
+
+  useEffect(() => { loadEmails() }, [loadEmails])
+
+  const handleAddEmail = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newEmail.trim()) return
+    setAddingEmail(true)
+    try {
+      await adminApi.providerNotificationEmails.add(provider.id, newLabel.trim() || undefined, newEmail.trim())
+      setNewLabel('')
+      setNewEmail('')
+      await loadEmails()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add notification email')
+    } finally {
+      setAddingEmail(false)
+    }
+  }, [provider.id, newLabel, newEmail, loadEmails])
+
+  const handleRemoveEmail = useCallback(async (emailId: string) => {
+    setRemovingEmailId(emailId)
+    try {
+      await adminApi.providerNotificationEmails.remove(provider.id, emailId)
+      await loadEmails()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove notification email')
+    } finally {
+      setRemovingEmailId(null)
+    }
+  }, [provider.id, loadEmails])
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
@@ -90,6 +140,62 @@ function ProviderDetailDialog({
             <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Provider ID</p>
             <p className="text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>{provider.id}</p>
           </div>
+        </div>
+
+        <div className="px-5 pb-4">
+          <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--color-text-muted)' }}>
+            Extra Notification Emails
+          </p>
+          <p className="text-[11px] mb-3" style={{ color: 'var(--color-text-faint)' }}>
+            These addresses also get emailed for this provider&apos;s appointments, in addition to the global recipient list.
+          </p>
+          {loadingEmails ? (
+            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Loading…</p>
+          ) : (
+            <div className="flex flex-col gap-2 mb-3">
+              {emails.length === 0 ? (
+                <p className="text-xs" style={{ color: 'var(--color-text-faint)' }}>No extra emails added</p>
+              ) : (
+                emails.map((e) => (
+                  <div key={e.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg" style={{ background: 'var(--color-bg)' }}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Mail className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--color-text-muted)' }} />
+                      <span className="text-xs truncate" style={{ color: 'var(--color-text)' }}>
+                        {e.label ? `${e.label} — ` : ''}{e.email}
+                      </span>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      loading={removingEmailId === e.id}
+                      onClick={() => handleRemoveEmail(e.id)}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+          <form onSubmit={handleAddEmail} className="flex items-end gap-2 flex-wrap">
+            <FormInput
+              value={newLabel}
+              onChange={(ev) => setNewLabel(ev.target.value)}
+              placeholder="Label (optional)"
+              className="flex-1 min-w-[120px]"
+            />
+            <FormInput
+              type="email"
+              value={newEmail}
+              onChange={(ev) => setNewEmail(ev.target.value)}
+              placeholder="email@example.com"
+              className="flex-1 min-w-[160px]"
+            />
+            <Button type="submit" size="sm" loading={addingEmail} disabled={!newEmail.trim()}>
+              <Plus className="w-3.5 h-3.5" />
+              Add
+            </Button>
+          </form>
         </div>
 
         <div className="flex justify-end px-5 py-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
