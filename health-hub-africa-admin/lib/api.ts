@@ -364,6 +364,7 @@ export interface AdminPayment {
   id: string; hhaRef: string; patientId: string; patientName: string
   amountKobo: number; currency: string; status: string; gateway: string
   description: string; paidAt?: string; createdAt: string
+  refundAmountKobo?: number | null; refundedAt?: string | null
 }
 
 // ── Admin: Providers ──────────────────────────────────────────────────────
@@ -856,6 +857,13 @@ export const adminApi = {
     },
     confirmManual: (id: string) =>
       request<{ confirmed?: boolean; already?: boolean }>(`/admin/payments/${id}/confirm`, { method: 'PATCH' }),
+    // Lives on PaymentsController (not the /admin/payments prefix) — role-gated
+    // there via @Roles(admin, super_admin), same effective access as this panel.
+    refund: (id: string, body: { amountKobo?: number; reason?: string }) =>
+      request<{ refunded: boolean; requested?: boolean; amountKobo: number; status?: string; message?: string }>(
+        `/payments/${id}/refund`,
+        { method: 'POST', body: JSON.stringify(body) },
+      ),
   },
 
   providers: {
