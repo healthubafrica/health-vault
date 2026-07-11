@@ -350,6 +350,26 @@ export interface AdminPatient {
   subscriptionPlan?: string; subscriptionStatus?: string; createdAt: string
 }
 
+// Full profile from GET /patients/:id — includes the clinical context the
+// list endpoint omits.
+export interface PatientProfileDetail {
+  id: string
+  hhaPatientId: string
+  firstName: string
+  lastName: string
+  dateOfBirth?: string
+  gender?: string
+  bloodGroup?: string | null
+  medicalInfo?: {
+    allergies: string[]
+    chronicConditions: string[]
+    activeMedications: string[]
+    immunizations?: string[]
+    activeCarePlan?: string | null
+  } | null
+  emergencyContacts?: Array<{ fullName: string; relationship: string; phone: string; isPrimary: boolean }>
+}
+
 // ── Admin: Subscriptions ──────────────────────────────────────────────────
 
 export interface AdminSubscription {
@@ -746,6 +766,21 @@ export const adminApi = {
       const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : ''
       return request<{ data: AdminPatient[]; meta: { total: number; page: number; limit: number } }>(`/admin/patients${qs}`)
     },
+
+    // Full patient profile including medicalInfo (allergies, chronic
+    // conditions, medications, immunizations) — the list endpoint only
+    // carries directory fields.
+    get: (id: string) =>
+      request<{ data: PatientProfileDetail }>(`/patients/${id}`),
+
+    // Quota override in MB; null/undefined body reverts to the plan default.
+    setStorageOverride: (patientId: string, storageQuotaOverrideMb: number | null) =>
+      request<{ message: string }>(`/admin/patients/${patientId}/storage-override`, {
+        method: 'PATCH',
+        body: JSON.stringify(
+          storageQuotaOverrideMb == null ? {} : { storageQuotaOverrideMb },
+        ),
+      }),
   },
 
   openemr: {
@@ -900,6 +935,17 @@ export const adminApi = {
     // up the booking gate.
     verify: (id: string) =>
       request<{ data: AdminProvider }>(`/providers/${id}/verify`, { method: 'PATCH' }),
+    // Edit the provider profile itself (name, specialty, license) — distinct
+    // from availability, which only flips the booking toggle.
+    update: (id: string, dto: Partial<{ title: string; firstName: string; lastName: string; specialty: string; licenseNumber: string }>) =>
+      request<{ data: AdminProvider }>(`/providers/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(dto),
+      }),
+    // Diagnostic (super_admin): token health, FHIR practitioner count and a
+    // dry-run import preview.
+    openemrStatus: () =>
+      request<{ tokenConfigured: boolean; tokenError: string | null; fhirPractitionerCount: number; localProviderCount: number } & Record<string, unknown>>('/admin/providers/openemr-status'),
   },
 
   providerNotificationEmails: {
@@ -1031,6 +1077,37 @@ export const adminApi = {
         method: 'PATCH',
         body: JSON.stringify({ providerId }),
       }),
+
+    // Lab workflow actions — the ops list is read-only without these.
+    updateLabOrderStatus: (id: string, status: 'pending' | 'normal' | 'review' | 'critical') =>
+      request<unknown>(`/labs/orders/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      }),
+
+    // Expert-review coordination actions.
+    assignSpecialist: (caseId: string, specialistProviderId: string, assignmentNotes?: string) =>
+      request<unknown>(`/expert-review/${caseId}/assign-specialist`, {
+        method: 'PATCH',
+        body: JSON.stringify({ specialistProviderId, assignmentNotes }),
+      }),
+    updateExpertReviewStatus: (caseId: string, status: string, notes?: string) =>
+      request<unknown>(`/expert-review/${caseId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status, notes }),
+      }),
+  },
+
+  // STRIDE™ operational intelligence (admin/coordinator-gated endpoints).
+  stride: {
+    overview: () =>
+      request<{ module: string; activeCases: number; pendingCases: number; resolvedToday: number; assignedProviders: number }>('/stride/overview'),
+    hpacs: () =>
+      request<{ module: string; totalProviders: number; verifiedProviders: number; availableForEmergency: number }>('/stride/hpacs'),
+    efce: () =>
+      request<Array<{ id: string; hhaRef?: string; status: string; createdAt: string; patient?: { firstName: string; lastName: string; hhaPatientId: string } }>>('/stride/efce'),
+    expertReviewFunnel: () =>
+      request<Record<string, number>>('/stride/expert-review-funnel'),
   },
 
   cms: {

@@ -11,7 +11,10 @@ import { SkeletonBox } from '@/components/ui/Skeleton'
 import { formatDateTime } from '@/lib/utils'
 import { RefreshCw, AlertTriangle, X } from 'lucide-react'
 
-type LabStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
+// Mirrors the Prisma LabStatus enum (overallStatus) — the endpoint returns
+// these raw values; an invented vocabulary here leaves tabs permanently
+// empty and pills unstyled.
+type LabStatus = 'pending' | 'normal' | 'review' | 'critical'
 
 interface LabOrder {
   id: string
@@ -26,22 +29,43 @@ interface LabOrder {
   resultSummary?: string
 }
 
-const STATUS_TABS = ['All', 'pending', 'in_progress', 'completed', 'cancelled']
+const STATUS_TABS = ['All', 'pending', 'normal', 'review', 'critical']
 
-const STATUS_PILL: Record<LabStatus, 'warning' | 'info' | 'success' | 'neutral'> = {
+const STATUS_PILL: Record<LabStatus, 'warning' | 'info' | 'success' | 'neutral' | 'emergency'> = {
   pending: 'warning',
-  in_progress: 'info',
-  completed: 'success',
-  cancelled: 'neutral',
+  normal: 'success',
+  review: 'info',
+  critical: 'emergency',
 }
+
+const STATUS_OPTIONS: LabStatus[] = ['pending', 'normal', 'review', 'critical']
 
 function LabOrderDetailDialog({
   order,
   onClose,
+  onUpdated,
 }: {
   order: LabOrder
   onClose: () => void
+  onUpdated: () => void
 }) {
+  const [newStatus, setNewStatus] = useState<LabStatus>(order.status)
+  const [saving, setSaving] = useState(false)
+
+  const handleStatusUpdate = async () => {
+    if (newStatus === order.status) return
+    setSaving(true)
+    try {
+      await adminApi.operations.updateLabOrderStatus(order.id, newStatus)
+      onUpdated()
+      onClose()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not update lab order status')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
@@ -106,6 +130,26 @@ function LabOrderDetailDialog({
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Order ID</p>
             <p className="text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>{order.id}</p>
+          </div>
+        </div>
+
+        {/* Workflow action — progress the order's overall status */}
+        <div className="px-5 py-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Update Status</p>
+              <select
+                className="w-full text-sm rounded-lg border px-2.5 py-2"
+                style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)' }}
+                value={newStatus}
+                onChange={(e) => setNewStatus(e.target.value as LabStatus)}
+              >
+                {STATUS_OPTIONS.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+            <Button size="sm" onClick={handleStatusUpdate} disabled={saving || newStatus === order.status}>Update</Button>
           </div>
         </div>
 
@@ -318,7 +362,7 @@ export default function LabsPage() {
         )}
       </Card>
 
-      {selected && <LabOrderDetailDialog order={selected} onClose={() => setSelected(null)} />}
+      {selected && <LabOrderDetailDialog order={selected} onClose={() => setSelected(null)} onUpdated={load} />}
     </div>
   )
 }
