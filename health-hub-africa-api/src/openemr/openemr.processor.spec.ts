@@ -235,6 +235,57 @@ describe('OpenemrProcessor.handleSyncAppointmentCalendar (REST contract)', () =>
     );
   });
 
+  it("uses the provider's home facility when the appointment names none", async () => {
+    const appointment = {
+      id: 'appt-1',
+      openemrAppointmentId: null,
+      scheduledAt,
+      durationMinutes: 30,
+      serviceType: 'general_consultation',
+      hhaRef: 'APT-2026-000002',
+      reason: null,
+      patient: { openemrPatientUuid: 'uuid-1' },
+      provider: { openemrProviderUuid: 'prov-uuid' },
+      facility: null,
+    };
+    const prisma = {
+      appointment: {
+        findUnique: jest.fn().mockResolvedValue(appointment),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      openemrSyncQueue: {
+        create: jest.fn().mockResolvedValue({ id: 'q1' }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+    };
+    const callOpenemr = jest.fn().mockImplementation(async (_t: string, method: string, path: string) => {
+      if (method === 'GET' && path === '/api/patient/uuid-1') return { data: { pid: 7 } };
+      if (method === 'GET' && path === '/api/practitioner') {
+        return { data: [{ id: 9, uuid: 'prov-uuid', facility_id: 15 }] };
+      }
+      if (method === 'POST' && path === '/api/patient/7/appointment') return { data: { id: 200 } };
+      throw new Error(`unexpected call ${method} ${path}`);
+    });
+    const openemr = { getAccessToken: jest.fn().mockResolvedValue('token'), callOpenemr };
+    const processor = buildProcessor(prisma, openemr);
+
+    await processor.handleSyncAppointmentCalendar({
+      data: { patientId: 'p1', operation: 'sync_record', payload: { appointmentId: 'appt-1', action: 'upsert' } },
+      attemptsMade: 0,
+      opts: { attempts: 3 },
+    } as any);
+
+    const post = callOpenemr.mock.calls.find((c) => c[1] === 'POST');
+    expect(post?.[3]).toEqual(expect.objectContaining({
+      pc_aid: '9',
+      pc_facility: '15',
+      pc_billing_location: '15',
+    }));
+    // No facility name to match and the provider row already carries the
+    // facility — the /api/facility list must not be needed at all.
+    expect(callOpenemr.mock.calls.some((c) => c[2] === '/api/facility')).toBe(false);
+  });
+
   it('fails the job when the numeric pid cannot be resolved (never writes with a uuid)', async () => {
     const appointment = {
       id: 'appt-1',
