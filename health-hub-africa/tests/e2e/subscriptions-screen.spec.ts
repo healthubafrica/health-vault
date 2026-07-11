@@ -14,7 +14,15 @@ const MOCK_PLANS = [
     id: 'plan-basic', slug: 'basiccare', name: 'BasicCare™',
     priceKobo: 1_250_000, annualPriceKobo: 14_900_000, launchPriceKobo: 9_900_000,
     isMostPopular: false, isBestValue: false, bestFor: 'Individuals and young professionals',
-    features: ['Everything in FREE', '2 TeleCare™ Consultations Annually'],
+    features: [
+      'Everything in FREE',
+      '2 TeleCare™ Consultations Annually',
+      '1 MinuteCare™ Visit Annually',
+      '1 HealthConsult™ Second Opinion Annually',
+      'e-Prescriptions',
+      'Care Navigation Support',
+      '3% No Claim Discount',
+    ],
     displayOrder: 1, isActive: true,
   },
   {
@@ -221,5 +229,37 @@ test.describe('SubscriptionsScreen', () => {
     await page.reload()
 
     await expect(page.getByText('Free').first()).toBeVisible()
+  })
+
+  // ── Expandable feature list ─────────────────────────────────────────────
+
+  test('shows "+N more features included" button when a plan has more than 5 features', async ({ page }) => {
+    await expect(page.getByRole('button', { name: '+2 more features included' })).toBeVisible()
+  })
+
+  test('does not show a toggle button for plans with 5 or fewer features', async ({ page }) => {
+    // SilverCare's mock has only 2 features, well under the truncation threshold.
+    const silverCareCard = page.locator('div').filter({ hasText: 'SilverCare™' }).first()
+    await expect(silverCareCard.getByRole('button', { name: /more features included/i })).not.toBeVisible()
+  })
+
+  test('clicking "+N more features included" reveals the rest of that plan\'s features', async ({ page }) => {
+    await expect(page.getByText('Care Navigation Support')).not.toBeVisible()
+
+    await page.getByRole('button', { name: '+2 more features included' }).click()
+
+    await expect(page.getByText('Care Navigation Support')).toBeVisible()
+    await expect(page.getByText('3% No Claim Discount')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Show less' })).toBeVisible()
+  })
+
+  test('clicking "Show less" collapses the list back to 5 features', async ({ page }) => {
+    await page.getByRole('button', { name: '+2 more features included' }).click()
+    await expect(page.getByText('Care Navigation Support')).toBeVisible()
+
+    await page.getByRole('button', { name: 'Show less' }).click()
+
+    await expect(page.getByText('Care Navigation Support')).not.toBeVisible()
+    await expect(page.getByRole('button', { name: '+2 more features included' })).toBeVisible()
   })
 })
