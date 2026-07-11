@@ -28,6 +28,19 @@ export function SubscriptionsScreen() {
   const { data: plansRes, isInitialLoad: plansLoading } = useApi(() => subscriptions.listPlans())
   const [saving, setSaving] = useState<string | null>(null)
   const [billing, setBilling] = useState<'monthly' | 'annually'>('monthly')
+  const [expandedPlans, setExpandedPlans] = useState<Set<string>>(new Set())
+
+  const toggleExpanded = (planId: string) => {
+    setExpandedPlans(prev => {
+      const next = new Set(prev)
+      if (next.has(planId)) {
+        next.delete(planId)
+      } else {
+        next.add(planId)
+      }
+      return next
+    })
+  }
 
   const activeSub = subRes?.data
   const allPlans = plansRes?.data ?? []
@@ -223,7 +236,7 @@ export function SubscriptionsScreen() {
                   {/* Features */}
                   {features.length > 0 && (
                     <ul className="flex flex-col gap-1.5 mb-4">
-                      {features.slice(0, 5).map(f => (
+                      {(expandedPlans.has(plan.id) ? features : features.slice(0, 5)).map(f => (
                         <li key={f} className="flex items-start gap-2">
                           <Check size={12} className="mt-0.5 shrink-0" style={{ color: theme.accent }} />
                           <span
@@ -235,11 +248,17 @@ export function SubscriptionsScreen() {
                         </li>
                       ))}
                       {features.length > 5 && (
-                        <li
-                          className="text-xs pl-5"
-                          style={{ color: theme.isDark ? 'rgba(255,255,255,0.5)' : 'var(--color-text-faint)' }}
-                        >
-                          +{features.length - 5} more features included
+                        <li>
+                          <button
+                            type="button"
+                            onClick={() => toggleExpanded(plan.id)}
+                            className="text-xs pl-5 text-left"
+                            style={{ color: theme.isDark ? 'rgba(255,255,255,0.5)' : 'var(--color-text-faint)' }}
+                          >
+                            {expandedPlans.has(plan.id)
+                              ? 'Show less'
+                              : `+${features.length - 5} more features included`}
+                          </button>
                         </li>
                       )}
                     </ul>
