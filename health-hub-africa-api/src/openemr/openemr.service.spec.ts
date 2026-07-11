@@ -51,6 +51,19 @@ describe('OpenemrService.buildAuthorizationUrl', () => {
     expect(scopes).toContain('user/document.crs');
     expect(scopes).toContain('user/vital.crus');
 
+    // Numeric pid + facility id resolution for calendar writes.
+    expect(scopes).toContain('user/patient.read');
+    expect(scopes).toContain('user/facility.read');
+
+    // Lab-order delivery as patient messages (pnotes).
+    expect(scopes).toContain('user/message.cud');
+    expect(scopes).toContain('user/message.write');
+
+    // Clinical history pulls into PatientMedicalInfo.
+    expect(scopes).toContain('user/AllergyIntolerance.read');
+    expect(scopes).toContain('user/Condition.read');
+    expect(scopes).toContain('user/Immunization.read');
+
     expect(scopes).toContain('offline_access');
   });
 

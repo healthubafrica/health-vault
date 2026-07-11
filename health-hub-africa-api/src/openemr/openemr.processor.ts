@@ -100,6 +100,34 @@ interface FhirEncounter {
   meta?: { lastUpdated?: string };
 }
 
+interface FhirAllergyIntolerance {
+  resourceType: string;
+  id?: string;
+  patient?: { reference?: string };
+  code?: FhirCodeableConcept;
+  clinicalStatus?: FhirCodeableConcept;
+  meta?: { lastUpdated?: string };
+}
+
+interface FhirCondition {
+  resourceType: string;
+  id?: string;
+  subject?: { reference?: string };
+  code?: FhirCodeableConcept;
+  clinicalStatus?: FhirCodeableConcept;
+  meta?: { lastUpdated?: string };
+}
+
+interface FhirImmunization {
+  resourceType: string;
+  id?: string;
+  status?: string;
+  patient?: { reference?: string };
+  vaccineCode?: FhirCodeableConcept;
+  occurrenceDateTime?: string;
+  meta?: { lastUpdated?: string };
+}
+
 interface FhirBundle {
   resourceType: string;
   entry?: Array<{ resource: Record<string, unknown> }>;
@@ -190,6 +218,17 @@ export function mapOpenemrApptStatus(pcApptStatus: string): 'cancelled' | 'no_sh
   if (OPENEMR_CANCELLED_STATUSES.has(pcApptStatus)) return 'cancelled';
   if (pcApptStatus === OPENEMR_NO_SHOW_STATUS) return 'no_show';
   return null;
+}
+
+// Human-readable label for a FHIR CodeableConcept — the display name clinics
+// see for an allergy, condition or vaccine. Empty string when nothing usable.
+export function codeableConceptText(concept: FhirCodeableConcept | undefined): string {
+  return (
+    concept?.text
+    ?? concept?.coding?.find(c => c.display)?.display
+    ?? concept?.coding?.[0]?.code
+    ?? ''
+  ).trim();
 }
 
 function mapGender(g: Gender): string {
@@ -638,6 +677,7 @@ export class OpenemrProcessor {
       include: {
         patient: { select: { openemrPatientUuid: true } },
         provider: { select: { openemrProviderUuid: true } },
+        facility: { select: { name: true, openemrFacilityId: true } },
       },
     });
 
@@ -673,7 +713,11 @@ export class OpenemrProcessor {
   private async runSyncAppointmentCalendar(
     job: Job<SyncJobData>,
     appointment: Prisma.AppointmentGetPayload<{
-      include: { patient: { select: { openemrPatientUuid: true } }; provider: { select: { openemrProviderUuid: true } } };
+      include: {
+        patient: { select: { openemrPatientUuid: true } };
+        provider: { select: { openemrProviderUuid: true } };
+        facility: { select: { name: true, openemrFacilityId: true } };
+      };
     }>,
     patientId: string,
     appointmentId: string,
@@ -682,6 +726,14 @@ export class OpenemrProcessor {
     const token = await this.openemrService.getAccessToken();
     const puuid = appointment.patient.openemrPatientUuid!;
 
+    // The appointment routes take the patient's *numeric* pid (it lands
+    // directly in pc_pid) — passing the FHIR uuid would coerce to 0 and
+    // orphan the event off every chart. No pid, no write.
+    const pid = await this.resolveNumericPatientId(token, puuid, patientId, appointmentId);
+    if (!pid) {
+      throw new Error(`Could not resolve numeric OpenEMR pid for patient uuid ${puuid}`);
+    }
+
     // Any existing event is removed first — covers both cancellation and the
     // delete-and-recreate reschedule path (the REST API has no event update).
     if (appointment.openemrAppointmentId) {
@@ -689,7 +741,7 @@ export class OpenemrProcessor {
         await this.openemrService['callOpenemr'](
           token,
           'DELETE',
-          `/api/patient/${puuid}/appointment/${appointment.openemrAppointmentId}`,
+          `/api/patient/${pid}/appointment/${appointment.openemrAppointmentId}`,
           undefined,
           patientId,
           appointmentId,
@@ -728,6 +780,12 @@ export class OpenemrProcessor {
       }
     }
 
+    // pc_facility / pc_billing_location are REQUIRED numeric fields — the
+    // appointment validator rejects the POST without them.
+    const facilityId = await this.resolveNumericFacilityId(
+      token, appointment.facility?.name ?? null, patientId, appointmentId,
+    );
+
     // Calendar events are written in the clinic's local time (WAT).
     const lagos = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Africa/Lagos',
@@ -746,11 +804,13 @@ export class OpenemrProcessor {
       pc_apptstatus: '-',
       pc_eventDate: eventDate,
       pc_startTime: startTime,
+      pc_facility: facilityId,
+      pc_billing_location: facilityId,
       ...(pcAid && { pc_aid: pcAid }),
     };
 
     const created = await this.openemrService['callOpenemr'](
-      token, 'POST', `/api/patient/${puuid}/appointment`, body, patientId, appointmentId,
+      token, 'POST', `/api/patient/${pid}/appointment`, body, patientId, appointmentId,
     );
     const data = (created.data ?? created) as Record<string, unknown>;
     const eid = data.pc_eid ?? data.id ?? data.eid;
@@ -765,6 +825,65 @@ export class OpenemrProcessor {
     this.logger.log(
       `OpenEMR calendar event ${eid ?? '(id unknown)'} created for appointment ${appointmentId}`,
     );
+  }
+
+  // GET /api/patient/{puuid} carries both identifiers; the legacy calendar
+  // and message routes only accept the numeric pid.
+  private async resolveNumericPatientId(
+    token: string,
+    puuid: string,
+    patientId?: string,
+    appointmentId?: string,
+  ): Promise<string | null> {
+    try {
+      const res = await this.openemrService['callOpenemr'](
+        token, 'GET', `/api/patient/${puuid}`, undefined, patientId, appointmentId,
+      );
+      const data = (res.data ?? res) as Record<string, unknown>;
+      return data.pid != null ? String(data.pid) : null;
+    } catch (err) {
+      this.logger.warn(
+        `Could not resolve numeric pid for patient uuid ${puuid}: ${err instanceof Error ? err.message : err}`,
+      );
+      return null;
+    }
+  }
+
+  // Resolves the numeric facility id for pc_facility. The uuid we store is
+  // the FHIR Location id (a uuid_mapping entry), which does NOT equal the
+  // facility table's own uuid — so match by name and fall back to the first
+  // facility. '0' as a last resort still passes the numeric validator.
+  private async resolveNumericFacilityId(
+    token: string,
+    facilityName: string | null,
+    patientId?: string,
+    appointmentId?: string,
+  ): Promise<string> {
+    try {
+      const res = await this.openemrService['callOpenemr'](
+        token, 'GET', '/api/facility', undefined, patientId, appointmentId,
+      );
+      const list = (res.data as Array<Record<string, unknown>> | undefined) ?? [];
+      if (facilityName) {
+        const match = list.find(
+          (f) => String(f.name ?? '').trim().toLowerCase() === facilityName.trim().toLowerCase(),
+        );
+        if (match?.id != null) return String(match.id);
+      }
+      if (list[0]?.id != null) {
+        if (facilityName) {
+          this.logger.warn(
+            `No OpenEMR facility named "${facilityName}" — using first facility (id ${list[0].id}) for pc_facility`,
+          );
+        }
+        return String(list[0].id);
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Could not resolve OpenEMR facility id: ${err instanceof Error ? err.message : err}`,
+      );
+    }
+    return '0';
   }
 
   // Maps HHA's AppointmentStatus enum to FHIR's Encounter.status. FHIR's
@@ -1078,6 +1197,83 @@ export class OpenemrProcessor {
     );
   }
 
+  // ── Clinical history (pull) ───────────────────────────────────────────────
+  //
+  // Allergies, medical problems and immunizations recorded by clinicians in
+  // OpenEMR merge into the patient's PatientMedicalInfo arrays — the same
+  // structure the portal profile and onboarding already read — rather than
+  // parallel tables. Case-insensitive name match keeps clinic re-entries of
+  // the same item from duplicating what the patient self-reported.
+
+  @Process({ name: 'pull-allergies' })
+  async handlePullAllergies() {
+    await this.handleGenericPull<FhirAllergyIntolerance>(
+      'AllergyIntolerance',
+      '/fhir/AllergyIntolerance',
+      async (r) => this.upsertMedicalInfoEntry(
+        r.patient?.reference, codeableConceptText(r.code), 'allergies',
+      ),
+    );
+  }
+
+  @Process({ name: 'pull-conditions' })
+  async handlePullConditions() {
+    await this.handleGenericPull<FhirCondition>(
+      'Condition',
+      '/fhir/Condition',
+      async (r) => this.upsertMedicalInfoEntry(
+        r.subject?.reference, codeableConceptText(r.code), 'chronicConditions',
+      ),
+    );
+  }
+
+  @Process({ name: 'pull-immunizations' })
+  async handlePullImmunizations() {
+    await this.handleGenericPull<FhirImmunization>(
+      'Immunization',
+      '/fhir/Immunization',
+      async (r) => this.upsertMedicalInfoEntry(
+        r.patient?.reference, codeableConceptText(r.vaccineCode), 'immunizations',
+      ),
+    );
+  }
+
+  private async upsertMedicalInfoEntry(
+    patientRef: string | undefined,
+    name: string,
+    field: 'allergies' | 'chronicConditions' | 'immunizations',
+  ): Promise<'created' | 'skipped'> {
+    if (!name) return 'skipped';
+    const patientUuid = (patientRef ?? '').replace(/^Patient\//, '');
+    if (!patientUuid) return 'skipped';
+
+    const patient = await this.prisma.patient.findFirst({
+      where: { openemrPatientUuid: patientUuid },
+      select: {
+        id: true,
+        medicalInfo: {
+          select: { id: true, allergies: true, chronicConditions: true, immunizations: true },
+        },
+      },
+    });
+    if (!patient) return 'skipped';
+
+    const existing = patient.medicalInfo?.[field] ?? [];
+    if (existing.some((v) => v.trim().toLowerCase() === name.toLowerCase())) return 'skipped';
+
+    if (patient.medicalInfo) {
+      await this.prisma.patientMedicalInfo.update({
+        where: { id: patient.medicalInfo.id },
+        data: { [field]: { push: name } },
+      });
+    } else {
+      await this.prisma.patientMedicalInfo.create({
+        data: { patientId: patient.id, [field]: [name] },
+      });
+    }
+    return 'created';
+  }
+
   // ── Appointments (pull) ───────────────────────────────────────────────────
   //
   // Mirrors calendar changes made inside OpenEMR (front desk reschedules,
@@ -1216,8 +1412,50 @@ export class OpenemrProcessor {
       fhirPayload.requester = { reference: `Practitioner/${labOrder.provider.openemrProviderUuid}` };
     }
 
-    await this.openemrService['callOpenemr'](token, 'POST', '/fhir/ServiceRequest', fhirPayload, patientId);
-    this.logger.log(`Lab order ${labOrder.id} synced → OpenEMR FHIR ServiceRequest`);
+    // FHIR ServiceRequest write is not supported on every OpenEMR build (ours
+    // advertises only read/search for it, like Encounter), and the REST
+    // procedure resource is read-only too — so when FHIR rejects the write,
+    // deliver the order to clinic staff as a patient message (pnote). It
+    // lands in OpenEMR's Messages inbox attached to the patient's chart.
+    try {
+      await this.openemrService['callOpenemr'](token, 'POST', '/fhir/ServiceRequest', fhirPayload, patientId);
+      this.logger.log(`Lab order ${labOrder.id} synced → OpenEMR FHIR ServiceRequest`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!/OpenEMR (404|401|405)/.test(msg)) throw err;
+
+      this.logger.warn(
+        `FHIR ServiceRequest write not available (${msg.slice(0, 80)}); delivering lab order ${labOrder.id} as a patient message`,
+      );
+
+      const pid = await this.resolveNumericPatientId(
+        token, labOrder.patient.openemrPatientUuid, patientId,
+      );
+      if (!pid) {
+        throw new Error(
+          `Lab order ${labOrder.id}: could not resolve numeric pid for message fallback`,
+        );
+      }
+
+      const orderedBy = `${labOrder.provider.title ?? ''} ${labOrder.provider.firstName} ${labOrder.provider.lastName}`.trim();
+      await this.openemrService['callOpenemr'](
+        token, 'POST', `/api/patient/${pid}/message`,
+        {
+          body:
+            `Lab order from Health Hub Africa (${labOrder.hhaRef ?? labOrder.id})\n` +
+            `Ordered by: ${orderedBy}\n` +
+            `Ordered at: ${labOrder.orderedAt.toISOString()}\n` +
+            `Details: ${labOrder.notes ?? 'See HHA portal for details'}`,
+          groupname: 'Default',
+          from: 'Health Hub Africa',
+          to: 'admin',
+          title: 'Other',
+          message_status: 'New',
+        },
+        patientId,
+      );
+      this.logger.log(`Lab order ${labOrder.id} delivered → OpenEMR patient message (pnote)`);
+    }
   }
 
   // ── Provider ─────────────────────────────────────────────────────────────

@@ -358,6 +358,7 @@ model PatientMedicalInfo {
   allergies        String[]
   chronicConditions String[] @map("chronic_conditions")
   activeMedications String[] @map("active_medications")
+  immunizations    String[]
   activeCarePlan   String?  @map("active_care_plan")
   notes            String?
   updatedAt        DateTime @updatedAt @map("updated_at")

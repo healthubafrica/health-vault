@@ -26,7 +26,10 @@ export type PullResourceType =
   | 'Observation'
   | 'MedicationRequest'
   | 'DocumentReference'
-  | 'Encounter';
+  | 'Encounter'
+  | 'AllergyIntolerance'
+  | 'Condition'
+  | 'Immunization';
 
 const ALLOWED_REDIRECT_URIS = new Set([
   'https://www.myvaultplus.com/auth/callback',
@@ -68,6 +71,9 @@ export class OpenemrService implements OnModuleInit {
       'pull-documents',
       'pull-encounters',
       'pull-appointments',
+      'pull-allergies',
+      'pull-conditions',
+      'pull-immunizations',
       'recover-unsynced',
     ]);
     const repeatables = await this.syncQueue.getRepeatableJobs();
@@ -122,6 +128,28 @@ export class OpenemrService implements OnModuleInit {
       'pull-appointments',
       { patientId: '', operation: 'sync_record' },
       { repeat: { cron: '*/15 * * * *' }, removeOnComplete: 10 },
+    );
+
+    // Clinical history authored in OpenEMR (allergies, medical problems,
+    // immunizations) merges into PatientMedicalInfo so the patient portal
+    // profile reflects what the clinic recorded. Hourly is enough — these
+    // change far less often than vitals or documents.
+    await this.syncQueue.add(
+      'pull-allergies',
+      { patientId: '', operation: 'sync_record' },
+      { repeat: { cron: '5 * * * *' }, removeOnComplete: 10 },
+    );
+
+    await this.syncQueue.add(
+      'pull-conditions',
+      { patientId: '', operation: 'sync_record' },
+      { repeat: { cron: '10 * * * *' }, removeOnComplete: 10 },
+    );
+
+    await this.syncQueue.add(
+      'pull-immunizations',
+      { patientId: '', operation: 'sync_record' },
+      { repeat: { cron: '15 * * * *' }, removeOnComplete: 10 },
     );
 
     // Scheduled recovery: every 30 minutes re-enqueue any patient whose sync
@@ -706,6 +734,21 @@ export class OpenemrService implements OnModuleInit {
       'user/medication.cruds',
       'user/document.crs',
       'user/vital.crus',
+      // Calendar writes need the patient's numeric pid and a numeric
+      // facility id (pc_facility / pc_billing_location are required by
+      // OpenEMR's appointment validator) — both resolved via REST reads.
+      'user/patient.read',
+      'user/facility.read',
+      // Lab orders have no write API on this build (FHIR ServiceRequest and
+      // REST procedure are both read-only), so they are delivered to clinic
+      // staff as patient messages (pnotes).
+      'user/message.cud',
+      'user/message.write',
+      // Clinical history pulls — allergies, medical problems and
+      // immunizations recorded in OpenEMR flow back into PatientMedicalInfo.
+      'user/AllergyIntolerance.read',
+      'user/Condition.read',
+      'user/Immunization.read',
       'offline_access',
     ].join(' ');
 
