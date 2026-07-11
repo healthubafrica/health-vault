@@ -30,6 +30,7 @@ import {
   Bell,
   Mail,
   Activity,
+  Cpu,
   CalendarClock,
   Newspaper,
   MessageSquareQuote,
@@ -69,6 +70,7 @@ const NAV: NavItem[] = [
   { label: 'Dispatch', href: '/operations/dispatch', icon: Ambulance, roles: ['admin', 'super_admin'], group: 'Operations' },
   { label: 'Lab Orders', href: '/operations/labs', icon: FlaskConical, roles: ['admin', 'super_admin'], group: 'Operations' },
   { label: 'Clinical Queue', href: '/clinical-queue', icon: Activity, roles: ['admin', 'super_admin'], group: 'Operations' },
+  { label: 'STRIDE™ Intelligence', href: '/stride', icon: Cpu, roles: ['admin', 'super_admin', 'coordinator'], group: 'Operations' },
 
   { label: 'OpenEMR Sync', href: '/system/sync', icon: RefreshCw, roles: ['admin', 'super_admin'], group: 'System' },
   { label: 'Errors', href: '/system/errors', icon: AlertCircle, roles: ['admin', 'super_admin'], group: 'System' },

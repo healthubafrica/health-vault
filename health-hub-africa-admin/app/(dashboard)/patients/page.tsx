@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { adminApi, type AdminPatient } from '@/lib/api'
+import { adminApi, type AdminPatient, type PatientProfileDetail } from '@/lib/api'
 import { Card } from '@/components/ui/Card'
 import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
@@ -42,6 +42,20 @@ function CopyButton({ value }: { value: string }) {
   )
 }
 
+function ChipList({ label, items, bg, color }: { label: string; items: string[]; bg: string; color: string }) {
+  if (items.length === 0) return null
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--color-text-muted)' }}>{label}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map(item => (
+          <span key={item} className="text-xs px-2 py-0.5 rounded-lg" style={{ background: bg, color }}>{item}</span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function PatientDetailDialog({
   patient,
   onClose,
@@ -49,11 +63,44 @@ function PatientDetailDialog({
   patient: AdminPatient
   onClose: () => void
 }) {
+  // Clinical context comes from the full profile endpoint — the admin list
+  // only carries directory fields.
+  const [detail, setDetail] = useState<PatientProfileDetail | null>(null)
+  const [detailError, setDetailError] = useState(false)
+  const [storageMb, setStorageMb] = useState('')
+  const [savingStorage, setSavingStorage] = useState(false)
+
+  useEffect(() => {
+    adminApi.patients.get(patient.id)
+      .then(res => setDetail(res.data))
+      .catch(() => setDetailError(true))
+  }, [patient.id])
+
+  const handleStorageSave = async (revert: boolean) => {
+    const mb = revert ? null : Number(storageMb)
+    if (!revert && (!storageMb.trim() || isNaN(mb!) || mb! < 0 || !Number.isInteger(mb))) {
+      toast.error('Enter a whole number of MB')
+      return
+    }
+    setSavingStorage(true)
+    try {
+      await adminApi.patients.setStorageOverride(patient.id, mb)
+      toast.success(revert ? 'Storage quota reverted to plan default' : `Storage quota set to ${mb} MB`)
+      setStorageMb('')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not update storage quota')
+    } finally {
+      setSavingStorage(false)
+    }
+  }
+
+  const medicalInfo = detail?.medicalInfo
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
       <div
-        className="relative w-full max-w-lg rounded-2xl border shadow-2xl"
+        className="relative w-full max-w-lg rounded-2xl border shadow-2xl max-h-[90vh] overflow-y-auto"
         style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
@@ -111,6 +158,46 @@ function PatientDetailDialog({
             ) : (
               <p className="text-sm" style={{ color: 'var(--color-text-faint)' }}>No active subscription</p>
             )}
+          </div>
+
+          {/* Clinical context — allergies/conditions/meds/immunizations, incl. what the OpenEMR pulls merged in */}
+          {detailError ? (
+            <p className="text-xs" style={{ color: 'var(--color-text-faint)' }}>Could not load clinical details</p>
+          ) : !detail ? (
+            <SkeletonBox height={40} className="rounded" />
+          ) : (
+            <div className="space-y-3">
+              {detail.bloodGroup && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Blood Group</p>
+                  <p className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>{detail.bloodGroup}</p>
+                </div>
+              )}
+              <ChipList label="Allergies" items={medicalInfo?.allergies ?? []} bg="#FEE2E2" color="#991B1B" />
+              <ChipList label="Chronic Conditions" items={medicalInfo?.chronicConditions ?? []} bg="#FEF3C7" color="#92400E" />
+              <ChipList label="Active Medications" items={medicalInfo?.activeMedications ?? []} bg="var(--color-success-bg)" color="#006022" />
+              <ChipList label="Immunizations" items={medicalInfo?.immunizations ?? []} bg="var(--color-info-bg)" color="#1E40AF" />
+              {!medicalInfo?.allergies?.length && !medicalInfo?.chronicConditions?.length
+                && !medicalInfo?.activeMedications?.length && !medicalInfo?.immunizations?.length && (
+                <p className="text-xs" style={{ color: 'var(--color-text-faint)' }}>No clinical history recorded</p>
+              )}
+            </div>
+          )}
+
+          {/* Storage override */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--color-text-muted)' }}>Storage Quota Override</p>
+            <div className="flex items-center gap-2">
+              <FormInput
+                type="number"
+                placeholder="Quota in MB"
+                value={storageMb}
+                onChange={(e) => setStorageMb(e.target.value)}
+                className="flex-1"
+              />
+              <Button size="sm" onClick={() => handleStorageSave(false)} disabled={savingStorage || !storageMb.trim()}>Set</Button>
+              <Button size="sm" variant="secondary" onClick={() => handleStorageSave(true)} disabled={savingStorage}>Revert to plan</Button>
+            </div>
           </div>
 
           {/* Timestamps */}

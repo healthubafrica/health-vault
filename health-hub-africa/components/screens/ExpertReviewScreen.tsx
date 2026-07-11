@@ -10,12 +10,14 @@ import { formatDate } from '@/lib/utils'
 import { expertReview, type ExpertReviewCaseItem } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 
+// Keys mirror the Prisma ExpertReviewStatus enum.
 const STATUS_PILL: Record<string, 'success' | 'warning' | 'neutral' | 'emergency'> = {
   submitted: 'warning',
-  accepted: 'success',
+  under_review: 'success',
   specialist_assigned: 'success',
-  in_review: 'success',
-  completed: 'neutral',
+  in_consultation: 'success',
+  report_ready: 'success',
+  closed: 'neutral',
   cancelled: 'emergency',
 }
 
