@@ -12,7 +12,17 @@ import { SkeletonBox } from '@/components/ui/Skeleton'
 import { formatDateTime } from '@/lib/utils'
 import { RefreshCw, X } from 'lucide-react'
 
-type ReviewStatus = 'pending' | 'assigned' | 'in_review' | 'completed' | 'escalated'
+// Mirrors the Prisma ExpertReviewStatus enum — the endpoint returns these
+// raw values, and the status tab filter is passed through verbatim, so any
+// invented vocabulary here silently breaks both filtering and pills.
+type ReviewStatus =
+  | 'submitted'
+  | 'under_review'
+  | 'specialist_assigned'
+  | 'in_consultation'
+  | 'report_ready'
+  | 'closed'
+  | 'cancelled'
 
 interface ExpertReviewCase {
   id: string
@@ -27,15 +37,21 @@ interface ExpertReviewCase {
   completedAt?: string
 }
 
-const STATUS_TABS = ['All', 'pending', 'assigned', 'in_review', 'completed', 'escalated']
+const STATUS_TABS = ['All', 'submitted', 'under_review', 'specialist_assigned', 'in_consultation', 'report_ready', 'closed', 'cancelled']
 
 const STATUS_PILL: Record<ReviewStatus, 'warning' | 'info' | 'success' | 'neutral' | 'emergency'> = {
-  pending: 'warning',
-  assigned: 'info',
-  in_review: 'info',
-  completed: 'success',
-  escalated: 'emergency',
+  submitted: 'warning',
+  under_review: 'info',
+  specialist_assigned: 'info',
+  in_consultation: 'info',
+  report_ready: 'success',
+  closed: 'neutral',
+  cancelled: 'emergency',
 }
+
+const STATUS_OPTIONS: ReviewStatus[] = [
+  'submitted', 'under_review', 'specialist_assigned', 'in_consultation', 'report_ready', 'closed', 'cancelled',
+]
 
 const PRIORITY_PILL: Record<'high' | 'medium' | 'low', 'emergency' | 'warning' | 'neutral'> = {
   high: 'emergency',
@@ -46,10 +62,51 @@ const PRIORITY_PILL: Record<'high' | 'medium' | 'low', 'emergency' | 'warning' |
 function ExpertReviewDetailDialog({
   item,
   onClose,
+  onUpdated,
 }: {
   item: ExpertReviewCase
   onClose: () => void
+  onUpdated: () => void
 }) {
+  const [providers, setProviders] = useState<Array<{ id: string; firstName: string; lastName: string; specialty?: string }>>([])
+  const [specialistId, setSpecialistId] = useState('')
+  const [newStatus, setNewStatus] = useState<ReviewStatus>(item.status)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    adminApi.providers.list({ limit: 100 })
+      .then(res => setProviders(res.data as Array<{ id: string; firstName: string; lastName: string; specialty?: string }>))
+      .catch(() => setProviders([]))
+  }, [])
+
+  const handleAssign = async () => {
+    if (!specialistId) return
+    setSaving(true)
+    try {
+      await adminApi.operations.assignSpecialist(item.id, specialistId)
+      onUpdated()
+      onClose()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not assign specialist')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleStatusUpdate = async () => {
+    if (newStatus === item.status) return
+    setSaving(true)
+    try {
+      await adminApi.operations.updateExpertReviewStatus(item.id, newStatus)
+      onUpdated()
+      onClose()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not update status')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
@@ -113,6 +170,46 @@ function ExpertReviewDetailDialog({
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Case ID</p>
             <p className="text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>{item.id}</p>
+          </div>
+        </div>
+
+        {/* Coordination actions */}
+        <div className="px-5 py-4 border-t space-y-3" style={{ borderColor: 'var(--color-border)' }}>
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Assign Specialist</p>
+              <select
+                className="w-full text-sm rounded-lg border px-2.5 py-2"
+                style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)' }}
+                value={specialistId}
+                onChange={(e) => setSpecialistId(e.target.value)}
+              >
+                <option value="">Select a provider…</option>
+                {providers.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.firstName} {p.lastName}{p.specialty ? ` — ${p.specialty}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Button size="sm" onClick={handleAssign} disabled={saving || !specialistId}>Assign</Button>
+          </div>
+
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Update Status</p>
+              <select
+                className="w-full text-sm rounded-lg border px-2.5 py-2"
+                style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)' }}
+                value={newStatus}
+                onChange={(e) => setNewStatus(e.target.value as ReviewStatus)}
+              >
+                {STATUS_OPTIONS.map(s => (
+                  <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+                ))}
+              </select>
+            </div>
+            <Button size="sm" onClick={handleStatusUpdate} disabled={saving || newStatus === item.status}>Update</Button>
           </div>
         </div>
 
@@ -308,7 +405,7 @@ export default function ExpertReviewPage() {
         )}
       </Card>
 
-      {selected && <ExpertReviewDetailDialog item={selected} onClose={() => setSelected(null)} />}
+      {selected && <ExpertReviewDetailDialog item={selected} onClose={() => setSelected(null)} onUpdated={load} />}
     </div>
   )
 }

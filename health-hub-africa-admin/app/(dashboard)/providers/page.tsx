@@ -17,10 +17,46 @@ import { buildProviderDisplayName } from '@/lib/providerName'
 function ProviderDetailDialog({
   provider,
   onClose,
+  onUpdated,
 }: {
   provider: AdminProvider
   onClose: () => void
+  onUpdated: () => void
 }) {
+  // Profile editing — distinct from the availability toggle on the card.
+  const [editForm, setEditForm] = useState({
+    title: provider.title ?? '',
+    firstName: provider.firstName,
+    lastName: provider.lastName,
+    specialty: provider.specialty ?? '',
+    licenseNumber: provider.licenseNumber ?? '',
+  })
+  const [savingProfile, setSavingProfile] = useState(false)
+
+  const handleSaveProfile = async () => {
+    if (!editForm.firstName.trim() || !editForm.lastName.trim()) {
+      toast.error('First and last name are required')
+      return
+    }
+    setSavingProfile(true)
+    try {
+      await adminApi.providers.update(provider.id, {
+        title: editForm.title.trim(),
+        firstName: editForm.firstName.trim(),
+        lastName: editForm.lastName.trim(),
+        specialty: editForm.specialty.trim(),
+        licenseNumber: editForm.licenseNumber.trim() || undefined,
+      })
+      toast.success('Provider profile updated')
+      onUpdated()
+      onClose()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not update provider')
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
   const [emails, setEmails] = useState<ProviderNotificationEmail[]>([])
   const [loadingEmails, setLoadingEmails] = useState(true)
   const [newLabel, setNewLabel] = useState('')
@@ -74,7 +110,7 @@ function ProviderDetailDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
       <div
-        className="relative w-full max-w-lg rounded-2xl border shadow-2xl"
+        className="relative w-full max-w-lg rounded-2xl border shadow-2xl max-h-[90vh] overflow-y-auto"
         style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
@@ -139,6 +175,45 @@ function ProviderDetailDialog({
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Provider ID</p>
             <p className="text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>{provider.id}</p>
+          </div>
+
+          {/* Profile editing */}
+          <div className="border-t pt-4 space-y-3" style={{ borderColor: 'var(--color-border)' }}>
+            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
+              Edit Profile
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              <FormInput
+                placeholder="Title"
+                value={editForm.title}
+                onChange={(e) => setEditForm(f => ({ ...f, title: e.target.value }))}
+              />
+              <FormInput
+                placeholder="First name"
+                value={editForm.firstName}
+                onChange={(e) => setEditForm(f => ({ ...f, firstName: e.target.value }))}
+              />
+              <FormInput
+                placeholder="Last name"
+                value={editForm.lastName}
+                onChange={(e) => setEditForm(f => ({ ...f, lastName: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <FormInput
+                placeholder="Specialty"
+                value={editForm.specialty}
+                onChange={(e) => setEditForm(f => ({ ...f, specialty: e.target.value }))}
+              />
+              <FormInput
+                placeholder="License number"
+                value={editForm.licenseNumber}
+                onChange={(e) => setEditForm(f => ({ ...f, licenseNumber: e.target.value }))}
+              />
+            </div>
+            <Button size="sm" onClick={handleSaveProfile} disabled={savingProfile}>
+              {savingProfile ? 'Saving…' : 'Save profile'}
+            </Button>
           </div>
         </div>
 
@@ -225,6 +300,7 @@ export default function ProvidersPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [manualImportOpen, setManualImportOpen] = useState(false)
   const [manualImportResult, setManualImportResult] = useState<{ email: string; firstName: string; lastName: string; tempPassword: string; message: string } | null>(null)
+  const [openemrStatus, setOpenemrStatus] = useState<{ tokenConfigured: boolean; fhirPractitionerCount: number } | null>(null)
   const limit = 20
 
   const isAdmin = authUser?.role === 'admin' || authUser?.role === 'super_admin'
@@ -249,6 +325,15 @@ export default function ProvidersPage() {
     const t = setTimeout(load, search ? 350 : 0)
     return () => clearTimeout(t)
   }, [load, search])
+
+  // OpenEMR connection chip — the diagnostic endpoint is super_admin-only,
+  // so fail silently for everyone else.
+  useEffect(() => {
+    if (!isSuperAdmin) return
+    adminApi.providers.openemrStatus()
+      .then(setOpenemrStatus)
+      .catch(() => setOpenemrStatus(null))
+  }, [isSuperAdmin])
 
   const handleToggle = useCallback(async (id: string, current: boolean) => {
     setToggling(id)
@@ -315,9 +400,18 @@ export default function ProvidersPage() {
     <div className="max-w-[1200px]">
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>
-            Providers
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>
+              Providers
+            </h1>
+            {openemrStatus && (
+              <Pill variant={openemrStatus.tokenConfigured ? 'success' : 'warning'}>
+                OpenEMR: {openemrStatus.tokenConfigured
+                  ? `connected · ${openemrStatus.fhirPractitionerCount} practitioners`
+                  : 'not authenticated'}
+              </Pill>
+            )}
+          </div>
           <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
             {total.toLocaleString()} healthcare providers
           </p>
@@ -579,7 +673,7 @@ export default function ProvidersPage() {
         </div>
       )}
 
-      {selected && <ProviderDetailDialog provider={selected} onClose={() => setSelected(null)} />}
+      {selected && <ProviderDetailDialog provider={selected} onClose={() => setSelected(null)} onUpdated={load} />}
       {createOpen && <CreateProviderDialog onClose={() => setCreateOpen(false)} onCreated={handleCreated} />}
       {manualImportOpen && <ManualImportDialog onClose={() => setManualImportOpen(false)} onImported={handleManualImported} />}
 
