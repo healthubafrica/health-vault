@@ -58,6 +58,9 @@ export function RecordsScreen() {
   )
   const { data: storageRes } = useApi(() => recordsApi.getStorageUsage())
   const storageData = storageRes?.data
+  // Structured prescription details (dosage, frequency, refills, expiry) —
+  // the clinical-record rows only carry the drug name as a title.
+  const { data: rxList } = useApi(() => recordsApi.prescriptions())
 
   if (isInitialLoad) return <ListSkeleton ariaLabel="Loading records" showAction />
   if (error && !recordsRes) return <ErrorState message={error} onRetry={refetch} />
@@ -139,6 +142,42 @@ export function RecordsScreen() {
 
       <FilterTabs tabs={TABS} active={tab} onChange={setTab} className="self-start" />
 
+      {tab === 'Prescriptions' && (rxList?.length ?? 0) > 0 && (
+        <Card padding="none">
+          <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
+            {rxList!.map(rx => (
+              <div key={rx.id} className="flex items-start gap-3 p-4">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
+                  style={{ background: 'var(--color-bg)' }}
+                >
+                  <PillIcon size={15} style={{ color: 'var(--color-text-muted)' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{rx.drugName}</p>
+                    <Pill variant="warning">{rx.dosage}</Pill>
+                    {rx.expiresAt && new Date(rx.expiresAt) < new Date() && (
+                      <Pill variant="emergency">Expired</Pill>
+                    )}
+                  </div>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                    {rx.frequency} · {rx.route} · {rx.refillsRemaining} refill{rx.refillsRemaining === 1 ? '' : 's'} left
+                    {rx.expiresAt ? ` · expires ${formatDate(rx.expiresAt)}` : ''}
+                  </p>
+                  {rx.notes && (
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-faint)' }}>{rx.notes}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* The structured list above supersedes the bare clinical-record rows
+          for prescriptions — showing both would duplicate every drug. */}
+      {!(tab === 'Prescriptions' && (rxList?.length ?? 0) > 0) && (
       <Card padding="none">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 gap-2">
@@ -195,6 +234,7 @@ export function RecordsScreen() {
           </div>
         )}
       </Card>
+      )}
     </div>
   )
 }

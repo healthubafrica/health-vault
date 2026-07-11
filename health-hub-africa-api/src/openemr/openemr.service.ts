@@ -26,7 +26,10 @@ export type PullResourceType =
   | 'Observation'
   | 'MedicationRequest'
   | 'DocumentReference'
-  | 'Encounter';
+  | 'Encounter'
+  | 'AllergyIntolerance'
+  | 'Condition'
+  | 'Immunization';
 
 const ALLOWED_REDIRECT_URIS = new Set([
   'https://www.myvaultplus.com/auth/callback',
@@ -67,6 +70,10 @@ export class OpenemrService implements OnModuleInit {
       'pull-medications',
       'pull-documents',
       'pull-encounters',
+      'pull-appointments',
+      'pull-allergies',
+      'pull-conditions',
+      'pull-immunizations',
       'recover-unsynced',
     ]);
     const repeatables = await this.syncQueue.getRepeatableJobs();
@@ -108,6 +115,41 @@ export class OpenemrService implements OnModuleInit {
       'pull-encounters',
       { patientId: '', operation: 'sync_record' },
       { repeat: { cron: '*/15 * * * *' }, removeOnComplete: 10 },
+    );
+
+    // OpenEMR → HHA appointment flow-back. OpenEMR has no webhook system and
+    // its legacy calendar UI bypasses FHIR event dispatchers, so changes made
+    // by clinic staff (reschedules, cancellations, no-shows) are polled from
+    // the REST calendar list and mirrored onto the HHA appointments we
+    // originally pushed (matched by openemrAppointmentId / pc_eid). We poll
+    // by event data rather than FHIR _lastUpdated, which OpenEMR computes
+    // unreliably for Appointment resources.
+    await this.syncQueue.add(
+      'pull-appointments',
+      { patientId: '', operation: 'sync_record' },
+      { repeat: { cron: '*/15 * * * *' }, removeOnComplete: 10 },
+    );
+
+    // Clinical history authored in OpenEMR (allergies, medical problems,
+    // immunizations) merges into PatientMedicalInfo so the patient portal
+    // profile reflects what the clinic recorded. Hourly is enough — these
+    // change far less often than vitals or documents.
+    await this.syncQueue.add(
+      'pull-allergies',
+      { patientId: '', operation: 'sync_record' },
+      { repeat: { cron: '5 * * * *' }, removeOnComplete: 10 },
+    );
+
+    await this.syncQueue.add(
+      'pull-conditions',
+      { patientId: '', operation: 'sync_record' },
+      { repeat: { cron: '10 * * * *' }, removeOnComplete: 10 },
+    );
+
+    await this.syncQueue.add(
+      'pull-immunizations',
+      { patientId: '', operation: 'sync_record' },
+      { repeat: { cron: '15 * * * *' }, removeOnComplete: 10 },
     );
 
     // Scheduled recovery: every 30 minutes re-enqueue any patient whose sync
@@ -665,6 +707,48 @@ export class OpenemrService implements OnModuleInit {
       'user/Location.write',
       'user/Organization.read',
       'user/Organization.write',
+      // Standard REST API scopes. OpenEMR's /api/* routes are gated by these
+      // lowercase resource scopes, NOT by the PascalCase FHIR scopes above —
+      // api:oemr alone is only the base scope. Without them every calendar
+      // write (POST /api/patient/{uuid}/appointment), the pc_aid lookup
+      // (GET /api/practitioner) and the REST encounter fallback return 401.
+      // On this OpenEMR build FHIR Appointment is read-only, so the REST
+      // calendar endpoint is the only appointment write path.
+      'user/appointment.read',
+      'user/appointment.write',
+      'user/appointment.cruds',
+      'user/practitioner.read',
+      'user/encounter.read',
+      'user/encounter.write',
+      // Lab-results pull (GET /fhir/DiagnosticReport) — FHIR read scope that
+      // was never in the original list; without it the pull 401s as soon as
+      // a lab order goes pending.
+      'user/DiagnosticReport.read',
+      // Future-proofing: this OpenEMR build has no FHIR write support for
+      // MedicationRequest / DocumentReference / Observation (the server's
+      // scopes_supported only offers lowercase Standard-API writes for
+      // these), so prescription, document and vitals pushes will need REST
+      // fallbacks like the encounter one. Scopes are only granted at the
+      // one-time admin re-auth, so request them now to avoid a second
+      // re-auth ceremony when those fallbacks land.
+      'user/medication.cruds',
+      'user/document.crs',
+      'user/vital.crus',
+      // Calendar writes need the patient's numeric pid and a numeric
+      // facility id (pc_facility / pc_billing_location are required by
+      // OpenEMR's appointment validator) — both resolved via REST reads.
+      'user/patient.read',
+      'user/facility.read',
+      // Lab orders have no write API on this build (FHIR ServiceRequest and
+      // REST procedure are both read-only), so they are delivered to clinic
+      // staff as patient messages (pnotes).
+      'user/message.cud',
+      'user/message.write',
+      // Clinical history pulls — allergies, medical problems and
+      // immunizations recorded in OpenEMR flow back into PatientMedicalInfo.
+      'user/AllergyIntolerance.read',
+      'user/Condition.read',
+      'user/Immunization.read',
       'offline_access',
     ].join(' ');
 

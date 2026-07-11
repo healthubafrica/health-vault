@@ -622,6 +622,7 @@ export class PatientsService {
           allergies: true,
           chronicConditions: true,
           activeMedications: true,
+          immunizations: true,
           activeCarePlan: true,
         }
       },

@@ -98,7 +98,7 @@ export class TravelsafeService {
             nextOfKinRelationship: true,
             nextOfKinPhone: true,
             medicalInfo: {
-              select: { allergies: true, chronicConditions: true, activeMedications: true },
+              select: { allergies: true, chronicConditions: true, activeMedications: true, immunizations: true },
             },
           },
         },
@@ -124,6 +124,7 @@ export class TravelsafeService {
         allergies: patient.medicalInfo?.allergies ?? [],
         chronicConditions: patient.medicalInfo?.chronicConditions ?? [],
         activeMedications: patient.medicalInfo?.activeMedications ?? [],
+        immunizations: patient.medicalInfo?.immunizations ?? [],
       },
     };
   }
