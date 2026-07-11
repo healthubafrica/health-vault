@@ -1,5 +1,6 @@
 import {
   OpenemrProcessor,
+  codeableConceptText,
   mapOpenemrApptStatus,
   parseOpenemrClinicTime,
 } from './openemr.processor';
@@ -167,5 +168,214 @@ describe('OpenemrProcessor.handlePullAppointments', () => {
 
     expect(prisma.appointment.findMany).not.toHaveBeenCalled();
     expect(prisma.appointment.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('codeableConceptText', () => {
+  it('prefers text, then coding display, then coding code', () => {
+    expect(codeableConceptText({ text: 'Penicillin allergy' })).toBe('Penicillin allergy');
+    expect(codeableConceptText({ coding: [{ code: '91936005', display: 'Penicillin' }] })).toBe('Penicillin');
+    expect(codeableConceptText({ coding: [{ code: '91936005' }] })).toBe('91936005');
+    expect(codeableConceptText(undefined)).toBe('');
+  });
+});
+
+describe('OpenemrProcessor.handleSyncAppointmentCalendar (REST contract)', () => {
+  const scheduledAt = new Date('2026-07-15T13:30:00.000Z'); // 14:30 Lagos
+
+  it('POSTs to the numeric pid with required pc_facility/pc_billing_location', async () => {
+    const appointment = {
+      id: 'appt-1',
+      openemrAppointmentId: null,
+      scheduledAt,
+      durationMinutes: 30,
+      serviceType: 'general_consultation',
+      hhaRef: 'APT-2026-000001',
+      reason: null,
+      patient: { openemrPatientUuid: 'uuid-1' },
+      provider: null,
+      facility: { name: 'Main Clinic', openemrFacilityId: 'loc-uuid' },
+    };
+    const prisma = {
+      appointment: {
+        findUnique: jest.fn().mockResolvedValue(appointment),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      openemrSyncQueue: {
+        create: jest.fn().mockResolvedValue({ id: 'q1' }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+    };
+    const callOpenemr = jest.fn().mockImplementation(async (_t: string, method: string, path: string) => {
+      if (method === 'GET' && path === '/api/patient/uuid-1') return { data: { pid: 7 } };
+      if (method === 'GET' && path === '/api/facility') return { data: [{ id: 3, name: 'Main Clinic' }] };
+      if (method === 'POST' && path === '/api/patient/7/appointment') return { data: { id: 99 } };
+      throw new Error(`unexpected call ${method} ${path}`);
+    });
+    const openemr = { getAccessToken: jest.fn().mockResolvedValue('token'), callOpenemr };
+    const processor = buildProcessor(prisma, openemr);
+
+    await processor.handleSyncAppointmentCalendar({
+      data: { patientId: 'p1', operation: 'sync_record', payload: { appointmentId: 'appt-1', action: 'upsert' } },
+      attemptsMade: 0,
+      opts: { attempts: 3 },
+    } as any);
+
+    const post = callOpenemr.mock.calls.find((c) => c[1] === 'POST');
+    expect(post?.[2]).toBe('/api/patient/7/appointment');
+    expect(post?.[3]).toEqual(expect.objectContaining({
+      pc_facility: '3',
+      pc_billing_location: '3',
+      pc_catid: '5',
+      pc_eventDate: '2026-07-15',
+      pc_startTime: '14:30',
+    }));
+    expect(prisma.appointment.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { openemrAppointmentId: '99' } }),
+    );
+  });
+
+  it('fails the job when the numeric pid cannot be resolved (never writes with a uuid)', async () => {
+    const appointment = {
+      id: 'appt-1',
+      openemrAppointmentId: null,
+      scheduledAt,
+      durationMinutes: 30,
+      serviceType: 'general_consultation',
+      hhaRef: 'APT-2026-000001',
+      reason: null,
+      patient: { openemrPatientUuid: 'uuid-1' },
+      provider: null,
+      facility: null,
+    };
+    const prisma = {
+      appointment: {
+        findUnique: jest.fn().mockResolvedValue(appointment),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      openemrSyncQueue: {
+        create: jest.fn().mockResolvedValue({ id: 'q1' }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+    };
+    const callOpenemr = jest.fn().mockRejectedValue(new Error('OpenEMR 404 on GET /api/patient/uuid-1'));
+    const openemr = { getAccessToken: jest.fn().mockResolvedValue('token'), callOpenemr };
+    const processor = buildProcessor(prisma, openemr);
+
+    await expect(
+      processor.handleSyncAppointmentCalendar({
+        data: { patientId: 'p1', operation: 'sync_record', payload: { appointmentId: 'appt-1', action: 'upsert' } },
+        attemptsMade: 0,
+        opts: { attempts: 3 },
+      } as any),
+    ).rejects.toThrow('Could not resolve numeric OpenEMR pid');
+
+    expect(callOpenemr.mock.calls.every((c) => c[1] !== 'POST')).toBe(true);
+  });
+});
+
+describe('OpenemrProcessor.handleSyncLabOrder (message fallback)', () => {
+  it('delivers the order as a patient message when FHIR ServiceRequest is unsupported', async () => {
+    const labOrder = {
+      id: 'lab-1',
+      hhaRef: 'LAB-2026-000001',
+      orderedAt: new Date('2026-07-11T09:00:00.000Z'),
+      notes: 'Full blood count',
+      patient: { openemrPatientUuid: 'uuid-1' },
+      provider: { title: 'Dr.', firstName: 'Ada', lastName: 'Obi', openemrProviderUuid: null },
+    };
+    const prisma = {
+      labOrder: { findUnique: jest.fn().mockResolvedValue(labOrder) },
+    };
+    const callOpenemr = jest.fn().mockImplementation(async (_t: string, method: string, path: string) => {
+      if (method === 'POST' && path === '/fhir/ServiceRequest') {
+        throw new Error('OpenEMR 404 on POST /fhir/ServiceRequest: Route not found');
+      }
+      if (method === 'GET' && path === '/api/patient/uuid-1') return { data: { pid: 7 } };
+      if (method === 'POST' && path === '/api/patient/7/message') return { mid: 1 };
+      throw new Error(`unexpected call ${method} ${path}`);
+    });
+    const openemr = { getAccessToken: jest.fn().mockResolvedValue('token'), callOpenemr };
+    const processor = buildProcessor(prisma, openemr);
+
+    await processor.handleSyncLabOrder({
+      data: { patientId: 'p1', operation: 'sync_labs', payload: { labOrderId: 'lab-1' } },
+    } as any);
+
+    const messagePost = callOpenemr.mock.calls.find((c) => c[2] === '/api/patient/7/message');
+    expect(messagePost).toBeDefined();
+    expect(messagePost?.[3]).toEqual(expect.objectContaining({
+      groupname: 'Default',
+      title: 'Other',
+      message_status: 'New',
+      body: expect.stringContaining('LAB-2026-000001'),
+    }));
+  });
+});
+
+describe('OpenemrProcessor clinical history pulls', () => {
+  function buildPullMocks(resource: Record<string, unknown>, medicalInfo: Record<string, unknown> | null) {
+    const prisma = {
+      patient: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'p1', medicalInfo }),
+      },
+      patientMedicalInfo: {
+        update: jest.fn().mockResolvedValue({}),
+        create: jest.fn().mockResolvedValue({}),
+      },
+    };
+    const openemr = {
+      getAccessToken: jest.fn().mockResolvedValue('token'),
+      getPullCursor: jest.fn().mockResolvedValue(null),
+      setPullCursor: jest.fn().mockResolvedValue(undefined),
+      fhirCall: jest.fn().mockResolvedValue({
+        resourceType: 'Bundle',
+        entry: [{ resource }],
+      }),
+      openemrBase: 'https://clinical.example.com',
+    };
+    return { prisma, openemr };
+  }
+
+  it('merges a pulled allergy into PatientMedicalInfo.allergies', async () => {
+    const { prisma, openemr } = buildPullMocks(
+      { resourceType: 'AllergyIntolerance', id: 'a1', patient: { reference: 'Patient/uuid-1' }, code: { text: 'Penicillin' } },
+      { id: 'mi1', allergies: ['Dust'], chronicConditions: [], immunizations: [] },
+    );
+    const processor = buildProcessor(prisma, openemr);
+
+    await processor.handlePullAllergies();
+
+    expect(prisma.patientMedicalInfo.update).toHaveBeenCalledWith({
+      where: { id: 'mi1' },
+      data: { allergies: { push: 'Penicillin' } },
+    });
+  });
+
+  it('skips duplicates case-insensitively', async () => {
+    const { prisma, openemr } = buildPullMocks(
+      { resourceType: 'AllergyIntolerance', id: 'a1', patient: { reference: 'Patient/uuid-1' }, code: { text: 'penicillin' } },
+      { id: 'mi1', allergies: ['Penicillin'], chronicConditions: [], immunizations: [] },
+    );
+    const processor = buildProcessor(prisma, openemr);
+
+    await processor.handlePullAllergies();
+
+    expect(prisma.patientMedicalInfo.update).not.toHaveBeenCalled();
+    expect(prisma.patientMedicalInfo.create).not.toHaveBeenCalled();
+  });
+
+  it('creates PatientMedicalInfo when the patient has none yet (immunization pull)', async () => {
+    const { prisma, openemr } = buildPullMocks(
+      { resourceType: 'Immunization', id: 'i1', patient: { reference: 'Patient/uuid-1' }, vaccineCode: { text: 'Yellow Fever' } },
+      null,
+    );
+    const processor = buildProcessor(prisma, openemr);
+
+    await processor.handlePullImmunizations();
+
+    expect(prisma.patientMedicalInfo.create).toHaveBeenCalledWith({
+      data: { patientId: 'p1', immunizations: ['Yellow Fever'] },
+    });
   });
 });

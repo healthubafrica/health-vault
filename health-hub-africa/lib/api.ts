@@ -278,6 +278,7 @@ export interface PatientProfile {
     allergies: string[]
     chronicConditions: string[]
     activeMedications: string[]
+    immunizations?: string[]
     activeCarePlan?: string
   }
   emergencyContacts?: Array<{
