@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { payments as paymentsApi } from '@/lib/api'
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { toast } from 'sonner'
 
 type VerifyState = 'loading' | 'success' | 'failed' | 'no_reference'
 
@@ -14,6 +15,7 @@ export function PaymentVerifyScreen() {
   const reference = params.get('reference') ?? params.get('trxref')
   const [state, setState] = useState<VerifyState>(reference ? 'loading' : 'no_reference')
   const [gateway, setGateway] = useState<string | null>(null)
+  const [paymentId, setPaymentId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!reference) return
@@ -26,6 +28,7 @@ export function PaymentVerifyScreen() {
         if (cancelled) return
         if (res.status === 'paid') {
           setGateway(res.gateway)
+          setPaymentId(res.paymentId)
           setState('success')
         } else {
           setState('failed')
@@ -38,6 +41,24 @@ export function PaymentVerifyScreen() {
     verify()
     return () => { cancelled = true }
   }, [reference])
+
+  async function openReceipt() {
+    if (!paymentId) return
+    // Pre-open synchronously (within the click handler) so browsers don't
+    // treat the later async navigation as a blocked popup.
+    const receiptWindow = window.open('', '_blank')
+    try {
+      const html = await paymentsApi.getReceiptHtml(paymentId)
+      const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
+      if (receiptWindow) {
+        receiptWindow.location.href = url
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (err) {
+      receiptWindow?.close()
+      toast.error(err instanceof Error ? err.message : 'Failed to load receipt.')
+    }
+  }
 
   if (state === 'loading') {
     return (
@@ -65,7 +86,7 @@ export function PaymentVerifyScreen() {
           </p>
         </div>
         <div className="flex gap-3">
-          <Button size="sm" variant="ghost" onClick={() => router.push('/payments')}>
+          <Button size="sm" variant="ghost" onClick={openReceipt}>
             View Receipt
           </Button>
           <Button size="sm" onClick={() => router.push('/subscriptions')}>

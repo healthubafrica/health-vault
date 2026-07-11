@@ -83,10 +83,6 @@ class EnvironmentVariables {
   @IsString()
   PAYSTACK_SECRET_KEY?: string;
 
-  @IsOptional()
-  @IsString()
-  FLUTTERWAVE_SECRET_KEY?: string;
-
   @IsString()
   @IsNotEmpty()
   OPENEMR_BASE_URL: string;
