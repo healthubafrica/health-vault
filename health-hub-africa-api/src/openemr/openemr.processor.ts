@@ -162,7 +162,35 @@ const VITALS_INT_FIELDS = new Set<keyof typeof VITALS_LOINC>([
 const PULL_PAGE_SIZE = 200;
 const PULL_MAX_PAGES = 5;
 
+// OpenEMR pc_apptstatus codes that mean the clinic took the appointment off
+// the schedule: 'x' = cancelled, '%' = cancelled within 24h. '?' = no show.
+// (Full legend lives in OpenEMR under Administration → Lists → Appointment
+// Statuses.)
+const OPENEMR_CANCELLED_STATUSES = new Set(['x', '%']);
+const OPENEMR_NO_SHOW_STATUS = '?';
+
 // ── Pure helpers ──────────────────────────────────────────────────────────────
+
+// Calendar events are stored in OpenEMR in the clinic's local time — the push
+// side (runSyncAppointmentCalendar) formats scheduledAt as Africa/Lagos before
+// writing pc_eventDate/pc_startTime, so the pull side reverses that. Lagos is
+// fixed UTC+01:00 with no DST, which keeps this a plain offset conversion.
+export function parseOpenemrClinicTime(eventDate: string, startTime: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) return null;
+  const match = /^(\d{2}):(\d{2})/.exec(startTime ?? '');
+  if (!match) return null;
+  const parsed = new Date(`${eventDate}T${match[1]}:${match[2]}:00+01:00`);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
+
+// Maps an OpenEMR pc_apptstatus code onto the HHA status the appointment
+// should move to, or null when the code carries no HHA-relevant transition
+// (arrived, in exam room, checked out, etc. stay managed inside HHA).
+export function mapOpenemrApptStatus(pcApptStatus: string): 'cancelled' | 'no_show' | null {
+  if (OPENEMR_CANCELLED_STATUSES.has(pcApptStatus)) return 'cancelled';
+  if (pcApptStatus === OPENEMR_NO_SHOW_STATUS) return 'no_show';
+  return null;
+}
 
 function mapGender(g: Gender): string {
   const map: Record<string, string> = {
@@ -1047,6 +1075,114 @@ export class OpenemrProcessor {
       'Encounter',
       '/fhir/Encounter',
       async (resource) => this.upsertEncounterFromFhir(resource),
+    );
+  }
+
+  // ── Appointments (pull) ───────────────────────────────────────────────────
+  //
+  // Mirrors calendar changes made inside OpenEMR (front desk reschedules,
+  // cancellations, no-shows) back onto the HHA appointments we pushed there.
+  // Matching is by pc_eid ↔ appointment.openemrAppointmentId, so only
+  // HHA-originated events are touched; appointments created natively in
+  // OpenEMR are counted and logged but not imported — they have no HHA
+  // provider/serviceType mapping. Uses the REST calendar list (needs
+  // user/appointment.read + api:oemr) rather than FHIR _lastUpdated polling,
+  // which OpenEMR computes unreliably for Appointment resources.
+
+  @Process({ name: 'pull-appointments' })
+  async handlePullAppointments() {
+    let rows: Array<Record<string, unknown>>;
+    try {
+      const token = await this.openemrService.getAccessToken();
+      const res = await this.openemrService['callOpenemr'](token, 'GET', '/api/appointment');
+      rows = (res.data as Array<Record<string, unknown>> | undefined) ?? [];
+    } catch (err: unknown) {
+      this.logger.error(
+        `Appointment pull failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return;
+    }
+
+    // Only appointments still live on the HHA side can be moved by the clinic;
+    // completed/cancelled ones are terminal and must not be resurrected.
+    const tracked = await this.prisma.appointment.findMany({
+      where: {
+        openemrAppointmentId: { not: null },
+        status: { in: ['confirmed', 'upcoming'] },
+      },
+      select: { id: true, openemrAppointmentId: true, scheduledAt: true },
+    });
+
+    if (tracked.length === 0) {
+      this.logger.log(`Appointment pull: ${rows.length} OpenEMR event(s), none tracked by HHA`);
+      return;
+    }
+
+    const byEid = new Map(tracked.map((a) => [a.openemrAppointmentId!, a]));
+    let cancelled = 0;
+    let noShow = 0;
+    let rescheduled = 0;
+    let unmatched = 0;
+
+    for (const row of rows) {
+      const eid = row.pc_eid != null ? String(row.pc_eid) : null;
+      if (!eid) continue;
+      const appt = byEid.get(eid);
+      if (!appt) {
+        unmatched++;
+        continue;
+      }
+
+      try {
+        const mappedStatus = mapOpenemrApptStatus(String(row.pc_apptstatus ?? ''));
+        if (mappedStatus === 'cancelled') {
+          await this.prisma.appointment.update({
+            where: { id: appt.id },
+            data: {
+              status: 'cancelled',
+              cancelledAt: new Date(),
+              cancellationNote: 'Cancelled in OpenEMR by clinic staff',
+            },
+          });
+          cancelled++;
+          continue;
+        }
+        if (mappedStatus === 'no_show') {
+          await this.prisma.appointment.update({
+            where: { id: appt.id },
+            data: { status: 'no_show' },
+          });
+          noShow++;
+          continue;
+        }
+
+        const newStart = parseOpenemrClinicTime(
+          String(row.pc_eventDate ?? ''),
+          String(row.pc_startTime ?? ''),
+        );
+        // Minute granularity: pc_startTime carries no seconds, so anything
+        // under a minute of drift is round-tripping noise, not a reschedule.
+        if (newStart && Math.abs(newStart.getTime() - appt.scheduledAt.getTime()) >= 60_000) {
+          await this.prisma.appointment.update({
+            where: { id: appt.id },
+            data: {
+              scheduledAt: newStart,
+              previousScheduledAt: appt.scheduledAt,
+              rescheduleCount: { increment: 1 },
+            },
+          });
+          rescheduled++;
+        }
+      } catch (err: unknown) {
+        this.logger.error(
+          `Appointment pull update failed for ${appt.id} (pc_eid ${eid}): ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
+    this.logger.log(
+      `Appointment pull: ${rows.length} OpenEMR event(s), ${tracked.length} tracked → ` +
+      `${rescheduled} rescheduled, ${cancelled} cancelled, ${noShow} no-show, ${unmatched} not HHA-originated`,
     );
   }
 

@@ -67,6 +67,7 @@ export class OpenemrService implements OnModuleInit {
       'pull-medications',
       'pull-documents',
       'pull-encounters',
+      'pull-appointments',
       'recover-unsynced',
     ]);
     const repeatables = await this.syncQueue.getRepeatableJobs();
@@ -106,6 +107,19 @@ export class OpenemrService implements OnModuleInit {
 
     await this.syncQueue.add(
       'pull-encounters',
+      { patientId: '', operation: 'sync_record' },
+      { repeat: { cron: '*/15 * * * *' }, removeOnComplete: 10 },
+    );
+
+    // OpenEMR → HHA appointment flow-back. OpenEMR has no webhook system and
+    // its legacy calendar UI bypasses FHIR event dispatchers, so changes made
+    // by clinic staff (reschedules, cancellations, no-shows) are polled from
+    // the REST calendar list and mirrored onto the HHA appointments we
+    // originally pushed (matched by openemrAppointmentId / pc_eid). We poll
+    // by event data rather than FHIR _lastUpdated, which OpenEMR computes
+    // unreliably for Appointment resources.
+    await this.syncQueue.add(
+      'pull-appointments',
       { patientId: '', operation: 'sync_record' },
       { repeat: { cron: '*/15 * * * *' }, removeOnComplete: 10 },
     );
@@ -665,6 +679,19 @@ export class OpenemrService implements OnModuleInit {
       'user/Location.write',
       'user/Organization.read',
       'user/Organization.write',
+      // Standard REST API scopes. OpenEMR's /api/* routes are gated by these
+      // lowercase resource scopes, NOT by the PascalCase FHIR scopes above —
+      // api:oemr alone is only the base scope. Without them every calendar
+      // write (POST /api/patient/{uuid}/appointment), the pc_aid lookup
+      // (GET /api/practitioner) and the REST encounter fallback return 401.
+      // On this OpenEMR build FHIR Appointment is read-only, so the REST
+      // calendar endpoint is the only appointment write path.
+      'user/appointment.read',
+      'user/appointment.write',
+      'user/appointment.cruds',
+      'user/practitioner.read',
+      'user/encounter.read',
+      'user/encounter.write',
       'offline_access',
     ].join(' ');
 
