@@ -36,7 +36,14 @@ const MOCK_PLANS = [
     id: 'plan-gold', slug: 'goldcare', name: 'GoldCare™',
     priceKobo: 4_990_000, annualPriceKobo: 59_900_000, launchPriceKobo: 49_900_000,
     isMostPopular: false, isBestValue: true, bestFor: 'Executives',
-    features: ['Everything in SilverCare™', 'Dedicated Care Coordinator'],
+    features: [
+      'Everything in SilverCare™',
+      'Dedicated Care Coordinator',
+      'Executive Health Review',
+      'TravelSafe™ Nigeria',
+      '7% No Claim Discount',
+      'Priority Scheduling',
+    ],
     displayOrder: 3, isActive: true,
   },
   {
@@ -261,5 +268,17 @@ test.describe('SubscriptionsScreen', () => {
 
     await expect(page.getByText('Care Navigation Support')).not.toBeVisible()
     await expect(page.getByRole('button', { name: '+2 more features included' })).toBeVisible()
+  })
+
+  test('expanding one plan card does not expand a different plan card', async ({ page }) => {
+    // GoldCare also has more than 5 features (6 total, 1 truncated), so it
+    // independently exercises the same toggle as BasicCare.
+    await page.getByRole('button', { name: '+2 more features included' }).click()
+    await expect(page.getByText('Care Navigation Support')).toBeVisible()
+
+    // GoldCare's own toggle should still be in its collapsed label —
+    // expanding BasicCare must not have flipped GoldCare's state too.
+    await expect(page.getByRole('button', { name: '+1 more features included' })).toBeVisible()
+    await expect(page.getByText('Priority Scheduling')).not.toBeVisible()
   })
 })
