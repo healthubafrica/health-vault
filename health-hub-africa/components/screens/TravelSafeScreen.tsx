@@ -15,6 +15,7 @@ import {
   Pill,
   AlertCircle,
   Heart,
+  Syringe,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -326,7 +327,7 @@ export function TravelSafeScreen() {
               </div>
             </Card>
 
-            {(pat.allergies.length > 0 || pat.chronicConditions.length > 0 || pat.activeMedications.length > 0) && (
+            {(pat.allergies.length > 0 || pat.chronicConditions.length > 0 || pat.activeMedications.length > 0 || (pat.immunizations?.length ?? 0) > 0) && (
               <Card>
                 <CardTitle>Medical Summary</CardTitle>
                 <div className="flex flex-col gap-3">
@@ -365,6 +366,19 @@ export function TravelSafeScreen() {
                       <div className="flex flex-wrap gap-1.5">
                         {pat.activeMedications.map((m) => (
                           <span key={m} className="text-xs px-2 py-0.5 rounded-lg" style={{ background: 'var(--color-success-bg)', color: '#006022' }}>{m}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {(pat.immunizations?.length ?? 0) > 0 && (
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <Syringe size={13} style={{ color: '#2563EB' }} />
+                        <span className="text-[11px] font-semibold" style={{ color: 'var(--color-text-muted)' }}>IMMUNIZATIONS</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {pat.immunizations.map((i) => (
+                          <span key={i} className="text-xs px-2 py-0.5 rounded-lg" style={{ background: 'var(--color-info-bg)', color: '#1E40AF' }}>{i}</span>
                         ))}
                       </div>
                     </div>

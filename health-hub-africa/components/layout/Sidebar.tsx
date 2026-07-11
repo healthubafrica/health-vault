@@ -18,6 +18,8 @@ import {
   CreditCard,
   Receipt,
   Cpu,
+  LifeBuoy,
+  Stethoscope,
   Settings,
   Sun,
   Moon,
@@ -44,6 +46,8 @@ const NAV_ITEMS = [
   { icon: CreditCard, label: 'Subscriptions', href: '/subscriptions' },
   { icon: Receipt, label: 'Payments', href: '/payments' },
   { icon: Cpu, label: 'STRIDE™ AI', href: '/stride', flag: 'neuroflex_enabled' },
+  { icon: Stethoscope, label: 'Expert Review™', href: '/expert-review', flag: 'expert_review_enabled' },
+  { icon: LifeBuoy, label: 'Support', href: '/support' },
 ]
 
 export function Sidebar() {
