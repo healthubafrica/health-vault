@@ -24,7 +24,7 @@ async function main() {
       maxFiles: 100,
       maxFileSizeBytes: MB(10),
       features: [
-        'TeleCare™ Physician Consultations: Pay-per-visit',
+        'TeleCare™ Physician Consultations: Pay-per-consultation',
         'MinuteCare™ Walk-in/Urgent Care: Pay-per-visit',
         'HealthConsult™ Specialist Second Opinions: Pay-per-use',
         'DispatchCare™ Emergency Response: Standard rates',
@@ -59,7 +59,7 @@ async function main() {
       maxFiles: 500,
       maxFileSizeBytes: MB(25),
       features: [
-        'TeleCare™ Physician Consultations: 2 visits/year',
+        'TeleCare™ Physician Consultations: 2 consultations/year',
         'MinuteCare™ Walk-in/Urgent Care: 1 visit/year',
         'HealthConsult™ Specialist Second Opinions: 1 consultation/year',
         'DispatchCare™ Emergency Response: 15% discount on all responses',
@@ -94,7 +94,7 @@ async function main() {
       maxFiles: 2000,
       maxFileSizeBytes: MB(100),
       features: [
-        'TeleCare™ Physician Consultations: 6 visits/year',
+        'TeleCare™ Physician Consultations: 6 consultations/year',
         'MinuteCare™ Walk-in/Urgent Care: 3 visits/year',
         'HealthConsult™ Specialist Second Opinions: 2 consultations/year',
         'DispatchCare™ Emergency Response: 25% discount + 1 priority dispatch/year',
@@ -135,7 +135,7 @@ async function main() {
       maxFiles: 10000,
       maxFileSizeBytes: MB(500),
       features: [
-        'TeleCare™ Physician Consultations: 24 visits/year',
+        'TeleCare™ Physician Consultations: 24 consultations/year',
         'MinuteCare™ Walk-in/Urgent Care: 6 visits/year',
         'HealthConsult™ Specialist Second Opinions: 4 consultations/year',
         'DispatchCare™ Emergency Response: 1 complimentary dispatch/year + 25% discount thereafter',
