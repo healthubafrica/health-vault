@@ -763,8 +763,12 @@ export class OpenemrProcessor {
     }
 
     // OpenEMR's calendar wants the provider's *numeric* user id (pc_aid), not
-    // the FHIR uuid we store. The REST practitioner list carries both.
+    // the FHIR uuid we store. The REST practitioner list carries both — plus
+    // the provider's home facility, which matters below because OpenEMR's
+    // calendar filters by facility: an event on the wrong facility is
+    // invisible on the provider's default schedule view.
     let pcAid: string | undefined;
+    let providerFacilityId: string | undefined;
     if (appointment.provider?.openemrProviderUuid) {
       try {
         const res = await this.openemrService['callOpenemr'](
@@ -773,6 +777,9 @@ export class OpenemrProcessor {
         const list = (res.data as Array<Record<string, unknown>> | undefined) ?? [];
         const match = list.find((p) => p.uuid === appointment.provider!.openemrProviderUuid);
         if (match?.id != null) pcAid = String(match.id);
+        if (match?.facility_id != null && String(match.facility_id) !== '0') {
+          providerFacilityId = String(match.facility_id);
+        }
       } catch (err) {
         this.logger.warn(
           `Could not resolve OpenEMR numeric provider id: ${err instanceof Error ? err.message : err}`,
@@ -783,7 +790,7 @@ export class OpenemrProcessor {
     // pc_facility / pc_billing_location are REQUIRED numeric fields — the
     // appointment validator rejects the POST without them.
     const facilityId = await this.resolveNumericFacilityId(
-      token, appointment.facility?.name ?? null, patientId, appointmentId,
+      token, appointment.facility?.name ?? null, providerFacilityId, patientId, appointmentId,
     );
 
     // Calendar events are written in the clinic's local time (WAT).
@@ -851,37 +858,45 @@ export class OpenemrProcessor {
 
   // Resolves the numeric facility id for pc_facility. The uuid we store is
   // the FHIR Location id (a uuid_mapping entry), which does NOT equal the
-  // facility table's own uuid — so match by name and fall back to the first
-  // facility. '0' as a last resort still passes the numeric validator.
+  // facility table's own uuid — so match by name. When the appointment names
+  // no facility (or the name doesn't match), prefer the assigned provider's
+  // home facility: OpenEMR's calendar filters by facility, so that's the one
+  // place the provider will actually see the event. First facility, then
+  // '0', remain the last resorts ('0' still passes the numeric validator).
   private async resolveNumericFacilityId(
     token: string,
     facilityName: string | null,
+    providerFacilityId?: string,
     patientId?: string,
     appointmentId?: string,
   ): Promise<string> {
     try {
-      const res = await this.openemrService['callOpenemr'](
-        token, 'GET', '/api/facility', undefined, patientId, appointmentId,
-      );
-      const list = (res.data as Array<Record<string, unknown>> | undefined) ?? [];
       if (facilityName) {
+        const res = await this.openemrService['callOpenemr'](
+          token, 'GET', '/api/facility', undefined, patientId, appointmentId,
+        );
+        const list = (res.data as Array<Record<string, unknown>> | undefined) ?? [];
         const match = list.find(
           (f) => String(f.name ?? '').trim().toLowerCase() === facilityName.trim().toLowerCase(),
         );
         if (match?.id != null) return String(match.id);
+        this.logger.warn(
+          `No OpenEMR facility named "${facilityName}" — falling back for pc_facility`,
+        );
       }
-      if (list[0]?.id != null) {
-        if (facilityName) {
-          this.logger.warn(
-            `No OpenEMR facility named "${facilityName}" — using first facility (id ${list[0].id}) for pc_facility`,
-          );
-        }
-        return String(list[0].id);
-      }
+
+      if (providerFacilityId) return providerFacilityId;
+
+      const res = await this.openemrService['callOpenemr'](
+        token, 'GET', '/api/facility', undefined, patientId, appointmentId,
+      );
+      const list = (res.data as Array<Record<string, unknown>> | undefined) ?? [];
+      if (list[0]?.id != null) return String(list[0].id);
     } catch (err) {
       this.logger.warn(
         `Could not resolve OpenEMR facility id: ${err instanceof Error ? err.message : err}`,
       );
+      if (providerFacilityId) return providerFacilityId;
     }
     return '0';
   }
