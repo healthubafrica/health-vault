@@ -24,6 +24,14 @@ export function TeleCareScreen() {
   const [joining, setJoining] = useState(false)
   const setInCall = useCallStore((s) => s.setInCall)
 
+  // Self-healing safety net: setInCall(false) is normally set by
+  // handleLeaveSession (Leave Call button or LiveKit's onDisconnected), but
+  // if the patient navigates away mid-call via the sidebar/nav without
+  // either firing, this unmount cleanup guarantees callStore doesn't stay
+  // stuck "in call" — which would otherwise permanently suspend the
+  // idle-timeout auto-logout for the rest of the session.
+  useEffect(() => () => setInCall(false), [setInCall])
+
   const fetchSessions = () => {
     setLoading(true)
     telecare.list()
