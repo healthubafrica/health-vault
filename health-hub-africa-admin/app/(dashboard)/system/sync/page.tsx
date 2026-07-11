@@ -209,13 +209,16 @@ function OpenEMRConnectionBanner() {
 
   useEffect(() => { void checkStatus() }, [])
 
-  const handleAuthorise = async () => {
+  // `force` re-opens the consent page even when a token already exists —
+  // required whenever the requested scope list changes (new scopes are only
+  // granted at consent, so "already connected" must not block re-auth).
+  const handleAuthorise = async (force = false) => {
     setAuthorising(true)
     try {
       const res = await adminApi.openemr.authInit()
       setAuthStatus(res.isAuthenticated ? 'connected' : 'disconnected')
 
-      if (res.isAuthenticated) {
+      if (res.isAuthenticated && !force) {
         toast.success('OpenEMR is already connected')
         return
       }
@@ -278,7 +281,7 @@ function OpenEMRConnectionBanner() {
             </p>
           </div>
         </div>
-        <Button variant="secondary" size="sm" onClick={handleAuthorise} loading={authorising}>
+        <Button variant="secondary" size="sm" onClick={() => handleAuthorise(true)} loading={authorising}>
           Re-authorise
         </Button>
       </div>
@@ -307,7 +310,7 @@ function OpenEMRConnectionBanner() {
             <CheckCircle2 className="w-3.5 h-3.5" />
             Verify Connection
           </Button>
-          <Button variant="secondary" size="sm" onClick={handleAuthorise} loading={authorising}>
+          <Button variant="secondary" size="sm" onClick={() => handleAuthorise(true)} loading={authorising}>
             <ExternalLink className="w-3.5 h-3.5" />
             Open Again
           </Button>
@@ -341,7 +344,7 @@ function OpenEMRConnectionBanner() {
         </div>
       </div>
       <div className="mt-3">
-        <Button size="sm" onClick={handleAuthorise} loading={authorising}>
+        <Button size="sm" onClick={() => handleAuthorise()} loading={authorising}>
           <ExternalLink className="w-3.5 h-3.5" />
           Authorise OpenEMR
         </Button>
