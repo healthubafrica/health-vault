@@ -42,6 +42,15 @@ describe('OpenemrService.buildAuthorizationUrl', () => {
     expect(scopes).toContain('user/encounter.read');
     expect(scopes).toContain('user/encounter.write');
 
+    // Lab-results pull — GET /fhir/DiagnosticReport 401s without this.
+    expect(scopes).toContain('user/DiagnosticReport.read');
+
+    // Standard-API write scopes for the push paths whose FHIR equivalents
+    // this OpenEMR build does not support (prescriptions, documents, vitals).
+    expect(scopes).toContain('user/medication.cruds');
+    expect(scopes).toContain('user/document.crs');
+    expect(scopes).toContain('user/vital.crus');
+
     expect(scopes).toContain('offline_access');
   });
 

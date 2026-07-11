@@ -692,6 +692,20 @@ export class OpenemrService implements OnModuleInit {
       'user/practitioner.read',
       'user/encounter.read',
       'user/encounter.write',
+      // Lab-results pull (GET /fhir/DiagnosticReport) — FHIR read scope that
+      // was never in the original list; without it the pull 401s as soon as
+      // a lab order goes pending.
+      'user/DiagnosticReport.read',
+      // Future-proofing: this OpenEMR build has no FHIR write support for
+      // MedicationRequest / DocumentReference / Observation (the server's
+      // scopes_supported only offers lowercase Standard-API writes for
+      // these), so prescription, document and vitals pushes will need REST
+      // fallbacks like the encounter one. Scopes are only granted at the
+      // one-time admin re-auth, so request them now to avoid a second
+      // re-auth ceremony when those fallbacks land.
+      'user/medication.cruds',
+      'user/document.crs',
+      'user/vital.crus',
       'offline_access',
     ].join(' ');
 
