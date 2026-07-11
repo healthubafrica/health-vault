@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { useAuthStore } from '@/lib/stores/authStore'
 import { FormInput } from '@/components/ui/FormInput'
 import { Button } from '@/components/ui/Button'
@@ -14,7 +14,6 @@ function safeRedirectTarget(raw: string | null): string {
 }
 
 function LoginForm() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const { login, verify2fa, isLoading, error, clearError, clearPending, isAuthenticated, pendingUserId } = useAuthStore()
 
@@ -26,9 +25,15 @@ function LoginForm() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      router.replace(safeRedirectTarget(searchParams.get('from')))
+      // Hard navigation, not router.replace(): a soft client-side transition
+      // here can serve a stale Router Cache entry from before the hha_at
+      // cookie existed (e.g. an earlier unauthenticated visit to this same
+      // route), reproducing as "dashboard doesn't show until I refresh."
+      // A full document load always re-runs proxy.ts against the real
+      // cookie jar, so this class of bug can't happen.
+      window.location.assign(safeRedirectTarget(searchParams.get('from')))
     }
-  }, [isAuthenticated, router, searchParams])
+  }, [isAuthenticated, searchParams])
 
   // Focus OTP input when 2FA step appears
   useEffect(() => {

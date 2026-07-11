@@ -33,13 +33,31 @@ function PaymentDetailDialog({
   payment,
   onClose,
   onConfirm,
+  onRefund,
   confirming,
+  refunding,
 }: {
   payment: AdminPayment
   onClose: () => void
   onConfirm: (id: string) => void
+  onRefund: (id: string, amountKobo: number | undefined, reason: string) => void
   confirming: string | null
+  refunding: string | null
 }) {
+  const [showRefundForm, setShowRefundForm] = useState(false)
+  const [refundAmount, setRefundAmount] = useState('')
+  const [refundReason, setRefundReason] = useState('')
+
+  const alreadyRefunded = payment.refundAmountKobo ?? 0
+  const remainingKobo = payment.amountKobo - alreadyRefunded
+  const canRefund = payment.status === 'paid' && remainingKobo > 0
+
+  function submitRefund() {
+    const trimmed = refundAmount.trim()
+    const amountKobo = trimmed ? Math.round(parseFloat(trimmed) * 100) : undefined
+    if (amountKobo !== undefined && (isNaN(amountKobo) || amountKobo <= 0)) return
+    onRefund(payment.id, amountKobo, refundReason.trim())
+  }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose} />
@@ -100,10 +118,43 @@ function PaymentDetailDialog({
             <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Payment ID</p>
             <p className="text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>{payment.id}</p>
           </div>
+
+          {alreadyRefunded > 0 && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Refunded</p>
+              <p className="text-sm" style={{ color: 'var(--color-text)' }}>{formatNaira(alreadyRefunded)}</p>
+            </div>
+          )}
+
+          {showRefundForm && (
+            <div className="flex flex-col gap-2 rounded-xl p-3 border" style={{ background: 'var(--color-bg)', borderColor: 'var(--color-border)' }}>
+              <FormInput
+                label={`Amount to refund (NGN) — leave blank for full ${formatNaira(remainingKobo)}`}
+                type="number"
+                min="0.01"
+                step="any"
+                value={refundAmount}
+                onChange={(e) => setRefundAmount(e.target.value)}
+                placeholder={formatNaira(remainingKobo)}
+              />
+              <FormInput
+                label="Reason"
+                value={refundReason}
+                onChange={(e) => setRefundReason(e.target.value)}
+                placeholder="e.g. Duplicate charge"
+              />
+              <div className="flex gap-2 justify-end">
+                <Button variant="secondary" size="sm" onClick={() => setShowRefundForm(false)}>Cancel</Button>
+                <Button variant="primary" size="sm" loading={refunding === payment.id} onClick={submitRefund}>
+                  Confirm Refund
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between px-5 py-4 border-t gap-2" style={{ borderColor: 'var(--color-border)' }}>
-          <div>
+          <div className="flex gap-2">
             {payment.gateway === 'manual' && payment.status === 'pending' && (
               <Button
                 variant="primary"
@@ -112,6 +163,11 @@ function PaymentDetailDialog({
                 onClick={() => onConfirm(payment.id)}
               >
                 Confirm Payment
+              </Button>
+            )}
+            {canRefund && !showRefundForm && (
+              <Button variant="secondary" size="sm" onClick={() => setShowRefundForm(true)}>
+                Refund
               </Button>
             )}
           </div>
@@ -131,6 +187,7 @@ export default function PaymentsPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [confirming, setConfirming] = useState<string | null>(null)
+  const [refunding, setRefunding] = useState<string | null>(null)
   const [selected, setSelected] = useState<AdminPayment | null>(null)
   const limit = 20
 
@@ -166,6 +223,21 @@ export default function PaymentsPage() {
       setError(err instanceof Error ? err.message : 'Failed to confirm payment')
     } finally {
       setConfirming(null)
+    }
+  }, [load])
+
+  const handleRefund = useCallback(async (id: string, amountKobo: number | undefined, reason: string) => {
+    const label = amountKobo ? `${(amountKobo / 100).toLocaleString('en-NG', { style: 'currency', currency: 'NGN' })}` : 'the full amount'
+    if (!window.confirm(`Refund ${label} for this payment?`)) return
+    setRefunding(id)
+    try {
+      await adminApi.payments.refund(id, { amountKobo, reason: reason || undefined })
+      await load()
+      setSelected(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to process refund')
+    } finally {
+      setRefunding(null)
     }
   }, [load])
 
@@ -323,7 +395,9 @@ export default function PaymentsPage() {
           payment={selected}
           onClose={() => setSelected(null)}
           onConfirm={async (id) => { await handleConfirmManual(id); setSelected(null) }}
+          onRefund={handleRefund}
           confirming={confirming}
+          refunding={refunding}
         />
       )}
     </div>

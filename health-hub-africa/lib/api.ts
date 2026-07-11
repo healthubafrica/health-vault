@@ -702,7 +702,7 @@ export const payments = {
 
   get: (id: string) => request<{ data: Payment }>(`/payments/${id}`),
 
-  initiate: (data: { gateway: string; purpose: string; amountKobo: number; currency: string }) =>
+  initiate: (data: { gateway: string; purpose: string; amountKobo: number; currency: string; description?: string }) =>
     request<{ paymentId: string; authorizationUrl?: string; gateway: string; status?: string }>('/payments', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -712,6 +712,28 @@ export const payments = {
 
   verify: (reference: string) =>
     request<{ status: string; paymentId: string; gateway: string }>(`/payments/verify?reference=${encodeURIComponent(reference)}`),
+
+  // Fetches the printable HTML receipt as text (not JSON) so it can be opened
+  // in a new window — a plain `<a>`/window.open navigation to the endpoint
+  // directly wouldn't carry the Authorization header, since the access token
+  // lives in a cookie this app attaches manually, not one the browser sends
+  // automatically cross-navigation.
+  getReceiptHtml: async (id: string): Promise<string> => {
+    const token = getCookie(ACCESS_COOKIE)
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    let res: Response
+    try {
+      res = await fetch(`${BASE}/payments/${id}/receipt`, { headers })
+    } catch {
+      throw new ApiError(0, friendlyNetworkError())
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new ApiError(res.status, friendlyApiError(res.status, body.message))
+    }
+    return res.text()
+  },
 }
 
 // ── Subscriptions ─────────────────────────────────────────────────────────
@@ -767,7 +789,7 @@ export const subscriptions = {
   // Patient-facing paid upgrade. Returns a gateway authorization URL the
   // caller should redirect the browser to. Subscription is activated by the
   // payment webhook once the gateway confirms the charge.
-  upgrade: (planId: string, billingCycle: string, gateway?: 'Paystack' | 'Flutterwave') =>
+  upgrade: (planId: string, billingCycle: string, gateway?: 'Paystack') =>
     request<UpgradeResponse>('/subscriptions/upgrade', {
       method: 'POST',
       body: JSON.stringify({ planId, billingCycle, ...(gateway && { gateway }) }),
