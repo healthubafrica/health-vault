@@ -14,7 +14,8 @@ import {
   Download,
   Clock,
   Calendar,
-  ChevronDown
+  ChevronDown,
+  HeartPulse
 } from 'lucide-react'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Avatar } from '@/components/ui/Avatar'
@@ -26,6 +27,7 @@ import { formatDate, formatRelativeTime } from '@/lib/utils'
 import { patients, vitals as vitalsApi, appointments, subscriptions } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { DashboardSkeleton } from '@/components/skeletons/DashboardSkeleton'
+import { LogVitalsModal } from '@/components/vitals/LogVitalsModal'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { buildProviderDisplayName } from '@/lib/providerName'
 
@@ -45,13 +47,14 @@ export function DashboardScreen() {
   const [overviewView, setOverviewView] = useState<OverviewView>('grid')
   const [heartRateRange, setHeartRateRange] = useState<ReadingsRange>('recent')
   const [sleepRange, setSleepRange] = useState<ReadingsRange>('recent')
+  const [showLogVitals, setShowLogVitals] = useState(false)
   // Dashboard surfaces (vitals, upcoming appointments, subscription status)
   // need to reflect real changes without a manual refresh. Profile is mostly
   // static so it polls slower; vitals/appointments tick every 30s + on
   // tab focus. The request layer dedups bursts within 3s.
   const { data: profileRes, isInitialLoad: profileLoading, error: profileError, refetch: refetchProfile } =
     useApi(() => patients.getMyProfile(), [], { pollIntervalMs: 60_000 })
-  const { data: vitalsRes, isInitialLoad: vitalsLoading } =
+  const { data: vitalsRes, isInitialLoad: vitalsLoading, refetch: refetchVitals } =
     useApi(() => vitalsApi.list(), [], { pollIntervalMs: 30_000 })
   const { data: apptRes, isInitialLoad: apptLoading } =
     useApi(() => appointments.list({ upcoming: true }), [], { pollIntervalMs: 30_000 })
@@ -383,13 +386,20 @@ export function DashboardScreen() {
       {/* Quick Actions */}
       <Card className="rounded-[24px]">
         <CardTitle className="text-xs font-extrabold text-[var(--color-text-muted)] uppercase tracking-wider mb-4">Quick Actions</CardTitle>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <ActionChip icon={Video} name="TeleCare™" description="Virtual consult" onClick={() => router.push('/telecare')} />
           <ActionChip icon={FlaskConical} name="CareTest™" description="Book a lab test" onClick={() => router.push('/labs')} />
           <ActionChip icon={CalendarPlus} name="Appointment" description="Schedule a visit" onClick={() => router.push('/appointments')} />
+          <ActionChip icon={HeartPulse} name="Log Vitals" description="Record readings" onClick={() => setShowLogVitals(true)} />
           <ActionChip icon={Truck} name="DispatchCare™" description="Emergency" emergency onClick={() => router.push('/dispatch')} />
         </div>
       </Card>
+
+      <LogVitalsModal
+        open={showLogVitals}
+        onClose={() => setShowLogVitals(false)}
+        onLogged={() => refetchVitals()}
+      />
 
       {/* Next Appointment + Doctor Details */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -41,9 +41,32 @@ const SERVICE_TYPES = [
 ] as const
 
 const STATUS_PILL: Record<string, 'success' | 'warning' | 'neutral' | 'emergency'> = {
+  requested: 'warning',
+  confirmed: 'success',
   upcoming: 'success',
+  in_progress: 'success',
   completed: 'neutral',
   cancelled: 'emergency',
+  no_show: 'warning',
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  requested: 'Requested',
+  confirmed: 'Confirmed',
+  upcoming: 'Upcoming',
+  in_progress: 'In Progress',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+  no_show: 'No Show',
+}
+
+// Which statuses each tab shows. "Upcoming" covers everything still on the
+// calendar (patients look there first, and most bookings sit in confirmed);
+// no-shows live with cancellations — both are appointments that didn't happen.
+const TAB_STATUSES: Record<string, Set<string>> = {
+  Upcoming: new Set(['requested', 'confirmed', 'upcoming', 'in_progress']),
+  Completed: new Set(['completed']),
+  Cancelled: new Set(['cancelled', 'no_show']),
 }
 
 function formatScheduledAt(scheduledAt: string): { date: string; time: string } {
@@ -135,9 +158,9 @@ export function AppointmentsScreen() {
 
   const allAppointments: Appointment[] = apptRes?.data ?? []
 
-  const filtered = tab === 'All' || tab === 'Upcoming'
+  const filtered = tab === 'All'
     ? allAppointments
-    : allAppointments.filter(a => a.status === tab.toLowerCase())
+    : allAppointments.filter(a => TAB_STATUSES[tab]?.has(a.status))
 
   function hoursUntil(appt: Appointment): number {
     return (new Date(appt.scheduledAt).getTime() - Date.now()) / 3_600_000
@@ -223,7 +246,7 @@ export function AppointmentsScreen() {
                       <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
                         {appt.serviceType}
                       </p>
-                      <Pill variant={STATUS_PILL[appt.status] ?? 'neutral'}>{appt.status}</Pill>
+                      <Pill variant={STATUS_PILL[appt.status] ?? 'neutral'}>{STATUS_LABEL[appt.status] ?? appt.status}</Pill>
                       <Pill variant="neutral">{appointmentType}</Pill>
                     </div>
                     <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>

@@ -41,6 +41,7 @@ export function ProfilePanel() {
 
   const conditions = profile?.medicalInfo?.chronicConditions ?? []
   const medications = profile?.medicalInfo?.activeMedications ?? []
+  const immunizations = profile?.medicalInfo?.immunizations ?? []
 
   return (
     <div className="flex flex-col gap-5 p-4">
@@ -116,6 +117,22 @@ export function ProfilePanel() {
           <div className="flex flex-wrap gap-1.5">
             {medications.map(m => (
               <Pill key={m} variant="success">{m}</Pill>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Immunizations — synced from the clinic's OpenEMR record */}
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--color-text-muted)' }}>
+          Immunizations
+        </p>
+        {immunizations.length === 0 ? (
+          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>None recorded</p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {immunizations.map(i => (
+              <Pill key={i} variant="info">{i}</Pill>
             ))}
           </div>
         )}

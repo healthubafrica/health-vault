@@ -285,6 +285,7 @@ export interface PatientProfile {
     allergies: string[]
     chronicConditions: string[]
     activeMedications: string[]
+    immunizations?: string[]
     activeCarePlan?: string
   }
   emergencyContacts?: Array<{
@@ -358,11 +359,28 @@ export interface VitalsReading {
   sleepHours?: number
 }
 
+// The create endpoint's field names differ from the stored reading shape
+// (bloodPressureSystolic → systolicBp etc.) — sending VitalsReading keys
+// would be silently stripped by the API's validation and store an empty row.
+export interface CreateVitalsPayload {
+  recordedAt?: string
+  heartRate?: number
+  bloodPressureSystolic?: number
+  bloodPressureDiastolic?: number
+  oxygenSaturation?: number
+  temperatureCelsius?: number
+  weightKg?: number
+  heightCm?: number
+  bloodGlucose?: number
+  bloodGlucoseContext?: string
+  notes?: string
+}
+
 export const vitals = {
   list: (patientId?: string) =>
     request<{ data: VitalsReading[] }>(`/vitals${patientId ? `?patientId=${patientId}` : ''}`),
 
-  create: (data: Partial<VitalsReading>) =>
+  create: (data: CreateVitalsPayload) =>
     request<{ data: VitalsReading }>('/vitals', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -520,6 +538,24 @@ export const records = {
 
   getStorageUsage: () =>
     request<{ data: StorageUsage | null }>('/records/storage'),
+
+  // Structured prescription rows (dosage, frequency, refills, expiry) behind
+  // the recordType=prescription clinical records. Returns a bare array —
+  // this endpoint has no { data } envelope.
+  prescriptions: () => request<PrescriptionItem[]>('/records/prescriptions/list'),
+}
+
+export interface PrescriptionItem {
+  id: string
+  drugName: string
+  dosage: string
+  frequency: string
+  route: string
+  refillsRemaining: number
+  expiresAt?: string | null
+  notes?: string | null
+  createdAt: string
+  record?: { id: string; hhaRef: string; recordedAt: string; title: string } | null
 }
 
 export interface StorageUsage {
@@ -1071,7 +1107,93 @@ export interface TravelSafeSummary {
     allergies: string[]
     chronicConditions: string[]
     activeMedications: string[]
+    immunizations: string[]
   }
+}
+
+// ── Expert Review Cases ───────────────────────────────────────────────────
+
+export interface ExpertReviewStatusEvent {
+  id: string
+  status?: string
+  note?: string | null
+  occurredAt?: string
+  createdAt?: string
+}
+
+export interface ExpertReviewCaseItem {
+  id: string
+  hhaRef: string
+  reviewType: string
+  urgency: string
+  status: string
+  clinicalQuestion: string
+  primaryDiagnosis?: string | null
+  submittedAt: string
+  completedAt?: string | null
+  statusEvents?: ExpertReviewStatusEvent[]
+  finalReport?: { id: string; createdAt: string } | null
+}
+
+export const expertReview = {
+  list: () => request<ExpertReviewCaseItem[]>('/expert-review'),
+  get: (id: string) => request<ExpertReviewCaseItem>(`/expert-review/${id}`),
+}
+
+// ── Analytics (fire-and-forget) ───────────────────────────────────────────
+
+export const analytics = {
+  // Never awaited by callers and never surfaces errors — product telemetry
+  // must not affect the user experience.
+  track: (eventType: string, metadata?: Record<string, unknown>) => {
+    request<void>('/analytics/events', {
+      method: 'POST',
+      body: JSON.stringify({ eventType, metadata }),
+    }).catch(() => undefined)
+  },
+}
+
+// ── Support Tickets ───────────────────────────────────────────────────────
+
+export interface SupportMessage {
+  id: string
+  senderId: string
+  body: string
+  attachmentUrl?: string | null
+  isInternal: boolean
+  createdAt: string
+}
+
+export interface SupportTicket {
+  id: string
+  hhaRef: string
+  category: string
+  subject: string
+  status: string
+  priority: string
+  createdAt: string
+  updatedAt: string
+  messages?: SupportMessage[]
+  _count?: { messages: number }
+}
+
+export const support = {
+  list: (status?: string) =>
+    request<SupportTicket[]>(`/support/tickets${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+
+  get: (id: string) => request<SupportTicket>(`/support/tickets/${id}`),
+
+  create: (data: { subject: string; description: string; category?: string; priority?: string }) =>
+    request<SupportTicket>('/support/tickets', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  addMessage: (id: string, message: string) =>
+    request<SupportMessage>(`/support/tickets/${id}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    }),
 }
 
 export const travelsafe = {
