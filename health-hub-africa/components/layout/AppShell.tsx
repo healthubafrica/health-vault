@@ -6,10 +6,13 @@ import { RightPanel } from './RightPanel'
 import { MobileBottomNav } from './MobileBottomNav'
 import { MobilePanelSheet } from './MobilePanelSheet'
 import { PageTransition } from './PageTransition'
+import { IdleWarningModal } from './IdleWarningModal'
 import { useAuthRefresh } from '@/lib/hooks/useAuthRefresh'
+import { useIdleLogout } from '@/lib/hooks/useIdleLogout'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   useAuthRefresh()
+  const { idleState, remainingSeconds, continueSession } = useIdleLogout()
 
   return (
     <div
@@ -39,6 +42,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Mobile panel sheet */}
       <MobilePanelSheet />
+
+      {/* Idle-timeout warning */}
+      <IdleWarningModal
+        idleState={idleState}
+        remainingSeconds={remainingSeconds}
+        onContinue={continueSession}
+      />
     </div>
   )
 }
