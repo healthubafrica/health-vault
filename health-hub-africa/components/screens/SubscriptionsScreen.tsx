@@ -118,7 +118,9 @@ export function SubscriptionsScreen() {
             {activeSub ? activeSub.plan.name : 'Free Plan'}
           </p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-            {activeSub ? `Renews ${formatDate(activeSub.expiresAt)}` : 'Upgrade to unlock premium care'}
+            {activeSub
+              ? (activeSub.expiresAt ? `Renews ${formatDate(activeSub.expiresAt)}` : 'Never expires')
+              : 'Upgrade to unlock premium care'}
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">

@@ -245,7 +245,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                   </Pill>
                 }
               />
-              <InfoRow label="Expires" value={formatDate(user.subscription.expiresAt)} />
+              <InfoRow label="Expires" value={user.subscription.expiresAt ? formatDate(user.subscription.expiresAt) : 'Never'} />
             </dl>
           ) : (
             <p className="text-sm" style={{ color: 'var(--color-text-faint)' }}>
