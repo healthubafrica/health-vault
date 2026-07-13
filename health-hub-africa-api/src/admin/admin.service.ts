@@ -184,7 +184,7 @@ export class AdminService {
               plan: sub.plan.name,
               tier: String(sub.plan.tier),
               status: String(sub.status),
-              expiresAt: sub.expiresAt.toISOString(),
+              expiresAt: sub.expiresAt?.toISOString() ?? null,
             }
           : undefined,
       };
@@ -248,7 +248,7 @@ export class AdminService {
           plan: latestSub.plan.name,
           tier: String(latestSub.plan.tier),
           status: String(latestSub.status),
-          expiresAt: latestSub.expiresAt.toISOString(),
+          expiresAt: latestSub.expiresAt?.toISOString() ?? null,
         }
       : undefined;
 

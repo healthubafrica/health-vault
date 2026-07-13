@@ -43,7 +43,8 @@ const mockPaymentsService = {
 const patientUser: JwtPayload = { sub: 'user-p1', email: 'p@test.com', role: 'patient' };
 const adminUser: JwtPayload = { sub: 'user-a1', email: 'a@test.com', role: 'admin' };
 
-const plan = { id: 'plan-silver', slug: 'silvercare', isActive: true, displayOrder: 2 };
+const plan = { id: 'plan-silver', slug: 'silvercare', tier: 'SilverCare', isActive: true, displayOrder: 2 };
+const freePlan = { id: 'plan-free', slug: 'free', tier: 'Free', isActive: true, displayOrder: 0 };
 const patient = { id: 'patient-1' };
 const existingSub = { id: 'sub-old', status: 'active' };
 const newSub = { id: 'sub-new', plan };
@@ -206,6 +207,39 @@ describe('SubscriptionsService', () => {
       const diffDays = (new Date(expiresAt).getTime() - new Date(startedAt).getTime()) / 86_400_000;
       expect(diffDays).toBeGreaterThanOrEqual(85);
       expect(diffDays).toBeLessThan(100);
+    });
+
+    it('creates a never-expiring, non-renewing subscription for the Free plan', async () => {
+      mockPrisma.subscriptionPlan.findUnique.mockResolvedValue(freePlan);
+      const tx = makeTx();
+      tx.patientSubscription.create.mockImplementation(async ({ data }: any) => ({
+        id: 'sub-1',
+        ...data,
+        plan: freePlan,
+      }));
+      mockPrisma.$transaction.mockImplementation((fn: Function) => fn(tx));
+
+      await service.subscribe({ planId: 'plan-free', billingCycle: BillingCycle.monthly }, patientUser);
+
+      const { expiresAt, autoRenew } = tx.patientSubscription.create.mock.calls[0][0].data;
+      expect(expiresAt).toBeNull();
+      expect(autoRenew).toBe(false);
+    });
+
+    it('keeps expiry dates and auto-renew on for paid plans', async () => {
+      const tx = makeTx();
+      tx.patientSubscription.create.mockImplementation(async ({ data }: any) => ({
+        id: 'sub-1',
+        ...data,
+        plan,
+      }));
+      mockPrisma.$transaction.mockImplementation((fn: Function) => fn(tx));
+
+      await service.subscribe(dto, patientUser);
+
+      const { expiresAt, autoRenew } = tx.patientSubscription.create.mock.calls[0][0].data;
+      expect(expiresAt).toBeInstanceOf(Date);
+      expect(autoRenew).toBe(true);
     });
 
     it('throws NotFoundException when patient profile is not found', async () => {
