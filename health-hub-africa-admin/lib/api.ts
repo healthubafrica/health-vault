@@ -245,7 +245,8 @@ export interface AdminUser {
     plan: string
     tier: string
     status: string
-    expiresAt: string
+    // null = never expires (Free tier)
+    expiresAt: string | null
   }
   patient?: {
     id: string
@@ -375,7 +376,7 @@ export interface PatientProfileDetail {
 export interface AdminSubscription {
   id: string; patientId: string; patientName: string; hhaPatientId: string
   planName: string; tier: string; status: string; startedAt: string
-  expiresAt: string; autoRenew: boolean; cancelledAt?: string
+  expiresAt: string | null; autoRenew: boolean; cancelledAt?: string
 }
 
 // ── Admin: Payments ───────────────────────────────────────────────────────

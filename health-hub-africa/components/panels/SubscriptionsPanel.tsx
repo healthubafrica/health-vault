@@ -35,7 +35,7 @@ export function SubscriptionsPanel() {
               <Pill variant="success">Active</Pill>
             </div>
             <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-              Renews {formatDate(activeSub.expiresAt)}
+              {activeSub.expiresAt ? `Renews ${formatDate(activeSub.expiresAt)}` : 'Never expires'}
             </p>
           </div>
 
