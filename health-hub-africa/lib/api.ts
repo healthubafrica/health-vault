@@ -801,7 +801,8 @@ export interface ActiveSubscription {
   id: string
   status: string
   startedAt: string
-  expiresAt: string
+  // null = never expires (Free tier)
+  expiresAt: string | null
   autoRenew: boolean
   plan: SubscriptionPlan
 }

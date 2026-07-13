@@ -36,7 +36,7 @@ export function ProfilePanel() {
     { label: 'Blood Group', value: profile?.bloodGroup || 'Not set' },
     { label: 'Allergies', value: profile?.medicalInfo?.allergies?.join(', ') || 'None recorded' },
     { label: 'Care Plan', value: profile?.medicalInfo?.activeCarePlan || 'No active care plan' },
-    { label: 'Plan', value: activeSub ? `${activeSub.plan.name} (Renews ${formatDate(activeSub.expiresAt)})` : 'No subscription' },
+    { label: 'Plan', value: activeSub ? `${activeSub.plan.name} (${activeSub.expiresAt ? `Renews ${formatDate(activeSub.expiresAt)}` : 'Never expires'})` : 'No subscription' },
   ]
 
   const conditions = profile?.medicalInfo?.chronicConditions ?? []
