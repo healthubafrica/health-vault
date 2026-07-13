@@ -68,7 +68,7 @@ function SubDetailDialog({
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Expires</p>
-              <p className="text-xs" style={{ color: 'var(--color-text)' }}>{formatDate(sub.expiresAt)}</p>
+              <p className="text-xs" style={{ color: 'var(--color-text)' }}>{sub.expiresAt ? formatDate(sub.expiresAt) : 'Never'}</p>
             </div>
           </div>
 
@@ -363,7 +363,7 @@ export default function SubscriptionsPage() {
                       {formatDate(s.startedAt)}
                     </td>
                     <td className="px-4 py-3 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                      {formatDate(s.expiresAt)}
+                      {s.expiresAt ? formatDate(s.expiresAt) : 'Never'}
                     </td>
                     <td className="px-4 py-3">
                       <Pill variant={s.autoRenew ? 'success' : 'neutral'}>

@@ -61,14 +61,22 @@ export class SubscriptionsService {
       orderBy: { createdAt: 'desc' },
     });
 
+    // Free never expires: expiresAt stays NULL and autoRenew is off, so any
+    // renewal/expiry sweep skips Free rows structurally. Billing periods only
+    // apply to paid tiers.
+    const isFree = plan.tier === PlanTier.Free;
+
     const startDate = new Date();
-    const endDate = new Date(startDate);
-    if (dto.billingCycle === 'annually') {
-      endDate.setFullYear(endDate.getFullYear() + 1);
-    } else if (dto.billingCycle === 'quarterly') {
-      endDate.setMonth(endDate.getMonth() + 3);
-    } else {
-      endDate.setMonth(endDate.getMonth() + 1);
+    let endDate: Date | null = null;
+    if (!isFree) {
+      endDate = new Date(startDate);
+      if (dto.billingCycle === 'annually') {
+        endDate.setFullYear(endDate.getFullYear() + 1);
+      } else if (dto.billingCycle === 'quarterly') {
+        endDate.setMonth(endDate.getMonth() + 3);
+      } else {
+        endDate.setMonth(endDate.getMonth() + 1);
+      }
     }
 
     // Cancel-then-create must be atomic: if create fails after cancel commits,
@@ -89,6 +97,7 @@ export class SubscriptionsService {
           planId: dto.planId,
           startedAt: startDate,
           expiresAt: endDate,
+          autoRenew: !isFree,
         },
         include: { plan: true },
       });
