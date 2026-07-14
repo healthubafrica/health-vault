@@ -3,6 +3,7 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { SubscriptionsService } from './subscriptions.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentsService } from '../payments/payments.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { BillingCycle } from '../common/enums';
 
@@ -12,6 +13,8 @@ const makeTx = (overrides: Record<string, unknown> = {}) => ({
   patientSubscription: {
     update: jest.fn().mockResolvedValue({}),
     create: jest.fn().mockResolvedValue({ id: 'sub-new', plan: {} }),
+    // 0 prior rows = first-ever subscription (welcome-email trigger).
+    count: jest.fn().mockResolvedValue(0),
   },
   ...overrides,
 });
@@ -38,6 +41,10 @@ const mockPaymentsService = {
   initiate: jest.fn(),
 };
 
+const mockNotifications = {
+  sendPatientWelcomeEmail: jest.fn().mockResolvedValue(undefined),
+};
+
 // ----- Fixtures -------------------------------------------------------------
 
 const patientUser: JwtPayload = { sub: 'user-p1', email: 'p@test.com', role: 'patient' };
@@ -60,6 +67,7 @@ describe('SubscriptionsService', () => {
         SubscriptionsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: PaymentsService, useValue: mockPaymentsService },
+        { provide: NotificationsService, useValue: mockNotifications },
       ],
     }).compile();
 
@@ -207,6 +215,25 @@ describe('SubscriptionsService', () => {
       const diffDays = (new Date(expiresAt).getTime() - new Date(startedAt).getTime()) / 86_400_000;
       expect(diffDays).toBeGreaterThanOrEqual(85);
       expect(diffDays).toBeLessThan(100);
+    });
+
+    it('sends the one-time welcome email on the first-ever subscription', async () => {
+      const tx = makeTx(); // count → 0 prior rows
+      mockPrisma.$transaction.mockImplementation((fn: Function) => fn(tx));
+
+      await service.subscribe(dto, patientUser);
+
+      expect(mockNotifications.sendPatientWelcomeEmail).toHaveBeenCalledWith(patient.id, dto.planId);
+    });
+
+    it('does NOT send the welcome email when prior subscriptions exist (upgrade)', async () => {
+      const tx = makeTx();
+      tx.patientSubscription.count.mockResolvedValue(2);
+      mockPrisma.$transaction.mockImplementation((fn: Function) => fn(tx));
+
+      await service.subscribe(dto, patientUser);
+
+      expect(mockNotifications.sendPatientWelcomeEmail).not.toHaveBeenCalled();
     });
 
     it('creates a never-expiring, non-renewing subscription for the Free plan', async () => {
