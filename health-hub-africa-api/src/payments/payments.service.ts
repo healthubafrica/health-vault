@@ -332,6 +332,7 @@ export class PaymentsService {
     // client-side fallback) can safely re-attempt from scratch — the
     // idempotency check above only blocks retries for payments already paid.
     const paidAt = new Date();
+    let activation: { firstSubscription: boolean; planId: string } | null = null;
     await this.prisma.$transaction(async (tx) => {
       await tx.payment.update({
         where: { id: payment.id },
@@ -343,7 +344,7 @@ export class PaymentsService {
         },
       });
 
-      await this.activateSubscriptionFromPayment(tx, payment.id, payment.patientId, payment.metadata);
+      activation = await this.activateSubscriptionFromPayment(tx, payment.id, payment.patientId, payment.metadata);
       await this.createInvoice(tx, payment.id, payment.patientId, payment.amountKobo, paidAt);
     });
 
@@ -354,6 +355,12 @@ export class PaymentsService {
     await this.sendReceiptEmail(payment.id).catch((err) =>
       this.logger.error(`Failed to send receipt email for payment ${payment.id}: ${err instanceof Error ? err.message : err}`),
     );
+
+    // First-ever subscription = registration just completed with a paid plan
+    // → one-time welcome email (best-effort; the helper swallows failures).
+    if ((activation as { firstSubscription: boolean; planId: string } | null)?.firstSubscription) {
+      void this.notifications.sendPatientWelcomeEmail(payment.patientId, activation!.planId);
+    }
   }
 
   private async handleChargeFailed(
@@ -463,9 +470,9 @@ export class PaymentsService {
     paymentId: string,
     patientId: string,
     metadataRaw: Prisma.JsonValue | null,
-  ): Promise<void> {
+  ): Promise<{ firstSubscription: boolean; planId: string } | null> {
     const meta = metadataRaw as { kind?: string; planId?: string; billingCycle?: string } | null;
-    if (!meta || meta.kind !== 'subscription_upgrade' || !meta.planId) return;
+    if (!meta || meta.kind !== 'subscription_upgrade' || !meta.planId) return null;
 
     const cycle = meta.billingCycle === 'annually'
       ? 'annually'
@@ -478,6 +485,11 @@ export class PaymentsService {
     if (cycle === 'annually') endDate.setFullYear(endDate.getFullYear() + 1);
     else if (cycle === 'quarterly') endDate.setMonth(endDate.getMonth() + 3);
     else endDate.setMonth(endDate.getMonth() + 1);
+
+    // No prior subscription row of any status = this activation completes the
+    // patient's registration → the caller sends the one-time welcome email
+    // after the transaction commits.
+    const priorSubscriptions = await tx.patientSubscription.count({ where: { patientId } });
 
     // Cancel any prior active/trial subscription before activating the new one
     // — patients should never carry two simultaneously.
@@ -497,6 +509,7 @@ export class PaymentsService {
     });
 
     this.logger.log(`Subscription activated for patient ${patientId} from payment ${paymentId}`);
+    return { firstSubscription: priorSubscriptions === 0, planId: meta.planId };
   }
 
   // ── Invoices & Receipts ────────────────────────────────────────────────────
