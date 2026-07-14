@@ -16,6 +16,53 @@ aws sts get-caller-identity
 
 ---
 
+## Execution status — 2026-07-14
+
+### ✅ Done (executed and verified)
+
+| Phase | What | Realized saving/mo |
+| --- | --- | --- |
+| 1 | Cleanup: idle EIP released, 3 dead buckets, 2 orphan target groups, dead log group + retention, old instance/volume archived+removed, default-VPC NAT deleted, 400 GB "OpenEMR" snapshot verified empty (one 8 KB `_prisma_migrations` table on Postgres — never held OpenEMR data) and deleted | ~$110 |
+| 2 | RDS `db.m5d.large` → **`db.t4g.medium`** Multi-AZ + **`PubliclyAccessible=false`** (pre-change snapshot `hha-postgres-pre-rightsize-20260714` retained); Redis → **`cache.t4g.micro`** via `modify-replication-group` (data survived); verified via tunnel psql, in-VPC `/health` 200, clean boot logs, all alarms OK | ~$305–375 |
+| 2.4 | Fargate → **ARM64/Graviton** (PR #30, task def `:93`), shipped through the normal pipeline | ~$5–8 |
+| 3 | Managed NAT → **fck-nat** `i-076309f91635cff74` (t4g.nano, EIP **15.240.45.130**); egress verified (ECS redeploy + OpenEMR pull cycles clean) before NAT deletion; free **S3 gateway endpoint** `vpce-032a54ca7b006ff80`; auto-recover + auto-reboot alarms on the instance | ~$43 net |
+| — | Side effect of Phase 2: RDS's two public EIPs auto-released when the instance went private | — |
+
+**Total realized: ~$465–535/mo (~$5,600–6,400/yr).** Expected steady-state bill: **~$200–250/mo** before Phase 4 commitments.
+
+### ⏳ To be done later
+
+| When | Item | Owner |
+| --- | --- | --- |
+| +24–48 h (by 2026-07-16) | Check RDS `CPUCreditBalance` trend — the only signal t4g.medium is undersized is a steadily draining credit balance. Also spot-check fck-nat (`NetworkOut`, status checks, one OpenEMR pull cycle in logs) | Claude/ops |
+| Anytime | Create a **Billing budget alert** at ~$350/mo so cost drift gets flagged | Admin (console) |
+| Anytime | Fix or delete the two dead GitHub-Actions Vercel workflows (empty `VERCEL_TOKEN`/`ORG_ID`/`PROJECT_ID` secrets fail every run; Vercel's Git integration does the real deploys) | Admin |
+| ~2026-08-14 (after 30 stable days) | **Phase 4 commitments** (below): 1-yr no-upfront RDS RI for `db.t4g.medium` Multi-AZ + Compute Savings Plan sized from 30-day Cost Explorer data. Takes steady state to ~**$200/mo** | Admin purchases; Claude preps exact specs |
+| When email/payment-gateway vendors ask | Outbound IP for whitelisting is now **15.240.45.130** (fck-nat EIP) | — |
+
+---
+
+## Scaling playbook — what to change as patient volume grows
+
+The optimized stack is sized for the current load (tens of patients) with comfortable headroom into the **low thousands**. Everything scales by *instance-class modify*, not redesign. Watch the signals; apply the step next to them.
+
+| Component | Now | Scale signal (CloudWatch) | Next step |
+| --- | --- | --- | --- |
+| RDS | db.t4g.medium Multi-AZ, 20 GB | `CPUCreditBalance` trending to 0, or CPU > 60% sustained, or `FreeableMemory` < 500 MB | `db.m7g.large` Multi-AZ (fixed-performance Graviton). Also **enable storage autoscaling now** (max 100 GB) — it's free until used |
+| Redis | cache.t4g.micro | `DatabaseMemoryUsagePercentage` > 70% or `Evictions` > 0 | cache.t4g.small → t4g.medium. Queue/cache workload stays tiny until well past 10k patients |
+| API (Fargate) | 1 × 1 vCPU/3 GB ARM64 task | CPU > 70% sustained or p95 latency rising | Add **service auto-scaling** (target-tracking CPU 70%, min 1 / max 4). The ALB is already in place — scale-out is a setting, not a project |
+| fck-nat | t4g.nano, single AZ (af-south-1a) | Instance `NetworkOut` approaching ~0.5 Gbps sustained, or ops discomfort with self-managed NAT | t4g.small/medium first (still ≪ managed NAT cost). At real scale or compliance pressure, go back to a managed NAT gateway per AZ — the $47+/mo becomes noise once revenue exists |
+| OpenEMR EC2 | t3.medium + MariaDB in Docker | CPU credits draining, clinic staff count growing | t3.large is a stop-gap; the real move at scale is MariaDB off the box into **RDS MariaDB Multi-AZ** so the EMR host is stateless and replaceable |
+| S3 / ALB / SNS / alarms | as-is | — | Scale transparently; nothing to do |
+
+**Known single-AZ trade-off (accepted at current scale):** fck-nat lives in one AZ. If af-south-1a has an outage, *outbound* calls from private subnets (OpenEMR sync, payment gateways, email) pause until EC2 auto-recover brings it back — inbound traffic via the ALB keeps working, and RDS/Redis are unaffected. The at-scale fix is one NAT per AZ (managed or fck-nat) with per-AZ route tables.
+
+**Commitment interplay (matters for Phase 4):** RDS reserved instances are size-flexible *within a family* — a t4g RI covers t4g.medium→large, but jumping to m7g abandons it. If growth to m7g.large looks likely within 12 months, either buy the RI for what you'll run most of the year or skip the RDS RI and take only the Compute Savings Plan (which is family-agnostic for Fargate/EC2).
+
+**Re-check cadence:** glance at Cost Explorer + the six signals above monthly; re-run the full audit (companion doc) quarterly or after any architecture change.
+
+---
+
 ## Phase 1 — Zero/low-risk cleanup (~$110/mo) · anytime
 
 > **STATUS (2026-07-14): EXECUTED** — 1.1 (13.247.44.2 released; 15.240.88.204 turned out to be the LIVE app-VPC NAT gateway's second AZ address — in use, keep; audit corrected), 1.2 ✓, 1.3 ✓, 1.4 ✓, 1.5 (instance was already terminated externally before execution; volume gone with it), 1.6 ✓ (archive: `snap-056250f35cc498cc6`), 1.7 ✓ (NAT deleted, EIP auto-released). **1.8 pending decision.**
