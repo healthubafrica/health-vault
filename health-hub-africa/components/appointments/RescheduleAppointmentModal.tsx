@@ -29,8 +29,15 @@ export function RescheduleAppointmentModal({
   const [manualDateTime, setManualDateTime] = useState('')
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
+  const [noScheduleConfigured, setNoScheduleConfigured] = useState(false)
 
-  const hasProvider = !!appointment?.providerId
+  const hasProviderId = !!appointment?.providerId
+  // Real-time slot picker only renders when there's a provider AND that
+  // provider actually has a working-hours schedule configured — otherwise
+  // the picker would show "No available times" forever with no way out, so
+  // this falls back to the same plain date/time input used when there's no
+  // provider at all.
+  const showSlotPicker = hasProviderId && !noScheduleConfigured
 
   // Reset all local state whenever a new appointment is targeted.
   useEffect(() => {
@@ -40,13 +47,14 @@ export function RescheduleAppointmentModal({
     setSelectedSlot('')
     setManualDateTime('')
     setReason('')
+    setNoScheduleConfigured(false)
   }, [appointment])
 
   // Slot lookup only applies when the appointment already has an assigned
   // provider — without one there's no specific shift to check against, so
   // the picker falls back to a plain date/time input below.
   useEffect(() => {
-    if (!appointment || !hasProvider) return
+    if (!appointment || !hasProviderId) return
     setLoadingSlots(true)
     setSelectedSlot('')
     apptApi
@@ -57,21 +65,24 @@ export function RescheduleAppointmentModal({
         providerId: appointment.providerId!,
         excludeAppointmentId: appointment.id,
       })
-      .then((res) => setSlots(res[0]?.slots ?? []))
+      .then((res) => {
+        setSlots(res[0]?.slots ?? [])
+        setNoScheduleConfigured(res[0]?.hasScheduleConfigured === false)
+      })
       .catch(() => setSlots([]))
       .finally(() => setLoadingSlots(false))
-  }, [appointment, hasProvider, date])
+  }, [appointment, hasProviderId, date])
 
   if (!appointment) return null
 
   const handleReschedule = async () => {
-    const scheduledAt = hasProvider
+    const scheduledAt = showSlotPicker
       ? selectedSlot
       : manualDateTime
         ? new Date(manualDateTime).toISOString()
         : ''
     if (!scheduledAt) {
-      toast.error(hasProvider ? 'Please select a time slot' : 'Please choose a date and time')
+      toast.error(showSlotPicker ? 'Please select a time slot' : 'Please choose a date and time')
       return
     }
     setSaving(true)
@@ -114,7 +125,12 @@ export function RescheduleAppointmentModal({
           </button>
         </div>
         <div className="p-5 space-y-3">
-          {hasProvider ? (
+          {hasProviderId && loadingSlots ? (
+            <div
+              className="h-10 rounded-xl border animate-pulse"
+              style={{ borderColor: 'var(--color-border)' }}
+            />
+          ) : showSlotPicker ? (
             <>
               <FormInput
                 label="Date"
@@ -127,12 +143,7 @@ export function RescheduleAppointmentModal({
                 <label className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
                   Available times
                 </label>
-                {loadingSlots ? (
-                  <div
-                    className="h-10 rounded-xl border animate-pulse mt-1"
-                    style={{ borderColor: 'var(--color-border)' }}
-                  />
-                ) : slots.length === 0 ? (
+                {slots.length === 0 ? (
                   <p className="text-xs py-2" style={{ color: 'var(--color-text-faint)' }}>
                     No available times on this day. Try another date.
                   </p>
@@ -166,12 +177,20 @@ export function RescheduleAppointmentModal({
               </div>
             </>
           ) : (
-            <FormInput
-              label="New date & time"
-              type="datetime-local"
-              value={manualDateTime}
-              onChange={(e) => setManualDateTime(e.target.value)}
-            />
+            <>
+              {noScheduleConfigured && (
+                <p className="text-xs py-1" style={{ color: 'var(--color-text-faint)' }}>
+                  Real-time scheduling isn't set up for this provider yet. Choose your preferred date and
+                  time and our team will confirm it with you.
+                </p>
+              )}
+              <FormInput
+                label="New date & time"
+                type="datetime-local"
+                value={manualDateTime}
+                onChange={(e) => setManualDateTime(e.target.value)}
+              />
+            </>
           )}
           <FormInput label="Reason (optional)" value={reason} onChange={(e) => setReason(e.target.value)} />
         </div>
