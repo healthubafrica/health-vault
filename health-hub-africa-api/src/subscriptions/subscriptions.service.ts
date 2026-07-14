@@ -7,6 +7,7 @@ import {
 import { PaymentGateway, PlanTier, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PaymentsService } from '../payments/payments.service';
 import { PaymentPurpose } from '../payments/dto/initiate-payment.dto';
 import { SubscribeDto } from './dto/subscribe.dto';
@@ -17,6 +18,7 @@ export class SubscriptionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly paymentsService: PaymentsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ── Plans ──────────────────────────────────────────────────────────────────
@@ -81,7 +83,12 @@ export class SubscriptionsService {
 
     // Cancel-then-create must be atomic: if create fails after cancel commits,
     // the patient would be left with zero active subscriptions.
-    return this.prisma.$transaction(async (tx) => {
+    const { subscription, isFirstSubscription } = await this.prisma.$transaction(async (tx) => {
+      // Any prior subscription row (any status) means this is an upgrade or
+      // plan change, not registration — the welcome email is sent only once,
+      // on the very first activation.
+      const priorSubscriptions = await tx.patientSubscription.count({ where: { patientId } });
+
       if (existing) {
         await tx.patientSubscription.update({
           where: { id: existing.id },
@@ -91,7 +98,7 @@ export class SubscriptionsService {
 
       // Pricing lives on the plan (priceKobo per billingPeriod); the
       // subscription row only tracks the period.
-      return tx.patientSubscription.create({
+      const created = await tx.patientSubscription.create({
         data: {
           patientId,
           planId: dto.planId,
@@ -101,7 +108,17 @@ export class SubscriptionsService {
         },
         include: { plan: true },
       });
+
+      return { subscription: created, isFirstSubscription: priorSubscriptions === 0 };
     });
+
+    // Post-registration welcome email — best-effort after the transaction has
+    // committed; sendPatientWelcomeEmail swallows its own failures.
+    if (isFirstSubscription) {
+      void this.notifications.sendPatientWelcomeEmail(patientId, dto.planId);
+    }
+
+    return subscription;
   }
 
   // Patient-facing upgrade flow. For paid plans this issues a pending Payment
