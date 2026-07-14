@@ -483,7 +483,7 @@ export const appointments = {
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined) qs.set(key, String(value))
     })
-    return request<Array<{ providerId: string; providerName: string; slots: string[] }>>(
+    return request<Array<{ providerId: string; providerName: string; slots: string[]; hasScheduleConfigured: boolean }>>(
       `/appointments/slots?${qs}`,
     )
   },

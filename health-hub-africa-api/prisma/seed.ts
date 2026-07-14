@@ -27,11 +27,9 @@ async function main() {
       // site's Plans & Pricing page (myvaultplus-web/src/lib/planData.ts).
       features: [
         'Digital Health Passport',
-        'Personal Health Record Storage',
+        'Basic Personal Health Record (PHR) Storage',
         'Emergency Health Profile',
-        'Medication Reminders',
         'Appointment Reminders',
-        'Vaccination Tracking',
         'Access to Pay-Per-Use Services',
       ],
       familyPricing: [],

@@ -41,11 +41,9 @@ export const PLANS: Plan[] = [
     ctaLabel: 'Create Free Account',
     features: [
       'Digital Health Passport',
-      'Personal Health Record Storage',
+      'Basic Personal Health Record (PHR) Storage',
       'Emergency Health Profile',
-      'Medication Reminders',
       'Appointment Reminders',
-      'Vaccination Tracking',
       'Access to Pay-Per-Use Services',
     ],
     familyPricing: [],
