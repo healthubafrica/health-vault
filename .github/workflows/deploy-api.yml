@@ -38,15 +38,26 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and push Docker image
+      # The API runs on Fargate ARM64 (Graviton) — ~20% cheaper for the same
+      # vCPU/memory. QEMU + buildx let the x86 runner produce the arm64 image.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image (linux/arm64)
         id: build
         working-directory: health-hub-africa-api
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker buildx build \
+            --platform linux/arm64 \
+            --provenance=false \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            --push .
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - name: Download current task definition
@@ -54,7 +65,10 @@ jobs:
           aws ecs describe-task-definition \
             --task-definition ${{ env.TASK_FAMILY }} \
             --query taskDefinition > task-definition-raw.json
-          jq 'del(.enableFaultInjection)' task-definition-raw.json > task-definition.json
+          # Pin the runtime platform to ARM64 to match the image above.
+          jq 'del(.enableFaultInjection)
+              | .runtimePlatform = {cpuArchitecture: "ARM64", operatingSystemFamily: "LINUX"}' \
+            task-definition-raw.json > task-definition.json
 
       - name: Update image in task definition
         id: task-def
