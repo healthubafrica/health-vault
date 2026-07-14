@@ -53,6 +53,13 @@ export class ProvidersController {
     return this.providersService.findMyProfile(user);
   }
 
+  @Patch('me')
+  @Roles(UserRole.provider)
+  @ApiOperation({ summary: "Update the authenticated provider's own profile" })
+  updateMyProfile(@Body() dto: UpdateProviderDto, @CurrentUser() user: JwtPayload) {
+    return this.providersService.updateMyProfile(dto, user);
+  }
+
   @Get('me/notification-emails')
   @Roles(UserRole.provider)
   @ApiOperation({ summary: "List the authenticated provider's extra notification emails" })
