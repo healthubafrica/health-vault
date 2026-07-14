@@ -412,6 +412,20 @@ export interface ServiceProvider {
   rating?: number
   isAvailable: boolean
   priority: number
+  // Professional profile shown to patients when choosing a provider.
+  profilePhotoUrl?: string | null
+  bio?: string | null
+  yearsExperience?: number
+  subspecialties?: string[]
+  qualifications?: string[]
+  certifications?: string[]
+  professionalMemberships?: string[]
+  languages?: string[]
+  clinicalInterests?: string[]
+  consultationServices?: string[]
+  clinicName?: string | null
+  clinicCity?: string | null
+  clinicState?: string | null
 }
 
 export interface CreateAppointmentPayload {

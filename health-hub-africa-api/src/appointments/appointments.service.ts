@@ -583,6 +583,19 @@ export class AppointmentsService {
             isAvailable: true,
             verifiedAt: true,
             deletedAt: true,
+            profilePhotoUrl: true,
+            bio: true,
+            yearsExperience: true,
+            subspecialties: true,
+            qualifications: true,
+            certifications: true,
+            professionalMemberships: true,
+            languages: true,
+            clinicalInterests: true,
+            consultationServices: true,
+            clinicName: true,
+            clinicCity: true,
+            clinicState: true,
           },
         },
         shiftAssignments: requestedAt
@@ -619,6 +632,21 @@ export class AppointmentsService {
         rating: g.provider.rating,
         isAvailable: g.provider.isAvailable,
         priority: g.priority,
+        // Professional profile — lets the patient make an informed choice
+        // directly in the booking picker without a second round-trip.
+        profilePhotoUrl: g.provider.profilePhotoUrl,
+        bio: g.provider.bio,
+        yearsExperience: g.provider.yearsExperience,
+        subspecialties: g.provider.subspecialties,
+        qualifications: g.provider.qualifications,
+        certifications: g.provider.certifications,
+        professionalMemberships: g.provider.professionalMemberships,
+        languages: g.provider.languages,
+        clinicalInterests: g.provider.clinicalInterests,
+        consultationServices: g.provider.consultationServices,
+        clinicName: g.provider.clinicName,
+        clinicCity: g.provider.clinicCity,
+        clinicState: g.provider.clinicState,
       }));
   }
 

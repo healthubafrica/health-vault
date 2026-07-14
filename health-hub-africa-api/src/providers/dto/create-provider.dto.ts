@@ -48,7 +48,65 @@ export class CreateProviderDto {
   @IsString({ each: true })
   subSpecializations?: string[];
 
+  // Structured professional-profile arrays (patient-facing). `qualifications`
+  // remains accepted as a legacy free-text string too — normalized service-side.
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  qualificationsList?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  certifications?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  professionalMemberships?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  languages?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  clinicalInterests?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  consultationServices?: string[];
+
+  @ApiPropertyOptional({ description: 'Clinic / practice name' })
+  @IsOptional()
+  @IsString()
+  clinicName?: string;
+
   @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  clinicAddress?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  clinicCity?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  clinicState?: string;
+
+  @ApiPropertyOptional({ description: 'Legacy free-text qualifications; prefer qualificationsList' })
   @IsOptional()
   @IsString()
   qualifications?: string;
