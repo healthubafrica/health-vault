@@ -51,6 +51,7 @@ const NAV: NavItem[] = [
   { label: 'Overview', href: '/overview', icon: LayoutDashboard },
 
   // Provider-only section
+  { label: 'My Profile', href: '/provider/profile', icon: UserCircle, roles: ['provider'], group: 'Clinical' },
   { label: 'My Sessions', href: '/provider/telecare', icon: Video, roles: ['provider'], group: 'Clinical' },
   { label: 'My Shifts', href: '/provider/shifts', icon: CalendarClock, roles: ['provider'], group: 'Clinical' },
   { label: 'My Appointments', href: '/provider/appointments', icon: CalendarCheck, roles: ['provider'], group: 'Clinical' },

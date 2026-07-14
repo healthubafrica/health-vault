@@ -1218,7 +1218,77 @@ export const adminApi = {
   },
 }
 
+// Full professional profile returned by GET /providers/me and the update.
+export interface ProviderProfile {
+  id: string
+  firstName: string
+  lastName: string
+  title: string
+  specialty: string
+  licenseNumber?: string | null
+  yearsExperience: number
+  bio?: string | null
+  subspecialties: string[]
+  qualifications: string[]
+  certifications: string[]
+  professionalMemberships: string[]
+  languages: string[]
+  clinicalInterests: string[]
+  consultationServices: string[]
+  clinicName?: string | null
+  clinicAddress?: string | null
+  clinicCity?: string | null
+  clinicState?: string | null
+  rating?: string | null
+  totalPatients: number
+  isAvailable: boolean
+  verifiedAt?: string | null
+  profilePhotoUrl?: string | null
+  user?: { email: string; phone?: string; isVerified: boolean }
+}
+
+// Editable-by-the-provider slice. Excludes credential fields (license,
+// specialty) which reset admin verification and are managed via admin flows.
+export interface ProviderProfileUpdate {
+  bio?: string
+  yearsOfExperience?: number
+  subSpecializations?: string[]
+  qualificationsList?: string[]
+  certifications?: string[]
+  professionalMemberships?: string[]
+  languages?: string[]
+  clinicalInterests?: string[]
+  consultationServices?: string[]
+  clinicName?: string
+  clinicAddress?: string
+  clinicCity?: string
+  clinicState?: string
+  acceptsVirtualConsults?: boolean
+  profilePhotoUrl?: string
+}
+
 export const providerSelf = {
+  getProfile: () => request<{ data: ProviderProfile }>('/providers/me'),
+
+  updateProfile: (dto: ProviderProfileUpdate) =>
+    request<{ data: ProviderProfile }>('/providers/me', {
+      method: 'PATCH',
+      body: JSON.stringify(dto),
+    }),
+
+  // Unified profile-photo flow (shared with patients): presign → PUT to S3 →
+  // persist. setProfilePhoto mirrors the URL onto the provider row.
+  requestPhotoUploadUrl: (contentType: string, sizeBytes: number) =>
+    request<{ uploadUrl: string; objectKey: string; publicUrl: string }>(
+      '/auth/me/profile-photo-upload-url',
+      { method: 'POST', body: JSON.stringify({ contentType, sizeBytes }) },
+    ),
+  setProfilePhoto: (profilePhotoUrl: string) =>
+    request<{ profilePhotoUrl: string }>('/auth/me/profile-photo', {
+      method: 'PATCH',
+      body: JSON.stringify({ profilePhotoUrl }),
+    }),
+
   notificationEmails: {
     list: () => request<ProviderNotificationEmail[]>('/providers/me/notification-emails'),
     add: (label: string | undefined, email: string) =>

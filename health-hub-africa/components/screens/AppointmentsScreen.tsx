@@ -8,7 +8,9 @@ import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
 import { FormInput, FormSelect, FormTextarea } from '@/components/ui/FormInput'
 import { formatDate } from '@/lib/utils'
-import { CalendarDays } from 'lucide-react'
+import { CalendarDays, Star, Info } from 'lucide-react'
+import { Avatar } from '@/components/ui/Avatar'
+import { ProviderDetailsModal } from '@/components/appointments/ProviderDetailsModal'
 import { toast } from 'sonner'
 import {
   appointments as apptApi,
@@ -108,6 +110,7 @@ export function AppointmentsScreen() {
   const [serviceProviders, setServiceProviders] = useState<ServiceProvider[]>([])
   const [providersLoading, setProvidersLoading] = useState(false)
   const [selectedProviderId, setSelectedProviderId] = useState<string>('')
+  const [detailsProvider, setDetailsProvider] = useState<ServiceProvider | null>(null)
   const providerFetchRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
@@ -302,6 +305,11 @@ export function AppointmentsScreen() {
         onClose={() => setRescheduleTarget(null)}
         onRescheduled={() => refetch()}
       />
+      <ProviderDetailsModal
+        provider={detailsProvider}
+        onClose={() => setDetailsProvider(null)}
+        onChoose={(id) => setSelectedProviderId(id)}
+      />
 
       {/* Book New */}
       <Card>
@@ -359,20 +367,78 @@ export function AppointmentsScreen() {
                 No providers assigned to this service yet — your care team will be assigned after booking.
               </p>
             ) : (
-              <FormSelect
-                value={selectedProviderId}
-                onChange={e => setSelectedProviderId(e.target.value)}
-              >
-                <option value="">Let the care team assign a provider</option>
-                {serviceProviders.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {buildProviderDisplayName(p)}
-                    {p.specialty ? ` — ${p.specialty}` : ''}
-                    {' '}({priorityLabel(p.priority)})
-                    {!p.isAvailable ? ' [Unavailable]' : ''}
-                  </option>
-                ))}
-              </FormSelect>
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedProviderId('')}
+                  className="flex items-center gap-3 p-3 rounded-xl border text-left transition-colors"
+                  style={{
+                    borderColor: selectedProviderId === '' ? '#6DC43F' : 'var(--color-border)',
+                    background: selectedProviderId === '' ? 'var(--color-success-bg)' : 'var(--color-surface)',
+                  }}
+                >
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--color-bg)' }}>
+                    <CalendarDays size={16} style={{ color: 'var(--color-text-muted)' }} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Let the care team assign a provider</p>
+                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>We&apos;ll match you with the best available provider</p>
+                  </div>
+                </button>
+
+                {serviceProviders.map(p => {
+                  const selected = selectedProviderId === p.id
+                  return (
+                    <div
+                      key={p.id}
+                      className="flex items-center gap-3 p-3 rounded-xl border transition-colors"
+                      style={{
+                        borderColor: selected ? '#6DC43F' : 'var(--color-border)',
+                        background: selected ? 'var(--color-success-bg)' : 'var(--color-surface)',
+                        opacity: p.isAvailable ? 1 : 0.6,
+                      }}
+                    >
+                      <button
+                        type="button"
+                        disabled={!p.isAvailable}
+                        onClick={() => setSelectedProviderId(p.id)}
+                        className="flex items-center gap-3 flex-1 min-w-0 text-left disabled:cursor-not-allowed"
+                      >
+                        <Avatar seed={`${p.firstName} ${p.lastName}`} src={p.profilePhotoUrl ?? undefined} size="md" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold truncate" style={{ color: 'var(--color-text)' }}>
+                            {buildProviderDisplayName(p)}{!p.isAvailable ? ' · Unavailable' : ''}
+                          </p>
+                          <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)' }}>
+                            {p.specialty ?? 'General Practice'}
+                            {p.yearsExperience ? ` · ${p.yearsExperience} yrs` : ''}
+                          </p>
+                          {(p.languages?.length || p.rating != null) && (
+                            <div className="flex items-center gap-2 mt-0.5">
+                              {p.rating != null && (
+                                <span className="inline-flex items-center gap-0.5 text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                                  <Star size={10} className="fill-current" style={{ color: '#F5A623' }} />{Number(p.rating).toFixed(1)}
+                                </span>
+                              )}
+                              {p.languages?.length ? (
+                                <span className="text-[11px]" style={{ color: 'var(--color-text-faint)' }}>{p.languages.slice(0, 3).join(', ')}</span>
+                              ) : null}
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDetailsProvider(p)}
+                        className="shrink-0 inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg"
+                        style={{ color: '#137333', background: 'var(--color-bg)' }}
+                      >
+                        <Info size={13} />View
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
             )}
           </div>
 
