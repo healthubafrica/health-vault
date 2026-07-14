@@ -1420,6 +1420,7 @@ export class AdminService {
     // payment with no activated subscription and no way to safely retry.
     const meta = payment.metadata as { kind?: string; planId?: string; billingCycle?: string } | null;
 
+    let firstSubscription = false;
     await this.prisma.$transaction(async (tx) => {
       await tx.payment.update({
         where: { id: paymentId },
@@ -1436,6 +1437,11 @@ export class AdminService {
         else if (cycle === 'quarterly') endDate.setMonth(endDate.getMonth() + 3);
         else endDate.setMonth(endDate.getMonth() + 1);
 
+        // First-ever subscription row = registration completing via bank
+        // transfer → one-time welcome email after the tx commits.
+        firstSubscription =
+          (await tx.patientSubscription.count({ where: { patientId: payment.patientId } })) === 0;
+
         await tx.patientSubscription.updateMany({
           where: { patientId: payment.patientId, status: { in: ['active', 'trial'] } },
           data: { status: 'cancelled' as any, cancelledAt: new Date(), cancellationReason: 'Upgraded via bank transfer confirmation' },
@@ -1451,6 +1457,10 @@ export class AdminService {
         });
       }
     });
+
+    if (firstSubscription && meta?.planId) {
+      void this.notifications.sendPatientWelcomeEmail(payment.patientId, meta.planId);
+    }
 
     return { confirmed: true };
   }

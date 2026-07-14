@@ -28,6 +28,16 @@ export interface NotificationJobData {
   deliveryId: string;
 }
 
+// Structured data for the post-registration welcome email. Sent exactly once,
+// when a patient's FIRST subscription (Free or Paid) becomes active.
+export interface WelcomeEmailData {
+  firstName: string;
+  email: string;
+  planName: string;
+  planKind: 'Free' | 'Paid';
+  registrationDate: string; // pre-formatted (WAT)
+}
+
 // Structured data for share notification emails.
 export interface ShareNotificationData {
   recipientEmail: string;
@@ -151,6 +161,80 @@ export class NotificationsService {
       (data.outro ? `\n${data.outro}` : '') +
       '\n\n— Health Hub Africa'
     );
+  }
+
+  // Post-registration welcome email (approved copy) — fired once, on the
+  // patient's first subscription activation. Plain-text body doubles as the
+  // delivery-log record and the text/plain fallback; the processor renders
+  // the branded HTML version.
+  async sendWelcomeEmail(to: string, userId: string, data: WelcomeEmailData) {
+    if (!(await this.rateLimiter.allow('email', to))) return;
+    const subject = 'Welcome to MyHealth Vault+™ – Your Account Has Been Successfully Created';
+    const body =
+      `Dear ${data.firstName},\n\n` +
+      `Welcome to MyHealth Vault+™, your secure digital health companion from Health-Hub Africa®.\n\n` +
+      `We're delighted to let you know that your account has been successfully created.\n\n` +
+      `Your Registration Details\n` +
+      `- Account Status: Active\n` +
+      `- Subscription Plan: ${data.planName} (${data.planKind})\n` +
+      `- Registered Email: ${data.email}\n` +
+      `- Registration Date: ${data.registrationDate}\n\n` +
+      `Thank you for choosing MyHealth Vault+™ to securely manage your health information and access healthcare services anytime, anywhere.\n\n` +
+      `What's Next?\n` +
+      `- Verify your email address (if prompted) to activate all features.\n` +
+      `- Complete your personal health profile: personal information, medical history, allergies, current medications, emergency contacts.\n` +
+      `- Upload your important health records: laboratory results, imaging reports, medical summaries, vaccination records, prescriptions.\n` +
+      `- Book your first appointment with one of our healthcare providers whenever you need care.\n\n` +
+      `Need Assistance?\n` +
+      `Health-Hub Africa® Support\n` +
+      `Email: support@healthubafrica.com\n` +
+      `Web: www.healthubafrica.com\n\n` +
+      `Thank you for trusting Health-Hub Africa® with your healthcare journey. We look forward to serving you.\n\n` +
+      `Warm regards,\nThe Health-Hub Africa® Team\n\nSpeed. Agility. Access.`;
+    const deliveryId = await this.createDelivery(userId, 'email', to, subject, body);
+    await this.queue.add(
+      'send-welcome-email',
+      { userId, channel: 'email', to, subject, body, metadata: { welcome: data }, deliveryId },
+      { attempts: 3, backoff: { type: 'exponential', delay: 3000 } },
+    );
+  }
+
+  // Convenience wrapper for the registration-welcome triggers: looks up the
+  // patient and plan, assembles WelcomeEmailData, and swallows every failure
+  // — a welcome email must never break subscription activation.
+  async sendPatientWelcomeEmail(patientId: string, planId: string): Promise<void> {
+    try {
+      const [patient, plan] = await Promise.all([
+        this.prisma.patient.findUnique({
+          where: { id: patientId },
+          select: {
+            firstName: true,
+            createdAt: true,
+            userId: true,
+            user: { select: { email: true } },
+          },
+        }),
+        this.prisma.subscriptionPlan.findUnique({
+          where: { id: planId },
+          select: { name: true, tier: true },
+        }),
+      ]);
+      if (!patient?.user?.email || !plan) return;
+
+      await this.sendWelcomeEmail(patient.user.email, patient.userId, {
+        firstName: patient.firstName,
+        email: patient.user.email,
+        planName: plan.name,
+        planKind: String(plan.tier) === 'Free' ? 'Free' : 'Paid',
+        registrationDate: patient.createdAt.toLocaleDateString('en-GB', {
+          day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Lagos',
+        }),
+      });
+    } catch (err) {
+      this.logger.error(
+        `Failed to send welcome email for patient ${patientId}: ${err instanceof Error ? err.message : err}`,
+      );
+    }
   }
 
   // Rich HTML appointment email — routes to the dedicated appointment card template.
