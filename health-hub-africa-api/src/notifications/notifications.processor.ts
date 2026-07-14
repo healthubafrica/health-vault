@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { Job } from 'bull';
 import { Resend } from 'resend';
 import { PrismaService } from '../prisma/prisma.service';
-import { NOTIFICATIONS_QUEUE, NotificationJobData, AppointmentNotificationData, ShareNotificationData } from './notifications.service';
+import { NOTIFICATIONS_QUEUE, NotificationJobData, AppointmentNotificationData, ShareNotificationData, WelcomeEmailData } from './notifications.service';
 
 @Processor(NOTIFICATIONS_QUEUE)
 export class NotificationsProcessor {
@@ -72,6 +72,17 @@ export class NotificationsProcessor {
     const apptData = metadata?.appt as AppointmentNotificationData | undefined;
     const html = apptData
       ? buildAppointmentHtml(subject ?? '', apptData)
+      : buildGenericHtml(subject ?? '', body);
+    await this.sendEmailTracked(deliveryId, job, to, subject ?? 'MyHealth Vault+™', html, body);
+  }
+
+  @Process({ name: 'send-welcome-email', concurrency: 5 })
+  async handleWelcomeEmail(job: Job<NotificationJobData>) {
+    const { to, subject, body, metadata, deliveryId } = job.data;
+    if (!this.isProd) this.logger.log(`[DEV ONLY] Welcome email to ${to}`);
+    const welcomeData = metadata?.welcome as WelcomeEmailData | undefined;
+    const html = welcomeData
+      ? buildWelcomeHtml(welcomeData)
       : buildGenericHtml(subject ?? '', body);
     await this.sendEmailTracked(deliveryId, job, to, subject ?? 'MyHealth Vault+™', html, body);
   }
@@ -478,6 +489,104 @@ function buildShareHtml(_subject: string, d: ShareNotificationData): string {
         <li style="margin:2px 0;font-size:12px;color:#5A4A00;">The sender can revoke your access at any time.</li>
       </ul>
     </div>`;
+
+  return emailShell(content);
+}
+
+function buildWelcomeHtml(d: WelcomeEmailData): string {
+  const nextSteps = [
+    ['Verify your email address', '(if prompted) to activate all features.'],
+    ['Complete your personal health profile', '— personal information, medical history, allergies, current medications, emergency contacts.'],
+    ['Upload your important health records', '— laboratory results, imaging reports, medical summaries, vaccination records, prescriptions.'],
+    ['Book your first appointment', 'with one of our healthcare providers whenever you need care.'],
+  ]
+    .map(
+      ([bold, rest]) => `
+      <tr>
+        <td style="padding:7px 0;font-size:14px;vertical-align:top;width:24px;color:#137333;">✅</td>
+        <td style="padding:7px 0;font-size:14px;color:#1A1A1A;line-height:1.6;">
+          <strong>${escapeHtml(bold)}</strong> ${escapeHtml(rest)}
+        </td>
+      </tr>`,
+    )
+    .join('');
+
+  const content = `
+    <div style="display:inline-block;background:#E6F4F0;border-radius:20px;padding:6px 14px;margin-bottom:20px;">
+      <span style="font-size:13px;font-weight:700;color:#0E4A30;">🎉&nbsp;&nbsp;Account Created</span>
+    </div>
+
+    <h1 style="margin:0 0 6px;font-size:22px;font-weight:800;color:#1A1A1A;">
+      Welcome to MyHealth Vault+™, ${escapeHtml(d.firstName)}!
+    </h1>
+    <p style="margin:0 0 24px;font-size:15px;color:#3D3D3D;line-height:1.6;">
+      Your secure digital health companion from Health-Hub Africa®. We're delighted to let you
+      know that your account has been successfully created.
+    </p>
+
+    <!-- Registration details card -->
+    <div style="background:#F8FAFA;border:1.5px solid #E0EAED;border-radius:12px;padding:20px 24px;margin-bottom:24px;">
+      <p style="margin:0 0 10px;font-size:12px;font-weight:700;color:#0E4A30;letter-spacing:0.5px;text-transform:uppercase;">
+        Your Registration Details
+      </p>
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tbody>
+          <tr>
+            <td style="padding:7px 0;font-size:13px;color:#6B6B6B;width:150px;">Account Status</td>
+            <td style="padding:7px 0;font-size:13px;font-weight:700;color:#137333;">Active</td>
+          </tr>
+          <tr>
+            <td style="padding:7px 0;font-size:13px;color:#6B6B6B;">Subscription Plan</td>
+            <td style="padding:7px 0;font-size:13px;color:#1A1A1A;font-weight:600;">${escapeHtml(d.planName)} (${escapeHtml(d.planKind)})</td>
+          </tr>
+          <tr>
+            <td style="padding:7px 0;font-size:13px;color:#6B6B6B;">Registered Email</td>
+            <td style="padding:7px 0;font-size:13px;color:#1A1A1A;">${escapeHtml(d.email)}</td>
+          </tr>
+          <tr>
+            <td style="padding:7px 0;font-size:13px;color:#6B6B6B;">Registration Date</td>
+            <td style="padding:7px 0;font-size:13px;color:#1A1A1A;">${escapeHtml(d.registrationDate)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin:0 0 20px;font-size:14px;color:#3D3D3D;line-height:1.7;">
+      Thank you for choosing MyHealth Vault+™ to securely manage your health information and
+      access healthcare services anytime, anywhere.
+    </p>
+
+    <h2 style="margin:0 0 8px;font-size:16px;font-weight:800;color:#1A1A1A;">What's Next?</h2>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+      <tbody>${nextSteps}</tbody>
+    </table>
+
+    <div style="margin:8px 0 24px;text-align:center;">
+      <a href="https://portal.myvaultplus.com/dashboard" style="display:inline-block;background:#0E4A30;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:13px 32px;border-radius:8px;">
+        Go to your dashboard
+      </a>
+    </div>
+
+    <!-- Support block -->
+    <div style="background:#F8FAFA;border-radius:12px;padding:16px 20px;margin-bottom:20px;">
+      <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#1A1A1A;">Need Assistance?</p>
+      <p style="margin:0;font-size:13px;color:#3D3D3D;line-height:1.7;">
+        Health-Hub Africa® Support<br/>
+        📧 <a href="mailto:support@healthubafrica.com" style="color:#137333;text-decoration:none;">support@healthubafrica.com</a><br/>
+        🌐 <a href="https://www.healthubafrica.com" style="color:#137333;text-decoration:none;">www.healthubafrica.com</a>
+      </p>
+    </div>
+
+    <p style="margin:0;font-size:14px;color:#3D3D3D;line-height:1.7;">
+      Thank you for trusting Health-Hub Africa® with your healthcare journey.
+      We look forward to serving you.
+    </p>
+    <p style="margin:16px 0 0;font-size:14px;color:#1A1A1A;line-height:1.6;">
+      Warm regards,<br/><strong>The Health-Hub Africa® Team</strong>
+    </p>
+    <p style="margin:14px 0 0;font-size:12px;font-weight:700;color:#0E4A30;letter-spacing:1px;">
+      SPEED. AGILITY. ACCESS.
+    </p>`;
 
   return emailShell(content);
 }
