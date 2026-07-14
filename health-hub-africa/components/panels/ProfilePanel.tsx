@@ -42,6 +42,8 @@ export function ProfilePanel() {
   const conditions = profile?.medicalInfo?.chronicConditions ?? []
   const medications = profile?.medicalInfo?.activeMedications ?? []
   const immunizations = profile?.medicalInfo?.immunizations ?? []
+  // Vaccination Tracking is a paid-tier entitlement — Free plan doesn't include it.
+  const canViewImmunizations = !!activeSub && activeSub.plan.tier !== 'Free'
 
   return (
     <div className="flex flex-col gap-5 p-4">
@@ -122,21 +124,24 @@ export function ProfilePanel() {
         )}
       </div>
 
-      {/* Immunizations — synced from the clinic's OpenEMR record */}
-      <div>
-        <p className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--color-text-muted)' }}>
-          Immunizations
-        </p>
-        {immunizations.length === 0 ? (
-          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>None recorded</p>
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {immunizations.map(i => (
-              <Pill key={i} variant="info">{i}</Pill>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Immunizations — synced from the clinic's OpenEMR record. Vaccination
+          Tracking is a paid-tier feature, so this section is hidden on Free. */}
+      {canViewImmunizations && (
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--color-text-muted)' }}>
+            Immunizations
+          </p>
+          {immunizations.length === 0 ? (
+            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>None recorded</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {immunizations.map(i => (
+                <Pill key={i} variant="info">{i}</Pill>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
