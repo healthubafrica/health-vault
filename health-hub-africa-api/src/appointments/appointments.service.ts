@@ -688,7 +688,7 @@ export class AppointmentsService {
     durationMinutes?: number;
     providerId?: string;
     excludeAppointmentId?: string;
-  }): Promise<Array<{ providerId: string; providerName: string; slots: string[] }>> {
+  }): Promise<Array<{ providerId: string; providerName: string; slots: string[]; hasScheduleConfigured: boolean }>> {
     const durationMinutes = params.durationMinutes ?? 30;
     const dayOfWeek = new Date(`${params.date}T00:00:00.000Z`).getUTCDay();
     const now = Date.now();
@@ -703,6 +703,7 @@ export class AppointmentsService {
         provider: {
           select: { id: true, firstName: true, lastName: true, title: true, verifiedAt: true, deletedAt: true },
         },
+        // Day-filtered — used to compute this day's actual slots.
         shiftAssignments: {
           where: {
             effectiveFrom: { lte: new Date(`${params.date}T00:00:00.000Z`) },
@@ -711,13 +712,36 @@ export class AppointmentsService {
           },
           select: { shiftTemplate: { select: { startTime: true, endTime: true } } },
         },
+        // Unfiltered count — distinguishes "no shift today" (still has a
+        // schedule, just not this day of week) from "no schedule configured
+        // at all" (admin never set up shift templates for this provider),
+        // so callers like reschedule can fall back to manual entry only in
+        // the latter case instead of showing a permanent dead end.
+        _count: { select: { shiftAssignments: true } },
       },
     });
 
-    const result: Array<{ providerId: string; providerName: string; slots: string[] }> = [];
+    const result: Array<{ providerId: string; providerName: string; slots: string[]; hasScheduleConfigured: boolean }> = [];
 
     for (const g of groups) {
-      if (g.provider.deletedAt || !g.provider.verifiedAt || g.shiftAssignments.length === 0) continue;
+      if (g.provider.deletedAt || !g.provider.verifiedAt) continue;
+
+      const hasScheduleConfigured = g._count.shiftAssignments > 0;
+
+      if (g.shiftAssignments.length === 0) {
+        // Only surface the "no schedule at all" signal when the caller asked
+        // about one specific provider (reschedule) — the multi-provider
+        // booking screen should keep silently skipping unavailable providers.
+        if (params.providerId && !hasScheduleConfigured) {
+          result.push({
+            providerId: g.provider.id,
+            providerName: buildProviderDisplayName(g.provider),
+            slots: [],
+            hasScheduleConfigured: false,
+          });
+        }
+        continue;
+      }
 
       const booked = await this.getProviderAppointmentsForDay(
         g.provider.id,
@@ -741,11 +765,31 @@ export class AppointmentsService {
         }
       }
 
-      if (slots.length > 0) {
+      if (slots.length > 0 || params.providerId) {
         result.push({
           providerId: g.provider.id,
           providerName: buildProviderDisplayName(g.provider),
           slots: slots.sort(),
+          hasScheduleConfigured: true,
+        });
+      }
+    }
+
+    // No ProviderServiceGroup matched at all for this provider+serviceType
+    // (e.g. the appointment's serviceType was never assigned to them) — same
+    // "nothing to show, ever" situation as an empty schedule, so callers
+    // should fall back the same way.
+    if (params.providerId && result.length === 0) {
+      const provider = await this.prisma.provider.findUnique({
+        where: { id: params.providerId },
+        select: { firstName: true, lastName: true, title: true },
+      });
+      if (provider) {
+        result.push({
+          providerId: params.providerId,
+          providerName: buildProviderDisplayName(provider),
+          slots: [],
+          hasScheduleConfigured: false,
         });
       }
     }
