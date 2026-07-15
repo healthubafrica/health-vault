@@ -1,7 +1,11 @@
-// Central API client — all backend calls go through here.
-// Tokens are stored in secure cookies (set by this module) rather than bare
-// localStorage so they survive page reloads and are not accessible to
-// third-party scripts injected via XSS.
+// Central API client — all backend data calls go through here with a
+// short-lived access token attached as Authorization: Bearer.
+//
+// Session cookies are issued by the same-origin Next.js /api/auth/* route
+// handlers (app/api/auth/*). The refresh token (hha_rt) is HttpOnly, so an
+// injected script cannot read the long-lived credential; only the /api/auth
+// route handlers can. The access token (hha_at) is readable here solely so we
+// can attach it as a Bearer header, and it expires in 15 minutes.
 
 import {
   friendlyApiError,
@@ -11,8 +15,7 @@ import {
 
 const BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000') + '/api/v1'
 
-const ACCESS_COOKIE = 'hha_at'   // access token  — samesite=strict
-const REFRESH_COOKIE = 'hha_rt'  // refresh token — samesite=strict
+const ACCESS_COOKIE = 'hha_at'   // access token — set by /api/auth/*, readable by JS
 
 // ── Cookie helpers ────────────────────────────────────────────────────────
 
@@ -22,28 +25,36 @@ function getCookie(name: string): string | null {
   return match ? decodeURIComponent(match[1]) : null
 }
 
-function setCookie(name: string, value: string, maxAgeSeconds: number) {
-  if (typeof document === 'undefined') return
-  // SEC-002: use secure + samesite=strict so tokens cannot be sent in
-  // cross-origin requests and are not accessible to injected scripts.
-  const secure = location.protocol === 'https:' ? '; Secure' : ''
-  document.cookie =
-    `${name}=${encodeURIComponent(value)}; Max-Age=${maxAgeSeconds}; Path=/; SameSite=Strict${secure}`
-}
-
 function deleteCookie(name: string) {
   if (typeof document === 'undefined') return
   document.cookie = `${name}=; Max-Age=0; Path=/; SameSite=Strict`
 }
 
-export function saveTokens(access: string, refresh: string) {
-  setCookie(ACCESS_COOKIE, access, 900)        // 15 min — matches JWT_EXPIRY
-  setCookie(REFRESH_COOKIE, refresh, 604800)   // 7 days  — matches JWT_REFRESH_EXPIRY
-}
-
+// Clears the JS-readable access token. hha_rt is HttpOnly and is cleared
+// server-side by the /api/auth/logout and /api/auth/refresh route handlers.
 export function clearTokens() {
   deleteCookie(ACCESS_COOKIE)
-  deleteCookie(REFRESH_COOKIE)
+}
+
+// ── BFF helper for same-origin /api/auth/* route handlers ──────────────────
+
+async function bffFetch<T>(path: string, body?: Record<string, unknown>): Promise<T> {
+  let res: Response
+  try {
+    res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    })
+  } catch {
+    throw new ApiError(0, friendlyNetworkError())
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, friendlyApiError(res.status, (data as { message?: string }).message))
+  }
+  if (res.status === 204) return undefined as T
+  return res.json() as Promise<T>
 }
 
 // ── Core fetch wrapper ────────────────────────────────────────────────────
@@ -127,18 +138,11 @@ async function request<T>(
 }
 
 async function attemptTokenRefresh(): Promise<boolean> {
-  const refresh = getCookie(REFRESH_COOKIE)
-  if (!refresh) return false
-
+  // The HttpOnly refresh cookie is sent automatically to the route handler,
+  // which rotates both cookies server-side.
   try {
-    const res = await fetch(`${BASE}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-refresh-token': refresh },
-    })
-    if (!res.ok) return false
-    const data = (await res.json()) as { accessToken: string; refreshToken: string }
-    saveTokens(data.accessToken, data.refreshToken)
-    return true
+    const res = await fetch('/api/auth/refresh', { method: 'POST' })
+    return res.ok
   } catch {
     return false
   }
@@ -195,17 +199,16 @@ export const auth = {
       body: JSON.stringify({ email, password, phoneNumber, fullName }),
     }),
 
+  // login/verifyOtp go through the same-origin BFF so the HttpOnly refresh
+  // cookie is set server-side and never touches JS.
   login: (email: string, password: string) =>
-    request<{ accessToken: string; refreshToken: string; expiresIn: number }>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    }),
+    bffFetch<{ accessToken: string } | { requiresTwoFactor: true; userId: string }>(
+      '/api/auth/login',
+      { email, password },
+    ),
 
   verifyOtp: (email: string, otp: string, type = 'email') =>
-    request<{ accessToken: string; refreshToken: string; expiresIn: number }>('/auth/verify-otp', {
-      method: 'POST',
-      body: JSON.stringify({ email, otp, type }),
-    }),
+    bffFetch<{ accessToken: string }>('/api/auth/verify-otp', { email, otp, type }),
 
   requestSmsOtp: (email: string, phone?: string) =>
     request<{ message: string }>('/auth/request-sms-otp', {
@@ -215,8 +218,7 @@ export const auth = {
 
   me: () => request<{ data: User }>('/auth/me'),
 
-  logout: () =>
-    request<void>('/auth/logout', { method: 'POST' }),
+  logout: () => bffFetch<void>('/api/auth/logout'),
 
   forgotPassword: (email: string) =>
     request<{ message: string }>('/auth/forgot-password', {
