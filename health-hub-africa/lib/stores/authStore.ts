@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { auth, saveTokens, clearTokens, type User } from '@/lib/api'
+import { auth, clearTokens, type User } from '@/lib/api'
 
 interface AuthState {
   user: User | null
@@ -32,9 +32,8 @@ export const useAuthStore = create<AuthState>()(
       login: async (email, password) => {
         set({ isLoading: true, error: null })
         try {
-          // SEC-002: tokens are written as secure cookies by saveTokens()
-          const res = await auth.login(email, password)
-          saveTokens(res.accessToken, res.refreshToken)
+          // The /api/auth/login BFF sets the session cookies (HttpOnly refresh).
+          await auth.login(email, password)
           // Fetch full user profile after login
           const meRes = await auth.me()
           set({ user: meRes.data, isAuthenticated: true, isLoading: false })
@@ -58,9 +57,8 @@ export const useAuthStore = create<AuthState>()(
       verifyOtp: async (email, otp) => {
         set({ isLoading: true, error: null })
         try {
-          // verify-otp returns tokens (auto-login on verification)
-          const res = await auth.verifyOtp(email, otp)
-          saveTokens(res.accessToken, res.refreshToken)
+          // verify-otp auto-logs in; the BFF sets the session cookies.
+          await auth.verifyOtp(email, otp)
           const meRes = await auth.me()
           set({ user: meRes.data, isAuthenticated: true, isLoading: false })
         } catch (e: unknown) {
