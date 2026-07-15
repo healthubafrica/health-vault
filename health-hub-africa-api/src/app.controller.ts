@@ -1,4 +1,4 @@
-import { Controller, Get, VERSION_NEUTRAL } from '@nestjs/common';
+import { Controller, Get, NotFoundException, VERSION_NEUTRAL } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public } from './common/decorators/roles.decorator';
 
@@ -16,8 +16,12 @@ export class AppController {
 
   @Public()
   @Get('debug-sentry')
-  @ApiOperation({ summary: 'Intentional error to test Sentry integration' })
+  @ApiOperation({ summary: 'Intentional error to test Sentry integration (non-prod only)' })
   getError() {
+    // Not reachable in production — avoids letting anyone spam Sentry error events.
+    if (process.env.NODE_ENV === 'production') {
+      throw new NotFoundException();
+    }
     throw new Error('My first Sentry error!');
   }
 }

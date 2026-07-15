@@ -1,6 +1,17 @@
 import type { NextConfig } from 'next'
 import { withSentryConfig } from '@sentry/nextjs'
 
+const isDev = process.env.NODE_ENV !== 'production'
+
+// script-src: dev needs 'unsafe-eval' (React uses eval for enhanced error
+// stacks); production does not — Next/React never eval in prod. 'wasm-unsafe-eval'
+// keeps any WebAssembly (e.g. LiveKit audio) working without granting JS eval.
+// 'unsafe-inline' stays until we move to a per-request nonce (needs dynamic
+// rendering + telemedicine/hydration QA — tracked as a follow-up).
+const scriptSrc = isDev
+  ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"
+  : "script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'"
+
 const nextConfig: NextConfig = {
   async headers() {
     const sharedHeaders = [
@@ -16,7 +27,7 @@ const nextConfig: NextConfig = {
         key: 'Content-Security-Policy',
         value: [
           "default-src 'self'",
-          "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+          scriptSrc,
           "style-src 'self' 'unsafe-inline'",
           "img-src 'self' data: blob: https:",
           "font-src 'self'",
