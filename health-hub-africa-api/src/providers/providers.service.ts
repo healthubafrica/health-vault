@@ -15,25 +15,50 @@ import { QueryProvidersDto } from './dto/query-providers.dto';
 import { CreateProviderNotificationEmailDto } from './dto/provider-notification-email.dto';
 import { normalizeProviderName } from '../common/utils/provider-name.util';
 
-// The DTO captures a richer profile than the schema stores. Structured
-// details without dedicated columns are appended to the bio text so the
-// information survives.
-function buildBio(dto: Partial<CreateProviderDto>): string | undefined {
-  const details = [
-    dto.bio,
-    dto.qualifications ? `Qualifications: ${dto.qualifications}` : null,
-    dto.subSpecializations?.length
-      ? `Sub-specializations: ${dto.subSpecializations.join(', ')}`
-      : null,
-    dto.licenseBody ? `License body: ${dto.licenseBody}` : null,
-    dto.licenseCountry ? `License country: ${dto.licenseCountry}` : null,
-    dto.currentHospital ? `Hospital: ${dto.currentHospital}` : null,
-    dto.currentDepartment ? `Department: ${dto.currentDepartment}` : null,
-    [dto.officeAddress, dto.officeCity, dto.officeState, dto.officeCountry]
+// Structured professional-profile fields now have dedicated columns. `bio`
+// stays free-text biography only. Legacy inputs (qualifications as a string,
+// currentHospital/office* which map to the clinic columns) are folded into the
+// structured shape here so older callers keep working.
+export function buildProfileData(dto: Partial<CreateProviderDto>): Record<string, unknown> {
+  const data: Record<string, unknown> = {};
+
+  if (dto.bio !== undefined) data.bio = dto.bio;
+  if (dto.subSpecializations !== undefined) data.subspecialties = dto.subSpecializations;
+  if (dto.certifications !== undefined) data.certifications = dto.certifications;
+  if (dto.professionalMemberships !== undefined) data.professionalMemberships = dto.professionalMemberships;
+  if (dto.languages !== undefined) data.languages = dto.languages;
+  if (dto.clinicalInterests !== undefined) data.clinicalInterests = dto.clinicalInterests;
+  if (dto.consultationServices !== undefined) data.consultationServices = dto.consultationServices;
+  if (dto.clinicName !== undefined) data.clinicName = dto.clinicName;
+  if (dto.clinicState !== undefined) data.clinicState = dto.clinicState;
+  if (dto.clinicCity !== undefined) data.clinicCity = dto.clinicCity;
+
+  // qualifications: prefer the structured list; fall back to splitting the
+  // legacy free-text string on commas/newlines.
+  if (dto.qualificationsList !== undefined) {
+    data.qualifications = dto.qualificationsList;
+  } else if (dto.qualifications !== undefined) {
+    data.qualifications = dto.qualifications
+      .split(/[,\n]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  // clinicAddress: explicit column wins; otherwise fold legacy office* /
+  // currentHospital fields into the single clinic address line.
+  if (dto.clinicAddress !== undefined) {
+    data.clinicAddress = dto.clinicAddress;
+  } else {
+    const legacyAddress = [dto.officeAddress, dto.officeCity, dto.officeState, dto.officeCountry]
       .filter(Boolean)
-      .join(', ') || null,
-  ].filter(Boolean);
-  return details.length ? details.join('\n') : undefined;
+      .join(', ');
+    if (legacyAddress) data.clinicAddress = legacyAddress;
+  }
+  if (dto.clinicName === undefined && dto.currentHospital !== undefined) {
+    data.clinicName = dto.currentHospital;
+  }
+
+  return data;
 }
 
 const TITLE_BY_TYPE: Record<string, string> = {
@@ -115,9 +140,9 @@ export class ProvidersService {
           specialty: dto.specialization ?? dto.providerType,
           licenseNumber: dto.licenseNumber,
           yearsExperience: dto.yearsOfExperience ?? 0,
-          bio: buildBio(dto),
           isAvailable: dto.acceptsVirtualConsults ?? true,
           profilePhotoUrl: dto.profilePhotoUrl,
+          ...buildProfileData(dto),
           // verifiedAt intentionally null — sync stays paused and the
           // appointment booking gate stays closed until an admin clicks
           // Verify after reviewing the license.
@@ -212,7 +237,7 @@ export class ProvidersService {
     if (!provider) throw new NotFoundException('Provider not found');
     this.assertOwnerOrAdmin(provider, currentUser);
 
-    const bio = buildBio(dto);
+    const profileData = buildProfileData(dto);
 
     // If a credential-affecting field changes, the prior admin verification
     // no longer applies — clear it so the row stops syncing to OpenEMR and
@@ -241,7 +266,7 @@ export class ProvidersService {
         ...(dto.specialization !== undefined && { specialty: dto.specialization }),
         ...(dto.licenseNumber !== undefined && { licenseNumber: dto.licenseNumber }),
         ...(dto.yearsOfExperience !== undefined && { yearsExperience: dto.yearsOfExperience }),
-        ...(bio !== undefined && { bio }),
+        ...profileData,
         ...(dto.acceptsVirtualConsults !== undefined && {
           isAvailable: dto.acceptsVirtualConsults,
         }),
@@ -267,6 +292,13 @@ export class ProvidersService {
     }
 
     return updated;
+  }
+
+  // Self-service update — resolves the caller's own provider id, then reuses
+  // the same update() path (validation, verification-reset, sync).
+  async updateMyProfile(dto: UpdateProviderDto, currentUser: JwtPayload) {
+    const providerId = await this.resolveOwnProviderId(currentUser);
+    return this.update(providerId, dto, currentUser);
   }
 
   // ── Verify Provider (Admin only) ──────────────────────────────────────────
@@ -364,9 +396,21 @@ export class ProvidersService {
       licenseNumber: true,
       yearsExperience: true,
       bio: true,
+      subspecialties: true,
+      qualifications: true,
+      certifications: true,
+      professionalMemberships: true,
+      languages: true,
+      clinicalInterests: true,
+      consultationServices: true,
+      clinicName: true,
+      clinicAddress: true,
+      clinicCity: true,
+      clinicState: true,
       rating: true,
       totalPatients: true,
       isAvailable: true,
+      verifiedAt: true,
       profilePhotoUrl: true,
       createdAt: true,
       updatedAt: true,
