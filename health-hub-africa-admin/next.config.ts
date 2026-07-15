@@ -1,5 +1,14 @@
 import type { NextConfig } from 'next'
 
+const isDev = process.env.NODE_ENV !== 'production'
+
+// dev needs 'unsafe-eval' (React eval for error stacks); prod does not.
+// 'wasm-unsafe-eval' keeps WebAssembly (e.g. LiveKit audio) working without
+// granting JS eval. 'unsafe-inline' stays until a per-request nonce migration.
+const scriptSrc = isDev
+  ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"
+  : "script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'"
+
 const nextConfig: NextConfig = {
   async headers() {
     return [
@@ -22,7 +31,7 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+              scriptSrc,
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https:",
               "font-src 'self'",
