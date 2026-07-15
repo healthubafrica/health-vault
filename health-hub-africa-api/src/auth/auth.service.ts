@@ -617,6 +617,12 @@ export class AuthService {
   // Persists the canonical photo URL on the user and mirrors it into the
   // patient/provider profile when one exists, so every dashboard — patient
   // portal, admin lists, provider telecare — reads the same image.
+  //
+  // CONTRACT: profilePhotoUrl MUST already be validated to be an object this
+  // user uploaded via the presign flow (prefix `profile-photos/<userId>/`).
+  // The only caller — AuthController.setProfilePhoto — enforces this. Any new
+  // caller must do the same, or an attacker could point their avatar at
+  // another user's private object (see patients.service assertOwnPhotoUrl).
   async setProfilePhoto(userId: string, profilePhotoUrl: string) {
     await this.prisma.user.update({
       where: { id: userId },
