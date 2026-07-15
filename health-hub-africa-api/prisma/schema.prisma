@@ -400,6 +400,23 @@ model Provider {
   totalPatients   Int      @default(0) @map("total_patients")
   yearsExperience Int      @default(0) @map("years_experience")
   isAvailable     Boolean  @default(true) @map("is_available")
+
+  // ── Structured professional profile (patient-facing) ──────────────────────
+  // Previously flattened into `bio` free-text; now first-class columns so the
+  // patient portal renders each consistently. All optional — existing rows
+  // stay valid without backfill.
+  subspecialties          String[] @map("subspecialties")
+  qualifications          String[] @map("qualifications")
+  certifications          String[] @map("certifications")
+  professionalMemberships String[] @map("professional_memberships")
+  languages               String[] @map("languages")
+  clinicalInterests       String[] @map("clinical_interests")
+  consultationServices    String[] @map("consultation_services")
+  clinicName              String?  @map("clinic_name")
+  clinicAddress           String?  @map("clinic_address")
+  clinicCity              String?  @map("clinic_city")
+  clinicState             String?  @map("clinic_state")
+
   verifiedAt      DateTime? @map("verified_at")
   verifiedBy      String?   @map("verified_by") @db.Uuid
   openemrProviderUuid String? @unique @map("openemr_provider_uuid")
