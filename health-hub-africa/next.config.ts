@@ -12,6 +12,10 @@ const scriptSrc = isDev
   ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"
   : "script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'"
 
+// LiveKit signalling runs over a WebSocket to the LiveKit Cloud project, which
+// connect-src must allow explicitly — an https: source does not cover wss:.
+const LIVEKIT_WS = 'wss://*.livekit.cloud'
+
 const nextConfig: NextConfig = {
   async headers() {
     const sharedHeaders = [
@@ -32,9 +36,11 @@ const nextConfig: NextConfig = {
           "img-src 'self' data: blob: https:",
           "font-src 'self'",
           // Allow API calls + Sentry ingestion + direct S3 uploads (presigned URLs)
+          // + LiveKit WebSocket signalling for telecare calls.
           "connect-src 'self' " +
             (process.env.NEXT_PUBLIC_API_URL ?? '') +
-            ' https://*.sentry.io https://*.amazonaws.com',
+            ' https://*.sentry.io https://*.amazonaws.com ' +
+            LIVEKIT_WS,
           "worker-src 'self' blob:",
           "frame-ancestors 'none'",
           "object-src 'none'",
@@ -44,16 +50,26 @@ const nextConfig: NextConfig = {
 
     return [
       {
-        // Geolocation blocked by default on every route except /dispatch.
-        // Excluding /dispatch here (instead of overriding it with a second
-        // matching rule) avoids sending two Permissions-Policy headers for
-        // the same response — browsers intersect duplicate headers, so a
-        // site-wide geolocation=() would otherwise silently cancel out the
-        // geolocation=(self) grant below on /dispatch.
-        source: '/((?!dispatch$).*)',
+        // Camera/mic/geolocation blocked by default on every route except the
+        // ones that genuinely need them (/telecare, /dispatch). Those routes are
+        // excluded here rather than overridden by a second matching rule —
+        // browsers intersect duplicate Permissions-Policy headers, so a
+        // site-wide camera=() would otherwise silently cancel out the
+        // camera=(self) grant below.
+        source: '/((?!dispatch$|telecare$).*)',
         headers: [
           ...sharedHeaders,
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+        ],
+      },
+      {
+        // TeleCare is a video consultation — it needs camera + microphone.
+        // Without this getUserMedia is blocked and the LiveKit room dies on
+        // connect, which used to surface as the call ending instantly.
+        source: '/telecare',
+        headers: [
+          ...sharedHeaders,
+          { key: 'Permissions-Policy', value: 'camera=(self), microphone=(self), geolocation=()' },
         ],
       },
       {
