@@ -47,7 +47,7 @@ export function ProviderDetailsModal({ provider, onClose, onChoose }: ProviderDe
       >
         <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
           <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Provider profile</h2>
-          <button onClick={onClose} style={{ color: 'var(--color-text-muted)' }} aria-label="Close"><X className="w-4 h-4" /></button>
+          <button onClick={onClose} className="p-2 -m-2" style={{ color: 'var(--color-text-muted)' }} aria-label="Close"><X className="w-4 h-4" /></button>
         </div>
 
         <div className="p-5 space-y-4">

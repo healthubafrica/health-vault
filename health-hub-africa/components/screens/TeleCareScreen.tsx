@@ -11,6 +11,15 @@ import { LiveKitRoom, VideoConference } from '@livekit/components-react'
 import '@livekit/components-styles'
 import { useCallStore } from '@/lib/stores/callStore'
 
+// LiveKit/getUserMedia surface a browser permission block as an error whose
+// message mentions one of these — distinct from a network/server failure, and
+// the one failure mode with a concrete, tellable fix (the others need a retry
+// or support, not a "here's what to click" tooltip).
+function isPermissionError(message: string): boolean {
+  const m = message.toLowerCase()
+  return m.includes('permission') || m.includes('notallowederror') || m.includes('not allowed')
+}
+
 export function TeleCareScreen() {
   const [sessions, setSessions] = useState<TelecareSession[]>([])
   const [loading, setLoading] = useState(true)
@@ -184,15 +193,30 @@ export function TeleCareScreen() {
 
         <Card className="flex-1 overflow-hidden relative" padding="none">
           {callFailed ? (
-            <div className="h-full flex flex-col items-center justify-center gap-3 px-6 text-center">
+            <div className="h-full flex flex-col items-center justify-center gap-3 px-6 text-center overflow-y-auto py-8">
               <AlertCircle size={28} style={{ color: 'var(--color-emergency)' }} />
               <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
                 Couldn&apos;t connect to your consultation
               </p>
               <p className="text-xs max-w-sm" style={{ color: 'var(--color-text-muted)' }}>{callFailed}</p>
-              <p className="text-xs max-w-sm" style={{ color: 'var(--color-text-faint)' }}>
-                Kindly allow camera and microphone access for this site, then try joining again.
-              </p>
+              {isPermissionError(callFailed) ? (
+                <div
+                  role="tooltip"
+                  className="max-w-sm text-left text-xs rounded-xl border p-4 flex flex-col gap-2"
+                  style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text-muted)' }}
+                >
+                  <p className="font-semibold" style={{ color: 'var(--color-text)' }}>
+                    Your browser is blocking camera/microphone access. Here&apos;s the fix:
+                  </p>
+                  <p><strong>Chrome / Edge:</strong> click the padlock (or "ⓘ") icon left of the address bar → Site settings → set Camera and Microphone to &quot;Allow&quot; → reload this page.</p>
+                  <p><strong>Safari:</strong> Safari menu → Settings → Websites → Camera / Microphone → set this site to &quot;Allow&quot; → reload this page.</p>
+                  <p>If you already dismissed a permission prompt, reloading is required for a new prompt to appear.</p>
+                </div>
+              ) : (
+                <p className="text-xs max-w-sm" style={{ color: 'var(--color-text-faint)' }}>
+                  Kindly allow camera and microphone access for this site, then try joining again.
+                </p>
+              )}
               <Button variant="secondary" onClick={handleAbortCall}>Back to sessions</Button>
             </div>
           ) : (
@@ -219,8 +243,21 @@ export function TeleCareScreen() {
     )
   }
 
-  // Standard list & preview view
-  const nextSession = sessions.find(s => s.status === 'scheduled' || s.status === 'active')
+  // Standard list & preview view.
+  // Prefer a genuinely active (in-progress) call over any scheduled one. If
+  // none is active, pick the soonest *upcoming* scheduled session rather than
+  // just the earliest row overall — a stale scheduled session that was never
+  // cleaned up would otherwise sort first forever and look permanently
+  // "stuck" on the same consultation.
+  const now = Date.now()
+  const activeSession = sessions.find(s => s.status === 'active')
+  const upcoming = sessions
+    .filter(s => s.status === 'scheduled')
+    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+  const nextSession =
+    activeSession ??
+    upcoming.find(s => new Date(s.scheduledAt).getTime() >= now) ??
+    upcoming[0]
 
   return (
     <div className="flex flex-col gap-5 pb-20 md:pb-5">
@@ -252,8 +289,10 @@ export function TeleCareScreen() {
             <p className="text-white font-semibold text-sm">Your Care Provider</p>
             <p className="text-white/50 text-xs">Connects when your session starts</p>
           </div>
-          {nextSession ? (
-            <Pill variant="success">Session Ready</Pill>
+          {nextSession?.status === 'active' ? (
+            <Pill variant="success">Call in progress</Pill>
+          ) : nextSession ? (
+            <Pill variant="neutral">Coming up</Pill>
           ) : (
             <Pill variant="neutral">No active call</Pill>
           )}
@@ -273,6 +312,10 @@ export function TeleCareScreen() {
               {joining ? (
                 <>
                   <Loader2 size={16} className="animate-spin" /> Connecting...
+                </>
+              ) : nextSession.status === 'active' ? (
+                <>
+                  <Video size={16} /> Join Active Call ({nextSession.hhaRef})
                 </>
               ) : (
                 <>

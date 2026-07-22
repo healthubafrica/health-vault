@@ -237,36 +237,38 @@ export function AppointmentsScreen() {
               const rescheduleBlocked = selfServiceOff || hrsUntil < schedulingPolicy.rescheduleWindowHours
 
               return (
-                <div key={appt.id} className="flex items-center gap-3 p-4">
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                    style={{ background: 'var(--color-success-bg)' }}
-                  >
-                    <CalendarDays size={16} style={{ color: '#006022' }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
-                        {appt.serviceType}
-                      </p>
-                      <Pill variant={STATUS_PILL[appt.status] ?? 'neutral'}>{STATUS_LABEL[appt.status] ?? appt.status}</Pill>
-                      <Pill variant="neutral">{appointmentType}</Pill>
+                <div key={appt.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ background: 'var(--color-success-bg)' }}
+                    >
+                      <CalendarDays size={16} style={{ color: '#006022' }} />
                     </div>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-                      {providerName} · {date} at {time}
-                    </p>
-                    {appt.reason && (
-                      <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-faint)' }}>
-                        {appt.reason}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+                          {appt.serviceType}
+                        </p>
+                        <Pill variant={STATUS_PILL[appt.status] ?? 'neutral'}>{STATUS_LABEL[appt.status] ?? appt.status}</Pill>
+                        <Pill variant="neutral">{appointmentType}</Pill>
+                      </div>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                        {providerName} · {date} at {time}
                       </p>
-                    )}
-                    {canManage && (cancelBlocked || rescheduleBlocked) && (
-                      <p className="text-xs mt-1" style={{ color: 'var(--color-emergency)' }}>
-                        {selfServiceOff
-                          ? 'Self-service scheduling is currently disabled — contact support to make changes.'
-                          : `Too close to the appointment time to ${cancelBlocked && rescheduleBlocked ? 'cancel or reschedule' : cancelBlocked ? 'cancel' : 'reschedule'} online.`}
-                      </p>
-                    )}
+                      {appt.reason && (
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-faint)' }}>
+                          {appt.reason}
+                        </p>
+                      )}
+                      {canManage && (cancelBlocked || rescheduleBlocked) && (
+                        <p className="text-xs mt-1" style={{ color: 'var(--color-emergency)' }}>
+                          {selfServiceOff
+                            ? 'Self-service scheduling is currently disabled — contact support to make changes.'
+                            : `Too close to the appointment time to ${cancelBlocked && rescheduleBlocked ? 'cancel or reschedule' : cancelBlocked ? 'cancel' : 'reschedule'} online.`}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   {canManage && (
                     <div className="flex items-center gap-2 shrink-0">
