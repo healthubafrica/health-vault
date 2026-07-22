@@ -1,10 +1,11 @@
 'use client'
 
 import '@livekit/components-styles'
+import { useRef, useState } from 'react'
 import { LiveKitRoom, VideoConference } from '@livekit/components-react'
 import type { ProviderSession, LiveKitJoinInfo } from '@/lib/api'
 import { Button } from '@/components/ui/Button'
-import { PhoneOff, ExternalLink } from 'lucide-react'
+import { PhoneOff, ExternalLink, AlertCircle } from 'lucide-react'
 import { calcAge, buildOpenEmrUrl } from './helpers'
 
 export function CallOverlay({
@@ -12,12 +13,24 @@ export function CallOverlay({
   callInfo,
   audioOnly,
   onLeave,
+  onClose,
 }: {
   session: ProviderSession
   callInfo: LiveKitJoinInfo
   audioOnly: boolean
+  /** Provider hung up a call that actually connected — completes the session. */
   onLeave: () => void
+  /** Call never connected — dismiss without completing the session. */
+  onClose: () => void
 }) {
+  // A disconnect only means "the call ended" if we ever actually connected.
+  // Without this, a failed connection fires onDisconnected immediately and
+  // completes the session, dropping the provider into the Encounter notes.
+  const hasConnected = useRef(false)
+  const [failure, setFailure] = useState<string | null>(
+    callInfo.serverUrl ? null : 'Video calling is not configured on the server.',
+  )
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#0a0a0a' }}>
       <div
@@ -69,25 +82,46 @@ export function CallOverlay({
         <Button
           variant="secondary"
           size="sm"
-          onClick={onLeave}
+          onClick={failure ? onClose : onLeave}
           className="bg-red-600 hover:bg-red-700 border-red-600 text-white"
         >
           <PhoneOff className="w-3.5 h-3.5" />
-          Leave Call
+          {failure ? 'Close' : 'Leave Call'}
         </Button>
       </div>
 
       <div className="flex-1 min-h-0">
-        <LiveKitRoom
-          token={callInfo.token}
-          serverUrl={callInfo.serverUrl}
-          connect
-          video={!audioOnly}
-          audio
-          onDisconnected={onLeave}
-        >
-          <VideoConference />
-        </LiveKitRoom>
+        {failure ? (
+          <div className="h-full flex flex-col items-center justify-center gap-3 px-6 text-center">
+            <AlertCircle className="w-8 h-8" style={{ color: '#f87171' }} />
+            <p className="text-sm font-semibold text-white">Couldn&apos;t connect to the call</p>
+            <p className="text-xs max-w-sm" style={{ color: '#9ca3af' }}>{failure}</p>
+            <p className="text-xs max-w-sm" style={{ color: '#6b7280' }}>
+              Check that camera and microphone access is allowed for this site, then try joining again.
+            </p>
+            <Button variant="secondary" size="sm" onClick={onClose}>
+              Back to sessions
+            </Button>
+          </div>
+        ) : (
+          <LiveKitRoom
+            token={callInfo.token}
+            serverUrl={callInfo.serverUrl}
+            connect
+            video={!audioOnly}
+            audio
+            onConnected={() => { hasConnected.current = true }}
+            onError={(err) => setFailure(err.message)}
+            onDisconnected={() => {
+              // Only treat this as a completed consultation if the call was
+              // ever live; otherwise it's a failed connect, not a hang-up.
+              if (hasConnected.current) onLeave()
+              else setFailure('The call ended before it connected.')
+            }}
+          >
+            <VideoConference />
+          </LiveKitRoom>
+        )}
       </div>
     </div>
   )
