@@ -153,6 +153,17 @@ export default function ProviderTelecarePage() {
     }
   }, [])
 
+  // Dismiss a call that never connected. Deliberately does NOT mark the
+  // session completed — the provider hasn't consulted with anyone yet, so it
+  // stays joinable. A stale 'active' row is swept by the telecare cron.
+  const handleCloseOverlay = useCallback(() => {
+    setCallInfo(null)
+    setActiveSession(null)
+    setCallAudioOnly(false)
+    joinStartedAt.current = null
+    void load()
+  }, [load])
+
   const handleLeave = useCallback(async () => {
     if (!activeSession) return
     const endedAt = new Date().toISOString()
@@ -227,6 +238,7 @@ export default function ProviderTelecarePage() {
           callInfo={callInfo}
           audioOnly={callAudioOnly}
           onLeave={handleLeave}
+          onClose={handleCloseOverlay}
         />
       )}
 
