@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
@@ -23,6 +23,13 @@ export function TeleCareScreen() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [joining, setJoining] = useState(false)
   const setInCall = useCallStore((s) => s.setInCall)
+
+  // A disconnect only means "the consultation ended" if the room ever
+  // connected. Without this, a failed connect (blocked camera/mic, blocked
+  // websocket) fires onDisconnected straight away and marks the session
+  // completed, so the patient loses a session they never actually had.
+  const hasConnected = useRef(false)
+  const [callFailed, setCallFailed] = useState<string | null>(null)
 
   // Self-healing safety net: setInCall(false) is normally set by
   // handleLeaveSession (Leave Call button or LiveKit's onDisconnected), but
@@ -88,6 +95,8 @@ export function TeleCareScreen() {
 
   const handleJoinSession = async (sessionId: string) => {
     setJoining(true)
+    hasConnected.current = false
+    setCallFailed(null)
     try {
       const res = await telecare.getToken(sessionId)
       if (res && res.token) {
@@ -108,6 +117,19 @@ export function TeleCareScreen() {
     } finally {
       setJoining(false)
     }
+  }
+
+  // Exit a call that never connected. Deliberately does NOT mark the session
+  // completed — the consultation never happened, so it stays joinable.
+  const handleAbortCall = () => {
+    setActiveToken(null)
+    setActiveRoom(null)
+    setActiveServerUrl(null)
+    setActiveSessionId(null)
+    setCallFailed(null)
+    hasConnected.current = false
+    setInCall(false)
+    fetchSessions()
   }
 
   const handleLeaveSession = () => {
@@ -151,23 +173,47 @@ export function TeleCareScreen() {
               Session Room: {activeRoom}
             </p>
           </div>
-          <Button variant="emergency-outline" className="gap-2" onClick={handleLeaveSession}>
-            <PhoneOff size={16} /> Leave Call
+          <Button
+            variant="emergency-outline"
+            className="gap-2"
+            onClick={callFailed ? handleAbortCall : handleLeaveSession}
+          >
+            <PhoneOff size={16} /> {callFailed ? 'Close' : 'Leave Call'}
           </Button>
         </div>
 
         <Card className="flex-1 overflow-hidden relative" padding="none">
-          <LiveKitRoom
-            video={true}
-            audio={true}
-            token={activeToken}
-            serverUrl={livekitUrl}
-            onDisconnected={handleLeaveSession}
-            data-lk-theme="default"
-            style={{ height: '100%' }}
-          >
-            <VideoConference />
-          </LiveKitRoom>
+          {callFailed ? (
+            <div className="h-full flex flex-col items-center justify-center gap-3 px-6 text-center">
+              <AlertCircle size={28} style={{ color: 'var(--color-emergency)' }} />
+              <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+                Couldn&apos;t connect to your consultation
+              </p>
+              <p className="text-xs max-w-sm" style={{ color: 'var(--color-text-muted)' }}>{callFailed}</p>
+              <p className="text-xs max-w-sm" style={{ color: 'var(--color-text-faint)' }}>
+                Kindly allow camera and microphone access for this site, then try joining again.
+              </p>
+              <Button variant="secondary" onClick={handleAbortCall}>Back to sessions</Button>
+            </div>
+          ) : (
+            <LiveKitRoom
+              video={true}
+              audio={true}
+              token={activeToken}
+              serverUrl={livekitUrl}
+              onConnected={() => { hasConnected.current = true }}
+              onError={(err) => setCallFailed(err.message)}
+              onDisconnected={() => {
+                // Only a call that actually connected counts as completed.
+                if (hasConnected.current) handleLeaveSession()
+                else setCallFailed('The call ended before it connected.')
+              }}
+              data-lk-theme="default"
+              style={{ height: '100%' }}
+            >
+              <VideoConference />
+            </LiveKitRoom>
+          )}
         </Card>
       </div>
     )
