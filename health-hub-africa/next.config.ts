@@ -14,7 +14,10 @@ const scriptSrc = isDev
 
 // LiveKit signalling runs over a WebSocket to the LiveKit Cloud project, which
 // connect-src must allow explicitly — an https: source does not cover wss:.
-const LIVEKIT_WS = 'wss://*.livekit.cloud'
+// The client SDK also does a plain HTTPS fetch to /settings/regions for
+// multi-region failover before it ever opens the socket, so both schemes
+// are needed or that preflight call gets CSP-blocked and connect() hangs.
+const LIVEKIT_ORIGINS = 'https://*.livekit.cloud wss://*.livekit.cloud'
 
 const nextConfig: NextConfig = {
   async headers() {
@@ -40,7 +43,7 @@ const nextConfig: NextConfig = {
           "connect-src 'self' " +
             (process.env.NEXT_PUBLIC_API_URL ?? '') +
             ' https://*.sentry.io https://*.amazonaws.com ' +
-            LIVEKIT_WS,
+            LIVEKIT_ORIGINS,
           "worker-src 'self' blob:",
           "frame-ancestors 'none'",
           "object-src 'none'",
