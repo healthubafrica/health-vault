@@ -451,7 +451,7 @@ function AuditDrawer({ shareId, onClose }: { shareId: string; onClose: () => voi
       >
         <div className="flex items-center justify-between">
           <p className="font-bold text-base" style={{ color: 'var(--color-text)' }}>Access log</p>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: 20 }}>×</button>
+          <button onClick={onClose} className="p-2 -m-2" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: 20 }} aria-label="Close">×</button>
         </div>
 
         {isInitialLoad && <p className="text-sm text-center py-4" style={{ color: 'var(--color-text-muted)' }}>Loading…</p>}
