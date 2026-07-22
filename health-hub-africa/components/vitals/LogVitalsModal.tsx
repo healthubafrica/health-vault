@@ -92,11 +92,11 @@ export function LogVitalsModal({ open, onClose, onLogged }: LogVitalsModalProps)
           <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
             Log vitals
           </h2>
-          <button onClick={onClose} style={{ color: 'var(--color-text-muted)' }} aria-label="Close">
+          <button onClick={onClose} className="p-2 -m-2" style={{ color: 'var(--color-text-muted)' }} aria-label="Close">
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="p-5 grid grid-cols-2 gap-3">
+        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
           {FIELDS.map(field => (
             <FormInput
               key={field.key}

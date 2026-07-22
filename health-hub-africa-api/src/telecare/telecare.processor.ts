@@ -17,5 +17,12 @@ export class TelecareProcessor {
         `Telecare sweep failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+    try {
+      await this.telecare.sweepStaleScheduledSessions();
+    } catch (err) {
+      this.logger.error(
+        `Telecare scheduled-sweep failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 }
