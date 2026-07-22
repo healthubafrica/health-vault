@@ -11,7 +11,10 @@ const scriptSrc = isDev
 
 // LiveKit signalling runs over a WebSocket to the LiveKit Cloud project, which
 // connect-src must allow explicitly — an https: source does not cover wss:.
-const LIVEKIT_WS = 'wss://*.livekit.cloud'
+// The client SDK also does a plain HTTPS fetch to /settings/regions for
+// multi-region failover before it ever opens the socket, so both schemes
+// are needed or that preflight call gets CSP-blocked and connect() hangs.
+const LIVEKIT_ORIGINS = 'https://*.livekit.cloud wss://*.livekit.cloud'
 
 // Routes that run a video consultation and therefore need camera + microphone.
 const TELECARE_ROUTES = ['/provider/telecare', '/operations/telecare']
@@ -33,7 +36,7 @@ const sharedHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self'",
-      "connect-src 'self' " + (process.env.NEXT_PUBLIC_API_URL ?? '') + ' ' + LIVEKIT_WS,
+      "connect-src 'self' " + (process.env.NEXT_PUBLIC_API_URL ?? '') + ' ' + LIVEKIT_ORIGINS,
       "worker-src 'self' blob:",
       "frame-ancestors 'none'",
       "object-src 'none'",
