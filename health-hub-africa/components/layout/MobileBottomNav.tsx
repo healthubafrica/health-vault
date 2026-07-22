@@ -49,7 +49,7 @@ export function MobileBottomNav() {
     <>
       <nav
         aria-label="Mobile navigation"
-        className="md:hidden fixed bottom-0 inset-x-0 flex items-center justify-around h-16 border-t z-50 safe-bottom"
+        className="md:hidden fixed bottom-0 inset-x-0 flex items-center justify-around h-16 border-t z-50 pb-[env(safe-area-inset-bottom)]"
         style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
       >
         {BOTTOM_NAV.filter(({ flag }) => !flag || isEnabled(flag)).map(({ icon: Icon, label, href, isAction }) => {
