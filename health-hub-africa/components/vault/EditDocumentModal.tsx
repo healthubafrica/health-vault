@@ -73,7 +73,7 @@ export function EditDocumentModal({ document, onClose, onSaved }: EditDocumentMo
           <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
             Edit document
           </h2>
-          <button onClick={onClose} style={{ color: 'var(--color-text-muted)' }} aria-label="Close">
+          <button onClick={onClose} className="p-2 -m-2" style={{ color: 'var(--color-text-muted)' }} aria-label="Close">
             <X className="w-4 h-4" />
           </button>
         </div>

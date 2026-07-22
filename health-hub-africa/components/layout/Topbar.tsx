@@ -97,7 +97,7 @@ export function Topbar() {
         {/* Search Icon Button */}
         <button
           aria-label="Search"
-          className="flex items-center justify-center w-9 h-9 rounded-full bg-[var(--color-bg)] text-gray-500 hover:text-gray-800 transition-colors"
+          className="flex items-center justify-center w-10 h-10 md:w-9 md:h-9 rounded-full bg-[var(--color-bg)] text-gray-500 hover:text-gray-800 transition-colors"
         >
           <Search size={15} />
         </button>
@@ -105,7 +105,7 @@ export function Topbar() {
         {/* Notifications */}
         <button
           aria-label="Notifications"
-          className="relative flex items-center justify-center w-9 h-9 rounded-full bg-[var(--color-bg)] text-gray-500 hover:text-gray-800 transition-colors"
+          className="relative flex items-center justify-center w-10 h-10 md:w-9 md:h-9 rounded-full bg-[var(--color-bg)] text-gray-500 hover:text-gray-800 transition-colors"
         >
           <Bell size={15} />
           <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-[#C0392B]" aria-hidden="true" />
@@ -137,7 +137,7 @@ export function Topbar() {
         <button
           aria-label="Open info panel"
           onClick={openMobilePanel}
-          className="flex lg:hidden items-center justify-center w-9 h-9 rounded-full bg-[var(--color-bg)] text-gray-500 hover:text-gray-800 transition-colors"
+          className="flex lg:hidden items-center justify-center w-10 h-10 rounded-full bg-[var(--color-bg)] text-gray-500 hover:text-gray-800 transition-colors"
         >
           <PanelRightOpen size={15} />
         </button>
@@ -146,7 +146,7 @@ export function Topbar() {
         <button
           aria-label="Sign out"
           onClick={handleLogout}
-          className="flex md:hidden items-center justify-center w-9 h-9 rounded-full bg-[var(--color-bg)] text-gray-500 hover:text-red-500 transition-colors"
+          className="flex md:hidden items-center justify-center w-10 h-10 rounded-full bg-[var(--color-bg)] text-gray-500 hover:text-red-500 transition-colors"
         >
           <LogOut size={15} />
         </button>

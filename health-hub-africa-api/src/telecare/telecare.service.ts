@@ -34,6 +34,12 @@ const STALE_ACTIVE_THRESHOLD_MIN = 120;
 // startedAt rather than stamping "now", so analytics aren't skewed by the
 // gap between the real disconnect and the sweep firing.
 const SWEEP_DEFAULT_DURATION_MIN = 30;
+// A 'scheduled' session whose slot passed more than this long ago never
+// happened and is never coming back — nobody joined, and it was never
+// cancelled either. Left alone it sorts as the "next" session forever
+// (findMany orders by scheduledAt asc), permanently masking whatever
+// session is actually upcoming or in progress.
+const STALE_SCHEDULED_THRESHOLD_HOURS = 24;
 
 @Injectable()
 export class TelecareService implements OnModuleInit {
@@ -502,6 +508,40 @@ export class TelecareService implements OnModuleInit {
     }
 
     this.logger.log(`Sweep closed ${closed}/${stale.length} stale active session(s)`);
+    return { closed };
+  }
+
+  // A 'scheduled' session whose slot passed more than 24h ago and was never
+  // started (no provider/patient joined, nobody cancelled it) is marked
+  // completed so it stops permanently shadowing whatever is actually next.
+  async sweepStaleScheduledSessions() {
+    const cutoff = new Date(Date.now() - STALE_SCHEDULED_THRESHOLD_HOURS * 60 * 60_000);
+    const stale = await this.prisma.telecareSession.findMany({
+      where: { status: SessionStatus.scheduled, scheduledAt: { lt: cutoff } },
+      select: { id: true },
+      take: 100,
+    });
+
+    if (stale.length === 0) {
+      return { closed: 0 };
+    }
+
+    let closed = 0;
+    for (const s of stale) {
+      try {
+        await this.prisma.telecareSession.update({
+          where: { id: s.id },
+          data: { status: SessionStatus.completed },
+        });
+        closed++;
+      } catch (err) {
+        this.logger.error(
+          `Sweep failed to close stale scheduled session ${s.id}: ${(err as Error).message}`,
+        );
+      }
+    }
+
+    this.logger.log(`Sweep closed ${closed}/${stale.length} stale scheduled session(s)`);
     return { closed };
   }
 

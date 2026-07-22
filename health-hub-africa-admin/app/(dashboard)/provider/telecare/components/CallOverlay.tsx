@@ -6,7 +6,7 @@ import { LiveKitRoom, VideoConference } from '@livekit/components-react'
 import type { ProviderSession, LiveKitJoinInfo } from '@/lib/api'
 import { Button } from '@/components/ui/Button'
 import { PhoneOff, ExternalLink, AlertCircle } from 'lucide-react'
-import { calcAge, buildOpenEmrUrl } from './helpers'
+import { calcAge, buildOpenEmrUrl, isPermissionError } from './helpers'
 
 export function CallOverlay({
   session,
@@ -92,13 +92,28 @@ export function CallOverlay({
 
       <div className="flex-1 min-h-0">
         {failure ? (
-          <div className="h-full flex flex-col items-center justify-center gap-3 px-6 text-center">
+          <div className="h-full flex flex-col items-center justify-center gap-3 px-6 text-center overflow-y-auto py-8">
             <AlertCircle className="w-8 h-8" style={{ color: '#f87171' }} />
             <p className="text-sm font-semibold text-white">Couldn&apos;t connect to the call</p>
             <p className="text-xs max-w-sm" style={{ color: '#9ca3af' }}>{failure}</p>
-            <p className="text-xs max-w-sm" style={{ color: '#6b7280' }}>
-              Check that camera and microphone access is allowed for this site, then try joining again.
-            </p>
+            {isPermissionError(failure) ? (
+              <div
+                role="tooltip"
+                className="max-w-sm text-left text-xs rounded-xl border p-4 flex flex-col gap-2"
+                style={{ borderColor: '#333', background: '#161616', color: '#9ca3af' }}
+              >
+                <p className="font-semibold text-white">
+                  Your browser is blocking camera/microphone access. Here&apos;s the fix:
+                </p>
+                <p><strong>Chrome / Edge:</strong> click the padlock (or "ⓘ") icon left of the address bar → Site settings → set Camera and Microphone to &quot;Allow&quot; → reload this page.</p>
+                <p><strong>Safari:</strong> Safari menu → Settings → Websites → Camera / Microphone → set this site to &quot;Allow&quot; → reload this page.</p>
+                <p>If you already dismissed a permission prompt, reloading is required for a new prompt to appear.</p>
+              </div>
+            ) : (
+              <p className="text-xs max-w-sm" style={{ color: '#6b7280' }}>
+                Check that camera and microphone access is allowed for this site, then try joining again.
+              </p>
+            )}
             <Button variant="secondary" size="sm" onClick={onClose}>
               Back to sessions
             </Button>

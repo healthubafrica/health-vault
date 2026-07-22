@@ -34,6 +34,14 @@ export function buildOpenEmrUrl(uuid: string): string {
   return `${base}/interface/patient_file/summary/demographics.php?set_pid=${uuid}`
 }
 
+// LiveKit/getUserMedia surface a browser permission block as an error whose
+// message mentions one of these — distinct from a network/server failure,
+// and the one failure mode with a concrete, tellable fix.
+export function isPermissionError(message: string): boolean {
+  const m = message.toLowerCase()
+  return m.includes('permission') || m.includes('notallowederror') || m.includes('not allowed')
+}
+
 export interface TelecareMetrics {
   total: number
   completed: number
