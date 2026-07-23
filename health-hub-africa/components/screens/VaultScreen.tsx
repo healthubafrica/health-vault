@@ -165,6 +165,7 @@ export function VaultScreen() {
       <UploadDropzone
         onFilesSelected={setPendingFiles}
         disabled={storagePct >= 100 || atFileLimit}
+        disabledMessage="You've reached your plan's storage/file limit — upgrade to add more documents."
       />
 
       <VaultToolbar query={query} onChange={setQuery} />

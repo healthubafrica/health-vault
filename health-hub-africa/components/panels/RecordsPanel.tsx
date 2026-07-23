@@ -42,6 +42,7 @@ export function RecordsPanel() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={`Download ${r.title}`}
+                title="Download this record as a file"
                 className="shrink-0 flex items-center justify-center w-7 h-7 rounded-lg hover:bg-[var(--color-bg)] transition-colors"
                 style={{ color: '#6DC43F' }}
               >

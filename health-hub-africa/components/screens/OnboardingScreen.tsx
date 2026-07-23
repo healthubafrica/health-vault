@@ -400,7 +400,8 @@ export function OnboardingScreen() {
                     <FormInput
                       label="National Healthcare ID / Insurance No."
                       type="text"
-                      placeholder="e.g. NHIF-94827-X"
+                      placeholder="e.g. your national ID or insurance number"
+                      hint="Optional — enter your national health insurance or ID number if you have one, to help verify insurance claims."
                       value={healthId}
                       onChange={e => setHealthId(e.target.value)}
                     />

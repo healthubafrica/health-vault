@@ -90,7 +90,7 @@ export function UploadQueueModal({
               ? `Upload ${staged.length} file${staged.length === 1 ? '' : 's'}`
               : 'Uploading'}
           </h2>
-          <button onClick={onClose} className="p-2 -m-2" style={{ color: 'var(--color-text-muted)' }} aria-label="Close">
+          <button onClick={onClose} className="p-2 -m-2" style={{ color: 'var(--color-text-muted)' }} aria-label="Close" title="Close">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -113,6 +113,8 @@ export function UploadQueueModal({
                     <button
                       onClick={() => removeStaged(i)}
                       aria-label="Remove file"
+                      title="Remove this file from the upload"
+                      className="p-1.5 -m-1.5"
                       style={{ color: 'var(--color-text-faint)' }}
                     >
                       <X className="w-3.5 h-3.5" />

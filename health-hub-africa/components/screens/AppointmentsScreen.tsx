@@ -11,6 +11,7 @@ import { formatDate } from '@/lib/utils'
 import { CalendarDays, Star, Info } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { ProviderDetailsModal } from '@/components/appointments/ProviderDetailsModal'
+import { Tooltip } from '@/components/ui/Tooltip'
 import { toast } from 'sonner'
 import {
   appointments as apptApi,
@@ -272,22 +273,44 @@ export function AppointmentsScreen() {
                   </div>
                   {canManage && (
                     <div className="flex items-center gap-2 shrink-0">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={rescheduleBlocked}
-                        onClick={() => setRescheduleTarget(appt)}
+                      <Tooltip
+                        content={
+                          rescheduleBlocked
+                            ? selfServiceOff
+                              ? 'Self-service scheduling is currently disabled — contact support to make changes.'
+                              : `Rescheduling requires at least ${schedulingPolicy.rescheduleWindowHours}h notice; this appointment is inside that window.`
+                            : 'Pick a new date or time for this appointment.'
+                        }
+                        wide
                       >
-                        Reschedule
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={cancelBlocked}
-                        onClick={() => setCancelTarget(appt)}
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={rescheduleBlocked}
+                          onClick={() => setRescheduleTarget(appt)}
+                        >
+                          Reschedule
+                        </Button>
+                      </Tooltip>
+                      <Tooltip
+                        content={
+                          cancelBlocked
+                            ? selfServiceOff
+                              ? 'Self-service scheduling is currently disabled — contact support to make changes.'
+                              : `Cancellations require at least ${schedulingPolicy.cancellationWindowHours}h notice; this appointment is inside that window.`
+                            : 'Cancel this appointment.'
+                        }
+                        wide
                       >
-                        Cancel
-                      </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={cancelBlocked}
+                          onClick={() => setCancelTarget(appt)}
+                        >
+                          Cancel
+                        </Button>
+                      </Tooltip>
                     </div>
                   )}
                 </div>
@@ -400,35 +423,42 @@ export function AppointmentsScreen() {
                         opacity: p.isAvailable ? 1 : 0.6,
                       }}
                     >
-                      <button
-                        type="button"
-                        disabled={!p.isAvailable}
-                        onClick={() => setSelectedProviderId(p.id)}
-                        className="flex items-center gap-3 flex-1 min-w-0 text-left disabled:cursor-not-allowed"
+                      <Tooltip
+                        content={p.isAvailable ? 'Select this provider.' : "Not accepting new appointments currently."}
+                        className="flex-1 min-w-0"
                       >
-                        <Avatar seed={`${p.firstName} ${p.lastName}`} src={p.profilePhotoUrl ?? undefined} size="md" />
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold truncate" style={{ color: 'var(--color-text)' }}>
-                            {buildProviderDisplayName(p)}{!p.isAvailable ? ' · Unavailable' : ''}
-                          </p>
-                          <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)' }}>
-                            {p.specialty ?? 'General Practice'}
-                            {p.yearsExperience ? ` · ${p.yearsExperience} yrs` : ''}
-                          </p>
-                          {(p.languages?.length || p.rating != null) && (
-                            <div className="flex items-center gap-2 mt-0.5">
-                              {p.rating != null && (
-                                <span className="inline-flex items-center gap-0.5 text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
-                                  <Star size={10} className="fill-current" style={{ color: '#F5A623' }} />{Number(p.rating).toFixed(1)}
-                                </span>
-                              )}
-                              {p.languages?.length ? (
-                                <span className="text-[11px]" style={{ color: 'var(--color-text-faint)' }}>{p.languages.slice(0, 3).join(', ')}</span>
-                              ) : null}
-                            </div>
-                          )}
-                        </div>
-                      </button>
+                        <button
+                          type="button"
+                          disabled={!p.isAvailable}
+                          onClick={() => setSelectedProviderId(p.id)}
+                          className="flex items-center gap-3 flex-1 min-w-0 text-left disabled:cursor-not-allowed"
+                        >
+                          <Avatar seed={`${p.firstName} ${p.lastName}`} src={p.profilePhotoUrl ?? undefined} size="md" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold truncate" style={{ color: 'var(--color-text)' }}>
+                              {buildProviderDisplayName(p)}{!p.isAvailable ? ' · Unavailable' : ''}
+                            </p>
+                            <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)' }}>
+                              {p.specialty ?? 'General Practice'}
+                              {p.yearsExperience ? ` · ${p.yearsExperience} yrs` : ''}
+                            </p>
+                            {(p.languages?.length || p.rating != null) && (
+                              <div className="flex items-center gap-2 mt-0.5">
+                                {p.rating != null && (
+                                  <Tooltip content="Patient rating out of 5 stars.">
+                                    <span className="inline-flex items-center gap-0.5 text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                                      <Star size={10} className="fill-current" style={{ color: '#F5A623' }} />{Number(p.rating).toFixed(1)}
+                                    </span>
+                                  </Tooltip>
+                                )}
+                                {p.languages?.length ? (
+                                  <span className="text-[11px]" style={{ color: 'var(--color-text-faint)' }}>{p.languages.slice(0, 3).join(', ')}</span>
+                                ) : null}
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      </Tooltip>
                       <button
                         type="button"
                         onClick={() => setDetailsProvider(p)}

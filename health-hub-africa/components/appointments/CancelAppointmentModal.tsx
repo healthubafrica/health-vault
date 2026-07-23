@@ -58,7 +58,7 @@ export function CancelAppointmentModal({ appointment, onClose, onCancelled }: Ca
           <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
             Cancel appointment
           </h2>
-          <button onClick={onClose} className="p-2 -m-2" style={{ color: 'var(--color-text-muted)' }} aria-label="Close">
+          <button onClick={onClose} className="p-2 -m-2" style={{ color: 'var(--color-text-muted)' }} aria-label="Close" title="Close">
             <X className="w-4 h-4" />
           </button>
         </div>
