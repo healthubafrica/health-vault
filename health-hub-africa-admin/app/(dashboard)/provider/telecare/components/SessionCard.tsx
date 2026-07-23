@@ -16,6 +16,7 @@ import {
   CheckCircle,
   ExternalLink,
   ArrowRightLeft,
+  Star,
 } from 'lucide-react'
 import { STATUS_PILL, isJoinable, isTransferable, calcAge, buildOpenEmrUrl } from './helpers'
 
@@ -92,6 +93,16 @@ export function SessionCard({
             {hasNotes && (
               <span className="flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--color-text-faint)' }}>
                 <CheckCircle className="w-3 h-3 text-[#6DC43F]" /> Documented
+              </span>
+            )}
+            {session.patientRating != null && (
+              <span
+                className="flex items-center gap-0.5 text-xs font-medium"
+                title={session.patientFeedback ?? undefined}
+                style={{ color: 'var(--color-text-faint)' }}
+              >
+                <Star className="w-3 h-3 fill-current" style={{ color: '#F5A623' }} />
+                {session.patientRating}/5
               </span>
             )}
             {isSoon && <span className="text-xs font-medium text-orange-500">Starting soon</span>}

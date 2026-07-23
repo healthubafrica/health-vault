@@ -806,13 +806,18 @@ model TelecareSession {
   meetingUrl    String?       @map("meeting_url")
   recordingUrl  String?       @map("recording_url")
   platform      String        @default("HHA Native")
+  // Post-call patient CSAT — set once via PATCH by the owning patient after
+  // a completed call. 1-5 stars; feedback is optional free text.
+  patientRating   Int?    @map("patient_rating") @db.SmallInt
+  patientFeedback String? @map("patient_feedback")
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
-  patient     Patient      @relation(fields: [patientId], references: [id])
-  provider    Provider     @relation(fields: [providerId], references: [id])
-  appointment Appointment? @relation(fields: [appointmentId], references: [id])
-  notes       TelecareSessionNote?
+  patient      Patient               @relation(fields: [patientId], references: [id])
+  provider     Provider              @relation(fields: [providerId], references: [id])
+  appointment  Appointment?          @relation(fields: [appointmentId], references: [id])
+  notes        TelecareSessionNote?
+  guestInvites TelecareGuestInvite[]
 
   @@map("telecare_sessions")
 }
@@ -832,6 +837,27 @@ model TelecareSessionNote {
   record  ClinicalRecord? @relation(fields: [recordId], references: [id])
 
   @@map("telecare_session_notes")
+}
+
+// Email-OTP-verified guest access for a telecare session (caregiver/family
+// invited by the patient). No password/account — identity assurance comes
+// from proving control of the invited email address, mirrored on the
+// RecordShare email_list OTP flow. OTP code state itself lives in Redis
+// (short-lived, matches SharesService), not on this row.
+model TelecareGuestInvite {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId  String    @map("session_id") @db.Uuid
+  guestName  String    @map("guest_name")
+  guestEmail String    @map("guest_email")
+  tokenHash  String    @unique @map("token_hash")
+  isRevoked  Boolean   @default(false) @map("is_revoked")
+  verifiedAt DateTime? @map("verified_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  session TelecareSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("telecare_guest_invites")
 }
 
 // ─── Emergency Dispatch ───────────────────────────────────────────────────────
