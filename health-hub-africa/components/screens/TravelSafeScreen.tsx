@@ -310,7 +310,14 @@ export function TravelSafeScreen() {
                     <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                       DOB: {pat.dateOfBirth ? formatDate(pat.dateOfBirth) : '—'}
                       {pat.bloodGroup && ` · Blood Group: ${pat.bloodGroup}`}
-                      {pat.genotype && ` · Genotype: ${pat.genotype}`}
+                      {pat.genotype && (
+                        <>
+                          {' · Genotype: '}
+                          <span title="Genotype indicates whether you carry the sickle-cell gene (AA = none, AS = trait, SS = disease).">
+                            {pat.genotype}
+                          </span>
+                        </>
+                      )}
                     </p>
                   </div>
                 </div>

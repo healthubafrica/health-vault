@@ -14,34 +14,20 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
 
-// Mock availability is only seeded for May 2026 — the doctor/availability
-// data in this panel isn't wired to a real API, so other months show plain
-// selectable days with no fabricated availability.
-const SEEDED_YEAR = 2026
-const SEEDED_MONTH = 4 // May
-const SEEDED_AVAILABLE = [14, 16, 18, 20, 22, 25, 27]
-const SEEDED_FULL = [15, 19, 23]
-const SEEDED_CRITICAL_DAY = 17
-
 function MiniCalendar() {
   const today = new Date()
   const [viewYear, setViewYear] = useState(today.getFullYear())
   const [viewMonth, setViewMonth] = useState(today.getMonth())
   const [selected, setSelected] = useState<number | null>(null)
 
-  const isSeededMonth = viewYear === SEEDED_YEAR && viewMonth === SEEDED_MONTH
-  const available = isSeededMonth ? SEEDED_AVAILABLE : []
-  const full = isSeededMonth ? SEEDED_FULL : []
-  const criticalDay = isSeededMonth ? SEEDED_CRITICAL_DAY : null
-
   const isViewingCurrentMonth = viewYear === today.getFullYear() && viewMonth === today.getMonth()
   const isViewingPastMonth =
     viewYear < today.getFullYear() ||
     (viewYear === today.getFullYear() && viewMonth < today.getMonth())
 
+  // No real availability API is wired into this widget yet — every
+  // non-past day is selectable rather than faking per-day availability.
   function isDaySelectable(day: number): boolean {
-    if (full.includes(day)) return false
-    if (isSeededMonth) return available.includes(day) || day === criticalDay
     if (isViewingPastMonth) return false
     if (isViewingCurrentMonth) return day >= today.getDate()
     return true
@@ -110,19 +96,12 @@ function MiniCalendar() {
           if (day === null) return <div key={`empty-${i}`} />
           
           const isSelected = day === selected
-          const isCritical = day === criticalDay
-          const isAvail = available.includes(day)
-          const isFull = full.includes(day)
           const selectable = isDaySelectable(day)
 
           let btnClass = "relative flex flex-col items-center justify-center h-8 w-8 mx-auto rounded-full text-xs font-semibold transition-all duration-150 "
 
           if (isSelected) {
             btnClass += "bg-[var(--color-primary)] text-white shadow-sm"
-          } else if (isCritical) {
-            btnClass += "bg-[#C0392B] text-white shadow-sm hover:bg-[#a93226]"
-          } else if (isFull) {
-            btnClass += "text-[var(--color-text-faint)] cursor-not-allowed"
           } else if (selectable) {
             btnClass += "text-[var(--color-text)] hover:bg-[var(--color-primary-light)] cursor-pointer"
           } else {
@@ -131,11 +110,6 @@ function MiniCalendar() {
 
           return (
             <div key={`day-${day}`} className="relative flex flex-col items-center justify-center">
-              {isCritical && (
-                <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[7px] font-extrabold text-[var(--color-emergency)] bg-[var(--color-error-bg)] px-1 rounded-sm tracking-tighter whitespace-nowrap scale-90 border border-[var(--color-emergency)]/10 z-10">
-                  CRITICAL FIX
-                </span>
-              )}
               <button
                 aria-label={`${MONTH_NAMES[viewMonth]} ${day}, ${viewYear}`}
                 aria-pressed={isSelected}
@@ -145,28 +119,9 @@ function MiniCalendar() {
               >
                 {day}
               </button>
-              {isAvail && !isSelected && !isCritical && (
-                <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-[var(--color-primary)]" />
-              )}
             </div>
           )
         })}
-      </div>
-
-      {/* Legend */}
-      <div className="flex items-center gap-4 mt-5 border-t border-[var(--color-border)] pt-3">
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-[var(--color-primary)]" />
-          <span className="text-[10px] font-semibold text-[var(--color-text-muted)]">Available</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-[var(--color-text-faint)]" />
-          <span className="text-[10px] font-semibold text-[var(--color-text-muted)]">Full Booked</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-[var(--color-border)]" />
-          <span className="text-[10px] font-semibold text-[var(--color-text-muted)]">Not Available</span>
-        </div>
       </div>
     </div>
   )
@@ -249,6 +204,7 @@ export function DashboardPanel() {
         <button
           aria-label="Filter Care Providers"
           onClick={() => router.push('/appointments')}
+          title="Filter by specialty, availability, and more"
           className="w-10 h-10 flex items-center justify-center border border-[var(--color-border)] rounded-xl bg-[var(--color-bg)] text-[var(--color-text-muted)] hover:bg-[var(--color-primary-light)] hover:text-[var(--color-text)] transition-colors"
         >
           <SlidersHorizontal size={14} />
@@ -264,11 +220,11 @@ export function DashboardPanel() {
               >
                 <Avatar seed={`${p.firstName} ${p.lastName}`} size="sm" shape="circle" alt={`${p.firstName} ${p.lastName}`} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold truncate" style={{ color: 'var(--color-text)' }}>
+                  <p className="text-xs font-semibold truncate" title={buildProviderDisplayName(p)} style={{ color: 'var(--color-text)' }}>
                     {buildProviderDisplayName(p)}
                   </p>
                   {p.specialty && (
-                    <p className="text-[10px] truncate" style={{ color: 'var(--color-text-muted)' }}>{p.specialty}</p>
+                    <p className="text-[10px] truncate" title={p.specialty} style={{ color: 'var(--color-text-muted)' }}>{p.specialty}</p>
                   )}
                 </div>
                 {p.rating && (

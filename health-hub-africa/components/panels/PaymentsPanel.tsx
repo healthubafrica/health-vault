@@ -39,7 +39,7 @@ export function PaymentsPanel() {
           <div className="flex flex-col gap-2">
             {allPayments.slice(0, 3).map(p => (
               <div key={p.id} className="flex items-center justify-between">
-                <span className="text-xs truncate flex-1 mr-2" style={{ color: 'var(--color-text-muted)' }}>
+                <span className="text-xs truncate flex-1 mr-2" title={p.description} style={{ color: 'var(--color-text-muted)' }}>
                   {p.description.split(' — ')[0]}
                 </span>
                 <span className="text-xs font-semibold shrink-0" style={{ color: 'var(--color-text)', fontFamily: 'var(--font-mono)' }}>
