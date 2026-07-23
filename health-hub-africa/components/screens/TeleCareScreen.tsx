@@ -353,7 +353,7 @@ export function TeleCareScreen() {
                       <Clock size={14} style={{ color: 'var(--color-text-muted)' }} />
                     </div>
                     <div>
-                      <p className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
+                      <p className="text-sm font-medium" title="Reference number for this session — use it if you contact support." style={{ color: 'var(--color-text)' }}>
                         Consultation {session.hhaRef}
                       </p>
                       <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
@@ -396,7 +396,7 @@ export function TeleCareScreen() {
                     <Clock size={14} style={{ color: 'var(--color-text-muted)' }} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
+                    <p className="text-sm font-medium" title="Reference number for this session — use it if you contact support." style={{ color: 'var(--color-text)' }}>
                       Consultation {session.hhaRef}
                     </p>
                     <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>

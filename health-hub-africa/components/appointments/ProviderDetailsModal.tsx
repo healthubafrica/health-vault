@@ -5,6 +5,7 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
 import { buildProviderDisplayName } from '@/lib/providerName'
+import { Tooltip } from '@/components/ui/Tooltip'
 import type { ServiceProvider } from '@/lib/api'
 
 interface ProviderDetailsModalProps {
@@ -47,7 +48,7 @@ export function ProviderDetailsModal({ provider, onClose, onChoose }: ProviderDe
       >
         <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
           <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Provider profile</h2>
-          <button onClick={onClose} className="p-2 -m-2" style={{ color: 'var(--color-text-muted)' }} aria-label="Close"><X className="w-4 h-4" /></button>
+          <button onClick={onClose} className="p-2 -m-2" style={{ color: 'var(--color-text-muted)' }} aria-label="Close" title="Close"><X className="w-4 h-4" /></button>
         </div>
 
         <div className="p-5 space-y-4">
@@ -57,7 +58,9 @@ export function ProviderDetailsModal({ provider, onClose, onChoose }: ProviderDe
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <p className="text-base font-bold" style={{ color: 'var(--color-text)' }}>{buildProviderDisplayName(provider)}</p>
-                <BadgeCheck size={15} style={{ color: '#137333' }} aria-label="Verified provider" />
+                <Tooltip content="This provider's credentials have been verified by Health Hub Africa.">
+                  <BadgeCheck size={15} style={{ color: '#137333' }} aria-label="Verified provider" />
+                </Tooltip>
               </div>
               {provider.specialty && <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{provider.specialty}</p>}
               <div className="flex items-center gap-3 mt-1">
@@ -69,7 +72,13 @@ export function ProviderDetailsModal({ provider, onClose, onChoose }: ProviderDe
                 {provider.yearsExperience != null && provider.yearsExperience > 0 && (
                   <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{provider.yearsExperience} yrs experience</span>
                 )}
-                <Pill variant={provider.isAvailable ? 'success' : 'neutral'}>{provider.isAvailable ? 'Available' : 'Unavailable'}</Pill>
+                {provider.isAvailable ? (
+                  <Pill variant="success">Available</Pill>
+                ) : (
+                  <Tooltip content="This provider isn't accepting new bookings right now.">
+                    <Pill variant="neutral">Unavailable</Pill>
+                  </Tooltip>
+                )}
               </div>
             </div>
           </div>
@@ -97,9 +106,11 @@ export function ProviderDetailsModal({ provider, onClose, onChoose }: ProviderDe
         {onChoose && (
           <div className="flex justify-end gap-2 px-5 py-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
             <Button variant="secondary" size="sm" onClick={onClose}>Close</Button>
-            <Button size="sm" onClick={() => { onChoose(provider.id); onClose() }} disabled={!provider.isAvailable}>
-              Choose this provider
-            </Button>
+            <Tooltip content={provider.isAvailable ? 'Book with this provider.' : "This provider isn't accepting new bookings right now."}>
+              <Button size="sm" onClick={() => { onChoose(provider.id); onClose() }} disabled={!provider.isAvailable}>
+                Choose this provider
+              </Button>
+            </Tooltip>
           </div>
         )}
       </div>

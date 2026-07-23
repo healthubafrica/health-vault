@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { Bell, PanelRightOpen, Search, LogOut } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
 import { Avatar } from '@/components/ui/Avatar'
+import { Tooltip } from '@/components/ui/Tooltip'
 import { patients, subscriptions } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { useAuthStore } from '@/lib/stores/authStore'
@@ -95,21 +96,25 @@ export function Topbar() {
       {/* Actions */}
       <div className="flex items-center gap-3">
         {/* Search Icon Button */}
-        <button
-          aria-label="Search"
-          className="flex items-center justify-center w-10 h-10 md:w-9 md:h-9 rounded-full bg-[var(--color-bg)] text-gray-500 hover:text-gray-800 transition-colors"
-        >
-          <Search size={15} />
-        </button>
+        <Tooltip content="Search your records, appointments, and more." side="bottom">
+          <button
+            aria-label="Search"
+            className="flex items-center justify-center w-10 h-10 md:w-9 md:h-9 rounded-full bg-[var(--color-bg)] text-gray-500 hover:text-gray-800 transition-colors"
+          >
+            <Search size={15} />
+          </button>
+        </Tooltip>
 
         {/* Notifications */}
-        <button
-          aria-label="Notifications"
-          className="relative flex items-center justify-center w-10 h-10 md:w-9 md:h-9 rounded-full bg-[var(--color-bg)] text-gray-500 hover:text-gray-800 transition-colors"
-        >
-          <Bell size={15} />
-          <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-[#C0392B]" aria-hidden="true" />
-        </button>
+        <Tooltip content="Notifications — you have unread alerts." side="bottom">
+          <button
+            aria-label="Notifications"
+            className="relative flex items-center justify-center w-10 h-10 md:w-9 md:h-9 rounded-full bg-[var(--color-bg)] text-gray-500 hover:text-gray-800 transition-colors"
+          >
+            <Bell size={15} />
+            <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-[#C0392B]" aria-hidden="true" />
+          </button>
+        </Tooltip>
 
         {/* User Avatar — opens the profile page where the photo can be changed */}
         <button
@@ -134,22 +139,26 @@ export function Topbar() {
         </span>
 
         {/* Mobile panel toggle */}
-        <button
-          aria-label="Open info panel"
-          onClick={openMobilePanel}
-          className="flex lg:hidden items-center justify-center w-10 h-10 rounded-full bg-[var(--color-bg)] text-gray-500 hover:text-gray-800 transition-colors"
-        >
-          <PanelRightOpen size={15} />
-        </button>
+        <Tooltip content="Open quick info panel for this page." side="bottom">
+          <button
+            aria-label="Open info panel"
+            onClick={openMobilePanel}
+            className="flex lg:hidden items-center justify-center w-10 h-10 rounded-full bg-[var(--color-bg)] text-gray-500 hover:text-gray-800 transition-colors"
+          >
+            <PanelRightOpen size={15} />
+          </button>
+        </Tooltip>
 
         {/* Sign Out — mobile only (sidebar handles desktop) */}
-        <button
-          aria-label="Sign out"
-          onClick={handleLogout}
-          className="flex md:hidden items-center justify-center w-10 h-10 rounded-full bg-[var(--color-bg)] text-gray-500 hover:text-red-500 transition-colors"
-        >
-          <LogOut size={15} />
-        </button>
+        <Tooltip content="Sign out of your account." side="bottom">
+          <button
+            aria-label="Sign out"
+            onClick={handleLogout}
+            className="flex md:hidden items-center justify-center w-10 h-10 rounded-full bg-[var(--color-bg)] text-gray-500 hover:text-red-500 transition-colors"
+          >
+            <LogOut size={15} />
+          </button>
+        </Tooltip>
       </div>
     </header>
   )

@@ -179,7 +179,7 @@ function TicketCard({ ticket, expanded, onToggle }: {
             <Pill variant={STATUS_PILL[ticket.status] ?? 'neutral'}>{ticket.status.replace('_', ' ')}</Pill>
           </div>
           <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-            {ticket.hhaRef} · {ticket.category} · {formatDate(ticket.createdAt)}
+            <span title="Reference number for this ticket — quote it if you follow up.">{ticket.hhaRef}</span> · {ticket.category} · {formatDate(ticket.createdAt)}
           </p>
         </div>
         {expanded
