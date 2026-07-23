@@ -6,7 +6,7 @@ import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
 import { Avatar } from '@/components/ui/Avatar'
-import { Video, PhoneOff, Clock, Loader2, AlertCircle, CalendarPlus, ChevronDown, ChevronUp } from 'lucide-react'
+import { Video, PhoneOff, Clock, Loader2, AlertCircle, CalendarPlus, ChevronDown, ChevronUp, UserPlus } from 'lucide-react'
 import { telecare, TelecareSession } from '@/lib/api'
 import { LiveKitRoom, VideoConference } from '@livekit/components-react'
 import '@livekit/components-styles'
@@ -16,6 +16,7 @@ import { CallRatingModal } from '@/components/telecare/CallRatingModal'
 import { BackgroundBlurEffect } from '@/components/telecare/BackgroundBlurEffect'
 import { InCallShareButton } from '@/components/telecare/InCallShareButton'
 import { downloadTelecareInvite } from '@/components/telecare/icsUtils'
+import { GuestInviteModal } from '@/components/telecare/GuestInviteModal'
 
 // LiveKit/getUserMedia surface a browser permission block as an error whose
 // message mentions one of these — distinct from a network/server failure, and
@@ -68,6 +69,9 @@ export function TeleCareScreen() {
 
   // Which completed session's visit summary is expanded.
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null)
+
+  // Scheduled session currently showing the caregiver/family invite modal.
+  const [inviteSessionId, setInviteSessionId] = useState<string | null>(null)
 
   // Self-healing safety net: setInCall(false) is normally set by
   // handleLeaveSession (Leave Call button or LiveKit's onDisconnected), but
@@ -343,6 +347,9 @@ export function TeleCareScreen() {
       {rateSessionId && (
         <CallRatingModal sessionId={rateSessionId} onDone={() => setRateSessionId(null)} />
       )}
+      {inviteSessionId && (
+        <GuestInviteModal sessionId={inviteSessionId} onClose={() => setInviteSessionId(null)} />
+      )}
 
       <div>
         <h1 className="text-xl font-bold" style={{ color: 'var(--color-text)', fontFamily: 'var(--font-display)' }}>
@@ -457,20 +464,32 @@ export function TeleCareScreen() {
                   </div>
                   <div className="flex items-center gap-2">
                     {session.status === 'scheduled' && (
-                      <button
-                        type="button"
-                        onClick={() => downloadTelecareInvite({
-                          hhaRef: session.hhaRef,
-                          scheduledAt: session.scheduledAt,
-                          providerName: providerLabel(session),
-                        })}
-                        title="Add to calendar"
-                        aria-label="Add to calendar"
-                        className="p-2 -m-1 rounded-lg transition-colors hover:bg-[var(--color-bg)]"
-                        style={{ color: 'var(--color-text-muted)' }}
-                      >
-                        <CalendarPlus size={16} />
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setInviteSessionId(session.id)}
+                          title="Invite a caregiver or family member"
+                          aria-label="Invite a caregiver or family member"
+                          className="p-2 -m-1 rounded-lg transition-colors hover:bg-[var(--color-bg)]"
+                          style={{ color: 'var(--color-text-muted)' }}
+                        >
+                          <UserPlus size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => downloadTelecareInvite({
+                            hhaRef: session.hhaRef,
+                            scheduledAt: session.scheduledAt,
+                            providerName: providerLabel(session),
+                          })}
+                          title="Add to calendar"
+                          aria-label="Add to calendar"
+                          className="p-2 -m-1 rounded-lg transition-colors hover:bg-[var(--color-bg)]"
+                          style={{ color: 'var(--color-text-muted)' }}
+                        >
+                          <CalendarPlus size={16} />
+                        </button>
+                      </>
                     )}
                     <Pill variant={session.status === 'active' ? 'success' : 'neutral'}>
                       {session.status}
