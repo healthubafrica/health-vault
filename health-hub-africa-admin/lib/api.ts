@@ -443,6 +443,8 @@ export interface ProviderSession {
   durationSeconds?: number | null
   meetingUrl?: string | null
   recordingUrl?: string | null
+  patientRating?: number | null
+  patientFeedback?: string | null
   patient?: {
     firstName: string
     lastName: string

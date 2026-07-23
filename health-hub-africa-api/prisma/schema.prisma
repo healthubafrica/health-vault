@@ -806,6 +806,10 @@ model TelecareSession {
   meetingUrl    String?       @map("meeting_url")
   recordingUrl  String?       @map("recording_url")
   platform      String        @default("HHA Native")
+  // Post-call patient CSAT — set once via PATCH by the owning patient after
+  // a completed call. 1-5 stars; feedback is optional free text.
+  patientRating   Int?    @map("patient_rating") @db.SmallInt
+  patientFeedback String? @map("patient_feedback")
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
