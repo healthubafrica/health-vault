@@ -10,8 +10,9 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { SessionStatus, UserRole } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
-import { AccessToken, WebhookReceiver } from 'livekit-server-sdk';
+import { WebhookReceiver } from 'livekit-server-sdk';
 import { PrismaService } from '../prisma/prisma.service';
+import { getLivekitCredentials, mintLivekitToken } from './livekit-token.util';
 import { S3Service } from '../storage/s3.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import {
@@ -89,33 +90,12 @@ export class TelecareService implements OnModuleInit {
       participantName = currentUser.email || 'Admin/Coordinator';
     }
 
-    const apiKey = this.config.get<string>('LIVEKIT_API_KEY');
-    const apiSecret = this.config.get<string>('LIVEKIT_API_SECRET');
-    const serverUrl = this.config.get<string>('LIVEKIT_URL');
-
-    if (!apiKey || !apiSecret || !serverUrl) {
-      throw new Error('LiveKit credentials are not fully configured on the server');
-    }
-
-    const roomName = `telecare-${session.id}`;
-    const at = new AccessToken(apiKey, apiSecret, {
+    const creds = getLivekitCredentials(this.config);
+    return mintLivekitToken(creds, {
       identity: currentUser.sub,
       name: participantName,
+      roomName: `telecare-${session.id}`,
     });
-
-    at.addGrant({
-      roomJoin: true,
-      room: roomName,
-      canPublish: true,
-      canSubscribe: true,
-    });
-
-    const token = await at.toJwt();
-    return {
-      token,
-      serverUrl,
-      roomName,
-    };
   }
 
   async createSession(dto: CreateTelecareSessionDto, currentUser: JwtPayload) {

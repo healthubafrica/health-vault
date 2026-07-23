@@ -899,6 +899,75 @@ export const telecare = {
     }),
 }
 
+// ── TeleCare guest invites (caregiver/family) ──────────────────────────────
+
+export interface TelecareGuestInvite {
+  id: string
+  guestName: string
+  guestEmail: string
+  isRevoked: boolean
+  verifiedAt?: string | null
+  createdAt: string
+}
+
+export const telecareGuestInvites = {
+  list: (sessionId: string) =>
+    request<TelecareGuestInvite[]>(`/telecare/sessions/${sessionId}/guest-invites`),
+
+  create: (sessionId: string, guestName: string, guestEmail: string) =>
+    request<TelecareGuestInvite>(`/telecare/sessions/${sessionId}/guest-invites`, {
+      method: 'POST',
+      body: JSON.stringify({ guestName, guestEmail }),
+    }),
+
+  revoke: (sessionId: string, inviteId: string) =>
+    request<TelecareGuestInvite>(`/telecare/sessions/${sessionId}/guest-invites/${inviteId}`, {
+      method: 'DELETE',
+    }),
+}
+
+// Public guest-join flow (no auth token — the invite token in the URL plus
+// an email OTP are the only credentials).
+export interface TelecareGuestPublicInfo {
+  guestName: string
+  patientFirstName: string
+  providerName: string | null
+  scheduledAt: string
+  sessionStatus: string
+  canJoin: boolean
+}
+
+export interface TelecareGuestLivekitJoin {
+  token: string
+  serverUrl: string
+  roomName: string
+  guestName: string
+}
+
+export const telecareGuest = {
+  resolve: (token: string) =>
+    fetch(`${PUBLIC_BASE}/telecare/guest/${token}`).then(r => {
+      if (!r.ok) return r.json().then(b => Promise.reject(new Error(b.message ?? 'Invite link not found')))
+      return r.json() as Promise<TelecareGuestPublicInfo>
+    }),
+
+  requestOtp: (token: string) =>
+    fetch(`${PUBLIC_BASE}/telecare/guest/${token}/otp`, { method: 'POST' }).then(r => {
+      if (!r.ok) return r.json().then(b => Promise.reject(new Error(b.message ?? 'Failed to send code')))
+      return r.json() as Promise<{ ok: boolean }>
+    }),
+
+  verifyOtp: (token: string, code: string) =>
+    fetch(`${PUBLIC_BASE}/telecare/guest/${token}/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    }).then(r => {
+      if (!r.ok) return r.json().then(b => Promise.reject(new Error(b.message ?? 'Invalid code')))
+      return r.json() as Promise<TelecareGuestLivekitJoin>
+    }),
+}
+
 // ── Dispatch ──────────────────────────────────────────────────────────────
 
 export interface DispatchCase {

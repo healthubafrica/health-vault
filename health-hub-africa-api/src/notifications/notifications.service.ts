@@ -151,6 +151,36 @@ export class NotificationsService {
     return this.sendEmail(email, 'Verify your Health Hub Africa account', body, userId);
   }
 
+  // Telecare caregiver/family guest invite — link only, no code. The guest
+  // verifies their email with a one-time code (sendGuestOtpEmail) at join
+  // time, not here; this email just tells them where to go.
+  async sendGuestCallInviteEmail(
+    to: string,
+    userId: string,
+    data: { guestName: string; patientName: string; scheduledAt: Date; joinUrl: string },
+  ) {
+    const when = data.scheduledAt.toLocaleString('en-GB', {
+      day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos',
+    });
+    const subject = `${data.patientName} invited you to a Health Hub Africa video call`;
+    const body =
+      `Hi ${data.guestName},\n\n` +
+      `${data.patientName} has invited you to join their telehealth video call on Health Hub Africa.\n\n` +
+      `When: ${when} (WAT)\n\n` +
+      `Join here: ${data.joinUrl}\n\n` +
+      `You'll be asked to verify this email address with a one-time code before joining — this keeps the call private to people the patient has actually invited.\n\n` +
+      `If you weren't expecting this invite, you can safely ignore this email.`;
+    return this.sendEmail(to, subject, body, userId);
+  }
+
+  async sendGuestOtpEmail(to: string, userId: string, guestName: string, otp: string) {
+    const body =
+      `Hi ${guestName},\n\n` +
+      `Your one-time code to join the video call is:\n\n${otp}\n\n` +
+      `This code expires in 10 minutes. If you did not request this, please ignore this email.`;
+    return this.sendEmail(to, 'Your Health Hub Africa call access code', body, userId);
+  }
+
   private buildAppointmentEmailBody(data: AppointmentNotificationData): string {
     return (
       `Hi ${data.recipientName},\n\n${data.intro}\n\n` +

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { PhoneOff, ExternalLink, AlertCircle, Sparkles } from 'lucide-react'
 import { calcAge, buildOpenEmrUrl, isPermissionError } from './helpers'
 import { BackgroundBlurEffect } from './BackgroundBlurEffect'
+import { GuestParticipantsBanner } from './GuestParticipantsBanner'
 
 export function CallOverlay({
   session,
@@ -110,7 +111,7 @@ export function CallOverlay({
         </div>
       </div>
 
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 relative">
         {failure ? (
           <div className="h-full flex flex-col items-center justify-center gap-3 px-6 text-center overflow-y-auto py-8">
             <AlertCircle className="w-8 h-8" style={{ color: '#f87171' }} />
@@ -155,6 +156,9 @@ export function CallOverlay({
             }}
           >
             <BackgroundBlurEffect enabled={blurBackground} />
+            <div className="absolute top-3 left-3 z-10">
+              <GuestParticipantsBanner />
+            </div>
             <VideoConference />
           </LiveKitRoom>
         )}
