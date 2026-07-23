@@ -21,6 +21,7 @@ import {
   CreateOnDemandSessionDto,
   TransferSessionDto,
   CreateShiftDto,
+  RateSessionDto,
 } from './dto/create-session.dto';
 import { buildProviderDisplayName } from '../common/utils/provider-name.util';
 
@@ -396,6 +397,30 @@ export class TelecareService implements OnModuleInit {
     if (dto.recordingUrl) data.recordingUrl = dto.recordingUrl;
 
     return this.prisma.telecareSession.update({ where: { id }, data });
+  }
+
+  // Post-call CSAT. Only the owning patient may rate, and only after the
+  // call actually completed — rating a session that never happened would
+  // be meaningless (and ratable-while-active would let a patient game the
+  // score mid-call before the provider has finished).
+  async rateSession(id: string, dto: RateSessionDto, currentUser: JwtPayload) {
+    const session = await this.prisma.telecareSession.findUnique({
+      where: { id },
+      include: { patient: { select: { userId: true } } },
+    });
+    if (!session) throw new NotFoundException('Telecare session not found');
+
+    const isOwningPatient =
+      currentUser.role === UserRole.patient && session.patient?.userId === currentUser.sub;
+    if (!isOwningPatient) throw new ForbiddenException('Access denied');
+    if (session.status !== SessionStatus.completed) {
+      throw new ForbiddenException('Only a completed session can be rated');
+    }
+
+    return this.prisma.telecareSession.update({
+      where: { id },
+      data: { patientRating: dto.rating, patientFeedback: dto.feedback },
+    });
   }
 
   // ── LiveKit webhook ──────────────────────────────────────────────────────

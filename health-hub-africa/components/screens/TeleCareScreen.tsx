@@ -1,15 +1,21 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
 import { Avatar } from '@/components/ui/Avatar'
-import { Video, PhoneOff, Clock, Loader2, AlertCircle } from 'lucide-react'
+import { Video, PhoneOff, Clock, Loader2, AlertCircle, CalendarPlus, ChevronDown, ChevronUp } from 'lucide-react'
 import { telecare, TelecareSession } from '@/lib/api'
 import { LiveKitRoom, VideoConference } from '@livekit/components-react'
 import '@livekit/components-styles'
 import { useCallStore } from '@/lib/stores/callStore'
+import { DeviceCheckScreen } from '@/components/telecare/DeviceCheckScreen'
+import { CallRatingModal } from '@/components/telecare/CallRatingModal'
+import { BackgroundBlurEffect } from '@/components/telecare/BackgroundBlurEffect'
+import { InCallShareButton } from '@/components/telecare/InCallShareButton'
+import { downloadTelecareInvite } from '@/components/telecare/icsUtils'
 
 // LiveKit/getUserMedia surface a browser permission block as an error whose
 // message mentions one of these — distinct from a network/server failure, and
@@ -20,10 +26,25 @@ function isPermissionError(message: string): boolean {
   return m.includes('permission') || m.includes('notallowederror') || m.includes('not allowed')
 }
 
+// A session more than this far past its scheduled time and still not
+// started gets a "running late" notice instead of silently doing nothing.
+const RUNNING_LATE_THRESHOLD_MS = 5 * 60_000
+
+function providerLabel(session: TelecareSession | undefined): string | undefined {
+  if (!session?.provider) return undefined
+  return `${session.provider.title ?? 'Dr.'} ${session.provider.firstName} ${session.provider.lastName}`.trim()
+}
+
 export function TeleCareScreen() {
+  const router = useRouter()
   const [sessions, setSessions] = useState<TelecareSession[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Pre-call device check step — set when the patient requests to join a
+  // session, cleared once they confirm (→ handleJoinSession) or cancel.
+  const [precheckSession, setPrecheckSession] = useState<TelecareSession | null>(null)
+  const [blurBackground, setBlurBackground] = useState(false)
 
   // Call state
   const [activeToken, setActiveToken] = useState<string | null>(null)
@@ -31,6 +52,7 @@ export function TeleCareScreen() {
   const [activeServerUrl, setActiveServerUrl] = useState<string | null>(null)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [joining, setJoining] = useState(false)
+  const [connected, setConnected] = useState(false)
   const setInCall = useCallStore((s) => s.setInCall)
 
   // A disconnect only means "the consultation ended" if the room ever
@@ -39,6 +61,13 @@ export function TeleCareScreen() {
   // completed, so the patient loses a session they never actually had.
   const hasConnected = useRef(false)
   const [callFailed, setCallFailed] = useState<string | null>(null)
+
+  // Post-call CSAT prompt — the just-ended session's id, only set when the
+  // call actually connected (see handleLeaveSession).
+  const [rateSessionId, setRateSessionId] = useState<string | null>(null)
+
+  // Which completed session's visit summary is expanded.
+  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null)
 
   // Self-healing safety net: setInCall(false) is normally set by
   // handleLeaveSession (Leave Call button or LiveKit's onDisconnected), but
@@ -102,9 +131,16 @@ export function TeleCareScreen() {
     }
   }, [])
 
+  // Step 1 of joining: show the device check screen. The actual LiveKit
+  // connect only happens once the patient confirms from there.
+  const handleRequestJoin = (session: TelecareSession) => {
+    setPrecheckSession(session)
+  }
+
   const handleJoinSession = async (sessionId: string) => {
     setJoining(true)
     hasConnected.current = false
+    setConnected(false)
     setCallFailed(null)
     try {
       const res = await telecare.getToken(sessionId)
@@ -136,26 +172,70 @@ export function TeleCareScreen() {
     setActiveServerUrl(null)
     setActiveSessionId(null)
     setCallFailed(null)
+    setConnected(false)
     hasConnected.current = false
     setInCall(false)
     fetchSessions()
   }
 
   const handleLeaveSession = () => {
+    const endedSessionId = activeSessionId
+    const callActuallyHappened = hasConnected.current
+
     // Fire-and-forget: advance the session to 'completed' on the server so
     // the row doesn't sit at 'active' forever. The LiveKit webhook will do
     // the same thing when the room finishes, but this gives an instant flip
     // for the patient-initiated case. Errors are intentionally swallowed —
     // the sweep cron is the final safety net.
-    if (activeSessionId) {
-      telecare.markCompleted(activeSessionId).catch(() => null)
+    if (endedSessionId) {
+      telecare.markCompleted(endedSessionId).catch(() => null)
     }
     setActiveToken(null)
     setActiveRoom(null)
     setActiveServerUrl(null)
     setActiveSessionId(null)
+    setConnected(false)
     setInCall(false)
+    if (callActuallyHappened && endedSessionId) {
+      setRateSessionId(endedSessionId)
+    }
     fetchSessions()
+  }
+
+  // Standard list & preview view.
+  // Prefer a genuinely active (in-progress) call over any scheduled one. If
+  // none is active, pick the soonest *upcoming* scheduled session rather than
+  // just the earliest row overall — a stale scheduled session that was never
+  // cleaned up would otherwise sort first forever and look permanently
+  // "stuck" on the same consultation.
+  const now = Date.now()
+  const activeSession = sessions.find(s => s.status === 'active')
+  const upcoming = sessions
+    .filter(s => s.status === 'scheduled')
+    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+  const nextSession =
+    activeSession ??
+    upcoming.find(s => new Date(s.scheduledAt).getTime() >= now) ??
+    upcoming[0]
+
+  const isRunningLate =
+    nextSession?.status === 'scheduled' &&
+    now - new Date(nextSession.scheduledAt).getTime() > RUNNING_LATE_THRESHOLD_MS
+
+  // Pre-call device check
+  if (precheckSession) {
+    return (
+      <DeviceCheckScreen
+        providerName={providerLabel(precheckSession)}
+        onJoin={({ blurBackground: blur }) => {
+          setBlurBackground(blur)
+          const id = precheckSession.id
+          setPrecheckSession(null)
+          void handleJoinSession(id)
+        }}
+        onCancel={() => setPrecheckSession(null)}
+      />
+    )
   }
 
   // Live video room view
@@ -225,7 +305,7 @@ export function TeleCareScreen() {
               audio={true}
               token={activeToken}
               serverUrl={livekitUrl}
-              onConnected={() => { hasConnected.current = true }}
+              onConnected={() => { hasConnected.current = true; setConnected(true) }}
               onError={(err) => setCallFailed(err.message)}
               onDisconnected={() => {
                 // Only a call that actually connected counts as completed.
@@ -235,7 +315,22 @@ export function TeleCareScreen() {
               data-lk-theme="default"
               style={{ height: '100%' }}
             >
+              <BackgroundBlurEffect enabled={blurBackground} />
               <VideoConference />
+              <div className="absolute top-3 left-3 z-10">
+                <InCallShareButton />
+              </div>
+              {!connected && (
+                <div
+                  className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3"
+                  style={{ background: '#0a1a0a' }}
+                >
+                  <Loader2 size={28} className="animate-spin" style={{ color: '#6DC43F' }} />
+                  <p className="text-sm font-semibold text-white">
+                    Connecting you{providerLabel(sessions.find(s => s.id === activeSessionId)) ? ` to ${providerLabel(sessions.find(s => s.id === activeSessionId))}` : ''}…
+                  </p>
+                </div>
+              )}
             </LiveKitRoom>
           )}
         </Card>
@@ -243,24 +338,12 @@ export function TeleCareScreen() {
     )
   }
 
-  // Standard list & preview view.
-  // Prefer a genuinely active (in-progress) call over any scheduled one. If
-  // none is active, pick the soonest *upcoming* scheduled session rather than
-  // just the earliest row overall — a stale scheduled session that was never
-  // cleaned up would otherwise sort first forever and look permanently
-  // "stuck" on the same consultation.
-  const now = Date.now()
-  const activeSession = sessions.find(s => s.status === 'active')
-  const upcoming = sessions
-    .filter(s => s.status === 'scheduled')
-    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
-  const nextSession =
-    activeSession ??
-    upcoming.find(s => new Date(s.scheduledAt).getTime() >= now) ??
-    upcoming[0]
-
   return (
     <div className="flex flex-col gap-5 pb-20 md:pb-5">
+      {rateSessionId && (
+        <CallRatingModal sessionId={rateSessionId} onDone={() => setRateSessionId(null)} />
+      )}
+
       <div>
         <h1 className="text-xl font-bold" style={{ color: 'var(--color-text)', fontFamily: 'var(--font-display)' }}>
           TeleCare™
@@ -277,6 +360,16 @@ export function TeleCareScreen() {
         </div>
       )}
 
+      {isRunningLate && (
+        <div className="flex items-center gap-2 p-3 text-sm rounded-lg" style={{ background: 'var(--color-warning-bg)', color: 'var(--color-warning)' }}>
+          <Clock size={16} className="shrink-0" />
+          <p>
+            {providerLabel(nextSession) ?? 'Your provider'} is running a few minutes behind schedule —
+            hang tight, we&apos;ll connect you as soon as they&apos;re ready.
+          </p>
+        </div>
+      )}
+
       {/* Video preview area */}
       <Card className="relative overflow-hidden" padding="none">
         <div
@@ -284,9 +377,9 @@ export function TeleCareScreen() {
           style={{ background: '#0a1a0a' }}
           aria-label="Video consultation area"
         >
-          <Avatar seed="Care Provider" size="lg" shape="circle" alt="Care provider" />
+          <Avatar seed={providerLabel(nextSession) ?? 'Care Provider'} size="lg" shape="circle" alt="Care provider" />
           <div className="text-center">
-            <p className="text-white font-semibold text-sm">Your Care Provider</p>
+            <p className="text-white font-semibold text-sm">{providerLabel(nextSession) ?? 'Your Care Provider'}</p>
             <p className="text-white/50 text-xs">Connects when your session starts</p>
           </div>
           {nextSession?.status === 'active' ? (
@@ -303,10 +396,10 @@ export function TeleCareScreen() {
           style={{ background: 'var(--color-surface)' }}
         >
           {nextSession ? (
-            <Button 
-              size="lg" 
-              className="px-6 gap-2" 
-              onClick={() => handleJoinSession(nextSession.id)}
+            <Button
+              size="lg"
+              className="px-6 gap-2"
+              onClick={() => handleRequestJoin(nextSession)}
               disabled={joining}
             >
               {joining ? (
@@ -358,16 +451,33 @@ export function TeleCareScreen() {
                       </p>
                       <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                         {new Date(session.scheduledAt).toLocaleString()}
+                        {providerLabel(session) ? ` · ${providerLabel(session)}` : ''}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    {session.status === 'scheduled' && (
+                      <button
+                        type="button"
+                        onClick={() => downloadTelecareInvite({
+                          hhaRef: session.hhaRef,
+                          scheduledAt: session.scheduledAt,
+                          providerName: providerLabel(session),
+                        })}
+                        title="Add to calendar"
+                        aria-label="Add to calendar"
+                        className="p-2 -m-1 rounded-lg transition-colors hover:bg-[var(--color-bg)]"
+                        style={{ color: 'var(--color-text-muted)' }}
+                      >
+                        <CalendarPlus size={16} />
+                      </button>
+                    )}
                     <Pill variant={session.status === 'active' ? 'success' : 'neutral'}>
                       {session.status}
                     </Pill>
-                    <Button 
-                      size="sm" 
-                      onClick={() => handleJoinSession(session.id)}
+                    <Button
+                      size="sm"
+                      onClick={() => handleRequestJoin(session)}
                       disabled={joining}
                     >
                       Join
@@ -390,22 +500,63 @@ export function TeleCareScreen() {
           ) : (
             sessions
               .filter(s => s.status === 'completed')
-              .map((session) => (
-                <div key={session.id} className="flex items-center gap-3 py-3 border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--color-bg)' }}>
-                    <Clock size={14} style={{ color: 'var(--color-text-muted)' }} />
+              .map((session) => {
+                const hasNotes = !!(session.notes?.assessment || session.notes?.plan || session.notes?.followUpDays)
+                const isExpanded = expandedSessionId === session.id
+                return (
+                  <div key={session.id} className="py-3 border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                    <button
+                      type="button"
+                      onClick={() => hasNotes && setExpandedSessionId(isExpanded ? null : session.id)}
+                      className="w-full flex items-center gap-3 text-left"
+                      disabled={!hasNotes}
+                    >
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--color-bg)' }}>
+                        <Clock size={14} style={{ color: 'var(--color-text-muted)' }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium" title="Reference number for this session — use it if you contact support." style={{ color: 'var(--color-text)' }}>
+                          Consultation {session.hhaRef}
+                        </p>
+                        <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                          {new Date(session.scheduledAt).toLocaleDateString()} · {session.durationSeconds ? `${Math.floor(session.durationSeconds / 60)} mins` : 'Completed'}
+                          {providerLabel(session) ? ` · ${providerLabel(session)}` : ''}
+                        </p>
+                      </div>
+                      {session.patientRating && (
+                        <Pill variant="success">{'★'.repeat(session.patientRating)}</Pill>
+                      )}
+                      <Pill variant="neutral">completed</Pill>
+                      {hasNotes && (isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />)}
+                    </button>
+                    {isExpanded && hasNotes && (
+                      <div className="mt-3 ml-11 flex flex-col gap-2 p-3 rounded-xl" style={{ background: 'var(--color-bg)' }}>
+                        {session.notes?.assessment && (
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>Assessment</p>
+                            <p className="text-xs" style={{ color: 'var(--color-text)' }}>{session.notes.assessment}</p>
+                          </div>
+                        )}
+                        {session.notes?.plan && (
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>Plan</p>
+                            <p className="text-xs" style={{ color: 'var(--color-text)' }}>{session.notes.plan}</p>
+                          </div>
+                        )}
+                        {session.notes?.followUpDays && (
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>Follow-up</p>
+                            <p className="text-xs" style={{ color: 'var(--color-text)' }}>Recommended in {session.notes.followUpDays} day{session.notes.followUpDays === 1 ? '' : 's'}</p>
+                          </div>
+                        )}
+                        <Button size="sm" className="self-start mt-1" onClick={() => router.push('/appointments')}>
+                          Book Follow-up
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium" title="Reference number for this session — use it if you contact support." style={{ color: 'var(--color-text)' }}>
-                      Consultation {session.hhaRef}
-                    </p>
-                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                      {new Date(session.scheduledAt).toLocaleDateString()} · {session.durationSeconds ? `${Math.floor(session.durationSeconds / 60)} mins` : 'Completed'}
-                    </p>
-                  </div>
-                  <Pill variant="neutral">completed</Pill>
-                </div>
-              ))
+                )
+              })
           )}
         </div>
       </Card>

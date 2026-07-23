@@ -864,10 +864,14 @@ export interface TelecareSession {
   durationSeconds?: number
   meetingUrl?: string
   recordingUrl?: string
+  patientRating?: number
+  patientFeedback?: string
+  provider?: { firstName: string; lastName: string; title?: string }
   notes?: {
     chiefComplaint?: string
     assessment?: string
     plan?: string
+    followUpDays?: number
   }
 }
 
@@ -888,6 +892,11 @@ export const telecare = {
         body: JSON.stringify({ status: 'completed', endedAt: new Date().toISOString() }),
       },
     ),
+  rate: (id: string, rating: number, feedback?: string) =>
+    request<TelecareSession>(`/telecare/sessions/${id}/rate`, {
+      method: 'PATCH',
+      body: JSON.stringify({ rating, feedback }),
+    }),
 }
 
 // ── Dispatch ──────────────────────────────────────────────────────────────
