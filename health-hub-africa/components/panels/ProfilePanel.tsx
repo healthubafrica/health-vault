@@ -2,6 +2,7 @@
 
 import { Pill } from '@/components/ui/Pill'
 import { IdChip } from '@/components/ui/IdChip'
+import { Tooltip } from '@/components/ui/Tooltip'
 import { patients, subscriptions } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { formatDate } from '@/lib/utils'
@@ -17,18 +18,23 @@ export function ProfilePanel() {
   const hhaId = profile?.hhaPatientId ?? ''
   const status = profile?.status ?? 'Active'
 
-  const fieldsCompleted = [
-    profile?.bloodGroup,
-    profile?.address,
-    profile?.gender,
-    profile?.dateOfBirth,
-    profile?.user?.phone,
-    profile?.medicalInfo?.allergies?.length,
-    profile?.medicalInfo?.chronicConditions?.length,
-    profile?.medicalInfo?.activeMedications?.length,
-    profile?.emergencyContacts?.length,
-  ].filter(Boolean).length
-  const completeness = Math.round((fieldsCompleted / 9) * 100)
+  const completenessChecks: { label: string; done: unknown }[] = [
+    { label: 'Blood group', done: profile?.bloodGroup },
+    { label: 'Address', done: profile?.address },
+    { label: 'Gender', done: profile?.gender },
+    { label: 'Date of birth', done: profile?.dateOfBirth },
+    { label: 'Phone number', done: profile?.user?.phone },
+    { label: 'Allergies', done: profile?.medicalInfo?.allergies?.length },
+    { label: 'Chronic conditions', done: profile?.medicalInfo?.chronicConditions?.length },
+    { label: 'Current medications', done: profile?.medicalInfo?.activeMedications?.length },
+    { label: 'Emergency contact', done: profile?.emergencyContacts?.length },
+  ]
+  const fieldsCompleted = completenessChecks.filter(c => c.done).length
+  const missingFields = completenessChecks.filter(c => !c.done).map(c => c.label)
+  const completeness = Math.round((fieldsCompleted / completenessChecks.length) * 100)
+  const completenessTooltip = missingFields.length > 0
+    ? `${fieldsCompleted} of ${completenessChecks.length} fields completed — still missing: ${missingFields.join(', ')}.`
+    : 'All profile fields completed.'
   const circumference = 2 * Math.PI * 38
   const offset = circumference - (completeness / 100) * circumference
 
@@ -53,24 +59,26 @@ export function ProfilePanel() {
           Profile Completeness
         </p>
         <div className="flex items-center gap-4">
-          <div className="relative w-20 h-20 shrink-0">
-            <svg width="80" height="80" viewBox="0 0 80 80" aria-label={`Profile ${completeness}% complete`}>
-              <circle cx="40" cy="40" r="38" fill="none" stroke="var(--color-border)" strokeWidth="5" />
-              <circle
-                cx="40" cy="40" r="38" fill="none"
-                stroke="#6DC43F" strokeWidth="5"
-                strokeDasharray={circumference}
-                strokeDashoffset={offset}
-                strokeLinecap="round"
-                transform="rotate(-90 40 40)"
-              />
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-lg font-bold" style={{ color: 'var(--color-text)', fontFamily: 'var(--font-display)' }}>
-                {completeness}%
-              </span>
+          <Tooltip content={completenessTooltip} wide className="w-20 h-20 shrink-0">
+            <div className="relative w-20 h-20 shrink-0">
+              <svg width="80" height="80" viewBox="0 0 80 80" aria-label={`Profile ${completeness}% complete`}>
+                <circle cx="40" cy="40" r="38" fill="none" stroke="var(--color-border)" strokeWidth="5" />
+                <circle
+                  cx="40" cy="40" r="38" fill="none"
+                  stroke="#6DC43F" strokeWidth="5"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={offset}
+                  strokeLinecap="round"
+                  transform="rotate(-90 40 40)"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-lg font-bold" style={{ color: 'var(--color-text)', fontFamily: 'var(--font-display)' }}>
+                  {completeness}%
+                </span>
+              </div>
             </div>
-          </div>
+          </Tooltip>
           <div>
             <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>{displayName}</p>
             <IdChip className="mt-1">{hhaId}</IdChip>

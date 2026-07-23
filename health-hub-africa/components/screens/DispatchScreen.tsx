@@ -5,6 +5,7 @@ import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { FormTextarea } from '@/components/ui/FormInput'
 import { DispatchTimeline } from '@/components/dispatch/DispatchTimeline'
+import { Tooltip } from '@/components/ui/Tooltip'
 import { MapPin, Phone, Siren, Heart, Bone, Brain, Activity, AlertTriangle, Wind, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -32,6 +33,17 @@ const STATUS_LABELS: Record<string, string> = {
   patient_stabilised: 'Stabilised',
   transported:        'Transported',
   closed:             'Closed',
+}
+
+const STATUS_EXPLANATIONS: Record<string, string> = {
+  requested:          'Your request has been received by our operations team.',
+  triaged:            'Your case has been assessed and assigned a priority level.',
+  unit_assigned:      'A response unit has been assigned to your case.',
+  en_route:           'The response unit is on the way to your location.',
+  on_scene:           'The response unit has arrived at your location.',
+  patient_stabilised: "You've been stabilised by the response team.",
+  transported:        "You're being transported to a care facility.",
+  closed:             'This dispatch case has been closed.',
 }
 
 function formatEmergencyType(value: string): string {
@@ -191,12 +203,14 @@ export function DispatchScreen() {
                 {STATUS_LABELS[activeCase.status] ?? activeCase.status}
               </p>
             </div>
-            <span
-              className="text-xs font-bold px-2 py-1 rounded-lg"
-              style={{ background: '#C0392B22', color: '#C0392B' }}
-            >
-              {STATUS_LABELS[activeCase.status] ?? activeCase.status}
-            </span>
+            <Tooltip content={STATUS_EXPLANATIONS[activeCase.status] ?? 'Current status of your dispatch case.'} wide>
+              <span
+                className="text-xs font-bold px-2 py-1 rounded-lg cursor-default"
+                style={{ background: '#C0392B22', color: '#C0392B' }}
+              >
+                {STATUS_LABELS[activeCase.status] ?? activeCase.status}
+              </span>
+            </Tooltip>
           </div>
         </Card>
       )}
@@ -323,16 +337,22 @@ export function DispatchScreen() {
         >
           <Phone size={16} /> Call Emergency
         </Button>
-        <Button
-          variant="emergency"
-          size="lg"
-          fullWidth
-          onClick={handleDispatch}
-          disabled={dispatching || !selectedType}
+        <Tooltip
+          content={!selectedType ? 'Select an emergency type above before dispatching.' : 'Send this emergency request to our operations team.'}
+          wide
+          className="w-full"
         >
-          <Siren size={16} />
-          {dispatching ? 'Dispatching…' : 'Dispatch Now'}
-        </Button>
+          <Button
+            variant="emergency"
+            size="lg"
+            fullWidth
+            onClick={handleDispatch}
+            disabled={dispatching || !selectedType}
+          >
+            <Siren size={16} />
+            {dispatching ? 'Dispatching…' : 'Dispatch Now'}
+          </Button>
+        </Tooltip>
       </div>
 
       {/* Dispatch history */}
@@ -362,19 +382,21 @@ export function DispatchScreen() {
                       </p>
                     </div>
                   </div>
-                  <span
-                    className="text-[11px] font-semibold px-2 py-0.5 rounded-lg shrink-0 ml-2"
-                    style={{
-                      background: c.status === 'closed' || c.status === 'transported'
-                        ? 'var(--color-success-bg)'
-                        : 'var(--color-error-bg)',
-                      color: c.status === 'closed' || c.status === 'transported'
-                        ? '#006022'
-                        : '#C0392B',
-                    }}
-                  >
-                    {STATUS_LABELS[c.status] ?? c.status}
-                  </span>
+                  <Tooltip content={STATUS_EXPLANATIONS[c.status] ?? 'Status of this dispatch case.'} wide>
+                    <span
+                      className="text-[11px] font-semibold px-2 py-0.5 rounded-lg shrink-0 ml-2 cursor-default"
+                      style={{
+                        background: c.status === 'closed' || c.status === 'transported'
+                          ? 'var(--color-success-bg)'
+                          : 'var(--color-error-bg)',
+                        color: c.status === 'closed' || c.status === 'transported'
+                          ? '#006022'
+                          : '#C0392B',
+                      }}
+                    >
+                      {STATUS_LABELS[c.status] ?? c.status}
+                    </span>
+                  </Tooltip>
                 </div>
               ))}
             </div>

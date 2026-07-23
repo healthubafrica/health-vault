@@ -23,6 +23,7 @@ import { ActionChip } from '@/components/ui/ActionChip'
 import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
 import { IdChip } from '@/components/ui/IdChip'
+import { Tooltip } from '@/components/ui/Tooltip'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
 import { patients, vitals as vitalsApi, appointments, subscriptions } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
@@ -78,18 +79,40 @@ export function DashboardScreen() {
   const planName = activeSub?.plan?.name ?? 'Free'
 
   const healthStatus = (() => {
-    if (!latestVitals) return { label: 'No data yet', color: '#6B7280', bg: '#F3F4F6', border: '#6B7280', alert: 'Log vitals to see your status' }
-    const flags = [
-      latestVitals.heartRate != null && (latestVitals.heartRate < 60 || latestVitals.heartRate > 100),
-      latestVitals.spo2 != null && latestVitals.spo2 < 95,
-      latestVitals.systolicBp != null && (latestVitals.systolicBp < 90 || latestVitals.systolicBp > 140),
-      latestVitals.diastolicBp != null && (latestVitals.diastolicBp < 60 || latestVitals.diastolicBp > 90),
-      latestVitals.bloodGlucose != null && (latestVitals.bloodGlucose < 70 || latestVitals.bloodGlucose > 180),
-    ]
-    const hasConcern = flags.some(Boolean)
-    return hasConcern
-      ? { label: 'Review Needed', color: '#B45309', bg: '#FEF3C7', border: '#B45309', alert: 'Some readings outside normal range' }
-      : { label: 'Stable', color: '#137333', bg: '#EBF5EC', border: '#137333', alert: 'No critical alerts' }
+    if (!latestVitals) {
+      return {
+        label: 'No data yet', color: '#6B7280', bg: '#F3F4F6', border: '#6B7280',
+        alert: 'Log vitals to see your status',
+        detail: 'Log your first reading to get a status here.',
+      }
+    }
+    const concerns: string[] = []
+    if (latestVitals.heartRate != null && (latestVitals.heartRate < 60 || latestVitals.heartRate > 100)) {
+      concerns.push(`heart rate ${latestVitals.heartRate} bpm (normal: 60–100)`)
+    }
+    if (latestVitals.spo2 != null && latestVitals.spo2 < 95) {
+      concerns.push(`SpO₂ ${latestVitals.spo2}% (normal: ≥95%)`)
+    }
+    if (latestVitals.systolicBp != null && (latestVitals.systolicBp < 90 || latestVitals.systolicBp > 140)) {
+      concerns.push(`systolic BP ${latestVitals.systolicBp} mmHg (normal: 90–140)`)
+    }
+    if (latestVitals.diastolicBp != null && (latestVitals.diastolicBp < 60 || latestVitals.diastolicBp > 90)) {
+      concerns.push(`diastolic BP ${latestVitals.diastolicBp} mmHg (normal: 60–90)`)
+    }
+    if (latestVitals.bloodGlucose != null && (latestVitals.bloodGlucose < 70 || latestVitals.bloodGlucose > 180)) {
+      concerns.push(`blood glucose ${latestVitals.bloodGlucose} mg/dL (normal: 70–180)`)
+    }
+    return concerns.length > 0
+      ? {
+          label: 'Review Needed', color: '#B45309', bg: '#FEF3C7', border: '#B45309',
+          alert: 'Some readings outside normal range',
+          detail: `Outside normal range: ${concerns.join(', ')}. Discuss with your provider.`,
+        }
+      : {
+          label: 'Stable', color: '#137333', bg: '#EBF5EC', border: '#137333',
+          alert: 'No critical alerts',
+          detail: 'Your latest heart rate, SpO₂, blood pressure, and glucose are all within normal range.',
+        }
   })()
 
   const heartRate = latestVitals?.heartRate
@@ -182,30 +205,34 @@ export function DashboardScreen() {
             Health Overview
           </h2>
           <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setOverviewView('grid')}
-              aria-pressed={overviewView === 'grid'}
-              aria-label="Grid view"
-              className={`p-2 rounded-xl border cursor-pointer shadow-sm transition-colors ${
-                overviewView === 'grid'
-                  ? 'bg-[#EBF5EC] text-[#137333] border-[#137333]/10'
-                  : 'bg-[var(--color-surface)] text-[var(--color-text-faint)] border-transparent hover:bg-[var(--color-bg)] shadow-none'
-              }`}
-            >
-              <LayoutGrid size={14} strokeWidth={2.5} />
-            </button>
-            <button
-              onClick={() => setOverviewView('list')}
-              aria-pressed={overviewView === 'list'}
-              aria-label="List view"
-              className={`p-2 rounded-xl border cursor-pointer shadow-sm transition-colors ${
-                overviewView === 'list'
-                  ? 'bg-[#EBF5EC] text-[#137333] border-[#137333]/10'
-                  : 'bg-[var(--color-surface)] text-[var(--color-text-faint)] border-transparent hover:bg-[var(--color-bg)] shadow-none'
-              }`}
-            >
-              <List size={14} strokeWidth={2} />
-            </button>
+            <Tooltip content="Switch to grid layout" side="bottom">
+              <button
+                onClick={() => setOverviewView('grid')}
+                aria-pressed={overviewView === 'grid'}
+                aria-label="Grid view"
+                className={`p-2 rounded-xl border cursor-pointer shadow-sm transition-colors ${
+                  overviewView === 'grid'
+                    ? 'bg-[#EBF5EC] text-[#137333] border-[#137333]/10'
+                    : 'bg-[var(--color-surface)] text-[var(--color-text-faint)] border-transparent hover:bg-[var(--color-bg)] shadow-none'
+                }`}
+              >
+                <LayoutGrid size={14} strokeWidth={2.5} />
+              </button>
+            </Tooltip>
+            <Tooltip content="Switch to list layout" side="bottom">
+              <button
+                onClick={() => setOverviewView('list')}
+                aria-pressed={overviewView === 'list'}
+                aria-label="List view"
+                className={`p-2 rounded-xl border cursor-pointer shadow-sm transition-colors ${
+                  overviewView === 'list'
+                    ? 'bg-[#EBF5EC] text-[#137333] border-[#137333]/10'
+                    : 'bg-[var(--color-surface)] text-[var(--color-text-faint)] border-transparent hover:bg-[var(--color-bg)] shadow-none'
+                }`}
+              >
+                <List size={14} strokeWidth={2} />
+              </button>
+            </Tooltip>
             <button
               onClick={handleExportVitals}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] text-white text-xs font-bold transition-all shadow-sm cursor-pointer uppercase tracking-wider"
@@ -228,12 +255,14 @@ export function DashboardScreen() {
             <p className="text-2xl font-extrabold tracking-tight" style={{ color: healthStatus.color }}>
               {healthStatus.label}
             </p>
-            <div
-              className="self-start px-2.5 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-wider shrink-0"
-              style={{ background: healthStatus.bg, color: healthStatus.color, border: `1px solid ${healthStatus.border}25` }}
-            >
-              {healthStatus.alert}
-            </div>
+            <Tooltip content={healthStatus.detail} wide side="bottom">
+              <div
+                className="self-start px-2.5 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-wider shrink-0 cursor-default"
+                style={{ background: healthStatus.bg, color: healthStatus.color, border: `1px solid ${healthStatus.border}25` }}
+              >
+                {healthStatus.alert}
+              </div>
+            </Tooltip>
           </div>
 
           {/* Card 2: Next Appointment */}
@@ -316,10 +345,12 @@ export function DashboardScreen() {
               </div>
             </div>
 
-            <div className="flex items-baseline gap-1 mt-1">
-              <span className="text-2xl font-extrabold text-[var(--color-text)]">{heartRate ?? '—'}</span>
-              <span className="text-[10px] font-extrabold text-[var(--color-text-muted)] uppercase">bpm</span>
-            </div>
+            <Tooltip content="Normal resting heart rate is typically 60–100 bpm." side="bottom">
+              <div className="flex items-baseline gap-1 mt-1 w-fit cursor-default">
+                <span className="text-2xl font-extrabold text-[var(--color-text)]">{heartRate ?? '—'}</span>
+                <span className="text-[10px] font-extrabold text-[var(--color-text-muted)] uppercase">bpm</span>
+              </div>
+            </Tooltip>
           </div>
 
           {/* Sleep card */}
@@ -348,11 +379,13 @@ export function DashboardScreen() {
               </div>
             </div>
 
-            <div className="flex items-center mt-1">
-              <span className="px-3 py-1 rounded-full bg-[#EBF5EC] text-[#137333] text-[9px] font-extrabold border border-[#137333]/15 uppercase tracking-wider">
-                {sleepHours != null ? `${sleepHours} hours` : 'No data'}
-              </span>
-            </div>
+            <Tooltip content="Most adults need 7–9 hours of sleep per night." side="bottom">
+              <div className="flex items-center mt-1 w-fit cursor-default">
+                <span className="px-3 py-1 rounded-full bg-[#EBF5EC] text-[#137333] text-[9px] font-extrabold border border-[#137333]/15 uppercase tracking-wider">
+                  {sleepHours != null ? `${sleepHours} hours` : 'No data'}
+                </span>
+              </div>
+            </Tooltip>
           </div>
         </div>
       </div>
@@ -365,7 +398,9 @@ export function DashboardScreen() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card className="rounded-[24px]">
             <div className="flex items-center justify-between mb-3">
-              <CardTitle className="mb-0 text-xs font-extrabold text-[var(--color-text-muted)] uppercase tracking-wider">Blood Cells</CardTitle>
+              <Tooltip content="Red blood cell count — normal range varies by age and sex; ask your provider to interpret this trend." wide>
+                <CardTitle className="mb-0 text-xs font-extrabold text-[var(--color-text-muted)] uppercase tracking-wider cursor-default">Blood Cells</CardTitle>
+              </Tooltip>
               <span className="text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: 'var(--color-bg)', color: 'var(--color-text-muted)' }}>
                 {lastRbcReading ? formatRelativeTime(lastRbcReading.recordedAt) : 'No data'}
               </span>
@@ -373,7 +408,9 @@ export function DashboardScreen() {
             <BloodCellsChart data={rbcSeries} />
           </Card>
           <Card className="flex flex-col items-center justify-center rounded-[24px] p-5">
-            <CardTitle className="self-start text-xs font-extrabold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Weight Range</CardTitle>
+            <Tooltip content="General healthy-weight range shown — ask your provider for a personalized target." wide>
+              <CardTitle className="self-start text-xs font-extrabold text-[var(--color-text-muted)] uppercase tracking-wider mb-2 cursor-default">Weight Range</CardTitle>
+            </Tooltip>
             <WeightGauge
               value={weight}
               min={WEIGHT_RANGE_KG.min}

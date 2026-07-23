@@ -1,4 +1,5 @@
 import { Pill } from '@/components/ui/Pill'
+import { Tooltip } from '@/components/ui/Tooltip'
 import { Brain, Network, Radio } from 'lucide-react'
 
 export function StridePanel() {
@@ -45,18 +46,26 @@ export function StridePanel() {
             { label: 'Avg Response', value: '142ms' },
             { label: 'Cases Today', value: '1,247' },
             { label: 'Active Units', value: '38' },
-          ].map(stat => (
-            <div
-              key={stat.label}
-              className="p-2.5 rounded-xl border text-center"
-              style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
-            >
-              <p className="text-base font-bold" style={{ color: 'var(--color-text)', fontFamily: 'var(--font-mono)' }}>
-                {stat.value}
-              </p>
-              <p className="text-[10px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{stat.label}</p>
-            </div>
-          ))}
+          ].map(stat => {
+            const card = (
+              <div
+                className="p-2.5 rounded-xl border text-center"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+              >
+                <p className="text-base font-bold" style={{ color: 'var(--color-text)', fontFamily: 'var(--font-mono)' }}>
+                  {stat.value}
+                </p>
+                <p className="text-[10px] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{stat.label}</p>
+              </div>
+            )
+            return stat.label === 'Avg Response' ? (
+              <Tooltip key={stat.label} content="Average system response time for STRIDE™ AI — not ambulance arrival time." wide>
+                {card}
+              </Tooltip>
+            ) : (
+              <div key={stat.label}>{card}</div>
+            )
+          })}
         </div>
       </div>
     </div>

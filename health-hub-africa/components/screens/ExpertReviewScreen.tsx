@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Card } from '@/components/ui/Card'
 import { Pill } from '@/components/ui/Pill'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { Tooltip } from '@/components/ui/Tooltip'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { formatDate } from '@/lib/utils'
 import { expertReview, type ExpertReviewCaseItem } from '@/lib/api'
@@ -71,10 +72,12 @@ export function ExpertReviewScreen() {
                       {c.primaryDiagnosis || c.clinicalQuestion}
                     </p>
                     <Pill variant={STATUS_PILL[c.status] ?? 'neutral'}>{statusLabel(c.status)}</Pill>
-                    <Pill variant={URGENCY_PILL[c.urgency] ?? 'neutral'}>{statusLabel(c.urgency)}</Pill>
+                    <Tooltip content="This urgency applies to how quickly your second-opinion request is reviewed — not a live emergency dispatch." wide>
+                      <Pill variant={URGENCY_PILL[c.urgency] ?? 'neutral'}>{statusLabel(c.urgency)}</Pill>
+                    </Tooltip>
                   </div>
                   <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-                    {c.hhaRef} · {statusLabel(c.reviewType)} · Submitted {formatDate(c.submittedAt)}
+                    <span title="Reference number for this case — use it if you contact support.">{c.hhaRef}</span> · {statusLabel(c.reviewType)} · Submitted {formatDate(c.submittedAt)}
                   </p>
                   {c.primaryDiagnosis && (
                     <p className="text-xs mt-1" style={{ color: 'var(--color-text-faint)' }}>{c.clinicalQuestion}</p>

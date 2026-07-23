@@ -69,7 +69,7 @@ function ShareCard({ share, onRevoke, onAudit }: { share: RecordShare; onRevoke:
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <Link2 size={14} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
-            <span className="text-sm font-semibold truncate" style={{ color: 'var(--color-text)' }}>
+            <span className="text-sm font-semibold truncate" title={share.label ?? 'Unnamed share'} style={{ color: 'var(--color-text)' }}>
               {share.label ?? 'Unnamed share'}
             </span>
             {share.isRevoked && (
@@ -438,6 +438,16 @@ function AuditDrawer({ shareId, onClose }: { shareId: string; onClose: () => voi
     link_sent: '📤 Link delivered',
   }
 
+  const ACTION_EXPLANATIONS: Record<string, string> = {
+    viewed: 'Someone opened and viewed this shared record.',
+    otp_sent: 'A one-time verification code was emailed to access this link.',
+    otp_failed: 'A verification code was entered incorrectly.',
+    otp_verified: 'The recipient successfully verified their identity to view this link.',
+    forward_detected: 'This link may have been opened from an unexpected device or location.',
+    revoked: 'This share link was manually revoked and no longer works.',
+    link_sent: 'The share link was delivered to the recipient.',
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col"
@@ -451,7 +461,7 @@ function AuditDrawer({ shareId, onClose }: { shareId: string; onClose: () => voi
       >
         <div className="flex items-center justify-between">
           <p className="font-bold text-base" style={{ color: 'var(--color-text)' }}>Access log</p>
-          <button onClick={onClose} className="p-2 -m-2" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: 20 }} aria-label="Close">×</button>
+          <button onClick={onClose} className="p-2 -m-2" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: 20 }} aria-label="Close" title="Close">×</button>
         </div>
 
         {isInitialLoad && <p className="text-sm text-center py-4" style={{ color: 'var(--color-text-muted)' }}>Loading…</p>}
@@ -462,7 +472,11 @@ function AuditDrawer({ shareId, onClose }: { shareId: string; onClose: () => voi
         {data?.accesses.map(a => (
           <div key={a.id} className="flex items-start justify-between gap-3 py-2 border-b" style={{ borderColor: 'var(--color-border)' }}>
             <div>
-              <p className="text-sm" style={{ color: a.action === 'forward_detected' ? 'var(--color-warning)' : 'var(--color-text)' }}>
+              <p
+                className="text-sm"
+                title={ACTION_EXPLANATIONS[a.action] ?? undefined}
+                style={{ color: a.action === 'forward_detected' ? 'var(--color-warning)' : 'var(--color-text)' }}
+              >
                 {ACTION_LABELS[a.action] ?? a.action}
               </p>
               {a.visitorEmail && <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{a.visitorEmail}</p>}
