@@ -25,6 +25,7 @@ import {
   CreateOnDemandSessionDto,
   TransferSessionDto,
   CreateShiftDto,
+  RateSessionDto,
 } from './dto/create-session.dto';
 import { Public, Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
@@ -135,6 +136,17 @@ export class TelecareController {
   @ApiOperation({ summary: 'Add SOAP note to a telecare session' })
   createNote(@Body() dto: CreateSessionNoteDto, @CurrentUser() user: JwtPayload) {
     return this.telecareService.createNote(dto, user);
+  }
+
+  // No @Roles: the service restricts this to the owning patient.
+  @Patch('sessions/:id/rate')
+  @ApiOperation({ summary: 'Patient rates a completed telecare session (CSAT)' })
+  rateSession(
+    @Param('id') id: string,
+    @Body() dto: RateSessionDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.telecareService.rateSession(id, dto, user);
   }
 
   @Post('sessions/:id/token')

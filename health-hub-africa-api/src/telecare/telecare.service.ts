@@ -10,8 +10,9 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { SessionStatus, UserRole } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
-import { AccessToken, WebhookReceiver } from 'livekit-server-sdk';
+import { WebhookReceiver } from 'livekit-server-sdk';
 import { PrismaService } from '../prisma/prisma.service';
+import { getLivekitCredentials, mintLivekitToken } from './livekit-token.util';
 import { S3Service } from '../storage/s3.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import {
@@ -21,6 +22,7 @@ import {
   CreateOnDemandSessionDto,
   TransferSessionDto,
   CreateShiftDto,
+  RateSessionDto,
 } from './dto/create-session.dto';
 import { buildProviderDisplayName } from '../common/utils/provider-name.util';
 
@@ -88,33 +90,12 @@ export class TelecareService implements OnModuleInit {
       participantName = currentUser.email || 'Admin/Coordinator';
     }
 
-    const apiKey = this.config.get<string>('LIVEKIT_API_KEY');
-    const apiSecret = this.config.get<string>('LIVEKIT_API_SECRET');
-    const serverUrl = this.config.get<string>('LIVEKIT_URL');
-
-    if (!apiKey || !apiSecret || !serverUrl) {
-      throw new Error('LiveKit credentials are not fully configured on the server');
-    }
-
-    const roomName = `telecare-${session.id}`;
-    const at = new AccessToken(apiKey, apiSecret, {
+    const creds = getLivekitCredentials(this.config);
+    return mintLivekitToken(creds, {
       identity: currentUser.sub,
       name: participantName,
+      roomName: `telecare-${session.id}`,
     });
-
-    at.addGrant({
-      roomJoin: true,
-      room: roomName,
-      canPublish: true,
-      canSubscribe: true,
-    });
-
-    const token = await at.toJwt();
-    return {
-      token,
-      serverUrl,
-      roomName,
-    };
   }
 
   async createSession(dto: CreateTelecareSessionDto, currentUser: JwtPayload) {
@@ -396,6 +377,30 @@ export class TelecareService implements OnModuleInit {
     if (dto.recordingUrl) data.recordingUrl = dto.recordingUrl;
 
     return this.prisma.telecareSession.update({ where: { id }, data });
+  }
+
+  // Post-call CSAT. Only the owning patient may rate, and only after the
+  // call actually completed — rating a session that never happened would
+  // be meaningless (and ratable-while-active would let a patient game the
+  // score mid-call before the provider has finished).
+  async rateSession(id: string, dto: RateSessionDto, currentUser: JwtPayload) {
+    const session = await this.prisma.telecareSession.findUnique({
+      where: { id },
+      include: { patient: { select: { userId: true } } },
+    });
+    if (!session) throw new NotFoundException('Telecare session not found');
+
+    const isOwningPatient =
+      currentUser.role === UserRole.patient && session.patient?.userId === currentUser.sub;
+    if (!isOwningPatient) throw new ForbiddenException('Access denied');
+    if (session.status !== SessionStatus.completed) {
+      throw new ForbiddenException('Only a completed session can be rated');
+    }
+
+    return this.prisma.telecareSession.update({
+      where: { id },
+      data: { patientRating: dto.rating, patientFeedback: dto.feedback },
+    });
   }
 
   // ── LiveKit webhook ──────────────────────────────────────────────────────

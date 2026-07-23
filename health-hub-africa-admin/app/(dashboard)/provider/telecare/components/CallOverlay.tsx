@@ -5,8 +5,10 @@ import { useRef, useState } from 'react'
 import { LiveKitRoom, VideoConference } from '@livekit/components-react'
 import type { ProviderSession, LiveKitJoinInfo } from '@/lib/api'
 import { Button } from '@/components/ui/Button'
-import { PhoneOff, ExternalLink, AlertCircle } from 'lucide-react'
+import { PhoneOff, ExternalLink, AlertCircle, Sparkles } from 'lucide-react'
 import { calcAge, buildOpenEmrUrl, isPermissionError } from './helpers'
+import { BackgroundBlurEffect } from './BackgroundBlurEffect'
+import { GuestParticipantsBanner } from './GuestParticipantsBanner'
 
 export function CallOverlay({
   session,
@@ -30,6 +32,7 @@ export function CallOverlay({
   const [failure, setFailure] = useState<string | null>(
     callInfo.serverUrl ? null : 'Video calling is not configured on the server.',
   )
+  const [blurBackground, setBlurBackground] = useState(false)
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#0a0a0a' }}>
@@ -79,18 +82,36 @@ export function CallOverlay({
           </p>
           </div>
         </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={failure ? onClose : onLeave}
-          className="bg-red-600 hover:bg-red-700 border-red-600 text-white"
-        >
-          <PhoneOff className="w-3.5 h-3.5" />
-          {failure ? 'Close' : 'Leave Call'}
-        </Button>
+        <div className="flex items-center gap-2">
+          {!failure && !audioOnly && (
+            <button
+              type="button"
+              onClick={() => setBlurBackground((v) => !v)}
+              aria-pressed={blurBackground}
+              title="Blur my background"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+              style={{
+                background: blurBackground ? 'rgba(109,196,63,0.18)' : 'rgba(255,255,255,0.06)',
+                color: blurBackground ? '#6DC43F' : '#9ca3af',
+              }}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Blur background
+            </button>
+          )}
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={failure ? onClose : onLeave}
+            className="bg-red-600 hover:bg-red-700 border-red-600 text-white"
+          >
+            <PhoneOff className="w-3.5 h-3.5" />
+            {failure ? 'Close' : 'Leave Call'}
+          </Button>
+        </div>
       </div>
 
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 relative">
         {failure ? (
           <div className="h-full flex flex-col items-center justify-center gap-3 px-6 text-center overflow-y-auto py-8">
             <AlertCircle className="w-8 h-8" style={{ color: '#f87171' }} />
@@ -134,6 +155,10 @@ export function CallOverlay({
               else setFailure('The call ended before it connected.')
             }}
           >
+            <BackgroundBlurEffect enabled={blurBackground} />
+            <div className="absolute top-3 left-3 z-10">
+              <GuestParticipantsBanner />
+            </div>
             <VideoConference />
           </LiveKitRoom>
         )}
