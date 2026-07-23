@@ -6,6 +6,7 @@ import {
   Download, Pencil, RefreshCw, Trash2, MoreVertical,
 } from 'lucide-react'
 import { Pill } from '@/components/ui/Pill'
+import { Tooltip } from '@/components/ui/Tooltip'
 import type { VaultDocument } from '@/lib/api'
 import { CATEGORY_LABELS } from '@/lib/vault'
 import { formatBytes, formatDate } from '@/lib/utils'
@@ -51,7 +52,7 @@ export function DocumentRow({ doc, onDownload, onEdit, onReplace, onDelete }: Do
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-sm font-semibold truncate" style={{ color: 'var(--color-text)' }}>{doc.title}</p>
+          <p className="text-sm font-semibold truncate" title={doc.title} style={{ color: 'var(--color-text)' }}>{doc.title}</p>
           {doc.category && <Pill variant="neutral">{CATEGORY_LABELS[doc.category]}</Pill>}
         </div>
         <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
@@ -73,14 +74,16 @@ export function DocumentRow({ doc, onDownload, onEdit, onReplace, onDelete }: Do
         )}
       </div>
       <div className="relative shrink-0" ref={menuRef}>
-        <button
-          aria-label="Document actions"
-          onClick={() => setMenuOpen((v) => !v)}
-          className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-[var(--color-bg)] transition-colors"
-          style={{ color: 'var(--color-text-muted)' }}
-        >
-          <MoreVertical size={14} />
-        </button>
+        <Tooltip content="More actions for this document." side="left">
+          <button
+            aria-label="Document actions"
+            onClick={() => setMenuOpen((v) => !v)}
+            className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-[var(--color-bg)] transition-colors"
+            style={{ color: 'var(--color-text-muted)' }}
+          >
+            <MoreVertical size={14} />
+          </button>
+        </Tooltip>
         {menuOpen && (
           <div
             className="absolute right-0 top-9 z-10 w-40 rounded-xl border shadow-lg py-1"

@@ -7,9 +7,11 @@ import { VAULT_ACCEPT_ATTR } from '@/lib/vault'
 interface UploadDropzoneProps {
   onFilesSelected: (files: File[]) => void
   disabled?: boolean
+  /** Shown in place of the normal instructions when disabled. */
+  disabledMessage?: string
 }
 
-export function UploadDropzone({ onFilesSelected, disabled }: UploadDropzoneProps) {
+export function UploadDropzone({ onFilesSelected, disabled, disabledMessage }: UploadDropzoneProps) {
   const [isDragOver, setIsDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -50,12 +52,20 @@ export function UploadDropzone({ onFilesSelected, disabled }: UploadDropzoneProp
       }}
     >
       <UploadCloud className="w-8 h-8" style={{ color: isDragOver ? '#6DC43F' : 'var(--color-text-faint)' }} />
-      <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
-        Drag and drop files here, or click to browse
-      </p>
-      <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-        PDF, Word, images, text, CSV, XML, JSON
-      </p>
+      {disabled && disabledMessage ? (
+        <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+          {disabledMessage}
+        </p>
+      ) : (
+        <>
+          <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+            Drag and drop files here, or click to browse
+          </p>
+          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            PDF, Word, images, text, CSV, XML, JSON
+          </p>
+        </>
+      )}
       <input
         ref={inputRef}
         type="file"

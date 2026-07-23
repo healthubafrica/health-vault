@@ -73,7 +73,7 @@ export function EditDocumentModal({ document, onClose, onSaved }: EditDocumentMo
           <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
             Edit document
           </h2>
-          <button onClick={onClose} className="p-2 -m-2" style={{ color: 'var(--color-text-muted)' }} aria-label="Close">
+          <button onClick={onClose} className="p-2 -m-2" style={{ color: 'var(--color-text-muted)' }} aria-label="Close" title="Close">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -86,7 +86,11 @@ export function EditDocumentModal({ document, onClose, onSaved }: EditDocumentMo
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
-          <label className="flex items-center gap-2 text-sm pt-1" style={{ color: 'var(--color-text)' }}>
+          <label
+            className="flex items-center gap-2 text-sm pt-1"
+            title="When on, any care provider assigned to you can view this document."
+            style={{ color: 'var(--color-text)' }}
+          >
             <input
               type="checkbox"
               checked={providerVisibility}
