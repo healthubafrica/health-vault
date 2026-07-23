@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Pill } from '@/components/ui/Pill'
+import { Tooltip } from '@/components/ui/Tooltip'
 import { Button } from '@/components/ui/Button'
 import { formatDate } from '@/lib/utils'
 import { FlaskConical } from 'lucide-react'
@@ -107,13 +108,19 @@ export function LabsScreen() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{lab.test}</p>
-                    <Pill variant={STATUS_PILL[lab.status]}>{lab.status}</Pill>
+                    {lab.status === 'flagged' ? (
+                      <Tooltip content="This result falls outside the normal reference range shown below — discuss with your provider." wide>
+                        <Pill variant={STATUS_PILL[lab.status]}>{lab.status}</Pill>
+                      </Tooltip>
+                    ) : (
+                      <Pill variant={STATUS_PILL[lab.status]}>{lab.status}</Pill>
+                    )}
                   </div>
                   {lab.value && (
                     <p className="text-xs mt-0.5 font-medium" style={{ color: 'var(--color-primary-dark)' }}>{lab.value}</p>
                   )}
                   {lab.referenceRange && (
-                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Ref: {lab.referenceRange}</p>
+                    <p className="text-xs" title="Ref = the normal reference range for this test." style={{ color: 'var(--color-text-muted)' }}>Ref: {lab.referenceRange}</p>
                   )}
                   <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-faint)' }}>
                     {lab.doctor} · {formatDate(lab.date)}

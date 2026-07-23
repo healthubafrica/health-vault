@@ -19,18 +19,21 @@ interface FieldDef {
   placeholder: string
   min: number
   max: number
+  hint: string
 }
 
 // Bounds are generous sanity limits (reject typos like 720 bpm), not
 // clinical ranges — out-of-range-but-real readings must still be loggable.
+// Hints show the normal range so a patient isn't blindsided later when the
+// dashboard flags the same reading against these same thresholds.
 const FIELDS: FieldDef[] = [
-  { key: 'heartRate', label: 'Heart rate (bpm)', placeholder: 'e.g. 72', min: 20, max: 300 },
-  { key: 'bloodPressureSystolic', label: 'Systolic BP (mmHg)', placeholder: 'e.g. 120', min: 50, max: 300 },
-  { key: 'bloodPressureDiastolic', label: 'Diastolic BP (mmHg)', placeholder: 'e.g. 80', min: 30, max: 200 },
-  { key: 'oxygenSaturation', label: 'SpO₂ (%)', placeholder: 'e.g. 98', min: 50, max: 100 },
-  { key: 'temperatureCelsius', label: 'Temperature (°C)', placeholder: 'e.g. 36.6', min: 30, max: 45 },
-  { key: 'weightKg', label: 'Weight (kg)', placeholder: 'e.g. 70', min: 1, max: 500 },
-  { key: 'bloodGlucose', label: 'Blood glucose (mg/dL)', placeholder: 'e.g. 95', min: 10, max: 1000 },
+  { key: 'heartRate', label: 'Heart rate (bpm)', placeholder: 'e.g. 72', min: 20, max: 300, hint: 'Normal resting range: 60–100 bpm' },
+  { key: 'bloodPressureSystolic', label: 'Systolic BP (mmHg)', placeholder: 'e.g. 120', min: 50, max: 300, hint: 'Normal range: 90–140 mmHg' },
+  { key: 'bloodPressureDiastolic', label: 'Diastolic BP (mmHg)', placeholder: 'e.g. 80', min: 30, max: 200, hint: 'Normal range: 60–90 mmHg' },
+  { key: 'oxygenSaturation', label: 'SpO₂ (%)', placeholder: 'e.g. 98', min: 50, max: 100, hint: 'Blood oxygen saturation — normal: 95–100%' },
+  { key: 'temperatureCelsius', label: 'Temperature (°C)', placeholder: 'e.g. 36.6', min: 30, max: 45, hint: 'Normal body temperature: ~36.1–37.2°C' },
+  { key: 'weightKg', label: 'Weight (kg)', placeholder: 'e.g. 70', min: 1, max: 500, hint: 'Ask your provider for a personalized target range' },
+  { key: 'bloodGlucose', label: 'Blood glucose (mg/dL)', placeholder: 'e.g. 95', min: 10, max: 1000, hint: 'Normal fasting range: 70–180 mg/dL' },
 ]
 
 export function LogVitalsModal({ open, onClose, onLogged }: LogVitalsModalProps) {
@@ -92,7 +95,7 @@ export function LogVitalsModal({ open, onClose, onLogged }: LogVitalsModalProps)
           <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
             Log vitals
           </h2>
-          <button onClick={onClose} className="p-2 -m-2" style={{ color: 'var(--color-text-muted)' }} aria-label="Close">
+          <button onClick={onClose} className="p-2 -m-2" style={{ color: 'var(--color-text-muted)' }} aria-label="Close" title="Close">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -101,6 +104,7 @@ export function LogVitalsModal({ open, onClose, onLogged }: LogVitalsModalProps)
             <FormInput
               key={field.key}
               label={field.label}
+              hint={field.hint}
               type="number"
               inputMode="decimal"
               placeholder={field.placeholder}

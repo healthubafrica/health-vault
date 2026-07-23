@@ -141,6 +141,7 @@ export function PaymentsScreen() {
                 className="rounded-lg p-1"
                 style={{ color: 'var(--color-text-muted)' }}
                 aria-label="Close"
+                title="Close"
               >
                 <X size={18} />
               </button>
@@ -169,6 +170,7 @@ export function PaymentsScreen() {
                           onClick={() => { navigator.clipboard.writeText(value); toast.success(`${label} copied`) }}
                           className="p-0.5 rounded opacity-50 hover:opacity-100"
                           aria-label={`Copy ${label}`}
+                          title="Copy to clipboard"
                         >
                           <Copy size={11} style={{ color: 'var(--color-text-muted)' }} />
                         </button>
@@ -308,7 +310,7 @@ export function PaymentsScreen() {
                 <Receipt size={14} style={{ color: 'var(--color-text-muted)' }} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate" style={{ color: 'var(--color-text)' }}>{p.description}</p>
+                <p className="text-sm font-medium truncate" title={p.description} style={{ color: 'var(--color-text)' }}>{p.description}</p>
                 <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                   {formatDate(p.date)} · {p.gateway === 'manual' ? 'Bank Transfer' : p.gateway}
                 </p>

@@ -221,6 +221,7 @@ export function RecordsScreen() {
                   {record.isDownloadable && record.fileUrl && (
                     <button
                       aria-label={`Download ${record.title}`}
+                      title="Download this record as a file"
                       className="shrink-0 flex items-center justify-center w-8 h-8 rounded-xl hover:bg-[var(--color-bg)] transition-colors"
                       style={{ color: 'var(--color-text-muted)' }}
                       onClick={() => handleDownload(record)}
