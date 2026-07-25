@@ -13,7 +13,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ServiceType, UserRole } from '@prisma/client';
 import { AdminService } from './admin.service';
-import { UpdateUserRoleDto, UpdateUserStatusDto, CreateFacilityDto } from './dto/admin.dto';
+import { UpdateUserRoleDto, UpdateUserStatusDto, UpdateUserEmailDto, CreateFacilityDto } from './dto/admin.dto';
 import { SetStorageOverrideDto } from './dto/set-storage-override.dto';
 import { UpdateSchedulingPolicyDto } from './dto/update-scheduling-policy.dto';
 import { ImportProviderManuallyDto } from './dto/import-provider-manually.dto';
@@ -86,6 +86,12 @@ export class AdminController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.adminService.updateUserStatus(id, dto, user);
+  }
+
+  @Patch('users/:id/email')
+  @ApiOperation({ summary: "Correct a user's email and send a password reset code to it" })
+  updateUserEmail(@Param('id') id: string, @Body() dto: UpdateUserEmailDto) {
+    return this.adminService.updateUserEmail(id, dto.email);
   }
 
   @Get('audit-logs')

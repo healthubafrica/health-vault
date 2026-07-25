@@ -15,9 +15,11 @@ import { randomBytes, randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService, NOTIFICATIONS_QUEUE, NotificationJobData, NotificationChannel } from '../notifications/notifications.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
+import { AuthService } from '../auth/auth.service';
 import {
   UpdateUserRoleDto,
   UpdateUserStatusDto,
+  UpdateUserEmailDto,
   CreateFacilityDto,
 } from './dto/admin.dto';
 import { OPENEMR_SYNC_QUEUE, OpenemrService, SyncJobData } from '../openemr/openemr.service';
@@ -59,6 +61,7 @@ export class AdminService {
     private readonly openemrService: OpenemrService,
     private readonly notifications: NotificationsService,
     private readonly s3: S3Service,
+    private readonly authService: AuthService,
   ) {}
 
   // ── Users ─────────────────────────────────────────────────────────────────
@@ -308,6 +311,57 @@ export class AdminService {
     ]);
 
     return updated;
+  }
+
+  async updateUserEmail(id: string, newEmail: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+
+    // No-op early so re-submitting the same value doesn't churn sessions or
+    // fire a redundant reset email — mirrors updateUserRole's no-op guard.
+    if (user.email === newEmail) {
+      return { data: { id: user.id, email: user.email, message: 'Email unchanged.' } };
+    }
+
+    const emailTaken = await this.prisma.user.findUnique({ where: { email: newEmail } });
+    if (emailTaken) {
+      throw new BadRequestException(`A user with email ${newEmail} already exists.`);
+    }
+
+    // Update email + revoke live sessions atomically: email is the login
+    // identifier, so an existing session must not outlive a correction to
+    // it. Same reasoning and shape as updateUserRole above.
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id },
+        data: { email: newEmail },
+        select: { id: true, email: true, role: true },
+      }),
+      this.prisma.userSession.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    // Best-effort: the email update above already succeeded, so a transient
+    // failure sending the OTP shouldn't make the whole request look failed —
+    // staff can always fall back to "Forgot password" on the login screen.
+    try {
+      await this.authService.requestPasswordReset(newEmail);
+    } catch (err) {
+      this.logger.error(
+        `Failed to send password reset OTP to ${newEmail} after email update for user ${id}`,
+        err,
+      );
+    }
+
+    return {
+      data: {
+        id: updated.id,
+        email: updated.email,
+        message: 'Email updated and password reset code sent.',
+      },
+    };
   }
 
   async updateUserStatus(id: string, dto: UpdateUserStatusDto, currentUser: JwtPayload) {
