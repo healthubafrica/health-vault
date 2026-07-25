@@ -10,7 +10,7 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { formatDate, formatDateTime } from '@/lib/utils'
-import { ArrowLeft, Shield, ToggleLeft, ToggleRight, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Shield, ToggleLeft, ToggleRight, RotateCcw, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ReactNode } from 'react'
 
@@ -43,6 +43,9 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
   const [statusPending, setStatusPending] = useState(false)
   const [syncPending, setSyncPending] = useState(false)
   const [selectedRole, setSelectedRole] = useState('')
+  const [emailEditing, setEmailEditing] = useState(false)
+  const [emailValue, setEmailValue] = useState('')
+  const [emailPending, setEmailPending] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -69,6 +72,29 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
       setSelectedRole(user.role)
     } finally {
       setRolePending(false)
+    }
+  }
+
+  const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+
+  const startEmailEdit = () => {
+    if (!user) return
+    setEmailValue(user.email)
+    setEmailEditing(true)
+  }
+
+  const handleEmailSave = async () => {
+    if (!user || emailValue === user.email || !isValidEmail(emailValue)) return
+    setEmailPending(true)
+    try {
+      const res = await adminApi.users.updateEmail(id, emailValue)
+      setUser((prev) => (prev ? { ...prev, email: res.data.email } : prev))
+      toast.success(res.data.message)
+      setEmailEditing(false)
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed to update email')
+    } finally {
+      setEmailPending(false)
     }
   }
 
@@ -156,9 +182,52 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                 {user.isActive ? 'Active' : 'Inactive'}
               </Pill>
             </div>
-            <p className="text-sm truncate" style={{ color: 'var(--color-text-muted)' }}>
-              {user.email}
-            </p>
+            {emailEditing ? (
+              <div className="flex items-center gap-2 mt-0.5">
+                <input
+                  type="email"
+                  value={emailValue}
+                  onChange={(e) => setEmailValue(e.target.value)}
+                  className="flex-1 h-8 px-2 rounded-lg text-sm border min-w-0"
+                  style={{
+                    background: 'var(--color-bg)',
+                    borderColor: 'var(--color-border)',
+                    color: 'var(--color-text)',
+                  }}
+                  autoFocus
+                />
+                <Button
+                  size="sm"
+                  loading={emailPending}
+                  disabled={emailValue === user.email || !isValidEmail(emailValue)}
+                  onClick={handleEmailSave}
+                >
+                  Save
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={emailPending}
+                  onClick={() => setEmailEditing(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <p
+                className="text-sm truncate flex items-center gap-1.5"
+                style={{ color: 'var(--color-text-muted)' }}
+              >
+                {user.email}
+                <button
+                  onClick={startEmailEdit}
+                  className="opacity-60 hover:opacity-100 transition-opacity flex-shrink-0"
+                  aria-label="Edit email"
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+              </p>
+            )}
             {user.phoneNumber && (
               <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
                 {user.phoneNumber}
