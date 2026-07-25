@@ -713,6 +713,11 @@ export const adminApi = {
         method: 'PATCH',
         body: JSON.stringify({ active }),
       }),
+    updateEmail: (id: string, email: string) =>
+      request<{ data: { id: string; email: string; message: string } }>(`/admin/users/${id}/email`, {
+        method: 'PATCH',
+        body: JSON.stringify({ email }),
+      }),
     resendVerification: (id: string) =>
       request<{ message: string }>(`/admin/users/${id}/resend-verification`, { method: 'POST' }),
     sendOnboarding: (id: string) =>
