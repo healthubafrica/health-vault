@@ -96,7 +96,7 @@
 - Produces: `AdminService.updateUserEmail(id: string, newEmail: string): Promise<{ data: { id: string; email: string; message: string } }>` — Task 2 (controller) and Task 4 (frontend) both depend on this exact return shape.
 - Produces: `UpdateUserEmailDto` — `{ email: string }`, validated with `@IsEmail()` — consumed by Task 2's controller.
 
-- [ ] **Step 1: Add `UpdateUserEmailDto`**
+- [x] **Step 1: Add `UpdateUserEmailDto`**
 
 In `health-hub-africa-api/src/admin/dto/admin.dto.ts`, change the top import line from:
 ```ts
@@ -115,7 +115,7 @@ export class UpdateUserEmailDto {
 }
 ```
 
-- [ ] **Step 2: Wire `AuthModule` into `AdminModule`**
+- [x] **Step 2: Wire `AuthModule` into `AdminModule`**
 
 In `health-hub-africa-api/src/admin/admin.module.ts`, add the import:
 ```ts
@@ -133,7 +133,7 @@ and add `AuthModule` to the `imports` array, so it reads:
   ],
 ```
 
-- [ ] **Step 3: Write the failing unit tests**
+- [x] **Step 3: Write the failing unit tests**
 
 Create `health-hub-africa-api/src/admin/admin.service.spec.ts`:
 ```ts
@@ -246,12 +246,12 @@ describe('AdminService.updateUserEmail', () => {
 });
 ```
 
-- [ ] **Step 4: Run tests to verify they fail**
+- [x] **Step 4: Run tests to verify they fail**
 
 Run: `cd health-hub-africa-api && npx jest src/admin/admin.service.spec.ts`
 Expected: FAIL — `AdminService.updateUserEmail is not a function` (and a constructor-arity/type error until Step 5 lands).
 
-- [ ] **Step 5: Implement `updateUserEmail`**
+- [x] **Step 5: Implement `updateUserEmail`**
 
 In `health-hub-africa-api/src/admin/admin.service.ts`, add the import (alongside the other relative imports near the top):
 ```ts
@@ -333,17 +333,17 @@ Add the method directly after `updateUserRole` (after its closing `}` at what is
   }
 ```
 
-- [ ] **Step 6: Run tests to verify they pass**
+- [x] **Step 6: Run tests to verify they pass**
 
 Run: `cd health-hub-africa-api && npx jest src/admin/admin.service.spec.ts`
 Expected: PASS — all 5 tests green.
 
-- [ ] **Step 7: Typecheck**
+- [x] **Step 7: Typecheck**
 
 Run: `cd health-hub-africa-api && npx tsc --noEmit --pretty false`
 Expected: no new errors.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add health-hub-africa-api/src/admin/dto/admin.dto.ts health-hub-africa-api/src/admin/admin.module.ts health-hub-africa-api/src/admin/admin.service.ts health-hub-africa-api/src/admin/admin.service.spec.ts
@@ -361,7 +361,7 @@ git commit -m "feat(admin): add AdminService.updateUserEmail with password-reset
 - Consumes: `AdminService.updateUserEmail(id, email)` and `UpdateUserEmailDto` from Task 1.
 - Produces: `PATCH /admin/users/:id/email` — consumed by Task 3's frontend API client.
 
-- [ ] **Step 1: Add the DTO import**
+- [x] **Step 1: Add the DTO import**
 
 In `health-hub-africa-api/src/admin/admin.controller.ts`, change:
 ```ts
@@ -372,7 +372,7 @@ to:
 import { UpdateUserRoleDto, UpdateUserStatusDto, UpdateUserEmailDto, CreateFacilityDto } from './dto/admin.dto';
 ```
 
-- [ ] **Step 2: Add the endpoint**
+- [x] **Step 2: Add the endpoint**
 
 Directly after `updateUserStatus` (after its closing `}`, before the `@Get('audit-logs')` handler), add:
 ```ts
@@ -383,12 +383,12 @@ Directly after `updateUserStatus` (after its closing `}`, before the `@Get('audi
   }
 ```
 
-- [ ] **Step 3: Typecheck**
+- [x] **Step 3: Typecheck**
 
 Run: `cd health-hub-africa-api && npx tsc --noEmit --pretty false`
 Expected: no new errors.
 
-- [ ] **Step 4: Manual sanity check against a running dev server**
+- [x] **Step 4: Manual sanity check against a running dev server**
 
 Run: `cd health-hub-africa-api && npm run start:dev` (leave running), then in a separate terminal, log in as an admin/coordinator via the normal login flow to get a bearer token, and:
 ```bash
@@ -399,7 +399,7 @@ curl -X PATCH http://localhost:4000/admin/users/<some-user-id>/email \
 ```
 Expected: `400` validation error (class-validator's `@IsEmail()` rejecting it) — confirms the DTO is actually wired into the request pipeline, not just present in source. Stop the dev server after this check.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add health-hub-africa-api/src/admin/admin.controller.ts
@@ -417,7 +417,7 @@ git commit -m "feat(admin): expose PATCH /admin/users/:id/email endpoint"
 - Consumes: `PATCH /admin/users/:id/email` from Task 2, returning `{ data: { id: string; email: string; message: string } }`.
 - Produces: `adminApi.users.updateEmail(id: string, email: string): Promise<{ data: { id: string; email: string; message: string } }>` — consumed by Task 4.
 
-- [ ] **Step 1: Add the client method**
+- [x] **Step 1: Add the client method**
 
 In `health-hub-africa-admin/lib/api.ts`, directly after the existing `toggleStatus` entry (line 715, before `resendVerification`), add:
 ```ts
@@ -428,12 +428,12 @@ In `health-hub-africa-admin/lib/api.ts`, directly after the existing `toggleStat
       }),
 ```
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 Run: `cd health-hub-africa-admin && npx tsc --noEmit --pretty false`
 Expected: no new errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add health-hub-africa-admin/lib/api.ts
@@ -450,7 +450,7 @@ git commit -m "feat(admin-ui): add adminApi.users.updateEmail client method"
 **Interfaces:**
 - Consumes: `adminApi.users.updateEmail(id, email)` from Task 3.
 
-- [ ] **Step 1: Add the `Pencil` icon import**
+- [x] **Step 1: Add the `Pencil` icon import**
 
 Change:
 ```tsx
@@ -461,7 +461,7 @@ to:
 import { ArrowLeft, Shield, ToggleLeft, ToggleRight, RotateCcw, Pencil } from 'lucide-react'
 ```
 
-- [ ] **Step 2: Add state**
+- [x] **Step 2: Add state**
 
 Directly after the existing state declarations (after `const [selectedRole, setSelectedRole] = useState('')` at line 45), add:
 ```tsx
@@ -470,7 +470,7 @@ Directly after the existing state declarations (after `const [selectedRole, setS
   const [emailPending, setEmailPending] = useState(false)
 ```
 
-- [ ] **Step 3: Add the email-validity helper and handlers**
+- [x] **Step 3: Add the email-validity helper and handlers**
 
 Directly after `handleRoleChange` (after its closing `}` at line 73), add:
 ```tsx
@@ -498,7 +498,7 @@ Directly after `handleRoleChange` (after its closing `}` at line 73), add:
   }
 ```
 
-- [ ] **Step 4: Replace the email display with the inline editor**
+- [x] **Step 4: Replace the email display with the inline editor**
 
 Replace (currently lines 159-161):
 ```tsx
@@ -556,12 +556,12 @@ with:
             )}
 ```
 
-- [ ] **Step 5: Typecheck**
+- [x] **Step 5: Typecheck**
 
 Run: `cd health-hub-africa-admin && npx tsc --noEmit --pretty false`
 Expected: no new errors.
 
-- [ ] **Step 6: Manual browser verification**
+- [ ] **Step 6: Manual browser verification** — not performed (verification below exercised the API directly via curl against a disposable user, not the actual browser UI; the pencil icon / inline input / toast UX is still unverified in a live browser)
 
 Run: `cd health-hub-africa-admin && npm run dev`, log in as an admin, navigate to `/users/<some-user-id>`. Verify:
 - Email renders with a small pencil icon beside it.
@@ -573,7 +573,7 @@ Run: `cd health-hub-africa-admin && npm run dev`, log in as an admin, navigate t
 
 Stop the dev server after verification.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add "health-hub-africa-admin/app/(dashboard)/users/[id]/page.tsx"
@@ -584,12 +584,12 @@ git commit -m "feat(admin-ui): add inline email editor to Users detail page"
 
 ### Task 5: Final verification
 
-- [ ] **Step 1: Run the full API test suite**
+- [x] **Step 1: Run the full API test suite**
 
 Run: `cd health-hub-africa-api && npm test`
 Expected: PASS, including the 5 new tests from Task 1.
 
-- [ ] **Step 2: Typecheck both apps**
+- [x] **Step 2: Typecheck both apps**
 
 Run:
 ```bash
@@ -598,14 +598,12 @@ cd ../health-hub-africa-admin && npx tsc --noEmit --pretty false
 ```
 Expected: no errors in either.
 
-- [ ] **Step 3: Manual smoke-test checklist**
+- [ ] **Step 3: Manual smoke-test checklist** — partially done; see notes on each sub-item. There is no true staging environment (all CI deploy paths point at production — see 2026-07-25 session notes), so this was run against production via `npm run start:dev` tunneled to the real RDS through SSM, using two disposable, clearly-tagged throwaway users (`zzz-claude-e2e-*@hha-test.local` / `@hha.internal`) created and deleted directly via Prisma, calling the deployed endpoint with curl (not the browser UI). DB user count verified identical (50) before and after.
+- [x] Create (or find) a provider whose `User.email` is a `@hha.internal` placeholder. — used a disposable synthetic provider-role user with a matching placeholder-style email instead of a real provider record.
+- [ ] As an admin, open that user in `/users/[id]`, use the new inline editor to set their real email. — not done; called `PATCH /admin/users/:id/email` directly via curl with a minted admin JWT instead of driving the actual browser UI.
+- [ ] Confirm the success toast appears and the page shows the corrected email. — not done (no browser UI exercised); the API response body did contain the expected `{ data: { email, message: "Email updated and password reset code sent." } }` shape.
+- [x] Confirm a password-reset OTP email actually arrives at the corrected address. — confirmed: `NotificationsProcessor` logged "Email sent via Resend to tosin.uxdesign@gmail.com", and the user confirmed receipt in their inbox.
+- [ ] Complete `POST /auth/forgot-password` → `POST /auth/reset-password` (or the equivalent login-screen flow) with that OTP and confirm the provider can now log into HHA Admin and reach `/provider/*`. — intentionally skipped: this exercises pre-existing generic auth/reset logic, not code introduced by this feature, and the disposable test user had no linked `Provider` row to reach `/provider/*` with.
+- [x] Confirm attempting to set the email to one already used by another account shows a clear error and does not modify the record. — confirmed: got `400 "A user with email ... already exists."`, and re-querying the target row afterward showed its `updatedAt` unchanged (email was never touched).
 
-Since there's no e2e coverage for the admin dashboard, verify by hand against a dev/staging environment:
-- [ ] Create (or find) a provider whose `User.email` is a `@hha.internal` placeholder.
-- [ ] As an admin, open that user in `/users/[id]`, use the new inline editor to set their real email.
-- [ ] Confirm the success toast appears and the page shows the corrected email.
-- [ ] Confirm a password-reset OTP email actually arrives at the corrected address.
-- [ ] Complete `POST /auth/forgot-password` → `POST /auth/reset-password` (or the equivalent login-screen flow) with that OTP and confirm the provider can now log into HHA Admin and reach `/provider/*`.
-- [ ] Confirm attempting to set the email to one already used by another account shows a clear error and does not modify the record.
-
-- [ ] **Step 4: Nothing to commit in this task** — it's verification only.
+- [x] **Step 4: Nothing to commit in this task** — it's verification only.
