@@ -85,3 +85,4 @@ health-hub-africa-api/logs-*.txt
 # Claude Code internal state
 .claude/
 .playwright-mcp/
+.superpowers/
