@@ -138,6 +138,7 @@ export function LoginScreen() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [agreeTerms, setAgreeTerms] = useState(false)
+  const [newsletterOptIn, setNewsletterOptIn] = useState(false)
   const [localError, setLocalError] = useState('')
 
   // Forgot password states
@@ -176,7 +177,7 @@ export function LoginScreen() {
         return
       }
       try {
-        await register(email, password, phone || undefined, name || undefined)
+        await register(email, password, phone || undefined, name || undefined, newsletterOptIn)
         if (typeof window !== 'undefined') {
           sessionStorage.setItem('onboarding_name', name || 'Valued Patient')
           sessionStorage.setItem('pending_otp_email', email)
@@ -572,6 +573,20 @@ export function LoginScreen() {
                       <a href="#" className="font-semibold hover:underline text-[#6DC43F]">Terms of Service</a>
                       {' '}and{' '}
                       <a href="#" className="font-semibold hover:underline text-[#6DC43F]">Privacy Policy</a>.
+                    </span>
+                  </label>
+                )}
+
+                {isSignUp && (
+                  <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="mt-1 accent-[#6DC43F] rounded cursor-pointer"
+                      checked={newsletterOptIn}
+                      onChange={e => setNewsletterOptIn(e.target.checked)}
+                    />
+                    <span className="text-[11px] leading-tight text-white/70">
+                      Send me updates, discounts, and news from Health-Hub Africa.
                     </span>
                   </label>
                 )}
