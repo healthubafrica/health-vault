@@ -193,10 +193,10 @@ export interface NotificationPrefs {
 }
 
 export const auth = {
-  register: (email: string, password: string, phoneNumber?: string, fullName?: string) =>
+  register: (email: string, password: string, phoneNumber?: string, fullName?: string, newsletterOptIn?: boolean) =>
     request<{ message: string }>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password, phoneNumber, fullName }),
+      body: JSON.stringify({ email, password, phoneNumber, fullName, newsletterOptIn }),
     }),
 
   // login/verifyOtp go through the same-origin BFF so the HttpOnly refresh
