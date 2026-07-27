@@ -75,6 +75,11 @@ export class AuthService {
           where: { userId: existingEmail.id, usedAt: null },
           data: { usedAt: new Date() },
         }),
+        this.prisma.notificationPreference.upsert({
+          where: { userId: existingEmail.id },
+          create: { userId: existingEmail.id, marketingComms: dto.newsletterOptIn ?? false },
+          update: { marketingComms: dto.newsletterOptIn ?? false },
+        }),
       ]);
 
       await this.sendEmailOtp(existingEmail.email, existingEmail.id, 'email');
@@ -101,6 +106,9 @@ export class AuthService {
           phone,
           passwordHash,
           role: UserRole.patient,
+          notificationPrefs: {
+            create: { marketingComms: dto.newsletterOptIn ?? false },
+          },
         },
         select: { id: true, email: true, role: true },
       });
