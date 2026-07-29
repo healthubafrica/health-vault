@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Lock } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { EmptyState, NoSearchResultState } from '@/components/ui/states'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { UploadDropzone } from '@/components/vault/UploadDropzone'
 import { UploadQueueModal } from '@/components/vault/UploadQueueModal'
@@ -172,11 +173,21 @@ export function VaultScreen() {
 
       <Card padding="none">
         {docs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-2">
-            <Lock size={32} style={{ color: 'var(--color-text-faint)' }} />
-            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-              {query.q || query.category ? 'No documents match your filters' : 'No documents yet — upload your first file above'}
-            </p>
+          <div className="py-8">
+            {query.q ? (
+              <NoSearchResultState
+                searchTerm={query.q}
+                onClearSearch={() => setQuery((prev) => ({ ...prev, q: undefined }))}
+                onResetFilters={() => setQuery({ sort: 'createdAt', order: 'desc' })}
+              />
+            ) : (
+              <EmptyState
+                title="No vault documents found"
+                description="Upload your first clinical record, lab report, or prescription file above."
+                icon={Lock}
+                variant="card"
+              />
+            )}
           </div>
         ) : (
           <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
 import { FormInput, FormTextarea } from '@/components/ui/FormInput'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { EmptyState } from '@/components/ui/states'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { formatDate } from '@/lib/utils'
 import { support, type SupportTicket } from '@/lib/api'
@@ -114,9 +115,14 @@ export function SupportScreen() {
 
       {(tickets?.length ?? 0) === 0 ? (
         <Card>
-          <div className="flex flex-col items-center justify-center py-12 gap-2">
-            <LifeBuoy size={32} style={{ color: 'var(--color-text-faint)' }} />
-            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No support tickets yet</p>
+          <div className="py-6">
+            <EmptyState
+              title="No support tickets yet"
+              description="Need assistance with billing, appointments, or medical records? Create your first ticket above."
+              icon={LifeBuoy}
+              primaryActionLabel="New Ticket"
+              onPrimaryAction={() => setShowNew(true)}
+            />
           </div>
         </Card>
       ) : (

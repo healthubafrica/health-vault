@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { Card } from '@/components/ui/Card'
 import { Pill } from '@/components/ui/Pill'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { EmptyState } from '@/components/ui/states'
+import { useRouter } from 'next/navigation'
 import { Tooltip } from '@/components/ui/Tooltip'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { formatDate } from '@/lib/utils'
@@ -33,6 +35,7 @@ function statusLabel(status: string): string {
 }
 
 export function ExpertReviewScreen() {
+  const router = useRouter()
   const { data: cases, isInitialLoad, error, refetch } = useApi(() => expertReview.list())
 
   if (isInitialLoad) return <ListSkeleton ariaLabel="Loading expert review cases" />
@@ -51,14 +54,14 @@ export function ExpertReviewScreen() {
 
       {(cases?.length ?? 0) === 0 ? (
         <Card>
-          <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
-            <Stethoscope size={32} style={{ color: 'var(--color-text-faint)' }} />
-            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No expert review cases yet</p>
-            <p className="text-xs max-w-xs" style={{ color: 'var(--color-text-faint)' }}>
-              Book an Expert Review from the{' '}
-              <Link href="/appointments" style={{ color: '#6DC43F', fontWeight: 600 }}>Appointments</Link>{' '}
-              page to get a specialist second opinion on your case.
-            </p>
+          <div className="py-6">
+            <EmptyState
+              title="No Expert Review Cases"
+              description="Request a specialist second opinion on your medical diagnosis and treatment plan."
+              icon={Stethoscope}
+              primaryActionLabel="Book Expert Review"
+              onPrimaryAction={() => router.push('/appointments')}
+            />
           </div>
         </Card>
       ) : (

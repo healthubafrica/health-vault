@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { payments as paymentsApi } from '@/lib/api'
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { SuccessState, ErrorState } from '@/components/ui/states'
 import { toast } from 'sonner'
 
 type VerifyState = 'loading' | 'success' | 'failed' | 'no_reference'
@@ -73,52 +74,29 @@ export function PaymentVerifyScreen() {
 
   if (state === 'success') {
     return (
-      <div className="flex flex-col items-center justify-center gap-5 py-20 text-center px-4">
-        <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--color-success) 12%, transparent)' }}>
-          <CheckCircle size={32} style={{ color: 'var(--color-success)' }} />
-        </div>
-        <div>
-          <h1 className="text-xl font-bold" style={{ color: 'var(--color-text)', fontFamily: 'var(--font-display)' }}>
-            Payment Confirmed
-          </h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            Your payment via {gateway} was successful. Your subscription has been activated.
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <Button size="sm" variant="ghost" onClick={openReceipt}>
-            View Receipt
-          </Button>
-          <Button size="sm" onClick={() => router.push('/subscriptions')}>
-            View Subscription
-          </Button>
-        </div>
+      <div className="py-12 px-4">
+        <SuccessState
+          title="Payment Confirmed!"
+          message={`Your payment via ${gateway ?? 'Paystack'} was successfully processed. Your plan has been activated.`}
+          referenceId={reference ?? undefined}
+          primaryActionLabel="View Subscription"
+          onPrimaryAction={() => router.push('/subscriptions')}
+          secondaryActionLabel="View Receipt"
+          onSecondaryAction={openReceipt}
+        />
       </div>
     )
   }
 
   if (state === 'failed') {
     return (
-      <div className="flex flex-col items-center justify-center gap-5 py-20 text-center px-4">
-        <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--color-error) 12%, transparent)' }}>
-          <XCircle size={32} style={{ color: 'var(--color-error)' }} />
-        </div>
-        <div>
-          <h1 className="text-xl font-bold" style={{ color: 'var(--color-text)', fontFamily: 'var(--font-display)' }}>
-            Payment Not Confirmed
-          </h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            We could not confirm your payment. If you completed the payment, your subscription will be activated shortly via our payment confirmation system.
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <Button size="sm" variant="ghost" onClick={() => router.push('/subscriptions')}>
-            Check Subscription
-          </Button>
-          <Button size="sm" onClick={() => router.push('/dashboard')}>
-            Go to Dashboard
-          </Button>
-        </div>
+      <div className="py-12 px-4">
+        <ErrorState
+          title="Payment Not Confirmed"
+          message="We could not confirm your transaction. If money was debited, your account will be updated automatically via webhook."
+          code="ERR_PAYMENT_UNVERIFIED"
+          onRetry={() => router.push('/payments')}
+        />
       </div>
     )
   }
