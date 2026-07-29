@@ -13,6 +13,8 @@ interface AuthState {
 
   login: (email: string, password: string) => Promise<{ requiresTwoFactor: boolean }>
   verify2fa: (otp: string) => Promise<void>
+  forgotPassword: (email: string) => Promise<void>
+  resetPassword: (email: string, otp: string, newPassword: string) => Promise<void>
   fetchMe: () => Promise<void>
   logout: () => Promise<void>
   clearError: () => void
@@ -81,6 +83,28 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      forgotPassword: async (email) => {
+        set({ isLoading: true, error: null })
+        try {
+          await auth.forgotPassword(email)
+          set({ isLoading: false })
+        } catch (e: unknown) {
+          set({ error: e instanceof Error ? e.message : "We couldn't send your reset code. Please try again.", isLoading: false })
+          throw e
+        }
+      },
+
+      resetPassword: async (email, otp, newPassword) => {
+        set({ isLoading: true, error: null })
+        try {
+          await auth.resetPassword(email, otp, newPassword)
+          set({ isLoading: false })
+        } catch (e: unknown) {
+          set({ error: e instanceof Error ? e.message : "We couldn't reset your password. Please try again.", isLoading: false })
+          throw e
+        }
+      },
+
       fetchMe: async () => {
         try {
           const meRes = await auth.me()
@@ -105,7 +129,11 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'hha-admin-auth',
-      partialize: (s) => ({ user: s.user, isAuthenticated: s.isAuthenticated }),
+      partialize: (s) => ({ user: s.user }),
+      merge: (persistedState, currentState) => ({
+        ...currentState,
+        user: (persistedState as Partial<AuthState> | undefined)?.user ?? null,
+      }),
     },
   ),
 )

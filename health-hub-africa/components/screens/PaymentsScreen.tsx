@@ -10,6 +10,7 @@ import { payments as paymentsApi, ApiError, type GatewayStatus } from '@/lib/api
 import { useApi } from '@/lib/hooks/useApi'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { EmptyState } from '@/components/ui/states'
 import { toast } from 'sonner'
 
 type PillVariant = 'success' | 'warning' | 'emergency' | 'neutral'
@@ -297,9 +298,14 @@ export function PaymentsScreen() {
         </div>
         <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
           {allPayments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-2">
-              <Receipt size={32} style={{ color: 'var(--color-text-faint)' }} />
-              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No transactions yet</p>
+            <div className="py-6">
+              <EmptyState
+                title="No transactions yet"
+                description="Your payment history and receipts will be displayed here."
+                icon={Receipt}
+                primaryActionLabel="Make Payment"
+                onPrimaryAction={openModal}
+              />
             </div>
           ) : allPayments.map((p: any) => (
             <div key={p.id} className="flex items-center gap-3 p-4">

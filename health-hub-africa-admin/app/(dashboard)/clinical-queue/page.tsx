@@ -6,8 +6,8 @@ import { useAutoRefresh } from '@/lib/hooks/useLiveData'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
-import { SkeletonBox } from '@/components/ui/Skeleton'
 import { RefreshCw, Video, FileSearch, Clock, Activity } from 'lucide-react'
+import { EmptyState, ErrorState, TableSkeleton } from '@/components/ui/states'
 
 function queueStatusVariant(status: string): 'success' | 'warning' | 'emergency' | 'neutral' {
   if (status === 'active' || status === 'in_progress') return 'success'
@@ -119,11 +119,8 @@ export default function ClinicalQueuePage() {
       </div>
 
       {error && (
-        <div
-          className="mb-4 px-4 py-3 rounded-xl text-sm"
-          style={{ background: 'var(--color-error-bg)', color: 'var(--color-emergency)' }}
-        >
-          {error}
+        <div className="mb-6">
+          <ErrorState title="Clinical Queue Sync Error" message={error} onRetry={load} variant="inline" />
         </div>
       )}
 
@@ -163,18 +160,14 @@ export default function ClinicalQueuePage() {
           </div>
 
           {loading ? (
-            <div className="flex flex-col gap-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <SkeletonBox key={i} height={80} className="rounded-xl" />
-              ))}
-            </div>
+            <TableSkeleton rows={3} />
           ) : teleconsults.length === 0 ? (
-            <Card>
-              <CardTitle>No teleconsults in queue</CardTitle>
-              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                The teleconsult queue is currently empty.
-              </p>
-            </Card>
+            <EmptyState
+              title="No teleconsults in queue"
+              description="The virtual consultation triage queue is currently clear."
+              icon={Video}
+              variant="card"
+            />
           ) : (
             <div className="flex flex-col gap-3">
               {teleconsults.map((item) => (
@@ -200,18 +193,14 @@ export default function ClinicalQueuePage() {
           </div>
 
           {loading ? (
-            <div className="flex flex-col gap-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <SkeletonBox key={i} height={80} className="rounded-xl" />
-              ))}
-            </div>
+            <TableSkeleton rows={3} />
           ) : expertReviews.length === 0 ? (
-            <Card>
-              <CardTitle>No expert reviews in queue</CardTitle>
-              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                The expert review queue is currently empty.
-              </p>
-            </Card>
+            <EmptyState
+              title="No expert reviews in queue"
+              description="The specialist second-opinion case queue is currently clear."
+              icon={FileSearch}
+              variant="card"
+            />
           ) : (
             <div className="flex flex-col gap-3">
               {expertReviews.map((item) => (

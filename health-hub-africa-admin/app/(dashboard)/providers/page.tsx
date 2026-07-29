@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button'
 import { SkeletonCard } from '@/components/ui/Skeleton'
 import { FormInput } from '@/components/ui/FormInput'
 import { RefreshCw, Search, Star, Users, Download, X, Copy, Info, Plus, Mail, Trash2 } from 'lucide-react'
+import { NoSearchResultState, EmptyState } from '@/components/ui/states'
 import { useAuthStore } from '@/lib/stores/authStore'
 import { formatDate } from '@/lib/utils'
 import { buildProviderDisplayName } from '@/lib/providerName'
@@ -554,11 +555,22 @@ export default function ProvidersPage() {
           ))}
         </div>
       ) : providers.length === 0 ? (
-        <Card>
-          <p className="text-center text-sm py-8" style={{ color: 'var(--color-text-muted)' }}>
-            No providers found
-          </p>
-        </Card>
+        search.trim() ? (
+          <NoSearchResultState
+            searchTerm={search}
+            suggestions={['Cardiologist', 'Surgeon', 'Pediatrician', 'General Practice']}
+            onSelectSuggestion={(term) => setSearch(term)}
+            onClearSearch={() => setSearch('')}
+          />
+        ) : (
+          <EmptyState
+            title="No medical providers registered"
+            description="Get started by adding or importing healthcare practitioners into the network."
+            icon={Users}
+            primaryActionLabel="Add Provider"
+            onPrimaryAction={() => setCreateOpen(true)}
+          />
+        )
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {providers.map((prov) => (

@@ -13,6 +13,7 @@ import { labs } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { EmptyState } from '@/components/ui/states'
 import { buildProviderDisplayName } from '@/lib/providerName'
 
 const LabBarsChart = dynamic(() => import('@/components/charts/LabBarsChart').then(m => ({ default: m.LabBarsChart })), { ssr: false })
@@ -91,9 +92,14 @@ export function LabsScreen() {
           <CardTitle className="mb-0">Lab Results</CardTitle>
         </div>
         {results.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-2">
-            <FlaskConical size={32} style={{ color: 'var(--color-text-faint)' }} />
-            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No lab results yet</p>
+          <div className="py-8">
+            <EmptyState
+              title="No lab results yet"
+              description="Your diagnostic test history will appear here once CareTest™ results are uploaded."
+              icon={FlaskConical}
+              primaryActionLabel="Book CareTest™"
+              onPrimaryAction={() => router.push('/appointments')}
+            />
           </div>
         ) : (
           <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
