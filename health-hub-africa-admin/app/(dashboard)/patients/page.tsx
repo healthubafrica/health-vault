@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/Button'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { FormInput } from '@/components/ui/FormInput'
 import { formatDate, formatDateTime } from '@/lib/utils'
-import { RefreshCw, Search, RotateCcw, X, Copy, Check } from 'lucide-react'
+import { RefreshCw, Search, RotateCcw, X, Copy, Check, Users } from 'lucide-react'
+import { NoSearchResultState, EmptyState, ErrorState } from '@/components/ui/states'
 import { toast } from 'sonner'
 
 function syncStatusVariant(status: string): 'success' | 'warning' | 'emergency' | 'neutral' {
@@ -300,7 +301,7 @@ export default function PatientsPage() {
           {syncBanner.msg}
         </div>
       )}
-      {error && <div className="mb-4 px-4 py-3 rounded-xl text-sm" style={{ background: 'var(--color-error-bg)', color: 'var(--color-emergency)' }}>{error}</div>}
+      {error && <div className="mb-4"><ErrorState title="Patient Directory Sync Error" message={error} onRetry={load} variant="inline" /></div>}
 
       <div className="relative max-w-xs mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: 'var(--color-text-muted)' }} />
@@ -327,7 +328,23 @@ export default function PatientsPage() {
                   </tr>
                 ))
               ) : patients.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>No patients found</td></tr>
+                <tr>
+                  <td colSpan={6} className="px-4 py-8">
+                    {search.trim() ? (
+                      <NoSearchResultState
+                        searchTerm={search}
+                        suggestions={['HHA Patient ID', 'Bernard', 'Okafor', 'Lagos']}
+                        onClearSearch={() => setSearch('')}
+                      />
+                    ) : (
+                      <EmptyState
+                        title="No patients registered yet"
+                        description="Patients will appear here after registering on Health Hub Africa."
+                        icon={Users}
+                      />
+                    )}
+                  </td>
+                </tr>
               ) : (
                 patients.map((p) => (
                   <tr

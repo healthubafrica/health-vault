@@ -10,6 +10,7 @@ const PUBLIC_PATHS = [
   '/payments/verify',
   '/share',
   '/telecare-guest',
+  '/ui-states',
   '/api/auth',        // BFF auth route handlers issue the session cookies
   '/_next',
   '/favicon.ico',

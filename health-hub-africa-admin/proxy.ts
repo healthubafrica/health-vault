@@ -5,6 +5,7 @@ const ACCESS_COOKIE = 'hha_at'
 
 const PUBLIC_PATHS = [
   '/login',
+  '/reset-password',
   '/_next',
   '/favicon.ico',
   '/api/auth/login',
