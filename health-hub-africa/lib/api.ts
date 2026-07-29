@@ -1327,3 +1327,46 @@ export const travelsafe = {
   getSummary: (id: string) =>
     request<{ data: TravelSafeSummary }>(`/travelsafe/trips/${id}/summary`),
 }
+
+// ── Notifications ────────────────────────────────────────────────────────────
+
+export type NotificationCategory =
+  | 'appointment'
+  | 'lab'
+  | 'payment'
+  | 'record'
+  | 'telecare'
+  | 'alert'
+  | 'system'
+
+export interface AppNotification {
+  id: string
+  category: NotificationCategory
+  title: string
+  body: string
+  isRead: boolean
+  actionUrl?: string
+  createdAt: string
+}
+
+export interface NotificationsListResponse {
+  data: AppNotification[]
+  meta: { total: number; unread: number }
+}
+
+export const notifications = {
+  list: (params?: { unreadOnly?: boolean; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.unreadOnly) q.set('unreadOnly', 'true')
+    if (params?.limit) q.set('limit', String(params.limit))
+    const qs = q.toString()
+    return request<NotificationsListResponse>(`/notifications${qs ? `?${qs}` : ''}`)
+  },
+
+  markRead: (id: string) =>
+    request<{ updated: boolean }>(`/notifications/${id}/read`, { method: 'PATCH' }),
+
+  markAllRead: () =>
+    request<{ updated: number }>('/notifications/read-all', { method: 'PATCH' }),
+}
+

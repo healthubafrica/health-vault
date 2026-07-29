@@ -12,6 +12,7 @@ import { records as recordsApi, type ClinicalRecord } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { EmptyState } from '@/components/ui/states'
 import { buildProviderDisplayName } from '@/lib/providerName'
 import { toast } from 'sonner'
 
@@ -180,9 +181,13 @@ export function RecordsScreen() {
       {!(tab === 'Prescriptions' && (rxList?.length ?? 0) > 0) && (
       <Card padding="none">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-2">
-            <FileText size={32} style={{ color: 'var(--color-text-faint)' }} />
-            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No records found</p>
+          <div className="py-8">
+            <EmptyState
+              title={`No ${tab !== 'All' ? tab.toLowerCase() : 'clinical'} records found`}
+              description="There are no health records logged under this category yet."
+              icon={FileText}
+              variant="card"
+            />
           </div>
         ) : (
           <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
