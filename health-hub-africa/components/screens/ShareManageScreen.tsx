@@ -153,7 +153,6 @@ function CreateShareWizard({ onDone }: { onDone: () => void }) {
   const [submitting, setSubmitting] = useState(false)
   const [createdToken, setCreatedToken] = useState<string | null>(null)
   const [notified, setNotified] = useState<{ emails: number; phones: number } | null>(null)
-  const [copiedCreated, setCopiedCreated] = useState(false)
 
   function toggleType(t: string) {
     setSelectedTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
@@ -204,8 +203,20 @@ function CreateShareWizard({ onDone }: { onDone: () => void }) {
       <div className="py-4">
         <SuccessState
           title="Secure Share Link Created!"
-          message="Your encrypted medical vault link has been generated and is ready to share."
+          message="This link will not be shown again — store it somewhere safe before continuing."
           referenceId={createdToken}
+          details={
+            notified && (notified.emails > 0 || notified.phones > 0)
+              ? [
+                  ...(notified.emails > 0
+                    ? [{ label: 'Emailed to', value: `${notified.emails} recipient${notified.emails !== 1 ? 's' : ''}` }]
+                    : []),
+                  ...(notified.phones > 0
+                    ? [{ label: 'Texted to', value: `${notified.phones} phone number${notified.phones !== 1 ? 's' : ''}` }]
+                    : []),
+                ]
+              : []
+          }
           primaryActionLabel="Copy Link"
           onPrimaryAction={() => {
             navigator.clipboard.writeText(shareUrl)

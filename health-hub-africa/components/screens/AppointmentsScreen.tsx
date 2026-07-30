@@ -96,7 +96,7 @@ export function AppointmentsScreen() {
   const [scheduledAt, setScheduledAt] = useState('')
   const [reason, setReason] = useState('')
   const [isBooking, setIsBooking] = useState(false)
-  const [bookingSuccess, setBookingSuccess] = useState<{ refId: string; service: string } | null>(null)
+  const [bookingSuccess, setBookingSuccess] = useState<{ refId: string; service: string; scheduledAt: string } | null>(null)
 
   // Facility picker (in-person services only — telecare bookings skip it)
   const [facilities, setFacilities] = useState<BookableFacility[]>([])
@@ -193,8 +193,7 @@ export function AppointmentsScreen() {
         ...(selectedProviderId && { providerId: selectedProviderId }),
         ...(isInPerson && facilityId && { facilityId }),
       })
-      const refId = `HHA-APT-${Math.floor(1000 + Math.random() * 9000)}`
-      setBookingSuccess({ refId, service: selectedService.label })
+      setBookingSuccess({ refId: res.data.hhaRef, service: selectedService.label, scheduledAt })
       toast.success('Appointment requested', {
         description: 'Your care team will confirm shortly.',
       })
@@ -218,6 +217,10 @@ export function AppointmentsScreen() {
             title="Appointment Requested!"
             message="Your appointment request has been submitted to your care team."
             referenceId={bookingSuccess.refId}
+            details={[
+              { label: 'Service', value: bookingSuccess.service },
+              { label: 'Date & Time', value: formatDate(bookingSuccess.scheduledAt) },
+            ]}
             primaryActionLabel="Done"
             onPrimaryAction={() => setBookingSuccess(null)}
           />

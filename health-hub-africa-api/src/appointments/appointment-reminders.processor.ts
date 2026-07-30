@@ -41,6 +41,7 @@ export class AppointmentReminderProcessor {
         facility: { select: { name: true, city: true } },
         patient: {
           select: {
+            id: true,
             firstName: true,
             userId: true,
             user: { select: { email: true, phone: true } },
@@ -116,6 +117,19 @@ export class AppointmentReminderProcessor {
       const sms = `Health Hub Africa reminder: appointment ${hhaRef} with${providerName ? ` ${providerName}` : ''} is ${timeLabel} — ${when}.`;
       await this.notifications.sendSms(appt.patient.user.phone, sms, appt.patient.userId);
     }
+
+    // In-app alert — best-effort, must not block the email/SMS above.
+    this.notifications
+      .createPatientAlert({
+        patientId: appt.patient.id,
+        category: appt.isTelecare ? 'telecare' : 'appointment',
+        title: appt.isTelecare ? 'TeleCare Session Starting Soon' : 'Upcoming Appointment',
+        body: `Your ${appt.serviceType} appointment${providerName ? ` with ${providerName}` : ''} is ${timeLabel}.`,
+        actionUrl: appt.isTelecare ? '/telecare' : '/appointments',
+      })
+      .catch((err) =>
+        this.logger.error(`Failed to create in-app alert for ${type} reminder on appointment ${hhaRef}: ${err instanceof Error ? err.message : err}`),
+      );
 
     // Provider reminder (only if provider is assigned)
     if (appt.provider?.user?.email) {

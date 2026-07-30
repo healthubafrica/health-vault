@@ -1,7 +1,6 @@
 'use client'
 
 import { Stethoscope, FileCheck2 } from 'lucide-react'
-import Link from 'next/link'
 import { Card } from '@/components/ui/Card'
 import { Pill } from '@/components/ui/Pill'
 import { ErrorState } from '@/components/ui/ErrorState'
