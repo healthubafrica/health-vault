@@ -5,7 +5,10 @@ import {
   IsEnum,
   IsArray,
   IsBoolean,
+  IsNumber,
   Matches,
+  Max,
+  Min,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -24,6 +27,54 @@ export class PatientMedicalInfoDto {
   @IsArray()
   @IsString({ each: true })
   chronicConditions?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  activeMedications?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  immunizations?: string[];
+
+  @ApiPropertyOptional({ example: 172 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(30)
+  @Max(260)
+  heightCm?: number;
+
+  @ApiPropertyOptional({ example: 70.5 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(500)
+  weightKg?: number;
+
+  @ApiPropertyOptional({ example: 'None' })
+  @IsOptional()
+  @IsString()
+  disabilityStatus?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  disabilityDetails?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  activeCarePlan?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }
 
 export class EmergencyContactDto {
@@ -76,6 +127,11 @@ export class CreatePatientDto {
   @IsOptional()
   @IsEnum(BloodGroup)
   bloodGroup?: BloodGroup;
+
+  @ApiPropertyOptional({ example: 'AA' })
+  @IsOptional()
+  @IsString()
+  genotype?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

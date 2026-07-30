@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Card, CardTitle } from '@/components/ui/Card'
-import { FormInput, FormSelect } from '@/components/ui/FormInput'
+import { FormInput, FormSelect, FormTextarea } from '@/components/ui/FormInput'
 import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
 import { IdChip } from '@/components/ui/IdChip'
@@ -22,6 +22,22 @@ const BLOOD_GROUP_TO_DISPLAY: Record<string, string> = {
 const BLOOD_GROUP_TO_ENUM: Record<string, string> = Object.fromEntries(
   Object.entries(BLOOD_GROUP_TO_DISPLAY).map(([k, v]) => [v, k])
 )
+const DISABILITY_OPTIONS = ['None', 'Physical', 'Visual', 'Hearing', 'Cognitive', 'Multiple', 'Other']
+
+function listToText(value?: string[]) {
+  return value?.join(', ') ?? ''
+}
+
+function textToList(value: string) {
+  return value.split(',').map(s => s.trim()).filter(Boolean)
+}
+
+function nullableNumber(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const parsed = Number(trimmed)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
 
 export function ProfileScreen() {
   const { data: profileRes, isInitialLoad, error, refetch } = useApi(() => patients.getMyProfile())
@@ -35,8 +51,19 @@ export function ProfileScreen() {
   const [gender, setGender] = useState('Female')
   const [address, setAddress] = useState('')
   const [bloodGroup, setBloodGroup] = useState('')
+  const [genotype, setGenotype] = useState('')
+  const [heightCm, setHeightCm] = useState('')
+  const [weightKg, setWeightKg] = useState('')
+  const [disabilityStatus, setDisabilityStatus] = useState('None')
+  const [disabilityDetails, setDisabilityDetails] = useState('')
   const [allergiesText, setAllergiesText] = useState('')
   const [chronicText, setChronicText] = useState('')
+  const [medicationsText, setMedicationsText] = useState('')
+  const [carePlanText, setCarePlanText] = useState('')
+  const [medicalNotes, setMedicalNotes] = useState('')
+  const [nextOfKinName, setNextOfKinName] = useState('')
+  const [nextOfKinRelationship, setNextOfKinRelationship] = useState('')
+  const [nextOfKinPhone, setNextOfKinPhone] = useState('')
   const [nin, setNin] = useState('')
 
   const profile = profileRes?.data
@@ -50,8 +77,19 @@ export function ProfileScreen() {
     setGender(profile.gender === 'Prefer_not_to_say' ? 'Prefer not to say' : (profile.gender ?? 'Female'))
     setAddress(profile.address ?? '')
     setBloodGroup(BLOOD_GROUP_TO_DISPLAY[profile.bloodGroup ?? ''] ?? profile.bloodGroup ?? '')
-    setAllergiesText(profile.medicalInfo?.allergies?.join(', ') ?? '')
-    setChronicText(profile.medicalInfo?.chronicConditions?.join(', ') ?? '')
+    setGenotype(profile.genotype ?? '')
+    setHeightCm(profile.medicalInfo?.heightCm != null ? String(profile.medicalInfo.heightCm) : '')
+    setWeightKg(profile.medicalInfo?.weightKg != null ? String(profile.medicalInfo.weightKg) : '')
+    setDisabilityStatus(profile.medicalInfo?.disabilityStatus ?? 'None')
+    setDisabilityDetails(profile.medicalInfo?.disabilityDetails ?? '')
+    setAllergiesText(listToText(profile.medicalInfo?.allergies))
+    setChronicText(listToText(profile.medicalInfo?.chronicConditions))
+    setMedicationsText(listToText(profile.medicalInfo?.activeMedications))
+    setCarePlanText(profile.medicalInfo?.activeCarePlan ?? '')
+    setMedicalNotes(profile.medicalInfo?.notes ?? '')
+    setNextOfKinName(profile.nextOfKinName ?? profile.emergencyContacts?.[0]?.fullName ?? '')
+    setNextOfKinRelationship(profile.nextOfKinRelationship ?? profile.emergencyContacts?.[0]?.relationship ?? '')
+    setNextOfKinPhone(profile.nextOfKinPhone ?? profile.emergencyContacts?.[0]?.phone ?? '')
     setNin(profile.nin ?? '')
   }, [profileRes])
 
@@ -119,8 +157,6 @@ export function ProfileScreen() {
 
     setIsSaving(true)
     try {
-      const allergies = allergiesText.split(',').map(s => s.trim()).filter(Boolean)
-      const chronicConditions = chronicText.split(',').map(s => s.trim()).filter(Boolean)
       const bloodGroupEnum = BLOOD_GROUP_TO_ENUM[bloodGroup] ?? bloodGroup
       const genderEnum = gender === 'Prefer not to say' ? 'Prefer_not_to_say' : gender
 
@@ -130,9 +166,22 @@ export function ProfileScreen() {
         dateOfBirth: dob || undefined,
         gender: genderEnum || undefined,
         bloodGroup: bloodGroupEnum || undefined,
+        genotype: genotype.trim() || null,
         address: address.trim() || undefined,
-        allergies,
-        chronicConditions,
+        nextOfKinName: nextOfKinName.trim() || null,
+        nextOfKinRelationship: nextOfKinRelationship.trim() || null,
+        nextOfKinPhone: nextOfKinPhone.trim() || null,
+        medicalInfo: {
+          allergies: textToList(allergiesText),
+          chronicConditions: textToList(chronicText),
+          activeMedications: textToList(medicationsText),
+          heightCm: nullableNumber(heightCm),
+          weightKg: nullableNumber(weightKg),
+          disabilityStatus: disabilityStatus || undefined,
+          disabilityDetails: disabilityDetails.trim() || null,
+          activeCarePlan: carePlanText.trim() || null,
+          notes: medicalNotes.trim() || null,
+        },
         ...(nin.trim() ? { nin: nin.trim() } : {}),
       })
 
@@ -234,6 +283,43 @@ export function ProfileScreen() {
               <option key={bg}>{bg}</option>
             ))}
           </FormSelect>
+          <FormSelect label="Genotype" value={genotype} onChange={e => setGenotype(e.target.value)}>
+            <option value="">Not set</option>
+            {['AA', 'AS', 'SS', 'AC', 'SC', 'CC', 'Other'].map(value => (
+              <option key={value}>{value}</option>
+            ))}
+          </FormSelect>
+          <FormInput
+            label="Height (cm)"
+            type="number"
+            min="30"
+            max="260"
+            step="0.1"
+            value={heightCm}
+            onChange={e => setHeightCm(e.target.value)}
+            placeholder="e.g. 172"
+          />
+          <FormInput
+            label="Weight (kg)"
+            type="number"
+            min="1"
+            max="500"
+            step="0.1"
+            value={weightKg}
+            onChange={e => setWeightKg(e.target.value)}
+            placeholder="e.g. 70.5"
+          />
+          <FormSelect label="Disability Status" value={disabilityStatus} onChange={e => setDisabilityStatus(e.target.value)}>
+            {DISABILITY_OPTIONS.map(value => (
+              <option key={value}>{value}</option>
+            ))}
+          </FormSelect>
+          <FormInput
+            label="Disability Details"
+            value={disabilityDetails}
+            onChange={e => setDisabilityDetails(e.target.value)}
+            placeholder="Mobility aid, sensory needs, or accommodations"
+          />
           <FormInput
             label="Allergies"
             value={allergiesText}
@@ -248,26 +334,36 @@ export function ProfileScreen() {
           />
           <FormInput
             label="Current Medications"
-            defaultValue={profile?.medicalInfo?.activeMedications?.join(', ') ?? ''}
-            placeholder="None recorded"
-            readOnly
+            value={medicationsText}
+            onChange={e => setMedicationsText(e.target.value)}
+            placeholder="Comma-separated, e.g. Metformin, Amlodipine"
           />
-          <FormInput
+          <FormTextarea
             label="Active Care Plan"
-            defaultValue={profile?.medicalInfo?.activeCarePlan ?? ''}
-            placeholder="No active care plan"
-            readOnly
+            value={carePlanText}
+            onChange={e => setCarePlanText(e.target.value)}
+            placeholder="Care instructions, monitoring plan, or provider guidance"
+            rows={3}
+            className="min-h-24 sm:col-span-2"
+          />
+          <FormTextarea
+            label="Clinical Notes"
+            value={medicalNotes}
+            onChange={e => setMedicalNotes(e.target.value)}
+            placeholder="Implants, past surgeries, pregnancy status, assistive devices, or other emergency-relevant context"
+            rows={3}
+            className="min-h-24 sm:col-span-2"
           />
         </div>
       </Card>
 
-      {/* Emergency Contact — display only; updates require a separate flow */}
+      {/* Emergency Contact */}
       <Card>
-        <CardTitle>Emergency Contact</CardTitle>
+        <CardTitle>Emergency & Next of Kin</CardTitle>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormInput label="Full Name" defaultValue={profile?.emergencyContacts?.[0]?.fullName ?? ''} placeholder="Not set" readOnly />
-          <FormInput label="Relationship" defaultValue={profile?.emergencyContacts?.[0]?.relationship ?? ''} placeholder="Not set" readOnly />
-          <FormInput label="Phone" type="tel" defaultValue={profile?.emergencyContacts?.[0]?.phone ?? ''} placeholder="Not set" readOnly />
+          <FormInput label="Full Name" value={nextOfKinName} onChange={e => setNextOfKinName(e.target.value)} placeholder="Not set" />
+          <FormInput label="Relationship" value={nextOfKinRelationship} onChange={e => setNextOfKinRelationship(e.target.value)} placeholder="Not set" />
+          <FormInput label="Phone" type="tel" value={nextOfKinPhone} onChange={e => setNextOfKinPhone(e.target.value)} placeholder="Not set" />
         </div>
       </Card>
 

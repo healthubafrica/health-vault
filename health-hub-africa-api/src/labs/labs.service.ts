@@ -7,6 +7,7 @@ import {
 import { OpenemrService } from '../openemr/openemr.service';
 import { LabStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { CreateLabOrderDto } from './dto/create-lab-order.dto';
 import { CreateLabResultDto } from './dto/create-lab-result.dto';
@@ -31,6 +32,7 @@ export class LabsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly openemrService: OpenemrService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ── Orders ─────────────────────────────────────────────────────────────────
@@ -140,7 +142,7 @@ export class LabsService {
 
     const order = await this.prisma.labOrder.findUnique({
       where: { id: dto.labOrderId },
-      select: { id: true },
+      select: { id: true, hhaRef: true, patientId: true },
     });
     if (!order) throw new NotFoundException('Lab order not found');
 
@@ -167,7 +169,7 @@ export class LabsService {
     );
 
     const anyFlagged = dto.items.some((item) => item.isAbnormal);
-    return this.prisma.labOrder.update({
+    const updated = await this.prisma.labOrder.update({
       where: { id: dto.labOrderId },
       data: {
         reportedAt: new Date(),
@@ -175,6 +177,24 @@ export class LabsService {
       },
       include: { results: { include: { items: true } } },
     });
+
+    // Best-effort in-app alert — a failure here must not undo the results
+    // update that already committed.
+    this.notifications
+      .createPatientAlert({
+        patientId: order.patientId,
+        category: 'lab',
+        title: 'Lab Results Ready',
+        body: anyFlagged
+          ? 'Your lab results are ready to view. One or more values are flagged for review.'
+          : 'Your lab results are ready to view.',
+        actionUrl: '/labs',
+      })
+      .catch((err) =>
+        this.logger.error(`Failed to create in-app alert for lab order ${order.hhaRef}: ${err instanceof Error ? err.message : err}`),
+      );
+
+    return updated;
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

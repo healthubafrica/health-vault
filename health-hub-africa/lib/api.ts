@@ -273,10 +273,14 @@ export interface PatientProfile {
   gender: string
   profilePhotoUrl?: string
   bloodGroup?: string
+  genotype?: string | null
   address?: string
   city?: string
   state?: string
   country: string
+  nextOfKinName?: string | null
+  nextOfKinRelationship?: string | null
+  nextOfKinPhone?: string | null
   nin?: string
   status: string
   openemrSyncStatus: string
@@ -288,7 +292,12 @@ export interface PatientProfile {
     chronicConditions: string[]
     activeMedications: string[]
     immunizations?: string[]
-    activeCarePlan?: string
+    heightCm?: number | string | null
+    weightKg?: number | string | null
+    disabilityStatus?: string | null
+    disabilityDetails?: string | null
+    activeCarePlan?: string | null
+    notes?: string | null
   }
   emergencyContacts?: Array<{
     fullName: string
@@ -1197,8 +1206,12 @@ export interface TravelSafeSummary {
     name: string
     dateOfBirth: string
     bloodGroup?: string
-    genotype?: string
+    genotype?: string | null
     nextOfKin: { name?: string; relationship?: string; phone?: string }
+    heightCm?: number | string | null
+    weightKg?: number | string | null
+    disabilityStatus?: string | null
+    disabilityDetails?: string | null
     allergies: string[]
     chronicConditions: string[]
     activeMedications: string[]

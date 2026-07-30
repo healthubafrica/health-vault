@@ -377,6 +377,7 @@ export class AppointmentsService {
     }
 
     if (emailEvent) void this.notifyAppointmentEvent(id, emailEvent, opts?.notifyStaff);
+    if (emailEvent) void this.createAppointmentAlert(updatedAppointment, emailEvent);
 
     // Schedule 24h + 1h reminder jobs when confirmed; cancel them when the
     // appointment reaches a terminal state. Reschedule cancels any existing
@@ -837,6 +838,38 @@ export class AppointmentsService {
   }
 
   // ── Lifecycle notifications ────────────────────────────────────────────────
+
+  // In-app alert for the patient portal's notification bell — separate from
+  // the email dispatch above. Best-effort: a failure here must not affect
+  // the appointment mutation that already committed.
+  private async createAppointmentAlert(
+    appt: { patientId: string; hhaRef: string; serviceType: string; scheduledAt: Date; isTelecare: boolean },
+    event: AppointmentEmailEvent,
+  ) {
+    if (event === 'requested') return;
+    const when = appt.scheduledAt.toLocaleString('en-GB', {
+      weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos',
+    });
+    const copy: Record<Exclude<AppointmentEmailEvent, 'requested'>, { title: string; body: string }> = {
+      confirmed: { title: 'Appointment Confirmed', body: `Your ${appt.serviceType} appointment on ${when} has been confirmed.` },
+      cancelled: { title: 'Appointment Cancelled', body: `Your ${appt.serviceType} appointment on ${when} was cancelled.` },
+      rescheduled: { title: 'Appointment Rescheduled', body: `Your ${appt.serviceType} appointment has been moved to ${when}.` },
+      no_show: { title: 'Appointment Missed', body: `You missed your ${appt.serviceType} appointment on ${when}.` },
+      completed: { title: 'Appointment Completed', body: `Your ${appt.serviceType} appointment on ${when} is complete.` },
+    };
+    const { title, body } = copy[event];
+    try {
+      await this.notifications.createPatientAlert({
+        patientId: appt.patientId,
+        category: appt.isTelecare ? 'telecare' : 'appointment',
+        title,
+        body,
+        actionUrl: appt.isTelecare ? '/telecare' : '/appointments',
+      });
+    } catch (err) {
+      this.logger.error(`Failed to create in-app alert for appointment ${appt.hhaRef}: ${err instanceof Error ? err.message : err}`);
+    }
+  }
 
   private async notifyAppointmentEvent(
     appointmentId: string,
