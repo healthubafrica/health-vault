@@ -359,6 +359,10 @@ model PatientMedicalInfo {
   chronicConditions String[] @map("chronic_conditions")
   activeMedications String[] @map("active_medications")
   immunizations    String[]
+  heightCm         Decimal? @map("height_cm") @db.Decimal(5, 2)
+  weightKg         Decimal? @map("weight_kg") @db.Decimal(5, 2)
+  disabilityStatus String?  @map("disability_status")
+  disabilityDetails String? @map("disability_details")
   activeCarePlan   String?  @map("active_care_plan")
   notes            String?
   updatedAt        DateTime @updatedAt @map("updated_at")

@@ -20,6 +20,10 @@ const scriptSrc = isDev
 const LIVEKIT_ORIGINS = 'https://*.livekit.cloud wss://*.livekit.cloud'
 
 const nextConfig: NextConfig = {
+  outputFileTracingRoot: __dirname,
+  turbopack: {
+    root: __dirname,
+  },
   async headers() {
     const sharedHeaders = [
       { key: 'X-Content-Type-Options', value: 'nosniff' },
