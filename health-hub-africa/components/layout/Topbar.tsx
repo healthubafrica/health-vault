@@ -69,8 +69,7 @@ export function Topbar() {
   const planTier = subRes?.data?.plan?.tier
   const tierStyle = TIER_STYLES[tierKeyFor(planTier, planName)]
 
-  // Unread count — falls back to 1 (keeps dot visible) until API resolves
-  const unreadCount = notifRes?.meta?.unread ?? 1
+  const unreadCount = notifRes?.meta?.unread ?? 0
 
   return (
     <header

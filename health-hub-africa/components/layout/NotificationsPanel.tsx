@@ -35,57 +35,6 @@ const CATEGORY_META: Record<
   system:      { icon: Settings,     color: '#6B7280', bg: 'rgba(107,114,128,0.12)' },
 }
 
-// ── Fallback notifications shown when API hasn't returned data yet ─────────────
-// (real data replaces these once the API call resolves)
-
-const FALLBACK_NOTIFICATIONS: AppNotification[] = [
-  {
-    id: 'f1',
-    category: 'appointment',
-    title: 'Appointment Confirmed',
-    body: 'Your appointment with Dr. Adeyemi on Thursday 31 July at 10:00 AM has been confirmed.',
-    isRead: false,
-    actionUrl: '/appointments',
-    createdAt: new Date(Date.now() - 1000 * 60 * 8).toISOString(),
-  },
-  {
-    id: 'f2',
-    category: 'lab',
-    title: 'Lab Results Ready',
-    body: 'Your Full Blood Count (FBC) results from CareTest™ are now available to view.',
-    isRead: false,
-    actionUrl: '/labs',
-    createdAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-  },
-  {
-    id: 'f3',
-    category: 'payment',
-    title: 'Payment Successful',
-    body: 'Your BasicCare subscription payment of ₦15,000 has been processed successfully.',
-    isRead: true,
-    actionUrl: '/payments',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
-  },
-  {
-    id: 'f4',
-    category: 'alert',
-    title: 'Health Alert',
-    body: 'Your last recorded blood pressure (142/92 mmHg) is above the recommended range. Please consult your provider.',
-    isRead: false,
-    actionUrl: '/dashboard',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
-  },
-  {
-    id: 'f5',
-    category: 'telecare',
-    title: 'TeleCare™ Session Starting',
-    body: 'Your virtual consultation with Dr. Nwosu begins in 15 minutes. Join from the TeleCare™ screen.',
-    isRead: true,
-    actionUrl: '/telecare',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-  },
-]
-
 // ── NotificationItem ──────────────────────────────────────────────────────────
 
 function NotificationItem({
@@ -163,13 +112,11 @@ export function NotificationsPanel({ isOpen, onClose, anchorRef }: Notifications
   const { data, refetch } = useApi(() => notifications.list({ limit: 20 }))
   const panelRef = useRef<HTMLDivElement>(null)
 
-  // Use live data if available, otherwise show fallback notifications
-  const rawItems = data?.data ?? FALLBACK_NOTIFICATIONS
-  const [localItems, setLocalItems] = useState<AppNotification[]>(rawItems)
+  const [localItems, setLocalItems] = useState<AppNotification[]>([])
 
   // Sync state when API data resolves
   useEffect(() => {
-    setLocalItems(data?.data ?? FALLBACK_NOTIFICATIONS)
+    setLocalItems(data?.data ?? [])
   }, [data])
 
   const unreadCount = localItems.filter((n) => !n.isRead).length
@@ -291,19 +238,15 @@ export function NotificationsPanel({ isOpen, onClose, anchorRef }: Notifications
             )}
           </div>
 
-          {/* Footer */}
-          {localItems.length > 0 && (
+          {/* Footer — only shown when there are more notifications than fit here */}
+          {(data?.meta?.total ?? 0) > localItems.length && (
             <div
               className="px-4 py-3 border-t text-center"
               style={{ borderColor: 'var(--color-border)' }}
             >
-              <button
-                onClick={onClose}
-                className="text-[11px] font-semibold"
-                style={{ color: '#6DC43F' }}
-              >
-                View all notifications →
-              </button>
+              <p className="text-[11px]" style={{ color: 'var(--color-text-faint, #9CA3AF)' }}>
+                Showing {localItems.length} of {data?.meta?.total} notifications
+              </p>
             </div>
           )}
         </motion.div>

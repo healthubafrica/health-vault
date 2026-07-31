@@ -123,6 +123,8 @@ export class PatientsService {
 
     const allergies = dto.medicalInfo?.allergies ?? dto.allergies ?? [];
     const chronicConditions = dto.medicalInfo?.chronicConditions ?? dto.chronicConditions ?? [];
+    const activeMedications = dto.medicalInfo?.activeMedications ?? [];
+    const immunizations = dto.medicalInfo?.immunizations ?? [];
 
     const patient = await this.prisma.patient.create({
       data: {
@@ -142,6 +144,7 @@ export class PatientsService {
         city: dto.city,
         state: dto.state,
         country: dto.country ?? 'Nigeria',
+        genotype: dto.genotype,
         nextOfKinName: dto.nextOfKinName,
         nextOfKinRelationship: dto.nextOfKinRelationship,
         nextOfKinPhone: dto.nextOfKinPhone,
@@ -149,6 +152,14 @@ export class PatientsService {
           create: {
             allergies,
             chronicConditions,
+            activeMedications,
+            immunizations,
+            heightCm: dto.medicalInfo?.heightCm,
+            weightKg: dto.medicalInfo?.weightKg,
+            disabilityStatus: dto.medicalInfo?.disabilityStatus,
+            disabilityDetails: dto.medicalInfo?.disabilityDetails,
+            activeCarePlan: dto.medicalInfo?.activeCarePlan,
+            notes: dto.medicalInfo?.notes,
           }
         },
         emergencyContacts: dto.emergencyContacts && dto.emergencyContacts.length > 0 ? {
@@ -260,6 +271,22 @@ export class PatientsService {
         .catch(() => null);
     }
 
+    const medicalInfo = dto.medicalInfo;
+    const hasMedicalInfoUpdate = [
+      dto.allergies,
+      dto.chronicConditions,
+      medicalInfo?.allergies,
+      medicalInfo?.chronicConditions,
+      medicalInfo?.activeMedications,
+      medicalInfo?.immunizations,
+      medicalInfo?.heightCm,
+      medicalInfo?.weightKg,
+      medicalInfo?.disabilityStatus,
+      medicalInfo?.disabilityDetails,
+      medicalInfo?.activeCarePlan,
+      medicalInfo?.notes,
+    ].some(value => value !== undefined);
+
     const updated = await this.prisma.patient.update({
       where: { id },
       data: {
@@ -276,18 +303,35 @@ export class PatientsService {
         city: dto.city,
         state: dto.state,
         country: dto.country,
+        genotype: dto.genotype,
         nextOfKinName: dto.nextOfKinName,
         nextOfKinRelationship: dto.nextOfKinRelationship,
         nextOfKinPhone: dto.nextOfKinPhone,
-        medicalInfo: (dto.allergies || dto.chronicConditions) ? {
+        medicalInfo: hasMedicalInfoUpdate ? {
           upsert: {
             create: {
-              allergies: dto.allergies ?? [],
-              chronicConditions: dto.chronicConditions ?? [],
+              allergies: medicalInfo?.allergies ?? dto.allergies ?? [],
+              chronicConditions: medicalInfo?.chronicConditions ?? dto.chronicConditions ?? [],
+              activeMedications: medicalInfo?.activeMedications ?? [],
+              immunizations: medicalInfo?.immunizations ?? [],
+              heightCm: medicalInfo?.heightCm,
+              weightKg: medicalInfo?.weightKg,
+              disabilityStatus: medicalInfo?.disabilityStatus,
+              disabilityDetails: medicalInfo?.disabilityDetails,
+              activeCarePlan: medicalInfo?.activeCarePlan,
+              notes: medicalInfo?.notes,
             },
             update: {
-              allergies: dto.allergies,
-              chronicConditions: dto.chronicConditions,
+              allergies: medicalInfo?.allergies ?? dto.allergies,
+              chronicConditions: medicalInfo?.chronicConditions ?? dto.chronicConditions,
+              activeMedications: medicalInfo?.activeMedications,
+              immunizations: medicalInfo?.immunizations,
+              heightCm: medicalInfo?.heightCm,
+              weightKg: medicalInfo?.weightKg,
+              disabilityStatus: medicalInfo?.disabilityStatus,
+              disabilityDetails: medicalInfo?.disabilityDetails,
+              activeCarePlan: medicalInfo?.activeCarePlan,
+              notes: medicalInfo?.notes,
             }
           }
         } : undefined,
@@ -617,13 +661,19 @@ export class PatientsService {
       nextOfKinName: true,
       nextOfKinRelationship: true,
       nextOfKinPhone: true,
+      genotype: true,
       medicalInfo: {
         select: {
           allergies: true,
           chronicConditions: true,
           activeMedications: true,
           immunizations: true,
+          heightCm: true,
+          weightKg: true,
+          disabilityStatus: true,
+          disabilityDetails: true,
           activeCarePlan: true,
+          notes: true,
         }
       },
       emergencyContacts: {

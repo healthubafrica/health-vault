@@ -18,15 +18,10 @@ export interface SuccessStateProps {
 }
 
 export function SuccessState({
-  title = 'Appointment Successfully Scheduled!',
-  message = 'Your consultation request has been confirmed. A notification was dispatched to Dr. Benjamin Obire.',
-  referenceId = 'HHA-2026-9482-X',
-  details = [
-    { label: 'Patient Name', value: 'Kofi Mensah' },
-    { label: 'Department', value: 'Telecare Cardiology' },
-    { label: 'Date & Time', value: 'Tomorrow at 10:30 AM GMT' },
-    { label: 'Fee Status', value: 'Paid via Insurance' },
-  ],
+  title = 'Success!',
+  message = 'Your request has been completed.',
+  referenceId,
+  details = [],
   primaryActionLabel = 'View Appointment',
   onPrimaryAction,
   secondaryActionLabel = 'Download Pass',

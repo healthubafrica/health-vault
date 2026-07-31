@@ -356,6 +356,19 @@ export class PaymentsService {
       this.logger.error(`Failed to send receipt email for payment ${payment.id}: ${err instanceof Error ? err.message : err}`),
     );
 
+    const amountNaira = (payment.amountKobo / 100).toLocaleString('en-NG');
+    void this.notifications
+      .createPatientAlert({
+        patientId: payment.patientId,
+        category: 'payment',
+        title: 'Payment Successful',
+        body: `Your payment of ₦${amountNaira} has been processed successfully.`,
+        actionUrl: '/payments',
+      })
+      .catch((err) =>
+        this.logger.error(`Failed to create in-app alert for payment ${payment.id}: ${err instanceof Error ? err.message : err}`),
+      );
+
     // First-ever subscription = registration just completed with a paid plan
     // → one-time welcome email (best-effort; the helper swallows failures).
     if ((activation as { firstSubscription: boolean; planId: string } | null)?.firstSubscription) {

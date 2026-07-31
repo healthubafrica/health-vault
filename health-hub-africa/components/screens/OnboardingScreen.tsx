@@ -84,10 +84,14 @@ export function OnboardingScreen() {
   const [dob, setDob] = useState('')
   const [gender, setGender] = useState('Female')
   const [bloodGroup, setBloodGroup] = useState('O+')
+  const [genotype, setGenotype] = useState('')
+  const [heightCm, setHeightCm] = useState('')
+  const [weightKg, setWeightKg] = useState('')
   const [allergies, setAllergies] = useState('')
 
   // Step 3: Medical Background
   const [chronicConditions, setChronicConditions] = useState<string[]>([])
+  const [disabilityStatus, setDisabilityStatus] = useState('None')
   const [emergencyName, setEmergencyName] = useState('')
   const [emergencyPhone, setEmergencyPhone] = useState('')
   const [healthId, setHealthId] = useState('')
@@ -330,6 +334,39 @@ export function OnboardingScreen() {
                       <option value="AB-">AB-</option>
                     </FormSelect>
 
+                    <FormSelect
+                      label="Genotype"
+                      value={genotype}
+                      onChange={e => setGenotype(e.target.value)}
+                    >
+                      <option value="">Not set</option>
+                      {['AA', 'AS', 'SS', 'AC', 'SC', 'CC', 'Other'].map(value => (
+                        <option key={value}>{value}</option>
+                      ))}
+                    </FormSelect>
+
+                    <FormInput
+                      label="Height (cm)"
+                      type="number"
+                      min="30"
+                      max="260"
+                      step="0.1"
+                      placeholder="e.g. 172"
+                      value={heightCm}
+                      onChange={e => setHeightCm(e.target.value)}
+                    />
+
+                    <FormInput
+                      label="Weight (kg)"
+                      type="number"
+                      min="1"
+                      max="500"
+                      step="0.1"
+                      placeholder="e.g. 70.5"
+                      value={weightKg}
+                      onChange={e => setWeightKg(e.target.value)}
+                    />
+
                     <FormInput
                       label="Known Allergies"
                       type="text"
@@ -377,6 +414,16 @@ export function OnboardingScreen() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <FormSelect
+                      label="Disability Status"
+                      value={disabilityStatus}
+                      onChange={e => setDisabilityStatus(e.target.value)}
+                    >
+                      {['None', 'Physical', 'Visual', 'Hearing', 'Cognitive', 'Multiple', 'Other'].map(value => (
+                        <option key={value}>{value}</option>
+                      ))}
+                    </FormSelect>
+
                     <FormInput
                       label="Emergency Contact Full Name"
                       type="text"
@@ -720,7 +767,7 @@ export function OnboardingScreen() {
                     </div>
                     <div className="flex justify-between border-b border-white/5 pb-2">
                       <span className="text-white/40 font-medium">Vitals Set</span>
-                      <span className="font-semibold text-white">Blood {bloodGroup} / {gender}</span>
+                      <span className="font-semibold text-white">Blood {bloodGroup} / {genotype || 'Genotype not set'}</span>
                     </div>
                     <div className="flex justify-between border-b border-white/5 pb-2">
                       <span className="text-white/40 font-medium">Encryption Key</span>
@@ -772,12 +819,19 @@ export function OnboardingScreen() {
                           dateOfBirth: dob || '1990-01-01',
                           gender: gender === 'Male' ? 'Male' : gender === 'Female' ? 'Female' : 'Other',
                           bloodGroup: bloodGroup.replace('+', '_PLUS').replace('-', '_MINUS'),
+                          ...(genotype ? { genotype } : {}),
                           regionCode: 'LAG',
                           country: 'Nigeria',
                           medicalInfo: {
                             allergies: allergies ? allergies.split(',').map(s => s.trim()).filter(Boolean) : [],
                             chronicConditions,
+                            ...(heightCm.trim() ? { heightCm: Number(heightCm) } : {}),
+                            ...(weightKg.trim() ? { weightKg: Number(weightKg) } : {}),
+                            disabilityStatus,
                           },
+                          nextOfKinName: emergencyName || undefined,
+                          nextOfKinRelationship: emergencyName ? 'Emergency Contact' : undefined,
+                          nextOfKinPhone: emergencyPhone || undefined,
                           emergencyContacts: emergencyName && emergencyPhone ? [{
                             fullName: emergencyName,
                             relationship: 'Emergency Contact',
