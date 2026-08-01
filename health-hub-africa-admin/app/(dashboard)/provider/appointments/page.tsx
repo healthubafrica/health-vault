@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { toast } from 'sonner'
 import { adminApi, ProviderAppointment } from '@/lib/api'
 import { Card } from '@/components/ui/Card'
 import { FilterTabs } from '@/components/ui/FilterTabs'
@@ -68,6 +69,8 @@ export default function ProviderAppointmentsPage() {
     try {
       await adminApi.providerAppointments.updateStatus(id, 'confirmed')
       await load()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not confirm appointment')
     } finally {
       setActingId(null)
     }
@@ -80,6 +83,8 @@ export default function ProviderAppointmentsPage() {
     try {
       await adminApi.providerAppointments.updateStatus(id, 'cancelled', reason || undefined)
       await load()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not decline appointment')
     } finally {
       setActingId(null)
     }

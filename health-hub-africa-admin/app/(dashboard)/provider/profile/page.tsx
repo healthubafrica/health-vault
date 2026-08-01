@@ -47,7 +47,11 @@ export default function ProviderProfilePage() {
   const [clinicState, setClinicState] = useState('')
   const [acceptsVirtual, setAcceptsVirtual] = useState(true)
 
-  const hydrate = useCallback((p: ProviderProfile) => {
+  const hydrate = useCallback((p: ProviderProfile | null | undefined) => {
+    if (!p) {
+      setProfile(null)
+      return
+    }
     setProfile(p)
     setBio(p.bio ?? '')
     setYears(String(p.yearsExperience ?? 0))
