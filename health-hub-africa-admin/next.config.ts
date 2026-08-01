@@ -36,7 +36,10 @@ const sharedHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self'",
-      "connect-src 'self' " + (process.env.NEXT_PUBLIC_API_URL ?? '') + ' ' + LIVEKIT_ORIGINS,
+      "connect-src 'self' " +
+        (process.env.NEXT_PUBLIC_API_URL ?? '') +
+        ' https://*.amazonaws.com ' +
+        LIVEKIT_ORIGINS,
       "worker-src 'self' blob:",
       "frame-ancestors 'none'",
       "object-src 'none'",

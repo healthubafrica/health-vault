@@ -67,7 +67,7 @@ const NAV: NavItem[] = [
 
   { label: 'Appointments', href: '/operations/appointments', icon: CalendarCheck, roles: ['admin', 'super_admin'], group: 'Operations' },
   { label: 'TeleCare', href: '/operations/telecare', icon: Video, roles: ['admin', 'super_admin'], group: 'Operations' },
-  { label: 'Expert Review', href: '/operations/expert-review', icon: FileSearch, group: 'Operations' },
+  { label: 'Expert Review', href: '/operations/expert-review', icon: FileSearch, roles: ['admin', 'super_admin'], group: 'Operations' },
   { label: 'Dispatch', href: '/operations/dispatch', icon: Ambulance, roles: ['admin', 'super_admin'], group: 'Operations' },
   { label: 'Lab Orders', href: '/operations/labs', icon: FlaskConical, roles: ['admin', 'super_admin'], group: 'Operations' },
   { label: 'Clinical Queue', href: '/clinical-queue', icon: Activity, roles: ['admin', 'super_admin'], group: 'Operations' },
