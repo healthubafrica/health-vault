@@ -8,6 +8,7 @@ import { Pill } from '@/components/ui/Pill'
 import { FormInput } from '@/components/ui/FormInput'
 import { Avatar } from '@/components/ui/Avatar'
 import { SkeletonBox } from '@/components/ui/Skeleton'
+import { PhotoCropModal } from '@/components/profile/PhotoCropModal'
 import { useAuthStore } from '@/lib/stores/authStore'
 import { Camera, Loader2, ShieldCheck, ShieldAlert } from 'lucide-react'
 import { toast } from 'sonner'
@@ -35,6 +36,8 @@ export default function ProviderProfilePage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [cropFile, setCropFile] = useState<File | null>(null)
+  const [cropSrc, setCropSrc] = useState<string | null>(null)
   const fetchMe = useAuthStore((s) => s.fetchMe)
 
   // Editable form state
@@ -79,7 +82,7 @@ export default function ProviderProfilePage() {
 
   useEffect(() => { load() }, [load])
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
@@ -91,10 +94,23 @@ export default function ProviderProfilePage() {
       toast.error('Image must be 5MB or smaller')
       return
     }
+    setCropFile(file)
+    setCropSrc(URL.createObjectURL(file))
+  }
+
+  const handleCropCancel = () => {
+    if (cropSrc) URL.revokeObjectURL(cropSrc)
+    setCropSrc(null)
+    setCropFile(null)
+  }
+
+  const handleCropConfirm = async (blob: Blob) => {
+    if (cropSrc) URL.revokeObjectURL(cropSrc)
+    setCropSrc(null)
     setUploadingPhoto(true)
     try {
-      const { uploadUrl, publicUrl } = await providerSelf.requestPhotoUploadUrl(file.type, file.size)
-      const put = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
+      const { uploadUrl, publicUrl } = await providerSelf.requestPhotoUploadUrl(blob.type, blob.size)
+      const put = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': blob.type }, body: blob })
       if (!put.ok) throw new Error('Upload to storage failed')
       await providerSelf.setProfilePhoto(publicUrl)
       await fetchMe()
@@ -104,6 +120,7 @@ export default function ProviderProfilePage() {
       toast.error(err instanceof Error ? err.message : 'Photo upload failed')
     } finally {
       setUploadingPhoto(false)
+      setCropFile(null)
     }
   }
 
@@ -177,7 +194,7 @@ export default function ProviderProfilePage() {
                 accept="image/jpeg,image/png,image/webp"
                 className="hidden"
                 disabled={uploadingPhoto}
-                onChange={handlePhotoUpload}
+                onChange={handleFileSelected}
               />
             </label>
           </div>
@@ -268,6 +285,16 @@ export default function ProviderProfilePage() {
           {saving ? 'Saving…' : 'Save changes'}
         </Button>
       </div>
+
+      {cropSrc && (
+        <PhotoCropModal
+          imageSrc={cropSrc}
+          outputType={cropFile?.type ?? 'image/jpeg'}
+          saving={uploadingPhoto}
+          onCancel={handleCropCancel}
+          onConfirm={handleCropConfirm}
+        />
+      )}
     </div>
   )
 }
