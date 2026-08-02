@@ -56,12 +56,12 @@ export class AdminController {
   @Patch('users/:id/role')
   @Roles(UserRole.super_admin)
   @ApiOperation({ summary: "Change a user's role (super_admin only)" })
-  updateUserRole(
+  async updateUserRole(
     @Param('id') id: string,
     @Body() dto: UpdateUserRoleDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.adminService.updateUserRole(id, dto, user);
+    return { data: await this.adminService.updateUserRole(id, dto, user) };
   }
 
   @Post('users/:id/resend-verification')
@@ -80,12 +80,12 @@ export class AdminController {
 
   @Patch('users/:id/status')
   @ApiOperation({ summary: 'Activate or deactivate a user account' })
-  updateUserStatus(
+  async updateUserStatus(
     @Param('id') id: string,
     @Body() dto: UpdateUserStatusDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.adminService.updateUserStatus(id, dto, user);
+    return { data: await this.adminService.updateUserStatus(id, dto, user) };
   }
 
   @Patch('users/:id/email')

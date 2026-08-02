@@ -711,7 +711,7 @@ export const adminApi = {
     toggleStatus: (id: string, active: boolean) =>
       request<{ data: AdminUser }>(`/admin/users/${id}/status`, {
         method: 'PATCH',
-        body: JSON.stringify({ active }),
+        body: JSON.stringify({ isActive: active }),
       }),
     updateEmail: (id: string, email: string) =>
       request<{ data: { id: string; email: string; message: string } }>(`/admin/users/${id}/email`, {
@@ -867,7 +867,7 @@ export const adminApi = {
 
   // Provider-scoped (uses /appointments, not /admin — scoped by JWT providerId)
   providerAppointments: {
-    list: (params?: { status?: string; page?: number; limit?: number }) => {
+    list: (params?: { status?: string; page?: number; limit?: number; upcoming?: boolean }) => {
       const qs = params
         ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString()
         : ''
