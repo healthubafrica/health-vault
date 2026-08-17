@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, Suspense } from 'react'
+import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useAuthStore } from '@/lib/stores/authStore'
 import { FormInput } from '@/components/ui/FormInput'
@@ -202,6 +203,16 @@ function LoginForm() {
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
+                </div>
+
+                <div className="flex items-center justify-end -mt-2">
+                  <Link
+                    href="/reset-password"
+                    className="text-xs font-medium hover:underline"
+                    style={{ color: 'var(--color-text-muted)' }}
+                  >
+                    Forgot password?
+                  </Link>
                 </div>
 
                 {error && (

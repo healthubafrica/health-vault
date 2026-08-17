@@ -5,6 +5,7 @@ import { useApi } from '@/lib/hooks/useApi'
 import { shares, type RecordShare, type CreateShareParams, type ShareAccessMode } from '@/lib/api'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { SuccessState } from '@/components/ui/states'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
 import {
@@ -152,7 +153,6 @@ function CreateShareWizard({ onDone }: { onDone: () => void }) {
   const [submitting, setSubmitting] = useState(false)
   const [createdToken, setCreatedToken] = useState<string | null>(null)
   const [notified, setNotified] = useState<{ emails: number; phones: number } | null>(null)
-  const [copiedCreated, setCopiedCreated] = useState(false)
 
   function toggleType(t: string) {
     setSelectedTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
@@ -200,46 +200,31 @@ function CreateShareWizard({ onDone }: { onDone: () => void }) {
 
   if (createdToken) {
     return (
-      <div className="flex flex-col gap-4 p-4 rounded-2xl border" style={{ background: 'var(--color-success-bg)', borderColor: 'var(--color-success)' }}>
-        <div className="flex items-center gap-2">
-          <Shield size={16} style={{ color: 'var(--color-success)' }} />
-          <span className="text-sm font-bold" style={{ color: 'var(--color-success)' }}>Link created — copy it now</span>
-        </div>
-        {notified && (notified.emails > 0 || notified.phones > 0) && (
-          <p className="text-xs font-semibold" style={{ color: 'var(--color-success)' }}>
-            ✓ Secure link sent to{' '}
-            {[
-              notified.emails > 0 ? `${notified.emails} email recipient${notified.emails !== 1 ? 's' : ''}` : null,
-              notified.phones > 0 ? `${notified.phones} phone number${notified.phones !== 1 ? 's' : ''}` : null,
-            ].filter(Boolean).join(' and ')}{' '}
-            with access instructions and expiry details.
-          </p>
-        )}
-        <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-          This link will not be shown again. Store it somewhere safe.
-        </p>
-        <div
-          className="rounded-xl px-3 py-2 text-xs font-mono break-all select-all"
-          style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
-        >
-          {shareUrl}
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => {
-              navigator.clipboard.writeText(shareUrl)
-              setCopiedCreated(true)
-              setTimeout(() => setCopiedCreated(false), 2000)
-            }}
-          >
-            {copiedCreated ? '✓ Copied!' : 'Copy link'}
-          </Button>
-          <Button variant="secondary" size="sm" onClick={onDone}>
-            Done
-          </Button>
-        </div>
+      <div className="py-4">
+        <SuccessState
+          title="Secure Share Link Created!"
+          message="This link will not be shown again — store it somewhere safe before continuing."
+          referenceId={createdToken}
+          details={
+            notified && (notified.emails > 0 || notified.phones > 0)
+              ? [
+                  ...(notified.emails > 0
+                    ? [{ label: 'Emailed to', value: `${notified.emails} recipient${notified.emails !== 1 ? 's' : ''}` }]
+                    : []),
+                  ...(notified.phones > 0
+                    ? [{ label: 'Texted to', value: `${notified.phones} phone number${notified.phones !== 1 ? 's' : ''}` }]
+                    : []),
+                ]
+              : []
+          }
+          primaryActionLabel="Copy Link"
+          onPrimaryAction={() => {
+            navigator.clipboard.writeText(shareUrl)
+            toast.success('Share link copied to clipboard')
+          }}
+          secondaryActionLabel="Done"
+          onSecondaryAction={onDone}
+        />
       </div>
     )
   }

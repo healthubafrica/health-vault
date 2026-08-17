@@ -318,9 +318,18 @@ export function TravelSafeScreen() {
                           </span>
                         </>
                       )}
+                      {(pat.heightCm || pat.weightKg) && ` · ${pat.heightCm ?? '—'} cm / ${pat.weightKg ?? '—'} kg`}
+                      {pat.disabilityStatus && ` · Disability: ${pat.disabilityStatus}`}
                     </p>
                   </div>
                 </div>
+
+                {pat.disabilityDetails && (
+                  <div className="p-3 rounded-xl border" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
+                    <p className="text-[11px] font-semibold mb-1" style={{ color: 'var(--color-text-muted)' }}>ACCESSIBILITY / DISABILITY NOTES</p>
+                    <p className="text-xs" style={{ color: 'var(--color-text)' }}>{pat.disabilityDetails}</p>
+                  </div>
+                )}
 
                 {pat.nextOfKin?.name && (
                   <div className="p-3 rounded-xl border" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>

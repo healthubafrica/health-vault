@@ -100,7 +100,14 @@ async function request<T>(
       throw new ApiError(0, friendlyNetworkError())
     }
 
-    if (res.status === 401 && retry) {
+    // Only treat a 401 as "session expired" when the request actually carried
+    // a token — i.e. this was a previously-authenticated call. A 401 on a
+    // request made with no token (login, register, verify-otp, etc.) means
+    // the credentials/code were wrong, not that a session lapsed, so it must
+    // not trigger the refresh-then-hard-redirect flow below: that redirect
+    // was overwriting the real "wrong password" message and reloading the
+    // page out from under the user before they could read it.
+    if (res.status === 401 && retry && token) {
       const refreshed = await attemptTokenRefresh()
       if (refreshed) return request<T>(path, options, false)
       clearTokens()
@@ -193,10 +200,10 @@ export interface NotificationPrefs {
 }
 
 export const auth = {
-  register: (email: string, password: string, phoneNumber?: string, fullName?: string) =>
+  register: (email: string, password: string, phoneNumber?: string, fullName?: string, newsletterOptIn?: boolean) =>
     request<{ message: string }>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password, phoneNumber, fullName }),
+      body: JSON.stringify({ email, password, phoneNumber, fullName, newsletterOptIn }),
     }),
 
   // login/verifyOtp go through the same-origin BFF so the HttpOnly refresh
@@ -266,10 +273,14 @@ export interface PatientProfile {
   gender: string
   profilePhotoUrl?: string
   bloodGroup?: string
+  genotype?: string | null
   address?: string
   city?: string
   state?: string
   country: string
+  nextOfKinName?: string | null
+  nextOfKinRelationship?: string | null
+  nextOfKinPhone?: string | null
   nin?: string
   status: string
   openemrSyncStatus: string
@@ -281,7 +292,12 @@ export interface PatientProfile {
     chronicConditions: string[]
     activeMedications: string[]
     immunizations?: string[]
-    activeCarePlan?: string
+    heightCm?: number | string | null
+    weightKg?: number | string | null
+    disabilityStatus?: string | null
+    disabilityDetails?: string | null
+    activeCarePlan?: string | null
+    notes?: string | null
   }
   emergencyContacts?: Array<{
     fullName: string
@@ -1190,8 +1206,12 @@ export interface TravelSafeSummary {
     name: string
     dateOfBirth: string
     bloodGroup?: string
-    genotype?: string
+    genotype?: string | null
     nextOfKin: { name?: string; relationship?: string; phone?: string }
+    heightCm?: number | string | null
+    weightKg?: number | string | null
+    disabilityStatus?: string | null
+    disabilityDetails?: string | null
     allergies: string[]
     chronicConditions: string[]
     activeMedications: string[]
@@ -1327,3 +1347,46 @@ export const travelsafe = {
   getSummary: (id: string) =>
     request<{ data: TravelSafeSummary }>(`/travelsafe/trips/${id}/summary`),
 }
+
+// ── Notifications ────────────────────────────────────────────────────────────
+
+export type NotificationCategory =
+  | 'appointment'
+  | 'lab'
+  | 'payment'
+  | 'record'
+  | 'telecare'
+  | 'alert'
+  | 'system'
+
+export interface AppNotification {
+  id: string
+  category: NotificationCategory
+  title: string
+  body: string
+  isRead: boolean
+  actionUrl?: string
+  createdAt: string
+}
+
+export interface NotificationsListResponse {
+  data: AppNotification[]
+  meta: { total: number; unread: number }
+}
+
+export const notifications = {
+  list: (params?: { unreadOnly?: boolean; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.unreadOnly) q.set('unreadOnly', 'true')
+    if (params?.limit) q.set('limit', String(params.limit))
+    const qs = q.toString()
+    return request<NotificationsListResponse>(`/notifications${qs ? `?${qs}` : ''}`)
+  },
+
+  markRead: (id: string) =>
+    request<{ updated: boolean }>(`/notifications/${id}/read`, { method: 'PATCH' }),
+
+  markAllRead: () =>
+    request<{ updated: number }>('/notifications/read-all', { method: 'PATCH' }),
+}
+

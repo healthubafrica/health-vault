@@ -15,6 +15,7 @@ import { DeviceCheckScreen } from '@/components/telecare/DeviceCheckScreen'
 import { CallRatingModal } from '@/components/telecare/CallRatingModal'
 import { BackgroundBlurEffect } from '@/components/telecare/BackgroundBlurEffect'
 import { InCallShareButton } from '@/components/telecare/InCallShareButton'
+import { EmptyState, NoInternetState } from '@/components/ui/states'
 import { downloadTelecareInvite } from '@/components/telecare/icsUtils'
 import { GuestInviteModal } from '@/components/telecare/GuestInviteModal'
 
@@ -439,9 +440,15 @@ export function TeleCareScreen() {
             <Loader2 size={24} className="animate-spin text-emerald-600" />
           </div>
         ) : sessions.filter(s => s.status !== 'completed' && s.status !== 'cancelled').length === 0 ? (
-          <p className="text-sm py-4 text-center" style={{ color: 'var(--color-text-muted)' }}>
-            No upcoming telecare consultations scheduled.
-          </p>
+          <div className="py-6">
+            <EmptyState
+              title="No TeleCare Consultations"
+              description="You currently have no active or upcoming virtual telecare sessions."
+              icon={Video}
+              primaryActionLabel="Schedule TeleCare"
+              onPrimaryAction={() => router.push('/appointments')}
+            />
+          </div>
         ) : (
           <div className="flex flex-col gap-3">
             {sessions

@@ -25,6 +25,7 @@ import { buildProviderDisplayName } from '@/lib/providerName'
 import { useSchedulingPolicy } from '@/lib/hooks/useSchedulingPolicy'
 import { AppointmentsSkeleton } from '@/components/skeletons/AppointmentsSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { EmptyState, SuccessState } from '@/components/ui/states'
 import { CancelAppointmentModal } from '@/components/appointments/CancelAppointmentModal'
 import { RescheduleAppointmentModal } from '@/components/appointments/RescheduleAppointmentModal'
 
@@ -95,6 +96,7 @@ export function AppointmentsScreen() {
   const [scheduledAt, setScheduledAt] = useState('')
   const [reason, setReason] = useState('')
   const [isBooking, setIsBooking] = useState(false)
+  const [bookingSuccess, setBookingSuccess] = useState<{ refId: string; service: string; scheduledAt: string } | null>(null)
 
   // Facility picker (in-person services only — telecare bookings skip it)
   const [facilities, setFacilities] = useState<BookableFacility[]>([])
@@ -182,7 +184,7 @@ export function AppointmentsScreen() {
         return
       }
 
-      await apptApi.create({
+      const res = await apptApi.create({
         appointmentType: selectedService.appointmentType,
         serviceType,
         scheduledAt: new Date(scheduledAt).toISOString(),
@@ -191,6 +193,7 @@ export function AppointmentsScreen() {
         ...(selectedProviderId && { providerId: selectedProviderId }),
         ...(isInPerson && facilityId && { facilityId }),
       })
+      setBookingSuccess({ refId: res.data.hhaRef, service: selectedService.label, scheduledAt })
       toast.success('Appointment requested', {
         description: 'Your care team will confirm shortly.',
       })
@@ -208,6 +211,22 @@ export function AppointmentsScreen() {
 
   return (
     <div className="flex flex-col gap-5 pb-20 md:pb-5">
+      {bookingSuccess && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <SuccessState
+            title="Appointment Requested!"
+            message="Your appointment request has been submitted to your care team."
+            referenceId={bookingSuccess.refId}
+            details={[
+              { label: 'Service', value: bookingSuccess.service },
+              { label: 'Date & Time', value: formatDate(bookingSuccess.scheduledAt) },
+            ]}
+            primaryActionLabel="Done"
+            onPrimaryAction={() => setBookingSuccess(null)}
+          />
+        </div>
+      )}
+
       <div>
         <h1 className="text-xl font-bold" style={{ color: 'var(--color-text)', fontFamily: 'var(--font-display)' }}>
           Appointments
@@ -221,9 +240,13 @@ export function AppointmentsScreen() {
 
       <Card padding="none">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-2">
-            <CalendarDays size={32} style={{ color: 'var(--color-text-faint)' }} />
-            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No appointments found</p>
+          <div className="py-8">
+            <EmptyState
+              title={`No ${tab !== 'All' ? tab.toLowerCase() : ''} appointments`}
+              description="You have no appointments listed under this view. Book a visit using the form below."
+              icon={CalendarDays}
+              variant="card"
+            />
           </div>
         ) : (
           <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>

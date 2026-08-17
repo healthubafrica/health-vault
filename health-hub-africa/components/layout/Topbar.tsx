@@ -1,13 +1,15 @@
 'use client'
 
+import { useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Bell, PanelRightOpen, Search, LogOut } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
 import { Avatar } from '@/components/ui/Avatar'
 import { Tooltip } from '@/components/ui/Tooltip'
-import { patients, subscriptions } from '@/lib/api'
+import { patients, subscriptions, notifications as notificationsApi } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { useAuthStore } from '@/lib/stores/authStore'
+import { NotificationsPanel } from '@/components/layout/NotificationsPanel'
 
 // Tier → badge palette. Matches the website plan cards: gold for GoldCare,
 // silver for SilverCare, deep-green for Concierge, mint for BasicCare,
@@ -48,8 +50,13 @@ export function Topbar() {
   const crumbs = BREADCRUMBS[pathname] ?? ['MyHealth Vault+™']
   const { data: profileRes } = useApi(() => patients.getMyProfile())
   const { data: subRes } = useApi(() => subscriptions.getMy())
+  const { data: notifRes } = useApi(() => notificationsApi.list({ limit: 20 }), [], { pollIntervalMs: 60_000 })
   const logout = useAuthStore((s) => s.logout)
   const router = useRouter()
+
+  // Notifications panel toggle
+  const [notifOpen, setNotifOpen] = useState(false)
+  const bellRef = useRef<HTMLButtonElement>(null)
 
   const handleLogout = async () => {
     await logout()
@@ -61,6 +68,8 @@ export function Topbar() {
   const planName = subRes?.data?.plan?.name ?? 'Free'
   const planTier = subRes?.data?.plan?.tier
   const tierStyle = TIER_STYLES[tierKeyFor(planTier, planName)]
+
+  const unreadCount = notifRes?.meta?.unread ?? 0
 
   return (
     <header
@@ -105,16 +114,29 @@ export function Topbar() {
           </button>
         </Tooltip>
 
-        {/* Notifications */}
-        <Tooltip content="Notifications — you have unread alerts." side="bottom">
-          <button
-            aria-label="Notifications"
-            className="relative flex items-center justify-center w-10 h-10 md:w-9 md:h-9 rounded-full bg-[var(--color-bg)] text-gray-500 hover:text-gray-800 transition-colors"
-          >
-            <Bell size={15} />
-            <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-[#C0392B]" aria-hidden="true" />
-          </button>
-        </Tooltip>
+        {/* Notifications — wrapper is relative so the dropdown panel anchors correctly */}
+        <div className="relative">
+          <Tooltip content="View your health notifications and alerts." side="bottom">
+            <button
+              ref={bellRef}
+              aria-label="Notifications"
+              aria-expanded={notifOpen}
+              onClick={() => setNotifOpen((v) => !v)}
+              className="relative flex items-center justify-center w-10 h-10 md:w-9 md:h-9 rounded-full bg-[var(--color-bg)] text-gray-500 hover:text-gray-800 transition-colors"
+            >
+              <Bell size={15} />
+              {unreadCount > 0 && (
+                <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-[#C0392B]" aria-hidden="true" />
+              )}
+            </button>
+          </Tooltip>
+
+          <NotificationsPanel
+            isOpen={notifOpen}
+            onClose={() => setNotifOpen(false)}
+            anchorRef={bellRef}
+          />
+        </div>
 
         {/* User Avatar — opens the profile page where the photo can be changed */}
         <button

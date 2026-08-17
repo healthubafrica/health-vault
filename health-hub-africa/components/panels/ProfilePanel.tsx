@@ -20,14 +20,18 @@ export function ProfilePanel() {
 
   const completenessChecks: { label: string; done: unknown }[] = [
     { label: 'Blood group', done: profile?.bloodGroup },
+    { label: 'Genotype', done: profile?.genotype },
+    { label: 'Height', done: profile?.medicalInfo?.heightCm },
+    { label: 'Weight', done: profile?.medicalInfo?.weightKg },
     { label: 'Address', done: profile?.address },
     { label: 'Gender', done: profile?.gender },
     { label: 'Date of birth', done: profile?.dateOfBirth },
     { label: 'Phone number', done: profile?.user?.phone },
+    { label: 'Disability status', done: profile?.medicalInfo?.disabilityStatus },
     { label: 'Allergies', done: profile?.medicalInfo?.allergies?.length },
     { label: 'Chronic conditions', done: profile?.medicalInfo?.chronicConditions?.length },
     { label: 'Current medications', done: profile?.medicalInfo?.activeMedications?.length },
-    { label: 'Emergency contact', done: profile?.emergencyContacts?.length },
+    { label: 'Emergency contact', done: profile?.nextOfKinPhone || profile?.emergencyContacts?.length },
   ]
   const fieldsCompleted = completenessChecks.filter(c => c.done).length
   const missingFields = completenessChecks.filter(c => !c.done).map(c => c.label)
@@ -40,6 +44,14 @@ export function ProfilePanel() {
 
   const summaryItems = [
     { label: 'Blood Group', value: profile?.bloodGroup || 'Not set' },
+    { label: 'Genotype', value: profile?.genotype || 'Not set' },
+    {
+      label: 'Height / Weight',
+      value: profile?.medicalInfo?.heightCm || profile?.medicalInfo?.weightKg
+        ? `${profile?.medicalInfo?.heightCm ?? '—'} cm / ${profile?.medicalInfo?.weightKg ?? '—'} kg`
+        : 'Not set',
+    },
+    { label: 'Disability', value: profile?.medicalInfo?.disabilityStatus || 'Not recorded' },
     { label: 'Allergies', value: profile?.medicalInfo?.allergies?.join(', ') || 'None recorded' },
     { label: 'Care Plan', value: profile?.medicalInfo?.activeCarePlan || 'No active care plan' },
     { label: 'Plan', value: activeSub ? `${activeSub.plan.name} (${activeSub.expiresAt ? `Renews ${formatDate(activeSub.expiresAt)}` : 'Never expires'})` : 'No subscription' },
