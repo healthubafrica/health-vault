@@ -447,6 +447,11 @@ export class OpenemrProcessor {
         data: { openemrPatientUuid: openemrUuid, openemrSyncStatus: 'synced' },
       });
 
+      // Best-effort: propagate hhaPatientId into OpenEMR's patient_data.HHA_ID
+      // demographics column (see OpenemrService.syncHhaId for why the FHIR
+      // identifier above isn't enough). Doesn't affect sync success/failure.
+      await this.openemrService.syncHhaId(openemrUuid, patient.hhaPatientId, patientId);
+
       await this.prisma.openemrSyncQueue.update({
         where: { id: queueItem.id },
         data: { status: 'completed', completedAt: new Date() },
