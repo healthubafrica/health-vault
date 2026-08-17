@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEmail,
   IsOptional,
   IsString,
@@ -46,6 +47,11 @@ export class RegisterDto {
   @MaxLength(72) // bcrypt silently truncates beyond 72 bytes
   @Matches(PASSWORD_REGEX, { message: PASSWORD_MESSAGE })
   password: string;
+
+  @ApiPropertyOptional({ example: true, description: 'Opt in to the Health-Hub Africa newsletter (marketing comms).' })
+  @IsOptional()
+  @IsBoolean()
+  newsletterOptIn?: boolean;
 
   // SEC-001: role is intentionally omitted. All new accounts are created as
   // 'patient'. Admin/provider roles are assigned by existing admins only.

@@ -75,6 +75,11 @@ export class AuthService {
           where: { userId: existingEmail.id, usedAt: null },
           data: { usedAt: new Date() },
         }),
+        this.prisma.notificationPreference.upsert({
+          where: { userId: existingEmail.id },
+          create: { userId: existingEmail.id, marketingComms: dto.newsletterOptIn ?? false },
+          update: { marketingComms: dto.newsletterOptIn ?? false },
+        }),
       ]);
 
       await this.sendEmailOtp(existingEmail.email, existingEmail.id, 'email');
@@ -101,6 +106,9 @@ export class AuthService {
           phone,
           passwordHash,
           role: UserRole.patient,
+          notificationPrefs: {
+            create: { marketingComms: dto.newsletterOptIn ?? false },
+          },
         },
         select: { id: true, email: true, role: true },
       });
@@ -307,7 +315,7 @@ export class AuthService {
   async requestPasswordReset(email: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     // Always return success to prevent email enumeration
-    if (user) await this.sendEmailOtp(email, user.id, 'password_reset');
+    if (user) await this.sendEmailOtp(email, user.id, 'password_reset', user.role);
     return { message: 'If the email exists, a reset OTP has been sent.' };
   }
 
@@ -512,6 +520,7 @@ export class AuthService {
     email: string,
     userId: string,
     type: 'email' | 'password_reset' | 'two_factor',
+    role?: UserRole,
   ) {
     await this.prisma.verificationToken.updateMany({
       where: { userId, type, usedAt: null },
@@ -540,9 +549,20 @@ export class AuthService {
         ? 'MyHealth Vault+™ — Two-Factor Login Code'
         : 'MyHealth Vault+™ — Verify Your Email';
 
+    // Staff/provider/coordinator/admin roles reset from HHA Admin; patients
+    // reset from the patient portal. The two apps are separate origins with
+    // separate reset UIs, so the link has to point at the right one.
+    const isAdminPortal = role && role !== UserRole.patient;
+    const portalUrl = (
+      isAdminPortal ? this.config.get<string>('ADMIN_URL') : this.config.get<string>('FRONTEND_URL')
+    ) ?? (isAdminPortal ? 'https://admin.myvaultplus.com' : 'https://portal.myvaultplus.com');
+    const resetLink = isAdminPortal
+      ? `${portalUrl}/reset-password?email=${encodeURIComponent(email)}`
+      : `${portalUrl}/login`;
+
     const body =
       type === 'password_reset'
-        ? `Your password reset OTP is: ${otp}\n\nIt expires in 10 minutes. If you did not request this, ignore this email.`
+        ? `Your password reset OTP is: ${otp}\n\nIt expires in 10 minutes. If you did not request this, ignore this email.\n\nReset your password here: ${resetLink}`
         : type === 'two_factor'
         ? `Your login verification code is: ${otp}\n\nIt expires in 10 minutes. If you did not attempt to log in, change your password immediately.`
         : `Your email verification OTP is: ${otp}\n\nIt expires in 10 minutes.`;

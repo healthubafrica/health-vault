@@ -138,6 +138,7 @@ export function LoginScreen() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [agreeTerms, setAgreeTerms] = useState(false)
+  const [newsletterOptIn, setNewsletterOptIn] = useState(false)
   const [localError, setLocalError] = useState('')
 
   // Forgot password states
@@ -175,8 +176,27 @@ export function LoginScreen() {
         setLocalError('Your password needs at least 12 characters with a mix of uppercase, lowercase, a number, and a symbol.')
         return
       }
+      // SEC-PII-001: reject passwords that contain user-identifiable data
+      const pwLower = password.toLowerCase()
+      const emailLocal = email.split('@')[0].toLowerCase()
+      const nameParts = name.trim().toLowerCase().split(/\s+/).filter(p => p.length > 2)
+      const phoneDigits = phone.replace(/\D/g, '')
+      if (emailLocal && pwLower.includes(emailLocal)) {
+        setLocalError('Your password must not contain your email address. Please choose a stronger, non-identifiable password.')
+        return
+      }
+      if (phoneDigits.length >= 6 && pwLower.includes(phoneDigits.slice(-6))) {
+        setLocalError('Your password must not contain your phone number. Please choose a stronger, non-identifiable password.')
+        return
+      }
+      for (const part of nameParts) {
+        if (pwLower.includes(part)) {
+          setLocalError('Your password must not contain your name. Please choose a stronger, non-identifiable password.')
+          return
+        }
+      }
       try {
-        await register(email, password, phone || undefined, name || undefined)
+        await register(email, password, phone || undefined, name || undefined, newsletterOptIn)
         if (typeof window !== 'undefined') {
           sessionStorage.setItem('onboarding_name', name || 'Valued Patient')
           sessionStorage.setItem('pending_otp_email', email)
@@ -520,6 +540,82 @@ export function LoginScreen() {
                   </button>
                 </div>
 
+                {isSignUp && password.length > 0 && (() => {
+                  const pwLower = password.toLowerCase()
+                  const emailLocal = email.split('@')[0].toLowerCase()
+                  const nameParts = name.trim().toLowerCase().split(/\s+/).filter(p => p.length > 2)
+                  const phoneDigits = phone.replace(/\D/g, '')
+
+                  const hasPii =
+                    (emailLocal && pwLower.includes(emailLocal)) ||
+                    (phoneDigits.length >= 6 && pwLower.includes(phoneDigits.slice(-6))) ||
+                    nameParts.some(p => pwLower.includes(p))
+
+                  const meetsLength    = password.length >= 12
+                  const meetsUpper     = /[A-Z]/.test(password)
+                  const meetsNumber    = /[0-9]/.test(password)
+                  const meetsSymbol    = /[^A-Za-z0-9]/.test(password)
+                  const meetsAllRules  = meetsLength && meetsUpper && meetsNumber && meetsSymbol
+
+                  const strength = hasPii ? 'pii'
+                    : meetsAllRules ? 'strong'
+                    : password.length >= 8 ? 'medium'
+                    : 'weak'
+
+                  const strengthLabel: Record<string, string> = {
+                    weak:   'Weak',
+                    medium: 'Medium',
+                    strong: 'Strong — SEC-003 Compliant ✓',
+                    pii:    'Insecure — contains personal data',
+                  }
+                  const strengthColor: Record<string, string> = {
+                    weak:   '#F87171',
+                    medium: '#FBBF24',
+                    strong: '#6DC43F',
+                    pii:    '#F87171',
+                  }
+                  const barFill = { weak: 1, medium: 2, strong: 3, pii: 0 }[strength] ?? 0
+
+                  return (
+                    <div className="p-3 rounded-xl bg-white/5 border border-white/10 space-y-2 text-[11px]">
+                      {/* Strength label + bar */}
+                      <div className="flex justify-between items-center">
+                        <span className="text-white/70">Password strength:</span>
+                        <span className="font-bold" style={{ color: strengthColor[strength] }}>
+                          {strengthLabel[strength]}
+                        </span>
+                      </div>
+                      <div className="flex gap-1 h-1.5">
+                        {[0, 1, 2].map(i => (
+                          <div
+                            key={i}
+                            className="flex-1 rounded-full transition-all duration-300"
+                            style={{
+                              background: i < barFill ? strengthColor[strength] : 'rgba(255,255,255,0.12)',
+                            }}
+                          />
+                        ))}
+                      </div>
+
+                      {/* PII warning */}
+                      {hasPii && (
+                        <div className="flex items-start gap-1.5 text-red-400 text-[10px] font-semibold pt-0.5">
+                          <span>⚠</span>
+                          <span>Your password contains personal information (email, phone, or name). Please choose a non-identifiable password.</span>
+                        </div>
+                      )}
+
+                      {/* Rule checklist */}
+                      <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-white/60">
+                        <span style={{ color: meetsLength ? '#6DC43F' : undefined }}>✓ At least 12 characters</span>
+                        <span style={{ color: meetsUpper  ? '#6DC43F' : undefined }}>✓ Uppercase letter (A-Z)</span>
+                        <span style={{ color: meetsNumber ? '#6DC43F' : undefined }}>✓ Number (0-9)</span>
+                        <span style={{ color: meetsSymbol ? '#6DC43F' : undefined }}>✓ Special symbol (@#$%)</span>
+                      </div>
+                    </div>
+                  )
+                })()}
+
                 {isSignUp && (
                   <div className="relative">
                     <FormInput
@@ -572,6 +668,20 @@ export function LoginScreen() {
                       <a href="#" className="font-semibold hover:underline text-[#6DC43F]">Terms of Service</a>
                       {' '}and{' '}
                       <a href="#" className="font-semibold hover:underline text-[#6DC43F]">Privacy Policy</a>.
+                    </span>
+                  </label>
+                )}
+
+                {isSignUp && (
+                  <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="mt-1 accent-[#6DC43F] rounded cursor-pointer"
+                      checked={newsletterOptIn}
+                      onChange={e => setNewsletterOptIn(e.target.checked)}
+                    />
+                    <span className="text-[11px] leading-tight text-white/70">
+                      Send me updates, discounts, and news from Health-Hub Africa.
                     </span>
                   </label>
                 )}

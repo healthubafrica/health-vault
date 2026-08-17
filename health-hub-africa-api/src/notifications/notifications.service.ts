@@ -2,6 +2,7 @@ import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
+import { AlertSeverity } from '@prisma/client';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationRateLimiterService } from './notification-rate-limiter.service';
@@ -448,5 +449,70 @@ export class NotificationsService {
     const body = `Reminder: You have an appointment with ${appointmentDetails.providerName} at ${appointmentDetails.dateTime}.`;
     await this.sendEmail(email, 'Appointment Reminder — Health Hub Africa', body, userId);
     if (phone) await this.sendSms(phone, body, userId);
+  }
+
+  // ── In-app patient alerts ────────────────────────────────────────────────
+  // Backed by the (previously unused) PatientAlert table. This is the feed
+  // behind the patient portal's Topbar bell / NotificationsPanel — distinct
+  // from the email/SMS sending above, which is a separate outbound channel.
+
+  async createPatientAlert(data: {
+    patientId: string;
+    category: 'appointment' | 'lab' | 'payment' | 'record' | 'telecare' | 'alert' | 'system';
+    title: string;
+    body?: string;
+    actionUrl?: string;
+    severity?: AlertSeverity;
+  }) {
+    return this.prisma.patientAlert.create({
+      data: {
+        patientId: data.patientId,
+        referenceType: data.category,
+        title: data.title,
+        body: data.body,
+        actionUrl: data.actionUrl,
+        severity: data.severity ?? AlertSeverity.info,
+      },
+    });
+  }
+
+  async listPatientAlerts(patientId: string, opts?: { unreadOnly?: boolean; limit?: number }) {
+    const [alerts, total, unread] = await Promise.all([
+      this.prisma.patientAlert.findMany({
+        where: { patientId, ...(opts?.unreadOnly ? { isRead: false } : {}) },
+        orderBy: { createdAt: 'desc' },
+        take: opts?.limit ?? 20,
+      }),
+      this.prisma.patientAlert.count({ where: { patientId } }),
+      this.prisma.patientAlert.count({ where: { patientId, isRead: false } }),
+    ]);
+    return {
+      data: alerts.map((a) => ({
+        id: a.id,
+        category: a.referenceType ?? 'system',
+        title: a.title,
+        body: a.body ?? '',
+        isRead: a.isRead,
+        actionUrl: a.actionUrl ?? undefined,
+        createdAt: a.createdAt.toISOString(),
+      })),
+      meta: { total, unread },
+    };
+  }
+
+  async markPatientAlertRead(patientId: string, id: string) {
+    const result = await this.prisma.patientAlert.updateMany({
+      where: { id, patientId },
+      data: { isRead: true, readAt: new Date() },
+    });
+    return { updated: result.count > 0 };
+  }
+
+  async markAllPatientAlertsRead(patientId: string) {
+    const result = await this.prisma.patientAlert.updateMany({
+      where: { patientId, isRead: false },
+      data: { isRead: true, readAt: new Date() },
+    });
+    return { updated: result.count };
   }
 }
