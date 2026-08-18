@@ -199,6 +199,49 @@ export class OpenemrService implements OnModuleInit {
     }
   }
 
+  // ── Partner Referral Code Administration (admin/super_admin only) ─────────
+  //
+  // The referral codes/partner orgs live in OpenEMR (hha_partner_referral_code
+  // etc.) — the portal has no local copy, so every call here is a live
+  // pass-through. Callers are gated by @Roles(admin, super_admin) at the
+  // controller layer; nothing here re-checks that, matching every other
+  // admin-only OpenEMR passthrough in this service.
+
+  async listReferralPartners(): Promise<Array<{ id: number; code: string; name: string; active: boolean }>> {
+    const result = await this.callOpenemr(await this.getAccessToken(), 'GET', '/api/hha/routing/partners');
+    return (result?.partners as Array<{ id: number; code: string; name: string; active: boolean }>) ?? [];
+  }
+
+  async listReferralCodes(): Promise<Record<string, unknown>[]> {
+    const result = await this.callOpenemr(await this.getAccessToken(), 'GET', '/api/hha/routing/referral-codes');
+    return (result?.referralCodes as Record<string, unknown>[]) ?? [];
+  }
+
+  async createReferralCode(data: {
+    code: string;
+    partnerId: number;
+    providerId?: number | null;
+    campaignName?: string;
+    description?: string;
+    expiresAt?: string | null;
+    maxUses?: number | null;
+  }): Promise<Record<string, unknown>> {
+    return this.callOpenemr(await this.getAccessToken(), 'POST', '/api/hha/routing/referral-codes', data);
+  }
+
+  async updateReferralCode(
+    id: number,
+    data: {
+      active?: boolean;
+      expiresAt?: string | null;
+      maxUses?: number | null;
+      description?: string;
+      campaignName?: string;
+    },
+  ): Promise<Record<string, unknown>> {
+    return this.callOpenemr(await this.getAccessToken(), 'PATCH', `/api/hha/routing/referral-codes/${id}`, data);
+  }
+
   // ── Enqueue Sync Jobs ──────────────────────────────────────────────────────
 
   async enqueuePatientSync(patientId: string) {
