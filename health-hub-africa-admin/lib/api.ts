@@ -800,6 +800,48 @@ export const adminApi = {
       request<{ enqueued: number }>('/openemr/recover-appointment-encounters', { method: 'POST' }),
     recoverAppointmentCalendarSync: () =>
       request<{ enqueued: number }>('/openemr/recover-appointment-calendar-sync', { method: 'POST' }),
+
+    listReferralPartners: () =>
+      request<Array<{ id: number; code: string; name: string; active: boolean }>>('/openemr/routing/partners'),
+    listReferralCodes: () =>
+      request<Array<{
+        id: number
+        code: string
+        partnerId: number
+        partnerName: string
+        providerId: number | null
+        campaignName: string | null
+        description: string | null
+        active: boolean
+        expiresAt: string | null
+        maxUses: number | null
+        usesCount: number
+        createdAt: string
+      }>>('/openemr/routing/referral-codes'),
+    createReferralCode: (data: {
+      code: string
+      partnerId: number
+      providerId?: number | null
+      campaignName?: string
+      description?: string
+      expiresAt?: string | null
+      maxUses?: number | null
+    }) =>
+      request<{ status: string; code: string; referralCode?: string }>('/openemr/routing/referral-codes', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    updateReferralCode: (id: number, data: {
+      active?: boolean
+      expiresAt?: string | null
+      maxUses?: number | null
+      description?: string
+      campaignName?: string
+    }) =>
+      request<{ status: string; code: string }>(`/openemr/routing/referral-codes/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
   },
 
   // Provider-scoped (uses /telecare endpoints, not /admin — scoped by JWT)
