@@ -18,6 +18,7 @@ import { Request } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { ValidateReferralDto } from './dto/validate-referral.dto';
 import {
   RequestOtpDto,
   ResetPasswordDto,
@@ -50,6 +51,20 @@ export class AuthController {
   @ApiOperation({ summary: 'Register a new user account' })
   register(@Body() dto: RegisterDto, @Req() req: Request) {
     return this.authService.register(dto, req.ip);
+  }
+
+  // Pre-registration referral check — read-only, never assigns a partner.
+  // The real routing decision happens server-side, after patient creation,
+  // once the referral code is submitted with the registration/onboarding
+  // payload — this endpoint only powers the "Referral recognized: X"
+  // acknowledgement so the patient knows their code was picked up.
+  @Public()
+  @Post('validate-referral')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ auth: { ttl: 60_000, limit: 20 } })
+  @ApiOperation({ summary: 'Validate a partner referral code without assigning it (public, pre-registration)' })
+  validateReferral(@Body() dto: ValidateReferralDto) {
+    return this.authService.validateReferral(dto.referralCode);
   }
 
   @Public()
