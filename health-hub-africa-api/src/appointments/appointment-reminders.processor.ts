@@ -107,13 +107,21 @@ export class AppointmentReminderProcessor {
     };
     const patientSubject = `Appointment reminder (${type === '24h' ? '24 hours' : '1 hour'} away) — ${hhaRef}`;
 
-    await this.notifications.sendAppointmentEmail(
-      appt.patient.user.email,
-      patientSubject,
-      appt.patient.userId,
-      patientData,
-    );
-    if (appt.patient.user.phone) {
+    // Reminders are proactive nudges, not a direct response to something the
+    // patient just did — unlike booking confirmations, they respect the
+    // patient's own appointmentReminders preference per channel.
+    if (await this.notifications.isNotificationAllowed(appt.patient.userId, 'email', 'appointmentReminders')) {
+      await this.notifications.sendAppointmentEmail(
+        appt.patient.user.email,
+        patientSubject,
+        appt.patient.userId,
+        patientData,
+      );
+    }
+    if (
+      appt.patient.user.phone &&
+      (await this.notifications.isNotificationAllowed(appt.patient.userId, 'sms', 'appointmentReminders'))
+    ) {
       const sms = `Health Hub Africa reminder: appointment ${hhaRef} with${providerName ? ` ${providerName}` : ''} is ${timeLabel} — ${when}.`;
       await this.notifications.sendSms(appt.patient.user.phone, sms, appt.patient.userId);
     }
