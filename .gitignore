@@ -86,3 +86,6 @@ health-hub-africa-api/logs-*.txt
 .claude/
 .playwright-mcp/
 .superpowers/
+
+# MCP server configs — contain bearer tokens/API keys in headers (e.g. Banani)
+.agents/
