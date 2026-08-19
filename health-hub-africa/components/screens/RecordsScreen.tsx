@@ -94,7 +94,7 @@ export function RecordsScreen() {
             style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text)', textDecoration: 'none' }}
           >
             <Upload size={13} />
-            My Vault
+            Upload
           </Link>
           <Link
             href="/records/share"
