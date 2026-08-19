@@ -210,6 +210,45 @@ export class OpenemrService implements OnModuleInit {
     this.logger.log(`Enqueued OpenEMR sync for patient ${patientId}`);
   }
 
+  // ── HHA Patient ID Display Sync ───────────────────────────────────────────
+  //
+  // The FHIR `identifier` set on every Patient we POST/PUT already carries
+  // hhaPatientId (see buildFhirPatient in openemr.processor.ts) — but that's
+  // a FHIR-standard identifier used only for our own dedup search, not the
+  // custom `patient_data.HHA_ID` demographics column OpenEMR staff actually
+  // see on the Demographics screen. The standard FHIR Patient API has no
+  // knowledge of that custom field, so it's synced separately here via the
+  // HHA custom module's PATCH /api/hha/patient/:uuid/hha-id route. Best
+  // effort and non-fatal: the FHIR identifier is still the authoritative
+  // link for our own dedup/lookup, this only affects what clinicians see.
+  async syncHhaId(openemrUuid: string, hhaPatientId: string, portalPatientId: string): Promise<void> {
+    try {
+      const result = await this.callOpenemr(
+        await this.getAccessToken(),
+        'PATCH',
+        `/api/hha/patient/${openemrUuid}/hha-id`,
+        { hha_id: hhaPatientId, portal_patient_id: portalPatientId },
+        portalPatientId,
+      );
+
+      if (result?.status === 'conflict') {
+        this.logger.warn(
+          `HHA ID conflict for patient ${portalPatientId}: OpenEMR already has a different ` +
+          `HHA_ID than the portal (${JSON.stringify(result)}). Left unchanged — needs manual reconciliation.`,
+        );
+        return;
+      }
+
+      if (result?.status !== 'ok') {
+        this.logger.warn(`HHA ID sync returned unexpected response for patient ${portalPatientId}: ${JSON.stringify(result)}`);
+      }
+    } catch (err) {
+      this.logger.error(
+        `HHA ID display sync failed for patient ${portalPatientId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
   // ── Subscription Sync ──────────────────────────────────────────────────────
   //
   // MyHealth Vault+ is the source of truth for subscription/payment/renewal
