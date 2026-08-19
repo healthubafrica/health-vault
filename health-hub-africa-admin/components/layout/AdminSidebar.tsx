@@ -70,6 +70,7 @@ const NAV: NavItem[] = [
   { label: 'Expert Review', href: '/operations/expert-review', icon: FileSearch, roles: ['admin', 'super_admin'], group: 'Operations' },
   { label: 'Dispatch', href: '/operations/dispatch', icon: Ambulance, roles: ['admin', 'super_admin'], group: 'Operations' },
   { label: 'Lab Orders', href: '/operations/labs', icon: FlaskConical, roles: ['admin', 'super_admin'], group: 'Operations' },
+  { label: 'Partner Referrals', href: '/operations/partner-referrals', icon: Share2, roles: ['admin', 'super_admin'], group: 'Operations' },
   { label: 'Clinical Queue', href: '/clinical-queue', icon: Activity, roles: ['admin', 'super_admin'], group: 'Operations' },
   { label: 'STRIDE™ Intelligence', href: '/stride', icon: Cpu, roles: ['admin', 'super_admin', 'coordinator'], group: 'Operations' },
 
