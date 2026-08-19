@@ -10,6 +10,7 @@ import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PaymentsService } from '../payments/payments.service';
 import { PaymentPurpose } from '../payments/dto/initiate-payment.dto';
+import { OpenemrService } from '../openemr/openemr.service';
 import { SubscribeDto } from './dto/subscribe.dto';
 import { UpgradeSubscriptionDto } from './dto/upgrade-subscription.dto';
 
@@ -19,6 +20,7 @@ export class SubscriptionsService {
     private readonly prisma: PrismaService,
     private readonly paymentsService: PaymentsService,
     private readonly notifications: NotificationsService,
+    private readonly openemrService: OpenemrService,
   ) {}
 
   // ── Plans ──────────────────────────────────────────────────────────────────
@@ -117,6 +119,10 @@ export class SubscriptionsService {
     if (isFirstSubscription) {
       void this.notifications.sendPatientWelcomeEmail(patientId, dto.planId);
     }
+
+    // Best-effort, non-blocking — keeps OpenEMR's Demographics subscription
+    // fields in sync; failures never affect the subscription that already committed.
+    void this.openemrService.syncSubscription(patientId);
 
     return subscription;
   }
@@ -218,10 +224,14 @@ export class SubscriptionsService {
     const isOwner = sub.patient.userId === currentUser.sub;
     if (!isAdmin && !isOwner) throw new ForbiddenException('Access denied');
 
-    return this.prisma.patientSubscription.update({
+    const cancelled = await this.prisma.patientSubscription.update({
       where: { id: subscriptionId },
       data: { status: 'cancelled', cancelledAt: new Date() },
     });
+
+    void this.openemrService.syncSubscription(sub.patientId);
+
+    return cancelled;
   }
 
   private requireAdmin(user: JwtPayload) {
