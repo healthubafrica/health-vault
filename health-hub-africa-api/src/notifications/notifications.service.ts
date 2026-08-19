@@ -83,6 +83,33 @@ export class NotificationsService {
     @InjectQueue(NOTIFICATIONS_QUEUE) private readonly queue: Queue<NotificationJobData>,
   ) {}
 
+  // Channel + category preference check for genuinely discretionary sends
+  // (proactive reminders, not direct responses to something the patient just
+  // did). Transactional/security sends — OTP, 2FA, password reset, booking
+  // confirmations, welcome/account-lifecycle emails — intentionally bypass
+  // this entirely and must never call it; a patient who disables SMS/email
+  // notifications must still be able to log in and receive account-critical
+  // messages. Absence of a preference row means "not yet configured", not
+  // "opted out" — matches NotificationPreference's own all-enabled defaults.
+  async isNotificationAllowed(
+    userId: string,
+    channel: NotificationChannel,
+    category?: 'appointmentReminders' | 'labResultAlerts' | 'paymentReceipts' | 'dispatchUpdates' | 'expertReviewUpdates',
+  ): Promise<boolean> {
+    const prefs = await this.prisma.notificationPreference.findUnique({ where: { userId } });
+    if (!prefs) return true;
+
+    const channelEnabled: Record<NotificationChannel, boolean> = {
+      email: prefs.emailEnabled,
+      sms: prefs.smsEnabled,
+      push: prefs.pushEnabled,
+      whatsapp: prefs.whatsappEnabled,
+    };
+    if (!channelEnabled[channel]) return false;
+    if (category && !prefs[category]) return false;
+    return true;
+  }
+
   // Exposes the per-recipient rate limiter to callers outside this module
   // (e.g. AdminService.resendNotification) that enqueue jobs without going
   // through the send* helpers below — every enqueue path must gate on this,
