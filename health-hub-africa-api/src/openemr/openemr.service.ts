@@ -339,6 +339,71 @@ export class OpenemrService implements OnModuleInit {
     }
   }
 
+  // ── Partner/Referral Routing ─────────────────────────────────────────────
+  //
+  // The routing engine (hha_route_patient_referral, a stored procedure) and
+  // all its supporting tables already existed in OpenEMR before this — this
+  // just calls it. Never assign a partner client-side; the referral code is
+  // an attribution hint only, validated and resolved entirely server-side.
+
+  // Read-only pre-registration check — used for the "Referral recognized:
+  // CRQ" acknowledgement. Never assigns anything, never exposes partner/
+  // provider/facility IDs to the caller (only a display-safe partner name).
+  async validateReferralCode(code: string): Promise<{ valid: boolean; partnerName?: string; reason?: string }> {
+    try {
+      const result = await this.callOpenemr(
+        await this.getAccessToken(),
+        'POST',
+        '/api/hha/routing/validate',
+        { referral_code: code },
+      );
+      if (result?.valid) {
+        return { valid: true, partnerName: result.partner_name as string };
+      }
+      return { valid: false, reason: (result?.reason as string) ?? 'invalid' };
+    } catch (err) {
+      this.logger.error(`Referral validation failed: ${err instanceof Error ? err.message : String(err)}`);
+      // Fail open on the *validation* check only — an unreachable validate
+      // call must never block registration. The real routing call (below)
+      // still fails closed to HHA_INTERNAL regardless.
+      return { valid: false, reason: 'unavailable' };
+    }
+  }
+
+  // The actual assignment call. Best-effort/non-blocking like syncHhaId and
+  // syncSubscription — a routing failure must never undo the patient sync
+  // that already completed; it just means the patient stays in whatever
+  // pool OpenEMR's own fail-closed default assigns (HHA_INTERNAL).
+  async routePatient(openemrUuid: string, referralCode: string | null, patientId: string): Promise<void> {
+    try {
+      const result = await this.callOpenemr(
+        await this.getAccessToken(),
+        'POST',
+        `/api/hha/routing/patients/${openemrUuid}/route`,
+        { referral_code: referralCode },
+        patientId,
+      );
+
+      if (result?.status !== 'ok') {
+        this.logger.warn(`Partner routing returned unexpected response for patient ${patientId}: ${JSON.stringify(result)}`);
+        return;
+      }
+
+      await this.prisma.patient.update({
+        where: { id: patientId },
+        data: {
+          routingAssignedPool: result.assigned_pool as string,
+          routingResult: result.routing_result as string,
+          routedAt: new Date(),
+        },
+      }).catch(() => null);
+    } catch (err) {
+      this.logger.error(
+        `Partner routing failed for patient ${patientId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
   async enqueueEncounterSync(patientId: string, appointmentId: string) {
     await this.syncQueue.add(
       'sync-encounter',

@@ -452,6 +452,12 @@ export class OpenemrProcessor {
       // identifier above isn't enough). Doesn't affect sync success/failure.
       await this.openemrService.syncHhaId(openemrUuid, patient.hhaPatientId, patientId);
 
+      // Best-effort, non-blocking — assigns the patient into the correct
+      // partner pool (or HHA_INTERNAL by default) via the existing OpenEMR
+      // routing engine. A routing failure never undoes the patient sync
+      // that already committed above.
+      await this.openemrService.routePatient(openemrUuid, patient.referralCode, patientId);
+
       await this.prisma.openemrSyncQueue.update({
         where: { id: queueItem.id },
         data: { status: 'completed', completedAt: new Date() },
