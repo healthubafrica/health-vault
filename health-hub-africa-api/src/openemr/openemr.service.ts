@@ -249,6 +249,96 @@ export class OpenemrService implements OnModuleInit {
     }
   }
 
+  // ── Subscription Sync ──────────────────────────────────────────────────────
+  //
+  // MyHealth Vault+ is the source of truth for subscription/payment/renewal
+  // state (per the sync spec's own §17 rule) — OpenEMR just gets a synced
+  // read-only copy on patient_data so clinical staff see accurate plan/
+  // payment status on the Demographics screen without manual entry.
+  //
+  // Deliberately does NOT send sub_renewal_status / sub_renewal_reminder:
+  // those are OpenEMR-side retention/CRM fields (who contacted the patient,
+  // when) that the portal has no source of truth for at all — inventing a
+  // mapping for them would violate the target endpoint's own "do not invent
+  // values that don't exist in the OpenEMR list" rule. Retention staff keep
+  // managing those fields directly in OpenEMR.
+  //
+  // Best-effort and non-fatal by design (matches syncHhaId) — every call site
+  // fires this without awaiting failure, since a sync hiccup must never block
+  // the actual subscription/payment transaction that already committed.
+  async syncSubscription(patientId: string): Promise<void> {
+    const patient = await this.prisma.patient.findUnique({
+      where: { id: patientId },
+      select: { openemrPatientUuid: true },
+    });
+    if (!patient?.openemrPatientUuid) return; // not yet synced to OpenEMR — nothing to update
+
+    const subscription = await this.prisma.patientSubscription.findFirst({
+      where: { patientId },
+      include: { plan: true, payment: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!subscription) return;
+
+    const toDateStr = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : null);
+
+    const subscriptionStatusMap: Record<string, string> = {
+      active: 'ACTIVE',
+      trial: 'ACTIVE', // a trial has current access — OpenEMR's status list has no TRIAL equivalent
+      past_due: 'PENDING',
+      cancelled: 'CANCELLED',
+      expired: 'EXPIRED',
+    };
+    const paymentStatusMap: Record<string, string> = {
+      pending: 'PENDING',
+      processing: 'PENDING',
+      paid: 'PAID',
+      failed: 'FAILED',
+      refunded: 'REFUNDED',
+      disputed: 'PENDING', // no DISPUTED equivalent in OpenEMR's list — outcome not yet final, closest fit
+    };
+    const paymentMethodMap: Record<string, string> = {
+      Paystack: 'card',
+      Flutterwave: 'card',
+      manual: 'manual',
+    };
+
+    const payment = subscription.payment;
+
+    const payload: Record<string, unknown> = {
+      subscription_plan: subscription.plan.tier.toUpperCase(),
+      subscription_status: subscriptionStatusMap[subscription.status] ?? 'PENDING',
+      start_date: toDateStr(subscription.startedAt),
+      expiry_date: toDateStr(subscription.expiresAt),
+      access_level: subscription.plan.tier.toLowerCase(),
+      payment_status: payment ? (paymentStatusMap[payment.status] ?? 'PENDING') : null,
+      last_payment_date: toDateStr(payment?.paidAt),
+      // Only meaningful for an auto-renewing subscription — the next charge
+      // is effectively due at expiry.
+      next_payment_due: subscription.autoRenew ? toDateStr(subscription.expiresAt) : null,
+      payment_method: payment ? (paymentMethodMap[payment.gateway] ?? 'other') : null,
+      payment_reference: payment?.hhaRef ?? null,
+      source_updated_at: new Date().toISOString(),
+    };
+
+    try {
+      const result = await this.callOpenemr(
+        await this.getAccessToken(),
+        'POST',
+        '/api/hha/subscription/sync',
+        { uuid: patient.openemrPatientUuid, ...payload },
+        patientId,
+      );
+      if (result?.status !== 'ok') {
+        this.logger.warn(`Subscription sync returned unexpected response for patient ${patientId}: ${JSON.stringify(result)}`);
+      }
+    } catch (err) {
+      this.logger.error(
+        `Subscription sync failed for patient ${patientId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
   async enqueueEncounterSync(patientId: string, appointmentId: string) {
     await this.syncQueue.add(
       'sync-encounter',
