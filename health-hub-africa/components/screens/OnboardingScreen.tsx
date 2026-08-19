@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FormInput, FormSelect } from '@/components/ui/FormInput'
 import { Button } from '@/components/ui/Button'
-import { patients, subscriptions, type SubscriptionPlan } from '@/lib/api'
+import { patients, subscriptions, auth, type SubscriptionPlan } from '@/lib/api'
 import { formatCurrency } from '@/lib/utils'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { useAuthStore } from '@/lib/stores/authStore'
@@ -44,6 +44,7 @@ function getPriceKobo(plan: SubscriptionPlan, cycle: 'monthly' | 'annually'): nu
 
 export function OnboardingScreen() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user } = useAuthStore()
   const [step, setStep] = useState(1)
   const [name, setName] = useState('')
@@ -58,6 +59,18 @@ export function OnboardingScreen() {
         setName(storedName)
       }
     }
+  }, [])
+
+  // Prefill referral code from a QR/partner link's ?ref= param, if present,
+  // and validate it immediately so the acknowledgement shows before the user
+  // even reaches Step 3. Manual entry in Step 3 re-validates on blur below.
+  useEffect(() => {
+    const ref = searchParams.get('ref')
+    if (ref) {
+      setReferralCode(ref)
+      void checkReferralCode(ref)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Fetch plans when the user reaches Step 5
@@ -95,6 +108,34 @@ export function OnboardingScreen() {
   const [emergencyName, setEmergencyName] = useState('')
   const [emergencyPhone, setEmergencyPhone] = useState('')
   const [healthId, setHealthId] = useState('')
+  const [referralCode, setReferralCode] = useState('')
+  const [referralCheck, setReferralCheck] = useState<
+    { status: 'idle' } | { status: 'checking' } | { status: 'valid'; partnerName: string } | { status: 'invalid' }
+  >({ status: 'idle' })
+
+  // Read-only check — never assigns anything. Neutral messaging either way,
+  // per spec: a failed/invalid code must never block onboarding.
+  async function checkReferralCode(code: string) {
+    const trimmed = code.trim()
+    if (!trimmed) {
+      setReferralCheck({ status: 'idle' })
+      return
+    }
+    setReferralCheck({ status: 'checking' })
+    try {
+      const res = await auth.validateReferral(trimmed)
+      if (res.valid && res.partnerName) {
+        setReferralCheck({ status: 'valid', partnerName: res.partnerName })
+      } else {
+        setReferralCheck({ status: 'invalid' })
+      }
+    } catch {
+      // Validation being unreachable must never block onboarding — just
+      // stop showing a "checking" state and let the code go through
+      // unacknowledged; the real routing call server-side still runs.
+      setReferralCheck({ status: 'idle' })
+    }
+  }
 
   // Step 4: PIN Security
   const [pin, setPin] = useState<string[]>([])
@@ -452,6 +493,31 @@ export function OnboardingScreen() {
                       value={healthId}
                       onChange={e => setHealthId(e.target.value)}
                     />
+                  </div>
+
+                  <div className="mb-6">
+                    <FormInput
+                      label="Referred by a healthcare provider or partner?"
+                      type="text"
+                      placeholder="Referral code (optional)"
+                      hint="Optional — if a provider or partner clinic gave you a referral code, enter it here."
+                      value={referralCode}
+                      onChange={e => setReferralCode(e.target.value)}
+                      onBlur={() => void checkReferralCode(referralCode)}
+                    />
+                    {referralCheck.status === 'checking' && (
+                      <p className="text-[11px] text-white/40 mt-1.5">Checking referral code…</p>
+                    )}
+                    {referralCheck.status === 'valid' && (
+                      <p className="text-[11px] text-[#6DC43F] mt-1.5 flex items-center gap-1">
+                        <Check size={11} /> Referral recognized: {referralCheck.partnerName}
+                      </p>
+                    )}
+                    {referralCheck.status === 'invalid' && (
+                      <p className="text-[11px] text-white/40 mt-1.5">
+                        We could not validate this referral code. You may continue without it or contact the referring provider.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
@@ -839,6 +905,7 @@ export function OnboardingScreen() {
                             isPrimary: true,
                           }] : [],
                           ...(healthId.trim() ? { nin: healthId.trim() } : {}),
+                          ...(referralCode.trim() ? { referralCode: referralCode.trim() } : {}),
                         })
                         setStep(step + 1)
                       } catch (e: unknown) {

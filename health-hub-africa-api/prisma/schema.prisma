@@ -311,6 +311,15 @@ model Patient {
   dateFormat        String     @default("dd/mm/yyyy") @map("date_format")
   openemrPatientUuid String? @unique @map("openemr_patient_uuid")
   openemrSyncStatus  String  @default("pending") @map("openemr_sync_status")
+  // Optional partner/referral attribution, captured at onboarding and
+  // resolved via the OpenEMR partner routing engine once the patient syncs.
+  // referralCode is patient input (attribution hint only, never authorization
+  // — the routing engine validates it server-side); routingAssignedPool/
+  // routingResult/routedAt record the engine's own decision for admin visibility.
+  referralCode        String?   @map("referral_code")
+  routingAssignedPool String?   @map("routing_assigned_pool")
+  routingResult       String?   @map("routing_result")
+  routedAt            DateTime? @map("routed_at")
   status      String     @default("Stable")
   profilePhotoSizeBytes      Int?    @map("profile_photo_size_bytes")
   storageQuotaOverrideBytes  BigInt? @map("storage_quota_override_bytes")
