@@ -49,15 +49,15 @@ export class ProvidersController {
   @Get('me')
   @Roles(UserRole.provider)
   @ApiOperation({ summary: "Get the authenticated user's provider profile" })
-  getMyProfile(@CurrentUser() user: JwtPayload) {
-    return this.providersService.findMyProfile(user);
+  async getMyProfile(@CurrentUser() user: JwtPayload) {
+    return { data: await this.providersService.findMyProfile(user) };
   }
 
   @Patch('me')
   @Roles(UserRole.provider)
   @ApiOperation({ summary: "Update the authenticated provider's own profile" })
-  updateMyProfile(@Body() dto: UpdateProviderDto, @CurrentUser() user: JwtPayload) {
-    return this.providersService.updateMyProfile(dto, user);
+  async updateMyProfile(@Body() dto: UpdateProviderDto, @CurrentUser() user: JwtPayload) {
+    return { data: await this.providersService.updateMyProfile(dto, user) };
   }
 
   @Get('me/notification-emails')

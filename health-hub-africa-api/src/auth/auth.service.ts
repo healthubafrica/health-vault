@@ -13,6 +13,7 @@ import * as bcrypt from 'bcryptjs';
 import { randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { OpenemrService } from '../openemr/openemr.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
@@ -39,9 +40,18 @@ export class AuthService {
     private jwt: JwtService,
     private config: ConfigService,
     private notifications: NotificationsService,
+    private openemrService: OpenemrService,
   ) {}
 
   // ── Registration ─────────────────────────────────────────────────────────
+
+  // Thin pass-through — the real validation lives in the OpenEMR routing
+  // engine (source of truth for referral codes); this exists only so the
+  // browser never calls OpenEMR directly (spec requirement — all OpenEMR
+  // traffic stays server-to-server).
+  async validateReferral(referralCode: string) {
+    return this.openemrService.validateReferralCode(referralCode);
+  }
 
   async register(dto: RegisterDto, _ipAddress?: string) {
     const phone = dto.phoneNumber ?? dto.phone;

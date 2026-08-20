@@ -247,4 +247,13 @@ export class CreatePatientDto {
   @IsOptional()
   @IsString()
   profilePhotoUrl?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Optional partner/provider referral code (e.g. from a QR code or a partner clinic). ' +
+      'Attribution hint only — validated and resolved server-side by the OpenEMR partner routing engine, never trusted as authorization.',
+  })
+  @IsOptional()
+  @IsString()
+  referralCode?: string;
 }
