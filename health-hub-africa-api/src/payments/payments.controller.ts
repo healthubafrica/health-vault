@@ -99,4 +99,19 @@ export class PaymentsController {
     }
     return this.paymentsService.handlePaystackWebhook(req.rawBody, signature);
   }
+
+  @Public()
+  @SkipThrottle()
+  @Post('webhooks/flutterwave')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Flutterwave webhook receiver' })
+  flutterwaveWebhook(
+    @Req() req: RawBodyRequest<Request>,
+    @Headers('verif-hash') signature: string,
+  ) {
+    if (!req.rawBody) {
+      throw new BadRequestException('Missing raw request body');
+    }
+    return this.paymentsService.handleFlutterwaveWebhook(req.rawBody, signature);
+  }
 }

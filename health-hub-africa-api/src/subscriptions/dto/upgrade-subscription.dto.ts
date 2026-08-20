@@ -14,7 +14,7 @@ export class UpgradeSubscriptionDto {
 
   @ApiPropertyOptional({
     enum: PaymentGateway,
-    description: 'Gateway to charge with. Defaults to Paystack.',
+    description: 'Gateway to charge with. Defaults to Flutterwave.',
   })
   @IsOptional()
   @IsEnum(PaymentGateway)
