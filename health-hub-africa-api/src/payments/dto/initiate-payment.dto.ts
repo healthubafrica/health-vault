@@ -12,7 +12,7 @@ export enum PaymentPurpose {
 }
 
 export class InitiatePaymentDto {
-  @ApiProperty({ enum: PaymentGateway, example: 'Paystack' })
+  @ApiProperty({ enum: PaymentGateway, example: 'Flutterwave' })
   @IsEnum(PaymentGateway)
   gateway: PaymentGateway;
 
