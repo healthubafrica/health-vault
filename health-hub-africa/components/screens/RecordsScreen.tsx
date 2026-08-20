@@ -6,7 +6,7 @@ import { FilterTabs } from '@/components/ui/FilterTabs'
 import { Pill } from '@/components/ui/Pill'
 import { type RecordType } from '@/lib/data/records'
 import { formatDate, formatBytes } from '@/lib/utils'
-import { FileText, FlaskConical, Pill as PillIcon, File, Download, Link2, Upload } from 'lucide-react'
+import { FileText, FlaskConical, Pill as PillIcon, File, Download, Link2, Upload, Stethoscope } from 'lucide-react'
 import Link from 'next/link'
 import { records as recordsApi, type ClinicalRecord } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
@@ -16,11 +16,12 @@ import { EmptyState } from '@/components/ui/states'
 import { buildProviderDisplayName } from '@/lib/providerName'
 import { toast } from 'sonner'
 
-const TABS = ['All', 'Visits', 'Labs', 'Prescriptions', 'Documents']
+const TABS = ['All', 'Visits', 'Labs', 'Referrals', 'Prescriptions', 'Documents']
 
 const TYPE_MAP: Record<string, RecordType | undefined> = {
   Visits: 'visit',
   Labs: 'lab',
+  Referrals: 'referral',
   Prescriptions: 'prescription',
   Documents: 'document',
 }
@@ -28,6 +29,7 @@ const TYPE_MAP: Record<string, RecordType | undefined> = {
 const ICON_MAP: Record<RecordType, React.ElementType> = {
   visit: FileText,
   lab: FlaskConical,
+  referral: Stethoscope,
   prescription: PillIcon,
   document: File,
 }
@@ -35,6 +37,7 @@ const ICON_MAP: Record<RecordType, React.ElementType> = {
 const PILL_MAP: Record<RecordType, 'success' | 'info' | 'neutral' | 'warning'> = {
   visit: 'success',
   lab: 'info',
+  referral: 'info',
   prescription: 'warning',
   document: 'neutral',
 }
