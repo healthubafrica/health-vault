@@ -1,1 +1,1 @@
-export type RecordType = 'visit' | 'lab' | 'prescription' | 'document'
+export type RecordType = 'visit' | 'lab' | 'prescription' | 'document' | 'referral'
