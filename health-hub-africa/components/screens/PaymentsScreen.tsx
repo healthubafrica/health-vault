@@ -14,7 +14,7 @@ import { EmptyState } from '@/components/ui/states'
 import { toast } from 'sonner'
 
 type PillVariant = 'success' | 'warning' | 'emergency' | 'neutral'
-type Gateway = 'paystack' | 'bank_transfer'
+type Gateway = 'flutterwave' | 'bank_transfer'
 
 const BANK_DETAILS = {
   bank: 'United Bank for Africa (UBA)',
@@ -40,7 +40,7 @@ export function PaymentsScreen() {
   const [showModal, setShowModal] = useState(false)
   const [description, setDescription] = useState('')
   const [amountNaira, setAmountNaira] = useState('')
-  const [gateway, setGateway] = useState<Gateway>('paystack')
+  const [gateway, setGateway] = useState<Gateway>('flutterwave')
   const [submitting, setSubmitting] = useState(false)
   const [transferConfirm, setTransferConfirm] = useState<{ ref: string; amount: string } | null>(null)
 
@@ -68,7 +68,9 @@ export function PaymentsScreen() {
     }
     setSubmitting(true)
     try {
-      const apiGateway = gateway === 'bank_transfer' ? 'manual' : gateway
+      // Backend PaymentGateway enum values are PascalCase ('Flutterwave', 'manual')
+      // — the local Gateway type stays lowercase for UI/select convenience.
+      const apiGateway = gateway === 'bank_transfer' ? 'manual' : 'Flutterwave'
       const result = await paymentsApi.initiate({
         gateway: apiGateway,
         purpose: 'other',
@@ -98,7 +100,7 @@ export function PaymentsScreen() {
   function openModal() {
     setDescription('')
     setAmountNaira('')
-    setGateway('paystack')
+    setGateway('flutterwave')
     setTransferConfirm(null)
     setShowModal(true)
   }
@@ -231,8 +233,9 @@ export function PaymentsScreen() {
                     className="w-full rounded-xl border px-3 py-2 text-sm outline-none focus:ring-2"
                     style={{ background: 'var(--color-bg)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
                   >
-                    <option value="paystack">Paystack (Card / Bank)</option>
+                    <option value="flutterwave">Flutterwave (Card / Bank)</option>
                     <option value="bank_transfer">Bank Transfer (UBA)</option>
+                    <option value="paystack" disabled>Paystack (Coming Soon)</option>
                   </select>
                 </div>
 
@@ -337,8 +340,9 @@ export function PaymentsScreen() {
         <CardTitle>Payment Methods</CardTitle>
         <div className="flex flex-col gap-3">
           {(gatewayStatuses ?? [
-            { gateway: 'paystack', name: 'Paystack', active: true },
+            { gateway: 'flutterwave', name: 'Flutterwave', active: true },
             { gateway: 'bank_transfer', name: 'Bank Transfer', active: true, bankName: 'United Bank for Africa', accountNumber: '1028358485' },
+            { gateway: 'paystack', name: 'Paystack', active: false, comingSoon: true },
           ]).map((gw: GatewayStatus) => (
             <div
               key={gw.gateway}
@@ -359,7 +363,7 @@ export function PaymentsScreen() {
                 )}
               </div>
               <Pill variant={gw.active ? 'success' : 'neutral'} className="ml-auto shrink-0">
-                {gw.active ? 'Active' : 'Inactive'}
+                {gw.active ? 'Active' : gw.comingSoon ? 'Coming Soon' : 'Inactive'}
               </Pill>
             </div>
           ))}
