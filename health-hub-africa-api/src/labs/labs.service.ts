@@ -114,7 +114,7 @@ export class LabsService {
     });
 
     if (!order) throw new NotFoundException('Lab order not found');
-    this.assertReadAccess(order.patient, currentUser);
+    await this.assertReadAccess(order.patientId, order.patient, currentUser);
 
     return order;
   }
@@ -199,11 +199,30 @@ export class LabsService {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  private assertReadAccess(patient: { userId: string } | null, currentUser: JwtPayload) {
+  // Matches RecordsService.assertReadAccess exactly (same authorization rule
+  // applied consistently across record types, per the integration
+  // remediation plan's requirement). Previously any provider-role user could
+  // read any patient's lab order regardless of assignment — role alone is
+  // not authorization; a provider must be actively assigned to this specific
+  // patient.
+  private async assertReadAccess(
+    patientId: string,
+    patient: { userId: string } | null,
+    currentUser: JwtPayload,
+  ) {
     const adminRoles: UserRole[] = [UserRole.admin, UserRole.super_admin, UserRole.coordinator];
     const isAdmin = adminRoles.includes(currentUser.role as UserRole);
-    if (!isAdmin && patient?.userId !== currentUser.sub &&
-        currentUser.role !== UserRole.provider) {
+    const isOwner = patient?.userId === currentUser.sub;
+
+    let isAssignedProvider = false;
+    if (currentUser.role === UserRole.provider && currentUser.providerId) {
+      const assignment = await this.prisma.patientProviderAssignment.findFirst({
+        where: { patientId, providerId: currentUser.providerId, unassignedAt: null },
+      });
+      isAssignedProvider = !!assignment;
+    }
+
+    if (!isAdmin && !isOwner && !isAssignedProvider) {
       throw new ForbiddenException('Access denied');
     }
   }

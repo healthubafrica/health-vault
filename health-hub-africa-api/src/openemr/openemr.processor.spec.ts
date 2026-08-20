@@ -561,3 +561,192 @@ describe('OpenemrProcessor.handlePullServiceRequests', () => {
     expect(prisma.clinicalRecord.create).not.toHaveBeenCalled();
   });
 });
+
+describe('OpenemrProcessor.handlePullAvsSummaries', () => {
+  // The AVS module's own clinician-release gate lives entirely on the
+  // OpenEMR side (hha_ai_after_visit_summary.status='approved' AND
+  // publication_status='ready') — GET .../published/encounter/:id only
+  // ever returns a summary once that gate has passed, and returns
+  // status:'not_found' otherwise. These tests assert the pull job trusts
+  // that response as-is rather than re-deriving release state itself.
+  function buildAvsMocks(opts: {
+    encounters: Array<Record<string, unknown>>;
+    avsResponses: Record<number, Record<string, unknown>>;
+    existingRecord?: { id: string } | null;
+  }) {
+    const prisma = {
+      patient: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'patient-1', openemrPatientUuid: 'uuid-16' }]),
+      },
+      clinicalRecord: {
+        findUnique: jest.fn().mockResolvedValue(opts.existingRecord ?? null),
+        create: jest.fn().mockResolvedValue({ id: 'record-1' }),
+      },
+    };
+    const openemr = {
+      getAccessToken: jest.fn().mockResolvedValue('token'),
+      callOpenemr: jest.fn().mockImplementation((_token: string, method: string, path: string) => {
+        if (path.endsWith('/encounter')) {
+          return Promise.resolve({ data: opts.encounters });
+        }
+        const ackMatch = /\/api\/hha\/avs\/published\/encounter\/(\d+)\/ack$/.exec(path);
+        if (ackMatch) {
+          return Promise.resolve({ status: 'ok' });
+        }
+        const statusMatch = /\/api\/hha\/avs\/published\/encounter\/(\d+)$/.exec(path);
+        if (statusMatch) {
+          const encounterId = Number(statusMatch[1]);
+          return Promise.resolve(opts.avsResponses[encounterId] ?? { status: 'not_found' });
+        }
+        return Promise.resolve({ status: 'not_found' });
+      }),
+    };
+    return { prisma, openemr };
+  }
+
+  it('creates a visit_summary record for a released AVS and acknowledges delivery', async () => {
+    const { prisma, openemr } = buildAvsMocks({
+      encounters: [{ encounter: 102 }],
+      avsResponses: {
+        102: {
+          status: 'ok',
+          encounter: 102,
+          version: 1,
+          approved_text: 'Patient presented with...',
+          approved_at: '2026-08-20 10:00:00',
+        },
+      },
+    });
+    const processor = buildProcessor(prisma, openemr);
+
+    await processor.handlePullAvsSummaries();
+
+    expect(prisma.clinicalRecord.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          patientId: 'patient-1',
+          recordType: 'visit_summary',
+          openemrResourceId: 'AVS-102-v1',
+          description: 'Patient presented with...',
+        }),
+      }),
+    );
+    // Delivery ack must follow the same encounter/version.
+    expect(openemr.callOpenemr).toHaveBeenCalledWith(
+      'token', 'POST', '/api/hha/avs/published/encounter/102/ack',
+      { version: 1, portal_record_id: 'record-1' }, 'patient-1',
+    );
+  });
+
+  it('does not create a record when no summary has been released for the encounter', async () => {
+    const { prisma, openemr } = buildAvsMocks({
+      encounters: [{ encounter: 102 }],
+      avsResponses: {}, // falls through to status:'not_found'
+    });
+    const processor = buildProcessor(prisma, openemr);
+
+    await processor.handlePullAvsSummaries();
+
+    expect(prisma.clinicalRecord.create).not.toHaveBeenCalled();
+  });
+
+  it('skips an already-imported summary (dedup by encounter+version)', async () => {
+    const { prisma, openemr } = buildAvsMocks({
+      encounters: [{ encounter: 102 }],
+      avsResponses: {
+        102: { status: 'ok', encounter: 102, version: 1, approved_text: 'x', approved_at: '2026-08-20 10:00:00' },
+      },
+      existingRecord: { id: 'already-there' },
+    });
+    const processor = buildProcessor(prisma, openemr);
+
+    await processor.handlePullAvsSummaries();
+
+    expect(prisma.clinicalRecord.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('OpenemrProcessor.handlePullLabResults (order matching)', () => {
+  // Reproduces the exact scenario the old "oldest pending order for this
+  // patient" heuristic got wrong: two orders pending at once. The report
+  // must land on the order its basedOn reference actually names, not
+  // whichever was ordered first.
+  function buildLabResultMocks(opts: {
+    patientId: string;
+    matchingOrder: { id: string; openemrResourceId?: string | null; orderedAt: Date };
+    otherPendingOrder?: { id: string; openemrResourceId?: string | null; orderedAt: Date };
+    report: Record<string, unknown>;
+  }) {
+    const allOrders = [opts.matchingOrder, opts.otherPendingOrder].filter(Boolean) as Array<{
+      id: string; openemrResourceId?: string | null; orderedAt: Date;
+    }>;
+
+    const prisma = {
+      patient: {
+        findMany: jest.fn().mockResolvedValue([{ id: opts.patientId, openemrPatientUuid: 'uuid-16' }]),
+      },
+      labOrder: {
+        findFirst: jest.fn().mockImplementation(({ where }: any) => {
+          if (where.openemrResourceId) {
+            const match = allOrders.find((o) => o.openemrResourceId === where.openemrResourceId);
+            return Promise.resolve(match ? { ...match, results: [] } : null);
+          }
+          // Fallback path: oldest pending, ignoring openemrResourceId.
+          const oldest = [...allOrders].sort((a, b) => a.orderedAt.getTime() - b.orderedAt.getTime())[0];
+          return Promise.resolve(oldest ? { ...oldest, results: [] } : null);
+        }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      labResult: {
+        create: jest.fn().mockResolvedValue({}),
+      },
+      $transaction: jest.fn().mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops)),
+    };
+    const openemr = {
+      getAccessToken: jest.fn().mockResolvedValue('token'),
+      callOpenemr: jest.fn().mockResolvedValue({ entry: [{ resource: opts.report }] }),
+    };
+    return { prisma, openemr };
+  }
+
+  it('matches the report to the order named in basedOn, not the oldest pending order', async () => {
+    const olderOrder = { id: 'order-older', openemrResourceId: 'sr-older-uuid', orderedAt: new Date('2026-08-01') };
+    const targetOrder = { id: 'order-target', openemrResourceId: 'sr-target-uuid', orderedAt: new Date('2026-08-20') };
+    const { prisma, openemr } = buildLabResultMocks({
+      patientId: 'patient-1',
+      matchingOrder: targetOrder,
+      otherPendingOrder: olderOrder,
+      report: {
+        resourceType: 'DiagnosticReport',
+        code: { text: 'Malaria Parasite Test' },
+        basedOn: [{ reference: 'ServiceRequest/sr-target-uuid' }],
+      },
+    });
+    const processor = buildProcessor(prisma, openemr);
+
+    await processor.handlePullLabResults();
+
+    expect(prisma.labOrder.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'order-target' } }),
+    );
+  });
+
+  it('falls back to the oldest-pending match when the report has no basedOn', async () => {
+    const onlyOrder = { id: 'order-1', openemrResourceId: null, orderedAt: new Date('2026-08-20') };
+    const { prisma, openemr } = buildLabResultMocks({
+      patientId: 'patient-1',
+      matchingOrder: onlyOrder,
+      report: {
+        resourceType: 'DiagnosticReport',
+        code: { text: 'Malaria Parasite Test' },
+      },
+    });
+    const processor = buildProcessor(prisma, openemr);
+
+    await processor.handlePullLabResults();
+
+    expect(prisma.labOrder.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'order-1' } }),
+    );
+  });
+});
