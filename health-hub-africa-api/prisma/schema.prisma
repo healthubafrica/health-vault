@@ -715,6 +715,7 @@ model LabOrder {
   overallStatus    LabStatus @default(pending) @map("overall_status")
   labFacility      String?   @map("lab_facility")
   notes            String?
+  openemrResourceId String?  @unique @map("openemr_resource_id")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
