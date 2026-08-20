@@ -50,6 +50,7 @@ enum RecordType {
   document
   referral
   expert_review
+  visit_summary
 }
 
 enum DocumentCategory {

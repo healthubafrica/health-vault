@@ -72,6 +72,7 @@ export class OpenemrService implements OnModuleInit {
       'pull-documents',
       'pull-encounters',
       'pull-service-requests',
+      'pull-avs-summaries',
       'pull-appointments',
       'pull-allergies',
       'pull-conditions',
@@ -127,6 +128,16 @@ export class OpenemrService implements OnModuleInit {
     // destination) based on the ServiceRequest's performer organization.
     await this.syncQueue.add(
       'pull-service-requests',
+      { patientId: '', operation: 'sync_record' },
+      { repeat: { cron: '*/15 * * * *' }, removeOnComplete: 10 },
+    );
+
+    // After-Visit Summaries approved and released by a clinician in the HHA
+    // AI Clinical Assistant module. Delivery is acknowledged back to
+    // OpenEMR in the same cycle a summary is pulled, closing the release →
+    // delivered loop.
+    await this.syncQueue.add(
+      'pull-avs-summaries',
       { patientId: '', operation: 'sync_record' },
       { repeat: { cron: '*/15 * * * *' }, removeOnComplete: 10 },
     );
