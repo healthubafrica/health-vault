@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { adminApi, type AnalyticsSummary } from '@/lib/api'
+import { useAuthStore } from '@/lib/stores/authStore'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { SkeletonBox } from '@/components/ui/Skeleton'
+import { ProviderOverview } from '@/components/overview/ProviderOverview'
 import { formatKoboToNaira } from '@/lib/utils'
 import {
   Users,
@@ -66,12 +68,24 @@ const CHART_OPTIONS = {
 }
 
 export default function OverviewPage() {
+  const role = useAuthStore((s) => s.user?.role)
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null)
   const [revenueData, setRevenueData] = useState<{ labels: string[]; values: number[] }>({ labels: [], values: [] })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    // Wait for the auth store to hydrate before deciding what to fetch —
+    // otherwise a provider's first render would fire an admin-only request
+    // that's guaranteed to 403 before role becomes available.
+    if (!role) return
+    // Providers get their own summary (appointments/sessions/availability) —
+    // the KPIs below are business/financial metrics restricted to admin
+    // roles server-side, so fetching them for a provider always 403s.
+    if (role !== 'admin' && role !== 'super_admin') {
+      setLoading(false)
+      return
+    }
     const load = async () => {
       try {
         const [summaryRes, revenueRes] = await Promise.all([
@@ -95,12 +109,16 @@ export default function OverviewPage() {
       }
     }
     load()
-  }, [])
+  }, [role])
 
   const pctPill = (pct?: number) => ({
     text: pct !== undefined ? `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%` : undefined,
     variant: (pct ?? 0) >= 0 ? ('success' as const) : ('emergency' as const),
   })
+
+  if (role && role !== 'admin' && role !== 'super_admin') {
+    return <ProviderOverview />
+  }
 
   return (
     <div className="max-w-[1200px]">

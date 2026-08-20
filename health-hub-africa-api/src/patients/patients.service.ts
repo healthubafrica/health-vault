@@ -178,6 +178,7 @@ export class PatientsService {
         marketingConsent: dto.marketingConsent ?? false,
         preferredTimezone: dto.preferredTimezone ?? 'Africa/Lagos',
         profilePhotoUrl: dto.profilePhotoUrl,
+        referralCode: dto.referralCode?.trim() || null,
       },
       select: this.safeSelect(),
     });

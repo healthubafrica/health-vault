@@ -10,6 +10,7 @@ import { SkeletonBox } from '@/components/ui/Skeleton'
 import { auth } from '@/lib/api'
 import { useAuthStore } from '@/lib/stores/authStore'
 import { Avatar } from '@/components/ui/Avatar'
+import { PhotoCropModal } from '@/components/profile/PhotoCropModal'
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024
 const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp']
@@ -18,8 +19,10 @@ export function AccountSecurityTab() {
   const user = useAuthStore((s) => s.user)
   const fetchMe = useAuthStore((s) => s.fetchMe)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [cropFile, setCropFile] = useState<File | null>(null)
+  const [cropSrc, setCropSrc] = useState<string | null>(null)
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
@@ -31,13 +34,26 @@ export function AccountSecurityTab() {
       toast.error('Photo must be 5MB or smaller')
       return
     }
+    setCropFile(file)
+    setCropSrc(URL.createObjectURL(file))
+  }
+
+  const handleCropCancel = () => {
+    if (cropSrc) URL.revokeObjectURL(cropSrc)
+    setCropSrc(null)
+    setCropFile(null)
+  }
+
+  const handleCropConfirm = async (blob: Blob) => {
+    if (cropSrc) URL.revokeObjectURL(cropSrc)
+    setCropSrc(null)
     setUploadingPhoto(true)
     try {
-      const { uploadUrl, publicUrl } = await auth.requestProfilePhotoUploadUrl(file.type, file.size)
+      const { uploadUrl, publicUrl } = await auth.requestProfilePhotoUploadUrl(blob.type, blob.size)
       const put = await fetch(uploadUrl, {
         method: 'PUT',
-        headers: { 'Content-Type': file.type },
-        body: file,
+        headers: { 'Content-Type': blob.type },
+        body: blob,
       })
       if (!put.ok) throw new Error('Upload to storage failed')
       await auth.setProfilePhoto(publicUrl)
@@ -47,6 +63,7 @@ export function AccountSecurityTab() {
       toast.error(err instanceof Error ? err.message : 'Failed to update photo')
     } finally {
       setUploadingPhoto(false)
+      setCropFile(null)
     }
   }
 
@@ -123,7 +140,7 @@ export function AccountSecurityTab() {
                 accept="image/jpeg,image/png,image/webp"
                 className="hidden"
                 disabled={uploadingPhoto}
-                onChange={handlePhotoUpload}
+                onChange={handleFileSelected}
               />
             </label>
             <p className="text-[11px] mt-1.5" style={{ color: 'var(--color-text-faint)' }}>
@@ -207,6 +224,16 @@ export function AccountSecurityTab() {
           )}
         </div>
       </Card>
+
+      {cropSrc && (
+        <PhotoCropModal
+          imageSrc={cropSrc}
+          outputType={cropFile?.type ?? 'image/jpeg'}
+          saving={uploadingPhoto}
+          onCancel={handleCropCancel}
+          onConfirm={handleCropConfirm}
+        />
+      )}
     </div>
   )
 }
