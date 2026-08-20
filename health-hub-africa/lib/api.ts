@@ -769,6 +769,7 @@ export interface GatewayStatus {
   gateway: string
   name: string
   active: boolean
+  comingSoon?: boolean
   bankName?: string
   accountNumber?: string
   accountName?: string
@@ -867,7 +868,7 @@ export const subscriptions = {
   // Patient-facing paid upgrade. Returns a gateway authorization URL the
   // caller should redirect the browser to. Subscription is activated by the
   // payment webhook once the gateway confirms the charge.
-  upgrade: (planId: string, billingCycle: string, gateway?: 'Paystack') =>
+  upgrade: (planId: string, billingCycle: string, gateway?: 'Flutterwave') =>
     request<UpgradeResponse>('/subscriptions/upgrade', {
       method: 'POST',
       body: JSON.stringify({ planId, billingCycle, ...(gateway && { gateway }) }),

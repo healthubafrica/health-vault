@@ -54,12 +54,13 @@ export class PaymentsService {
     });
     if (!patient) throw new NotFoundException('Patient profile not found');
 
-    // Flutterwave is currently disabled (no working integration) — the enum
-    // value stays in the schema for historical rows, but a new charge request
+    // Paystack is temporarily disabled for new charges pending a compliance
+    // review — the enum value and all existing verify/refund paths stay
+    // intact for historical Paystack payments, but a new charge request
     // against it must fail loudly here rather than silently create a payment
     // that can never be completed.
-    if (dto.gateway === PaymentGateway.Flutterwave) {
-      throw new BadRequestException('Flutterwave is not currently available. Please use Paystack or bank transfer.');
+    if (dto.gateway === PaymentGateway.Paystack) {
+      throw new BadRequestException('Paystack is coming soon. Please use Flutterwave or bank transfer.');
     }
 
     const idempotencyKey = randomUUID();
@@ -84,8 +85,8 @@ export class PaymentsService {
     });
 
     // Initiate charge with the selected gateway
-    if (dto.gateway === PaymentGateway.Paystack) {
-      return this.initiatePaystack(payment.id, patient.user.email, amountKobo, dto.currency, idempotencyKey, description);
+    if (dto.gateway === PaymentGateway.Flutterwave) {
+      return this.initiateFlutterwave(payment.id, patient.user.email, amountKobo, dto.currency, idempotencyKey, description);
     }
 
     return {
@@ -147,6 +148,61 @@ export class PaymentsService {
     };
   }
 
+  private async initiateFlutterwave(
+    paymentId: string,
+    email: string,
+    amountKobo: number,
+    currency: string,
+    txRef: string,
+    description: string,
+  ) {
+    const secret = this.config.getOrThrow<string>('FLUTTERWAVE_SECRET_KEY');
+    // Flutterwave amounts are in the currency's major unit (naira), not kobo.
+    const amount = (amountKobo / 100).toFixed(2);
+    const res = await fetch('https://api.flutterwave.com/v3/payments', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        tx_ref: txRef,
+        amount,
+        currency,
+        redirect_url: `${this.config.get('FRONTEND_URL')}/payments/verify`,
+        customer: { email },
+        customizations: { title: 'Health Hub Africa' },
+        meta: { paymentId, description },
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      this.logger.error(`Flutterwave init failed: ${err}`);
+      throw new BadRequestException('Payment gateway error. Please try again.');
+    }
+
+    const data = (await res.json()) as { status: string; data?: { link: string } };
+    if (data.status !== 'success' || !data.data?.link) {
+      this.logger.error(`Flutterwave init returned non-success: ${JSON.stringify(data)}`);
+      throw new BadRequestException('Payment gateway error. Please try again.');
+    }
+
+    await this.prisma.payment.update({
+      where: { id: paymentId },
+      data: { gatewayRef: txRef },
+    });
+
+    return {
+      paymentId,
+      gateway: PaymentGateway.Flutterwave,
+      authorizationUrl: data.data.link,
+      reference: txRef,
+      amountKobo,
+      currency,
+    };
+  }
+
   // ── Paystack Webhook ───────────────────────────────────────────────────────
 
   async handlePaystackWebhook(rawBody: Buffer, signature: string) {
@@ -166,6 +222,52 @@ export class PaymentsService {
 
     await this.processWebhookEvent(event, PaymentGateway.Paystack);
 
+    return { received: true };
+  }
+
+  // ── Flutterwave Webhook ─────────────────────────────────────────────────────
+
+  async handleFlutterwaveWebhook(rawBody: Buffer, signature: string) {
+    const secretHash = this.config.getOrThrow<string>('FLUTTERWAVE_SECRET_HASH');
+    this.verifyFlutterwaveSignature(signature, secretHash);
+
+    let event: Record<string, unknown>;
+    try {
+      event = JSON.parse(rawBody.toString()) as Record<string, unknown>;
+    } catch (err) {
+      this.logger.error(`Failed to parse Flutterwave webhook body: ${err instanceof Error ? err.message : err}`);
+      return { received: true };
+    }
+
+    const eventType = (event.event ?? '') as string;
+    const data = event.data as Record<string, unknown> | undefined;
+    const status = data?.status as string | undefined;
+
+    // Flutterwave fires "charge.completed" for BOTH successful and failed
+    // charges (unlike Paystack's separate charge.success/charge.failed), so
+    // the actual outcome is read from data.status — normalize into the same
+    // canonical shape processWebhookEvent expects before dispatching.
+    if (eventType === 'charge.completed') {
+      const normalized = {
+        event: status === 'successful' ? 'charge.success' : 'charge.failed',
+        data: { ...data, reference: data?.tx_ref },
+      };
+      await this.processWebhookEvent(normalized, PaymentGateway.Flutterwave);
+      return { received: true };
+    }
+
+    if (eventType === 'refund.completed' && status === 'completed') {
+      const refundedAmountKobo =
+        typeof data?.amount_refunded === 'number' ? Math.round((data.amount_refunded as number) * 100) : undefined;
+      const normalized = {
+        event: 'refund.processed',
+        data: { ...data, transaction_reference: data?.tx_ref, amount: refundedAmountKobo },
+      };
+      await this.processWebhookEvent(normalized, PaymentGateway.Flutterwave);
+      return { received: true };
+    }
+
+    this.logger.warn(`Unhandled Flutterwave webhook event "${eventType}" (status: ${status}) — no-op.`);
     return { received: true };
   }
 
@@ -248,6 +350,37 @@ export class PaymentsService {
       }
     }
 
+    // For Flutterwave payments: re-verify with the PSP so we don't depend
+    // solely on the webhook arriving before the user navigates back.
+    if (payment.gateway === PaymentGateway.Flutterwave) {
+      const secret = this.config.getOrThrow<string>('FLUTTERWAVE_SECRET_KEY');
+      let res: Response;
+      try {
+        res = await fetch(
+          `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(reference)}`,
+          { headers: { Authorization: `Bearer ${secret}` } },
+        );
+      } catch (err) {
+        this.logger.error(`Flutterwave verify call failed for ref ${reference}: ${err instanceof Error ? err.message : err}`);
+        return { status: payment.status, paymentId: payment.id, gateway: payment.gateway };
+      }
+
+      if (res.ok) {
+        const body = (await res.json()) as { data: { status: string; tx_ref: string; id: number; amount_refunded?: number } };
+        if (body.data?.status === 'successful') {
+          const syntheticEvent = {
+            event: 'charge.success',
+            data: { reference: body.data.tx_ref, status: body.data.status, id: body.data.id },
+          };
+          await this.processWebhookEvent(syntheticEvent, PaymentGateway.Flutterwave);
+          return { status: 'paid', paymentId: payment.id, gateway: payment.gateway };
+        }
+      } else {
+        const errBody = await res.text().catch(() => '');
+        this.logger.error(`Flutterwave verify returned ${res.status} for ref ${reference}: ${errBody}`);
+      }
+    }
+
     return { status: payment.status, paymentId: payment.id, gateway: payment.gateway };
   }
 
@@ -256,9 +389,15 @@ export class PaymentsService {
   getGatewayStatus() {
     return [
       {
+        gateway: 'flutterwave',
+        name: 'Flutterwave',
+        active: !!this.config.get<string>('FLUTTERWAVE_SECRET_KEY'),
+      },
+      {
         gateway: 'paystack',
         name: 'Paystack',
-        active: !!this.config.get<string>('PAYSTACK_SECRET_KEY'),
+        active: false,
+        comingSoon: true,
       },
       {
         gateway: 'bank_transfer',
@@ -334,6 +473,11 @@ export class PaymentsService {
     // client-side fallback) can safely re-attempt from scratch — the
     // idempotency check above only blocks retries for payments already paid.
     const paidAt = new Date();
+    // Flutterwave refunds/lookups by API need the numeric transaction id
+    // (distinct from our own tx_ref/gatewayRef) — persist it once here so
+    // refundPayment() can find it later without another PSP round-trip.
+    const flwTransactionId =
+      gateway === PaymentGateway.Flutterwave && typeof eventData?.id === 'number' ? (eventData.id as number) : undefined;
     let activation: { firstSubscription: boolean; planId: string } | null = null;
     await this.prisma.$transaction(async (tx) => {
       await tx.payment.update({
@@ -342,7 +486,11 @@ export class PaymentsService {
           status: PaymentStatus.paid,
           paidAt,
           gatewayResponse: event as Prisma.InputJsonValue,
-          metadata: this.mergeMetadata(payment.metadata, 'charge.success'),
+          metadata: this.mergeMetadata(
+            payment.metadata,
+            'charge.success',
+            flwTransactionId !== undefined ? { flwTransactionId } : undefined,
+          ),
         },
       });
 
@@ -716,6 +864,51 @@ export class PaymentsService {
       return { refunded: true, amountKobo, status: isFullRefund ? 'refunded' : 'paid' };
     }
 
+    if (payment.gateway === PaymentGateway.Flutterwave) {
+      const meta = payment.metadata as { flwTransactionId?: number } | null;
+      const flwTransactionId = meta?.flwTransactionId;
+      if (!flwTransactionId) {
+        throw new BadRequestException(
+          'This Flutterwave payment has no recorded transaction id — process the refund from the Flutterwave dashboard instead.',
+        );
+      }
+
+      const secret = this.config.getOrThrow<string>('FLUTTERWAVE_SECRET_KEY');
+      const res = await fetch(`https://api.flutterwave.com/v3/transactions/${flwTransactionId}/refund`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${secret}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ amount: amountKobo / 100 }),
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        this.logger.error(`Flutterwave refund request failed for payment ${payment.id}: ${err}`);
+        throw new BadRequestException('Refund request failed. Please try again.');
+      }
+
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          metadata: this.mergeMetadata(payment.metadata, 'refund_requested', {
+            refundRequestedAt: new Date().toISOString(),
+            refundReason: dto.reason,
+          }),
+        },
+      });
+
+      this.logger.log(`Flutterwave refund requested for payment ${payment.id}: ${amountKobo} kobo`);
+
+      return {
+        refunded: false,
+        requested: true,
+        amountKobo,
+        message: 'Refund requested — will be confirmed once Flutterwave processes it.',
+      };
+    }
+
     // Paystack: initiate the refund via their API. Confirmation is
     // asynchronous — the refund.processed webhook is what actually marks the
     // payment refunded, so this only records that a request was made.
@@ -791,6 +984,20 @@ export class PaymentsService {
 
     if (sig.length !== computed.length || !timingSafeEqual(sig, computed)) {
       throw new UnauthorizedException('Invalid Paystack webhook signature');
+    }
+  }
+
+  // Flutterwave webhooks carry the configured "Secret Hash" verbatim in the
+  // verif-hash header (a shared secret comparison, not an HMAC of the body).
+  private verifyFlutterwaveSignature(signature: string, secretHash: string) {
+    if (!signature) {
+      throw new UnauthorizedException('Missing Flutterwave webhook signature');
+    }
+    const sig = Buffer.from(signature);
+    const expected = Buffer.from(secretHash);
+
+    if (sig.length !== expected.length || !timingSafeEqual(sig, expected)) {
+      throw new UnauthorizedException('Invalid Flutterwave webhook signature');
     }
   }
 }

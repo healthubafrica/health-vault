@@ -159,7 +159,7 @@ export class SubscriptionsService {
       );
     }
 
-    const gateway = dto.gateway ?? PaymentGateway.Paystack;
+    const gateway = dto.gateway ?? PaymentGateway.Flutterwave;
 
     const gatewayResponse = await this.paymentsService.initiate(
       {
