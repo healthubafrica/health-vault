@@ -26,7 +26,12 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "permissions": ["CAMERA", "RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS", "BLUETOOTH"]
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "BLUETOOTH"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -51,7 +56,8 @@
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera for TeleCare video calls",
           "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone for TeleCare video calls"
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
