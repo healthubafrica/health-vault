@@ -101,6 +101,14 @@ class EnvironmentVariables {
   @IsString()
   FLUTTERWAVE_SECRET_HASH?: string;
 
+  // 32-byte key (base64 or hex) used to encrypt saved-card gateway tokens
+  // at rest in payment_methods.gateway_token. Distinct from
+  // FLUTTERWAVE_ENCRYPTION_KEY above — that one is Flutterwave's own wire
+  // protocol key, this one protects our database column.
+  @IsOptional()
+  @IsString()
+  CARD_TOKEN_ENCRYPTION_KEY?: string;
+
   @IsString()
   @IsNotEmpty()
   OPENEMR_BASE_URL: string;

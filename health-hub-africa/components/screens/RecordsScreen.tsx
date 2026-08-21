@@ -6,9 +6,9 @@ import { FilterTabs } from '@/components/ui/FilterTabs'
 import { Pill } from '@/components/ui/Pill'
 import { type RecordType } from '@/lib/data/records'
 import { formatDate, formatBytes } from '@/lib/utils'
-import { FileText, FlaskConical, Pill as PillIcon, File, Download, Link2, Upload, Stethoscope, ClipboardCheck } from 'lucide-react'
+import { FileText, FlaskConical, Pill as PillIcon, File, Download, Link2, Upload, Stethoscope, ClipboardCheck, ScanLine, UserCheck } from 'lucide-react'
 import Link from 'next/link'
-import { records as recordsApi, type ClinicalRecord } from '@/lib/api'
+import { records as recordsApi, labs as labsApi, type ClinicalRecord } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
@@ -16,13 +16,15 @@ import { EmptyState } from '@/components/ui/states'
 import { buildProviderDisplayName } from '@/lib/providerName'
 import { toast } from 'sonner'
 
-const TABS = ['All', 'Visits', 'Summaries', 'Labs', 'Referrals', 'Prescriptions', 'Documents']
+const TABS = ['All', 'Visits', 'Summaries', 'Labs', 'Imaging', 'Referrals', 'Expert Reviews', 'Prescriptions', 'Documents']
 
 const TYPE_MAP: Record<string, RecordType | undefined> = {
   Visits: 'visit',
   Summaries: 'visit_summary',
   Labs: 'lab',
+  Imaging: 'imaging',
   Referrals: 'referral',
+  'Expert Reviews': 'expert_review',
   Prescriptions: 'prescription',
   Documents: 'document',
 }
@@ -34,6 +36,8 @@ const ICON_MAP: Record<RecordType, React.ElementType> = {
   visit_summary: ClipboardCheck,
   prescription: PillIcon,
   document: File,
+  imaging: ScanLine,
+  expert_review: UserCheck,
 }
 
 const PILL_MAP: Record<RecordType, 'success' | 'info' | 'neutral' | 'warning'> = {
@@ -43,6 +47,13 @@ const PILL_MAP: Record<RecordType, 'success' | 'info' | 'neutral' | 'warning'> =
   visit_summary: 'success',
   prescription: 'warning',
   document: 'neutral',
+  imaging: 'info',
+  expert_review: 'success',
+}
+
+const LAB_STATUS_PILL: Record<'normal' | 'flagged', 'success' | 'warning'> = {
+  normal: 'success',
+  flagged: 'warning',
 }
 
 async function handleDownload(record: ClinicalRecord) {
@@ -68,6 +79,22 @@ export function RecordsScreen() {
   // Structured prescription details (dosage, frequency, refills, expiry) —
   // the clinical-record rows only carry the drug name as a title.
   const { data: rxList } = useApi(() => recordsApi.prescriptions())
+  // Lab results never land in ClinicalRecord — OpenEMR-native orders are
+  // routed to the dedicated LabOrder table instead (see
+  // openemr.processor.ts). Pull them separately so the Labs tab shows real
+  // data rather than filtering a recordType that's never written.
+  const { data: labsRes } = useApi(() => labsApi.listOrders())
+  const labResults = (labsRes?.data ?? []).flatMap(order =>
+    order.results.map(r => ({
+      id: `${order.id}-${r.id}`,
+      test: r.testName,
+      status: r.isFlagged ? 'flagged' as const : 'normal' as const,
+      value: [r.valueDisplay, r.unit].filter(Boolean).join(' '),
+      referenceRange: r.referenceRange,
+      doctor: order.provider ? buildProviderDisplayName(order.provider) : 'Provider TBD',
+      date: order.orderedAt,
+    }))
+  )
 
   if (isInitialLoad) return <ListSkeleton ariaLabel="Loading records" showAction />
   if (error && !recordsRes) return <ErrorState message={error} onRetry={refetch} />
@@ -182,9 +209,43 @@ export function RecordsScreen() {
         </Card>
       )}
 
-      {/* The structured list above supersedes the bare clinical-record rows
-          for prescriptions — showing both would duplicate every drug. */}
-      {!(tab === 'Prescriptions' && (rxList?.length ?? 0) > 0) && (
+      {tab === 'Labs' && labResults.length > 0 && (
+        <Card padding="none">
+          <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
+            {labResults.map(lab => (
+              <div key={lab.id} className="flex items-start gap-3 p-4">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
+                  style={{ background: 'var(--color-bg)' }}
+                >
+                  <FlaskConical size={15} style={{ color: 'var(--color-text-muted)' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{lab.test}</p>
+                    <Pill variant={LAB_STATUS_PILL[lab.status]}>{lab.status}</Pill>
+                  </div>
+                  {lab.value && (
+                    <p className="text-xs mt-0.5 font-medium" style={{ color: 'var(--color-text)' }}>{lab.value}</p>
+                  )}
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                    {lab.doctor} · {formatDate(lab.date)}
+                  </p>
+                  {lab.referenceRange && (
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-faint)' }}>Ref: {lab.referenceRange}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* The structured lists above supersede the bare clinical-record rows
+          for prescriptions and labs — neither type is ever written to
+          ClinicalRecord, so the generic list below would just show empty. */}
+      {!(tab === 'Prescriptions' && (rxList?.length ?? 0) > 0) &&
+       !(tab === 'Labs' && labResults.length > 0) && (
       <Card padding="none">
         {filtered.length === 0 ? (
           <div className="py-8">

@@ -47,6 +47,12 @@ export class PatientsController {
     return { data: await this.patientsService.findMyProfile(user) };
   }
 
+  @Get('me/care-team')
+  @ApiOperation({ summary: "List providers the authenticated patient has actually seen, most recent first" })
+  async getMyCareTeam(@CurrentUser() user: JwtPayload) {
+    return { data: await this.patientsService.findMyCareTeam(user) };
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a patient by ID' })
   findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
