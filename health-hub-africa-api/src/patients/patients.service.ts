@@ -251,6 +251,58 @@ export class PatientsService {
     return { ...patient, profilePhotoUrl: await this.signProfilePhotoUrl(patient.profilePhotoUrl) };
   }
 
+  // There is no dedicated care-team assignment flow yet (the
+  // PatientProviderAssignment table exists in the schema but nothing
+  // writes to it) — derive the team from providers this patient has
+  // actually had an appointment with, most recently seen first.
+  async findMyCareTeam(currentUser: JwtPayload) {
+    const patient = await this.prisma.patient.findUnique({
+      where: { userId: currentUser.sub },
+      select: { id: true },
+    });
+    if (!patient) throw new NotFoundException('Patient profile not found');
+
+    const appointments = await this.prisma.appointment.findMany({
+      where: { patientId: patient.id, providerId: { not: null } },
+      select: {
+        providerId: true,
+        scheduledAt: true,
+        status: true,
+        provider: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            title: true,
+            specialty: true,
+            profilePhotoUrl: true,
+            rating: true,
+            isAvailable: true,
+            yearsExperience: true,
+          },
+        },
+      },
+      orderBy: { scheduledAt: 'desc' },
+    });
+
+    const team = new Map<string, { provider: NonNullable<(typeof appointments)[number]['provider']>; lastVisitAt: Date; visitCount: number }>();
+    for (const appt of appointments) {
+      if (!appt.provider || !appt.providerId) continue;
+      const existing = team.get(appt.providerId);
+      if (existing) {
+        existing.visitCount += 1;
+      } else {
+        team.set(appt.providerId, { provider: appt.provider, lastVisitAt: appt.scheduledAt, visitCount: 1 });
+      }
+    }
+
+    return Array.from(team.values()).map(({ provider, lastVisitAt, visitCount }) => ({
+      ...provider,
+      lastVisitAt,
+      visitCount,
+    }));
+  }
+
   // ── Update ────────────────────────────────────────────────────────────────
 
   async update(id: string, dto: UpdatePatientDto, currentUser: JwtPayload) {

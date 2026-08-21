@@ -340,6 +340,7 @@ model Patient {
   dispatchRequests      DispatchRequest[]
   subscriptions         PatientSubscription[]
   payments              Payment[]
+  paymentMethods        PaymentMethod[]
   alerts                PatientAlert[]
   consents              PatientConsent[]
   supportTickets        SupportTicket[]
@@ -1074,6 +1075,29 @@ model PaymentLineItem {
   payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
   @@map("payment_line_items")
+}
+
+// A saved card, tokenized by the gateway (Flutterwave) on a successful
+// charge — we never see or store the actual card number. `gatewayToken`
+// is AES-256-GCM encrypted at rest (see common/crypto.util.ts); brand/
+// last4/expiry are stored in the clear purely for display, matching what
+// every card-on-file UI shows.
+model PaymentMethod {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patientId     String         @map("patient_id") @db.Uuid
+  gateway       PaymentGateway
+  gatewayToken  String         @map("gateway_token")
+  cardBrand     String?        @map("card_brand")
+  last4         String?        @db.VarChar(4)
+  expiryMonth   String?        @map("expiry_month") @db.VarChar(2)
+  expiryYear    String?        @map("expiry_year") @db.VarChar(2)
+  isDefault     Boolean        @default(false) @map("is_default")
+  createdAt     DateTime       @default(now()) @map("created_at")
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@map("payment_methods")
 }
 
 model Invoice {
