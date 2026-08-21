@@ -24,7 +24,7 @@ import {
 import BotanicalBackground from '@/components/BotanicalBackground';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
-import { auth, patients, ApiError } from '@/lib/api';
+import { auth, patients, setAccessToken, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/authStore';
 
 
@@ -101,6 +101,11 @@ export default function SignUpScreen() {
         // Verify OTP — backend returns new tokens on success
         const tokens = await auth.verifyOtp(email.trim(), otpCode);
         const { accessToken, refreshToken } = tokens;
+
+        // Same reason as login.tsx: must be set before any authenticated
+        // request below, or getMyProfile/create both 401 with no token
+        // attached and this whole step fails as "session expired".
+        setAccessToken(accessToken);
 
         // Fetch or create patient profile
         let profile;
