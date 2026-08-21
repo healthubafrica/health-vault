@@ -19,7 +19,7 @@ import { Eye, EyeOff } from 'lucide-react-native';
 import BotanicalBackground from '@/components/BotanicalBackground';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
-import { auth, patients, ApiError } from '@/lib/api';
+import { auth, patients, setAccessToken, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/authStore';
 
 export default function LoginScreen() {
@@ -82,6 +82,13 @@ export default function LoginScreen() {
       }
 
       const { accessToken, refreshToken } = result;
+
+      // Must happen before any authenticated request below — apiRequest reads
+      // this in-memory token synchronously, and it isn't set until loginStore
+      // runs. Fetching the profile first sent every fresh login out with no
+      // Authorization header, which 401'd, found no refresh token saved yet
+      // either, and surfaced as a false "Your session has expired" error.
+      setAccessToken(accessToken);
 
       // Fetch full patient profile
       const { data: profile } = await patients.getMyProfile();
