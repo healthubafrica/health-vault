@@ -16,6 +16,8 @@ import { OpenemrService } from '../openemr/openemr.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
 import { RefundPaymentDto } from './dto/refund-payment.dto';
+import { ValidateChargeDto } from './dto/validate-charge.dto';
+import { encryptCardToken, decryptCardToken } from '../common/utils/card-token-crypto.util';
 
 @Injectable()
 export class PaymentsService {
@@ -63,12 +65,27 @@ export class PaymentsService {
       throw new BadRequestException('Paystack is coming soon. Please use Flutterwave or bank transfer.');
     }
 
+    // Charging a saved card skips the hosted-checkout flow entirely — a
+    // separate path since it needs the stored token and a different
+    // Flutterwave endpoint (tokenized-charges, not payments).
+    if (dto.paymentMethodId) {
+      if (dto.gateway !== PaymentGateway.Flutterwave) {
+        throw new BadRequestException('Saved-card charging is only supported for Flutterwave.');
+      }
+      return this.chargeWithSavedMethod(dto, patient.id, patient.user.email);
+    }
+
     const idempotencyKey = randomUUID();
     const amountKobo = dto.amountKobo;
     const description =
       dto.description?.trim() ||
       options?.description ||
       `${dto.purpose} — ${dto.currency} ${(amountKobo / 100).toFixed(2)}`;
+
+    const metadata: Prisma.InputJsonValue = {
+      ...(options?.metadata as Record<string, unknown> | undefined),
+      ...(dto.savePaymentMethod && { savePaymentMethod: true }),
+    };
 
     const payment = await this.prisma.payment.create({
       data: {
@@ -80,7 +97,7 @@ export class PaymentsService {
         idempotencyKey,
         description,
         status: PaymentStatus.pending,
-        ...(options?.metadata !== undefined && { metadata: options.metadata }),
+        ...(Object.keys(metadata).length > 0 && { metadata }),
       },
     });
 
@@ -201,6 +218,242 @@ export class PaymentsService {
       amountKobo,
       currency,
     };
+  }
+
+  // ── Saved Payment Methods (Flutterwave) ──────────────────────────────────
+  //
+  // No raw card details ever pass through our servers. A card is tokenized
+  // by Flutterwave the first time it's charged through the normal hosted
+  // checkout (initiate → redirect → webhook), when the patient opts in via
+  // savePaymentMethod: true — the webhook then captures the reusable token
+  // Flutterwave returns for that transaction. From then on, charging that
+  // saved method calls Flutterwave's tokenized-charges endpoint directly,
+  // skipping the checkout redirect entirely.
+
+  async listPaymentMethods(currentUser: JwtPayload) {
+    const patient = await this.prisma.patient.findUnique({
+      where: { userId: currentUser.sub },
+      select: { id: true },
+    });
+    if (!patient) throw new NotFoundException('Patient profile not found');
+
+    const methods = await this.prisma.paymentMethod.findMany({
+      where: { patientId: patient.id },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    // Never return the token itself — display fields only.
+    return methods.map(({ gatewayToken: _gatewayToken, ...rest }) => rest);
+  }
+
+  async deletePaymentMethod(id: string, currentUser: JwtPayload) {
+    const patient = await this.prisma.patient.findUnique({
+      where: { userId: currentUser.sub },
+      select: { id: true },
+    });
+    if (!patient) throw new NotFoundException('Patient profile not found');
+
+    const method = await this.prisma.paymentMethod.findUnique({ where: { id } });
+    if (!method || method.patientId !== patient.id) {
+      throw new NotFoundException('Payment method not found');
+    }
+
+    await this.prisma.paymentMethod.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  async setDefaultPaymentMethod(id: string, currentUser: JwtPayload) {
+    const patient = await this.prisma.patient.findUnique({
+      where: { userId: currentUser.sub },
+      select: { id: true },
+    });
+    if (!patient) throw new NotFoundException('Patient profile not found');
+
+    const method = await this.prisma.paymentMethod.findUnique({ where: { id } });
+    if (!method || method.patientId !== patient.id) {
+      throw new NotFoundException('Payment method not found');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.paymentMethod.updateMany({
+        where: { patientId: patient.id, isDefault: true },
+        data: { isDefault: false },
+      }),
+      this.prisma.paymentMethod.update({ where: { id }, data: { isDefault: true } }),
+    ]);
+
+    return { ok: true };
+  }
+
+  private async chargeWithSavedMethod(dto: InitiatePaymentDto, patientId: string, email: string) {
+    const method = await this.prisma.paymentMethod.findUnique({ where: { id: dto.paymentMethodId } });
+    if (!method || method.patientId !== patientId) {
+      throw new NotFoundException('Payment method not found');
+    }
+
+    const encryptionKey = this.config.getOrThrow<string>('CARD_TOKEN_ENCRYPTION_KEY');
+    const token = decryptCardToken(method.gatewayToken, encryptionKey);
+
+    const idempotencyKey = randomUUID();
+    const amountKobo = dto.amountKobo;
+    const description =
+      dto.description?.trim() || `${dto.purpose} — ${dto.currency} ${(amountKobo / 100).toFixed(2)}`;
+
+    const payment = await this.prisma.payment.create({
+      data: {
+        hhaRef: await this.generatePaymentRef(),
+        patientId,
+        gateway: PaymentGateway.Flutterwave,
+        amountKobo,
+        currency: dto.currency,
+        idempotencyKey,
+        gatewayRef: idempotencyKey,
+        description,
+        status: PaymentStatus.pending,
+      },
+    });
+
+    const secret = this.config.getOrThrow<string>('FLUTTERWAVE_SECRET_KEY');
+    const amount = (amountKobo / 100).toFixed(2);
+    let res: Response;
+    try {
+      res = await fetch('https://api.flutterwave.com/v3/tokenized-charges', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          currency: dto.currency,
+          amount,
+          email,
+          tx_ref: idempotencyKey,
+          narration: description,
+        }),
+      });
+    } catch (err) {
+      this.logger.error(`Flutterwave tokenized charge request failed: ${err instanceof Error ? err.message : err}`);
+      throw new BadRequestException('Could not reach the payment gateway. Please try again.');
+    }
+
+    const body = (await res.json().catch(() => ({}))) as {
+      status?: string;
+      data?: { status?: string; flw_ref?: string; id?: number };
+    };
+
+    if (!res.ok || body.status !== 'success' || !body.data) {
+      this.logger.error(`Flutterwave tokenized charge failed for payment ${payment.id}: ${JSON.stringify(body)}`);
+      await this.prisma.payment.update({ where: { id: payment.id }, data: { status: PaymentStatus.failed } });
+      throw new BadRequestException('The saved card was declined. Please try a different payment method.');
+    }
+
+    // Some cards require an OTP/3DS step even on a tokenized (repeat) charge
+    // — the caller must collect it and call validateCharge to finish.
+    if (body.data.status === 'pending') {
+      return {
+        paymentId: payment.id,
+        gateway: PaymentGateway.Flutterwave,
+        requiresOtp: true,
+        flwRef: body.data.flw_ref,
+        amountKobo,
+        currency: dto.currency,
+      };
+    }
+
+    if (body.data.status === 'successful') {
+      const syntheticEvent = {
+        event: 'charge.success',
+        data: { reference: idempotencyKey, status: body.data.status, id: body.data.id },
+      };
+      await this.processWebhookEvent(syntheticEvent, PaymentGateway.Flutterwave);
+      return { paymentId: payment.id, gateway: PaymentGateway.Flutterwave, status: 'paid', amountKobo, currency: dto.currency };
+    }
+
+    this.logger.error(`Flutterwave tokenized charge returned unexpected status for payment ${payment.id}: ${JSON.stringify(body)}`);
+    await this.prisma.payment.update({ where: { id: payment.id }, data: { status: PaymentStatus.failed } });
+    throw new BadRequestException('The saved card was declined. Please try a different payment method.');
+  }
+
+  async validateCharge(dto: ValidateChargeDto, currentUser: JwtPayload) {
+    const payment = await this.findPayment(dto.paymentId, currentUser); // reuses ownership check
+    if (payment.status === PaymentStatus.paid) {
+      return { status: 'paid', paymentId: payment.id };
+    }
+
+    const secret = this.config.getOrThrow<string>('FLUTTERWAVE_SECRET_KEY');
+    const res = await fetch('https://api.flutterwave.com/v3/validate-charge', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ otp: dto.otp, flw_ref: dto.flwRef, type: 'card' }),
+    });
+
+    const body = (await res.json().catch(() => ({}))) as {
+      status?: string;
+      data?: { status?: string; tx_ref?: string; id?: number };
+    };
+
+    if (!res.ok || body.status !== 'success' || body.data?.status !== 'successful') {
+      this.logger.error(`Flutterwave validate-charge failed for payment ${payment.id}: ${JSON.stringify(body)}`);
+      throw new BadRequestException('Incorrect or expired code. Please try again.');
+    }
+
+    const syntheticEvent = {
+      event: 'charge.success',
+      data: { reference: body.data.tx_ref ?? payment.idempotencyKey, status: body.data.status, id: body.data.id },
+    };
+    await this.processWebhookEvent(syntheticEvent, PaymentGateway.Flutterwave);
+    return { status: 'paid', paymentId: payment.id };
+  }
+
+  private async saveCardFromWebhook(
+    paymentId: string,
+    patientId: string,
+    eventData: Record<string, unknown> | undefined,
+  ): Promise<void> {
+    const card = eventData?.card as
+      | { token?: string; last_4digits?: string; type?: string; expiry?: string }
+      | undefined;
+    if (!card?.token) {
+      this.logger.warn(`Payment ${paymentId} requested savePaymentMethod but webhook carried no card token.`);
+      return;
+    }
+
+    // Flutterwave issues one token per card, stable across charges — reuse
+    // the existing row (refresh expiry/brand) instead of creating a
+    // duplicate every time the same card is used with "save" checked again.
+    const encryptionKey = this.config.getOrThrow<string>('CARD_TOKEN_ENCRYPTION_KEY');
+    const encryptedToken = encryptCardToken(card.token, encryptionKey);
+    const [expiryMonth, expiryYear] = (card.expiry ?? '').split('/');
+
+    const existing = await this.prisma.paymentMethod.findMany({ where: { patientId } });
+    const duplicate = existing.find((m) => {
+      try {
+        return decryptCardToken(m.gatewayToken, encryptionKey) === card.token;
+      } catch {
+        return false;
+      }
+    });
+
+    if (duplicate) {
+      await this.prisma.paymentMethod.update({
+        where: { id: duplicate.id },
+        data: { cardBrand: card.type, last4: card.last_4digits, expiryMonth, expiryYear },
+      });
+      return;
+    }
+
+    await this.prisma.paymentMethod.create({
+      data: {
+        patientId,
+        gateway: PaymentGateway.Flutterwave,
+        gatewayToken: encryptedToken,
+        cardBrand: card.type,
+        last4: card.last_4digits,
+        expiryMonth,
+        expiryYear,
+        isDefault: existing.length === 0,
+      },
+    });
+
+    this.logger.log(`Saved new card for patient ${patientId} from payment ${paymentId}`);
   }
 
   // ── Paystack Webhook ───────────────────────────────────────────────────────
@@ -499,6 +752,19 @@ export class PaymentsService {
     });
 
     this.logger.log(`Payment ${payment.id} → paid via ${gateway}`);
+
+    // Capture and save the card token, only if the patient opted in when
+    // initiating this payment. Only present on the real Flutterwave webhook
+    // (which carries the full `card` object) — not on the verifyPayment
+    // client-side fallback's synthetic event, so a save-card request that
+    // resolves only through that fallback won't save a card; the normal
+    // webhook path covers the common case.
+    const meta = payment.metadata as { savePaymentMethod?: boolean } | null;
+    if (meta?.savePaymentMethod && gateway === PaymentGateway.Flutterwave) {
+      await this.saveCardFromWebhook(payment.id, payment.patientId, eventData).catch((err) =>
+        this.logger.error(`Failed to save card for payment ${payment.id}: ${err instanceof Error ? err.message : err}`),
+      );
+    }
 
     // Best-effort, non-blocking — subscription/payment state just changed
     // (new subscription, upgrade, or renewal), keep OpenEMR's copy current.
