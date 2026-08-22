@@ -8,7 +8,6 @@ import {
   SafeAreaView,
   StatusBar,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -22,6 +21,7 @@ import {
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { paymentMethods, PaymentMethod, ApiError } from '@/lib/api';
+import { EmptyState, ListSkeleton } from '@/components/states';
 
 export default function PaymentMethodsScreen() {
   const router = useRouter();
@@ -82,24 +82,26 @@ export default function PaymentMethodsScreen() {
         </View>
 
         {/* Saved Cards */}
-        <View style={styles.sectionHeader}>
-          <CreditCard size={18} color={theme.primary} />
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Saved Cards</Text>
+        <View style={[styles.sectionHeader, { justifyContent: 'space-between' }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <CreditCard size={18} color={theme.primary} />
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Saved Cards</Text>
+          </View>
+          <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/make-payment')}>
+            <Text style={[styles.addCardLink, { color: theme.primary }]}>+ Make a Payment</Text>
+          </TouchableOpacity>
         </View>
 
         {isLoading ? (
-          <View style={{ paddingVertical: 30, alignItems: 'center' }}>
-            <ActivityIndicator color={theme.primary} />
-          </View>
+          <ListSkeleton rows={2} />
         ) : (cards ?? []).length === 0 ? (
-          <View style={[styles.emptyBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <CreditCard size={28} color={theme.textMuted} />
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>No saved cards yet</Text>
-            <Text style={[styles.emptyBody, { color: theme.textMuted }]}>
-              A card is saved automatically the next time you pay for a consultation, test, or subscription
-              and choose &quot;Save this card&quot; at checkout.
-            </Text>
-          </View>
+          <EmptyState
+            icon={CreditCard}
+            title="No saved cards yet"
+            description="A card is saved automatically the next time you pay and choose &quot;Save this card&quot; at checkout."
+            primaryActionLabel="Make a Payment"
+            onPrimaryAction={() => router.push('/make-payment')}
+          />
         ) : (
           (cards ?? []).map((card) => (
             <View
@@ -218,21 +220,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
   },
-  emptyBox: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 24,
-    alignItems: 'center',
-    gap: 8,
-  },
-  emptyTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  emptyBody: {
+  addCardLink: {
     fontSize: 12,
-    lineHeight: 18,
-    textAlign: 'center',
+    fontWeight: '700',
   },
   cardContainer: {
     borderRadius: 20,

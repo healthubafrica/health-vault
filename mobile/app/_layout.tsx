@@ -256,7 +256,37 @@ function RootLayoutNav() {
           }}
         />
         <Stack.Screen
+          name="make-payment"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
           name="invoices"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="subscription"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="notification-preferences"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="consents"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="travelsafe"
           options={{
             headerShown: false,
           }}

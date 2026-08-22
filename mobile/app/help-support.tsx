@@ -29,6 +29,7 @@ import { useMutation } from '@tanstack/react-query';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { support, ApiError } from '@/lib/api';
+import { NoSearchResultState } from '@/components/states';
 
 const FAQS = [
   {
@@ -163,32 +164,36 @@ export default function HelpSupportScreen() {
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Frequently Asked Questions</Text>
         </View>
 
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          {filteredFaqs.map((faq, idx) => {
-            const isExpanded = expandedFaq === idx;
-            return (
-              <React.Fragment key={idx}>
-                {idx > 0 && <View style={[styles.divider, { backgroundColor: theme.border }]} />}
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={() => setExpandedFaq(isExpanded ? null : idx)}
-                  style={styles.faqRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.faqQuestion, { color: theme.text }]}>{faq.q}</Text>
-                    {isExpanded && (
-                      <Text style={[styles.faqAnswer, { color: theme.textMuted }]}>{faq.a}</Text>
+        {filteredFaqs.length === 0 && searchQuery.trim().length > 0 ? (
+          <NoSearchResultState searchTerm={searchQuery} onClearSearch={() => setSearchQuery('')} />
+        ) : (
+          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            {filteredFaqs.map((faq, idx) => {
+              const isExpanded = expandedFaq === idx;
+              return (
+                <React.Fragment key={idx}>
+                  {idx > 0 && <View style={[styles.divider, { backgroundColor: theme.border }]} />}
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => setExpandedFaq(isExpanded ? null : idx)}
+                    style={styles.faqRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.faqQuestion, { color: theme.text }]}>{faq.q}</Text>
+                      {isExpanded && (
+                        <Text style={[styles.faqAnswer, { color: theme.textMuted }]}>{faq.a}</Text>
+                      )}
+                    </View>
+                    {isExpanded ? (
+                      <ChevronUp size={18} color={theme.primary} />
+                    ) : (
+                      <ChevronDown size={18} color={theme.textMuted} />
                     )}
-                  </View>
-                  {isExpanded ? (
-                    <ChevronUp size={18} color={theme.primary} />
-                  ) : (
-                    <ChevronDown size={18} color={theme.textMuted} />
-                  )}
-                </TouchableOpacity>
-              </React.Fragment>
-            );
-          })}
-        </View>
+                  </TouchableOpacity>
+                </React.Fragment>
+              );
+            })}
+          </View>
+        )}
 
         {/* Submit Ticket Form */}
         <View style={styles.sectionHeader}>

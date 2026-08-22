@@ -22,11 +22,13 @@ import {
   Building2,
   Search,
   Filter,
+  Plus,
 } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { payments, Payment } from '@/lib/api';
+import { EmptyState, ListSkeleton } from '@/components/states';
 
 function formatNaira(kobo: number): string {
   return '₦' + (kobo / 100).toLocaleString('en-NG', { minimumFractionDigits: 2 });
@@ -87,7 +89,12 @@ export default function InvoicesScreen() {
           <ChevronLeft size={24} color={theme.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: theme.text }]}>Invoices & Receipts</Text>
-        <View style={{ width: 24 }} />
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => router.push('/make-payment')}
+          style={styles.backBtn}>
+          <Plus size={22} color={theme.primary} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -151,9 +158,15 @@ export default function InvoicesScreen() {
         {/* Invoices List */}
         <View style={styles.listContainer}>
           {isLoading ? (
-            <ActivityIndicator color={theme.primary} style={{ marginTop: 40 }} />
+            <ListSkeleton rows={3} />
           ) : filteredInvoices.length === 0 ? (
-            <Text style={[{ textAlign: 'center', marginTop: 40, color: theme.textMuted }]}>No payments found</Text>
+            <EmptyState
+              icon={Receipt}
+              title={activeFilter === 'all' ? 'No payments yet' : `No ${activeFilter} payments`}
+              description="Your payment history and receipts will appear here once you make a payment."
+              primaryActionLabel="Make a Payment"
+              onPrimaryAction={() => router.push('/make-payment')}
+            />
           ) : filteredInvoices.map((p) => {
             const isPaid = p.status === 'paid';
             return (
