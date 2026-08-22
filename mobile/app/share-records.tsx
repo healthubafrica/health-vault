@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,249 +7,275 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
-  Switch,
+  TextInput,
   Alert,
-  Share,
+  ActivityIndicator,
+  Switch,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft,
-  QrCode,
-  Key,
+  Mail,
+  X,
   ShieldCheck,
+  Trash2,
   Clock,
-  RefreshCw,
-  Share2,
-  Lock,
-  Eye,
-  CheckCircle2,
-  AlertTriangle,
 } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
+import { shares, RecordShare, ApiError } from '@/lib/api';
+import { EmptyState, SuccessState } from '@/components/states';
+
+// Must match CreateShareDto's @IsIn list on the backend exactly.
+const RECORD_TYPE_OPTIONS = [
+  { id: 'visit', label: 'Visits' },
+  { id: 'lab', label: 'Labs' },
+  { id: 'prescription', label: 'Prescriptions' },
+  { id: 'referral', label: 'Referrals' },
+  { id: 'imaging', label: 'Imaging' },
+  { id: 'document', label: 'Documents' },
+  { id: 'expert_review', label: 'Expert Reviews' },
+];
+
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
 
 export default function ShareRecordsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
+  const qc = useQueryClient();
 
-  // Expiration countdown in seconds (15 minutes = 900s)
-  const [timeLeft, setTimeLeft] = useState(840);
-  const [accessPin, setAccessPin] = useState('749 201');
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [emails, setEmails] = useState<string[]>([]);
+  const [emailInput, setEmailInput] = useState('');
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [detectForwarding, setDetectForwarding] = useState(true);
+  const [justCreated, setJustCreated] = useState<{ emails: number } | null>(null);
 
-  // Granular Access Permissions
-  const [shareVitals, setShareVitals] = useState(true);
-  const [shareLabs, setShareLabs] = useState(true);
-  const [shareMedications, setShareMedications] = useState(true);
-  const [shareNotes, setShareNotes] = useState(false);
+  const { data: activeShares, isLoading } = useQuery({
+    queryKey: ['shares'],
+    queryFn: () => shares.list(),
+  });
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const createMutation = useMutation({
+    mutationFn: () =>
+      shares.create({
+        accessMode: 'email_list',
+        allowedEmails: emails,
+        recordTypes: selectedTypes.length > 0 ? selectedTypes : undefined,
+        detectForwarding,
+        notifyRecipients: true,
+      }),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['shares'] });
+      setJustCreated({ emails: res.notified.emails });
+      setEmails([]);
+      setEmailInput('');
+      setSelectedTypes([]);
+    },
+    onError: (err: unknown) => {
+      Alert.alert('Could not create share', err instanceof ApiError ? err.message : 'Please try again.');
+    },
+  });
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+  const revokeMutation = useMutation({
+    mutationFn: (id: string) => shares.revoke(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['shares'] }),
+    onError: (err: unknown) => {
+      Alert.alert('Could not revoke share', err instanceof ApiError ? err.message : 'Please try again.');
+    },
+  });
 
-  const handleRegenerate = () => {
-    setIsRefreshing(true);
-    setTimeout(() => {
-      const newPin = `${Math.floor(100 + Math.random() * 900)} ${Math.floor(100 + Math.random() * 900)}`;
-      setAccessPin(newPin);
-      setTimeLeft(900);
-      setIsRefreshing(false);
-      Alert.alert('New Access Code', 'A new secure session PIN and QR token have been generated.');
-    }, 400);
-  };
-
-  const handleShareLink = async () => {
-    try {
-      await Share.share({
-        message: `Health Hub Africa Temporary Vault Access Code: ${accessPin} (Valid for ${formatTime(timeLeft)}). Verify at https://vault.healthhub.africa/verify`,
-      });
-    } catch (err) {
-      console.error(err);
+  const addEmail = () => {
+    const trimmed = emailInput.trim();
+    if (!trimmed) return;
+    if (!isValidEmail(trimmed)) {
+      Alert.alert('Invalid email', 'Please enter a valid email address.');
+      return;
     }
+    if (emails.includes(trimmed)) {
+      setEmailInput('');
+      return;
+    }
+    setEmails([...emails, trimmed]);
+    setEmailInput('');
   };
+
+  const toggleType = (id: string) => {
+    setSelectedTypes((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
+  };
+
+  const handleRevoke = (share: RecordShare) => {
+    Alert.alert('Revoke Share', 'Recipients will immediately lose access to these records. Continue?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Revoke', style: 'destructive', onPress: () => revokeMutation.mutate(share.id) },
+    ]);
+  };
+
+  if (justCreated) {
+    return (
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+        <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
+        <View style={styles.header}>
+          <View style={{ width: 24 }} />
+        </View>
+        <ScrollView contentContainerStyle={[styles.scrollContent, { justifyContent: 'center', flexGrow: 1 }]}>
+          <SuccessState
+            title="Share Sent"
+            message={`A secure link and one-time verification code was emailed to ${justCreated.emails} recipient${justCreated.emails === 1 ? '' : 's'}. They'll verify their email before viewing anything.`}
+            primaryActionLabel="Done"
+            onPrimaryAction={() => { setJustCreated(null); router.back(); }}
+            secondaryActionLabel="Share Again"
+            onSecondaryAction={() => setJustCreated(null)}
+          />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
 
-      {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={() => router.back()}
-          style={styles.backBtn}>
+        <TouchableOpacity activeOpacity={0.7} onPress={() => router.back()} style={styles.backBtn}>
           <ChevronLeft size={24} color={theme.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: theme.text }]}>Share My Records</Text>
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={handleShareLink}
-          style={styles.shareIconBtn}>
-          <Share2 size={20} color={theme.primary} />
-        </TouchableOpacity>
+        <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-        {/* Security Banner */}
-        <View style={[styles.securityBanner, { backgroundColor: '#EAF5E2', borderColor: '#B7E0A5' }]}>
-          <ShieldCheck size={20} color="#006022" />
+        <View style={[styles.securityPill, { backgroundColor: '#EAF5E2', borderColor: '#B7E0A5' }]}>
+          <ShieldCheck size={16} color="#006022" />
+          <Text style={styles.securityPillText}>
+            Recipients verify their email with a one-time code before they can view anything.
+          </Text>
+        </View>
+
+        {/* Recipient emails */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Share with</Text>
+          <View style={[styles.emailInputRow, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+            <Mail size={16} color={theme.textMuted} />
+            <TextInput
+              style={[styles.emailInput, { color: theme.text }]}
+              placeholder="recipient@email.com"
+              placeholderTextColor={theme.textFaint}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={emailInput}
+              onChangeText={setEmailInput}
+              onSubmitEditing={addEmail}
+              returnKeyType="done"
+            />
+            <TouchableOpacity onPress={addEmail} style={[styles.addBtn, { backgroundColor: theme.primary }]}>
+              <Text style={styles.addBtnText}>Add</Text>
+            </TouchableOpacity>
+          </View>
+          {emails.length > 0 && (
+            <View style={styles.emailChipsRow}>
+              {emails.map((email) => (
+                <View key={email} style={[styles.emailChip, { backgroundColor: theme.background, borderColor: theme.border }]}>
+                  <Text style={[styles.emailChipText, { color: theme.text }]}>{email}</Text>
+                  <TouchableOpacity onPress={() => setEmails(emails.filter((e) => e !== email))}>
+                    <X size={13} color={theme.textMuted} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Record types */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>What to share</Text>
+          <Text style={[styles.sectionSub, { color: theme.textMuted }]}>Leave all unselected to share your full record.</Text>
+          <View style={styles.typesGrid}>
+            {RECORD_TYPE_OPTIONS.map((opt) => {
+              const isSelected = selectedTypes.includes(opt.id);
+              return (
+                <TouchableOpacity
+                  key={opt.id}
+                  activeOpacity={0.8}
+                  onPress={() => toggleType(opt.id)}
+                  style={[
+                    styles.typeChip,
+                    { backgroundColor: isSelected ? theme.primary : theme.surface, borderColor: isSelected ? theme.primary : theme.border },
+                  ]}>
+                  <Text style={[styles.typeChipText, { color: isSelected ? '#FFFFFF' : theme.text }]}>{opt.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Forwarding detection */}
+        <View style={[styles.toggleRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.securityBannerTitle}>End-to-End Encrypted Access</Text>
-            <Text style={styles.securityBannerDesc}>
-              Clinicians scan your QR code or enter this single-use PIN for temporary emergency access.
-            </Text>
+            <Text style={[styles.toggleTitle, { color: theme.text }]}>Detect Forwarding</Text>
+            <Text style={[styles.toggleSub, { color: theme.textMuted }]}>Alert if this link is opened from an unexpected email</Text>
           </View>
+          <Switch
+            value={detectForwarding}
+            onValueChange={setDetectForwarding}
+            trackColor={{ false: theme.border, true: theme.primaryLight }}
+            thumbColor={detectForwarding ? theme.primary : '#F2F4F7'}
+          />
         </View>
 
-        {/* QR & PIN Card */}
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <View style={styles.cardHeaderRow}>
-            <View style={styles.badgeRow}>
-              <View style={[styles.liveDot, { backgroundColor: '#137333' }]} />
-              <Text style={[styles.badgeText, { color: '#137333' }]}>LIVE SESSION</Text>
-            </View>
-            <View style={styles.timerRow}>
-              <Clock size={14} color={theme.textMuted} />
-              <Text style={[styles.timerText, { color: theme.textMuted }]}>
-                Expires in <Text style={{ color: theme.primary, fontWeight: '800' }}>{formatTime(timeLeft)}</Text>
-              </Text>
-            </View>
-          </View>
-
-          {/* QR Code Container Simulation */}
-          <View style={styles.qrContainer}>
-            <View style={styles.qrBox}>
-              <QrCode size={180} color="#1D2939" strokeWidth={1.5} />
-            </View>
-            <Text style={[styles.qrHelperText, { color: theme.textMuted }]}>
-              Show this QR code to your doctor or paramedic
-            </Text>
-          </View>
-
-          {/* Emergency PIN Row */}
-          <View style={styles.pinSection}>
-            <Text style={[styles.pinLabel, { color: theme.textMuted }]}>6-DIGIT EMERGENCY PIN</Text>
-            <View style={[styles.pinBox, { backgroundColor: theme.background, borderColor: theme.border }]}>
-              <Key size={18} color={theme.primary} />
-              <Text style={[styles.pinCode, { color: theme.text }]}>{accessPin}</Text>
-            </View>
-          </View>
-
-          {/* Regenerate Button */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={handleRegenerate}
-            style={[styles.regenerateBtn, { backgroundColor: theme.primaryLight }]}>
-            <RefreshCw size={16} color={theme.primary} />
-            <Text style={[styles.regenerateBtnText, { color: theme.primary }]}>
-              {isRefreshing ? 'Regenerating...' : 'Regenerate Code & QR'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Permissions Controls */}
-        <View style={styles.sectionHeader}>
-          <Lock size={18} color={theme.primary} />
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Data Permission Controls</Text>
-        </View>
-
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, paddingVertical: 8 }]}>
-          <View style={styles.permRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.permTitle, { color: theme.text }]}>Vital Signs & Telemetry</Text>
-              <Text style={[styles.permDesc, { color: theme.textMuted }]}>Blood pressure, heart rate, oxygen levels</Text>
-            </View>
-            <Switch
-              value={shareVitals}
-              onValueChange={setShareVitals}
-              trackColor={{ false: '#D0D5DD', true: theme.primaryLight }}
-              thumbColor={shareVitals ? theme.primary : '#F2F4F7'}
-            />
-          </View>
-
-          <View style={[styles.divider, { backgroundColor: theme.border }]} />
-
-          <View style={styles.permRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.permTitle, { color: theme.text }]}>Lab & Diagnostic Results</Text>
-              <Text style={[styles.permDesc, { color: theme.textMuted }]}>Blood tests, radiology reports, pathology</Text>
-            </View>
-            <Switch
-              value={shareLabs}
-              onValueChange={setShareLabs}
-              trackColor={{ false: '#D0D5DD', true: theme.primaryLight }}
-              thumbColor={shareLabs ? theme.primary : '#F2F4F7'}
-            />
-          </View>
-
-          <View style={[styles.divider, { backgroundColor: theme.border }]} />
-
-          <View style={styles.permRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.permTitle, { color: theme.text }]}>Active Prescriptions</Text>
-              <Text style={[styles.permDesc, { color: theme.textMuted }]}>Dosages, refill status, allergic warnings</Text>
-            </View>
-            <Switch
-              value={shareMedications}
-              onValueChange={setShareMedications}
-              trackColor={{ false: '#D0D5DD', true: theme.primaryLight }}
-              thumbColor={shareMedications ? theme.primary : '#F2F4F7'}
-            />
-          </View>
-
-          <View style={[styles.divider, { backgroundColor: theme.border }]} />
-
-          <View style={styles.permRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.permTitle, { color: theme.text }]}>Clinical Visit Notes</Text>
-              <Text style={[styles.permDesc, { color: theme.textMuted }]}>Doctor consultations and historical transcripts</Text>
-            </View>
-            <Switch
-              value={shareNotes}
-              onValueChange={setShareNotes}
-              trackColor={{ false: '#D0D5DD', true: theme.primaryLight }}
-              thumbColor={shareNotes ? theme.primary : '#F2F4F7'}
-            />
-          </View>
-        </View>
-
-        {/* Revoke All Button */}
         <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => {
-            Alert.alert(
-              'Revoke All Access',
-              'This will immediately disconnect any clinicians currently viewing your medical records.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Revoke Now',
-                  style: 'destructive',
-                  onPress: () => {
-                    setTimeLeft(0);
-                    Alert.alert('Access Revoked', 'All temporary tokens have been revoked.');
-                  },
-                },
-              ]
-            );
-          }}
-          style={[styles.revokeBtn, { borderColor: theme.emergency }]}>
-          <AlertTriangle size={18} color={theme.emergency} />
-          <Text style={[styles.revokeBtnText, { color: theme.emergency }]}>Revoke All Active Sessions</Text>
+          activeOpacity={0.85}
+          disabled={emails.length === 0 || createMutation.isPending}
+          onPress={() => createMutation.mutate()}
+          style={[styles.submitBtn, { backgroundColor: emails.length === 0 ? theme.muted : theme.primary }]}>
+          {createMutation.isPending ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={[styles.submitBtnText, { color: emails.length === 0 ? theme.textMuted : '#FFFFFF' }]}>Send Secure Share</Text>
+          )}
         </TouchableOpacity>
+
+        {/* Active shares */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Active Shares</Text>
+          {isLoading ? (
+            <ActivityIndicator color={theme.primary} style={{ marginTop: 16 }} />
+          ) : (activeShares ?? []).filter((s) => !s.isRevoked).length === 0 ? (
+            <EmptyState
+              icon={ShieldCheck}
+              title="No active shares"
+              description="Records you share will appear here so you can review or revoke access anytime."
+            />
+          ) : (
+            <View style={{ gap: 10 }}>
+              {(activeShares ?? []).filter((s) => !s.isRevoked).map((share) => (
+                <View key={share.id} style={[styles.shareCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.shareEmails, { color: theme.text }]} numberOfLines={1}>
+                      {share.allowedEmails.join(', ')}
+                    </Text>
+                    <View style={styles.shareMetaRow}>
+                      <Clock size={11} color={theme.textFaint} />
+                      <Text style={[styles.shareMeta, { color: theme.textFaint }]}>
+                        {share._count.accesses} view{share._count.accesses === 1 ? '' : 's'} · {new Date(share.createdAt).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    disabled={revokeMutation.isPending}
+                    onPress={() => handleRevoke(share)}
+                    style={styles.revokeBtn}>
+                    <Trash2 size={16} color={theme.status.error.solid} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
 
       </ScrollView>
     </SafeAreaView>
@@ -257,9 +283,7 @@ export default function ShareRecordsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
+  safeArea: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -268,184 +292,71 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
   },
-  backBtn: {
-    padding: 6,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  shareIconBtn: {
-    padding: 6,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
-    gap: 16,
-  },
-  securityBanner: {
+  backBtn: { padding: 6 },
+  title: { fontSize: 18, fontWeight: '800' },
+  scrollContent: { padding: 16, paddingBottom: 40, gap: 20 },
+  securityPill: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    padding: 14,
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  securityPillText: { color: '#006022', fontSize: 11, fontWeight: '700', flex: 1 },
+  section: { gap: 10 },
+  sectionTitle: { fontSize: 15, fontWeight: '800' },
+  sectionSub: { fontSize: 11, marginTop: -6 },
+  emailInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 48,
     borderRadius: 14,
     borderWidth: 1,
+    paddingHorizontal: 14,
   },
-  securityBannerTitle: {
-    color: '#006022',
-    fontSize: 13,
-    fontWeight: '800',
-    marginBottom: 2,
-  },
-  securityBannerDesc: {
-    color: '#137333',
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  card: {
+  emailInput: { flex: 1, fontSize: 14 },
+  addBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
+  addBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+  emailChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  emailChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
   },
-  cardHeaderRow: {
+  emailChipText: { fontSize: 11, fontWeight: '600' },
+  typesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  typeChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  typeChipText: { fontSize: 12, fontWeight: '700' },
+  toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#EAF5E2',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  timerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  timerText: {
-    fontSize: 12,
-  },
-  qrContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-  },
-  qrBox: {
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    padding: 14,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#EAECF0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
+    gap: 12,
   },
-  qrHelperText: {
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 12,
-  },
-  pinSection: {
-    marginTop: 16,
-    alignItems: 'center',
-  },
-  pinLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    marginBottom: 8,
-  },
-  pinBox: {
+  toggleTitle: { fontSize: 13, fontWeight: '700' },
+  toggleSub: { fontSize: 11, marginTop: 2 },
+  submitBtn: { height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  submitBtnText: { fontSize: 14, fontWeight: '800' },
+  shareCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 14,
+    padding: 14,
+    borderRadius: 16,
     borderWidth: 1,
   },
-  pinCode: {
-    fontSize: 22,
-    fontWeight: '900',
-    letterSpacing: 4,
-  },
-  regenerateBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginTop: 16,
-  },
-  regenerateBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 8,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  permRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  permTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  permDesc: {
-    fontSize: 12,
-  },
-  divider: {
-    height: 1,
-    marginHorizontal: 16,
-  },
-  revokeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    backgroundColor: 'transparent',
-    marginTop: 8,
-  },
-  revokeBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
+  shareEmails: { fontSize: 13, fontWeight: '700' },
+  shareMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  shareMeta: { fontSize: 11 },
+  revokeBtn: { padding: 8 },
 });

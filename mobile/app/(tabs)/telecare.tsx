@@ -96,6 +96,13 @@ export default function TeleCareWaitingRoomScreen() {
             <Text style={[styles.specialtyText, { color: theme.textMuted, marginTop: 4, textAlign: 'center' }]}>
               Book a TeleCare appointment to see your waiting room here.
             </Text>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => router.push({ pathname: '/book-appointment-step1', params: { preselect: 'telecare' } })}
+              style={[styles.joinBtn, { backgroundColor: theme.primary, marginTop: 16, paddingHorizontal: 24 }]}>
+              <Video size={16} color="#FFFFFF" />
+              <Text style={styles.joinBtnText}>Book TeleCare</Text>
+            </TouchableOpacity>
           </View>
         ) : (
         <>

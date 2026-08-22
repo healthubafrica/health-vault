@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Plus } from 'lucide-react-native';
+import { Plus, Activity } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 
 import Colors from '@/constants/Colors';
@@ -18,6 +18,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
 import MiniSparkline from '@/components/MiniSparkline';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
+import { EmptyState, CardSkeleton } from '@/components/states';
 import { vitals, VitalsReading } from '@/lib/api';
 
 
@@ -149,17 +150,15 @@ export default function VitalsListFull() {
         </View>
 
         {isLoading ? (
-          <View style={{ alignItems: 'center', paddingTop: 60 }}>
-            <ActivityIndicator size="large" color={theme.primary} />
-            <Text style={[{ marginTop: 12, color: theme.textMuted, fontSize: 14 }]}>Loading vitals...</Text>
-          </View>
+          <CardSkeleton />
         ) : VITALS_DATA.length === 0 ? (
-          <View style={[styles.emptyBox, { borderColor: theme.border }]}>
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>No vitals recorded yet</Text>
-            <Text style={[styles.emptyBody, { color: theme.textMuted }]}>
-              Tap + to log your first reading
-            </Text>
-          </View>
+          <EmptyState
+            icon={Activity}
+            title="No vitals recorded yet"
+            description="Tap + to log your first reading."
+            primaryActionLabel="Record a Reading"
+            onPrimaryAction={() => router.push('/record-vital')}
+          />
         ) : (
           <View style={styles.grid}>
             {VITALS_DATA.map((vital) => {

@@ -190,12 +190,6 @@ function RootLayoutNav() {
           }}
         />
         <Stack.Screen
-          name="services-hub"
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
           name="appointments"
           options={{
             headerShown: false,
