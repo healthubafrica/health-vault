@@ -460,6 +460,109 @@ export const records = {
   get: (id: string) => apiRequest<{ data: ClinicalRecord }>(`/records/${id}`),
 
   prescriptions: () => apiRequest<PrescriptionItem[]>('/records/prescriptions/list'),
+
+  getStorageUsage: () => apiRequest<{ data: StorageUsage | null }>('/records/storage'),
+};
+
+export interface StorageUsage {
+  usedBytes: number;
+  quotaBytes: number | null;
+  fileCount: number;
+  maxFiles: number | null;
+  maxFileSizeBytes: number | null;
+}
+
+// ── Vault Documents (patient uploads) ──────────────────────────────────────
+
+export type DocumentCategory =
+  | 'personal_identification'
+  | 'medical_history'
+  | 'providers'
+  | 'specialists'
+  | 'emergency'
+  | 'hospital'
+  | 'laboratory'
+  | 'imaging'
+  | 'medications'
+  | 'vaccinations'
+  | 'chronic_disease'
+  | 'womens_health'
+  | 'childrens_health'
+  | 'mental_health'
+  | 'dental'
+  | 'vision'
+  | 'travel'
+  | 'legal'
+  | 'wearables'
+  | 'miscellaneous';
+
+export interface VaultDocument {
+  id: string;
+  hhaRef: string;
+  recordType: string;
+  title: string;
+  description?: string | null;
+  category: DocumentCategory | null;
+  tags: string[];
+  originalFileName?: string | null;
+  source: string;
+  fileUrl?: string | null;
+  fileMimeType?: string | null;
+  fileSizeBytes?: number | null;
+  providerVisibility: boolean;
+  recordedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DocumentListParams {
+  q?: string;
+  category?: DocumentCategory;
+  sort?: 'title' | 'createdAt' | 'fileSizeBytes';
+  order?: 'asc' | 'desc';
+  page?: number;
+  pageSize?: number;
+}
+
+export interface DocumentUploadTicket {
+  uploadUrl: string;
+  objectKey: string;
+  expiresIn: number;
+}
+
+export const documents = {
+  getUploadUrl: (data: { fileName: string; contentType: string; sizeBytes: number }) =>
+    apiRequest<{ data: DocumentUploadTicket }>('/documents/upload-url', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  create: (data: {
+    objectKey: string;
+    fileName: string;
+    title?: string;
+    category: DocumentCategory;
+    tags?: string[];
+    description?: string;
+  }) =>
+    apiRequest<{ data: VaultDocument }>('/documents', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  list: (params?: DocumentListParams) => {
+    const qs = new URLSearchParams();
+    Object.entries(params ?? {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') qs.set(key, String(value));
+    });
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return apiRequest<{ data: VaultDocument[]; meta: { total: number } }>(`/documents${suffix}`);
+  },
+
+  update: (id: string, data: Partial<{ title: string; description: string; category: DocumentCategory; tags: string[] }>) =>
+    apiRequest<{ data: VaultDocument }>(`/documents/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+  remove: (id: string) => apiRequest<void>(`/documents/${id}`, { method: 'DELETE' }),
 };
 
 export const labs = {
@@ -542,6 +645,50 @@ export const telecare = {
       `/telecare/sessions/${id}`,
       { method: 'PATCH', body: JSON.stringify({ status: 'completed', endedAt: new Date().toISOString() }) }
     ),
+};
+
+export type ShareAccessMode = 'public' | 'email_list' | 'password';
+
+export interface RecordShare {
+  id: string;
+  label?: string | null;
+  accessMode: ShareAccessMode;
+  allowedEmails: string[];
+  recordTypes: string[];
+  expiresAt?: string | null;
+  isRevoked: boolean;
+  revokedAt?: string | null;
+  detectForwarding: boolean;
+  createdAt: string;
+  _count: { accesses: number };
+}
+
+export interface CreateShareParams {
+  label?: string;
+  accessMode: 'email_list';
+  allowedEmails: string[];
+  recordTypes?: string[];
+  expiresAt?: string;
+  detectForwarding?: boolean;
+  notifyRecipients?: boolean;
+  recipientPhones?: string[];
+}
+
+export const shares = {
+  create: (data: CreateShareParams) =>
+    apiRequest<{ id: string; token: string; share: RecordShare; notified: { emails: number; phones: number } }>(
+      '/shares',
+      { method: 'POST', body: JSON.stringify(data) }
+    ),
+
+  list: () => apiRequest<RecordShare[]>('/shares'),
+
+  audit: (id: string) =>
+    apiRequest<{ share: RecordShare; accesses: Array<{ id: string; action: string; visitorEmail?: string; occurredAt: string }> }>(
+      `/shares/${id}/audit`
+    ),
+
+  revoke: (id: string) => apiRequest<RecordShare>(`/shares/${id}`, { method: 'DELETE' }),
 };
 
 export const support = {

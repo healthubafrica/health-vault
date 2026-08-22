@@ -185,7 +185,7 @@ export default function HomeDashboardScreen() {
               label="Talk to Doctor"
               sublabel="TeleCare HD"
               backgroundImage={require('@/assets/images/qa_telecare.jpg')}
-              onPress={() => router.push('/(tabs)/telecare')}
+              onPress={() => router.push({ pathname: '/book-appointment-step1', params: { preselect: 'telecare' } })}
             />
             <QuickActionButton
               icon="calendar"
