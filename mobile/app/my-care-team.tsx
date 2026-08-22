@@ -8,7 +8,6 @@ import {
   SafeAreaView,
   StatusBar,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -24,6 +23,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import EmergencyFAB from '@/components/EmergencyFAB';
 import { patients, CareTeamMember } from '@/lib/api';
+import { EmptyState, ListSkeleton } from '@/components/states';
 
 function initialsOf(m: CareTeamMember) {
   return `${m.firstName[0] ?? ''}${m.lastName[0] ?? ''}`.toUpperCase();
@@ -97,14 +97,15 @@ export default function MyCareTeamScreen() {
           <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>YOUR PROVIDERS</Text>
 
           {isLoading ? (
-            <ActivityIndicator color={theme.primary} style={{ marginTop: 20 }} />
+            <ListSkeleton rows={2} />
           ) : careTeam.length === 0 ? (
-            <View style={[styles.providerCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.providerName, { color: theme.text }]}>No providers yet</Text>
-              <Text style={[styles.metaText, { color: theme.textMuted, marginTop: 4 }]}>
-                Providers appear here after your first appointment.
-              </Text>
-            </View>
+            <EmptyState
+              icon={Users}
+              title="No providers yet"
+              description="Providers appear here after your first appointment, and can then access your records to provide care."
+              primaryActionLabel="Book Care"
+              onPrimaryAction={() => router.push('/book-appointment-step1')}
+            />
           ) : (
           <View style={styles.providersList}>
             {careTeam.map((provider) => (

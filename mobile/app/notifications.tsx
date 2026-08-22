@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
-  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -29,6 +28,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
 import { notifications as notifApi, Notification as ApiNotification } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { EmptyState, ListSkeleton } from '@/components/states';
 
 interface NotificationItem {
   id: string;
@@ -201,19 +201,17 @@ export default function NotificationsScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {isLoading ? (
-          <View style={{ alignItems: 'center', paddingTop: 60 }}>
-            <ActivityIndicator size="large" color={theme.primary} />
-          </View>
+          <ListSkeleton rows={4} />
         ) : filteredNotifications.length === 0 ? (
-          <View style={styles.emptyStateContainer}>
-            <View style={[styles.emptyIconBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <BellOff size={36} color={theme.textMuted} />
-            </View>
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>No Notifications</Text>
-            <Text style={[styles.emptySubtitle, { color: theme.textMuted }]}>
-              You have no notifications in this category. Important clinical results and reminders will appear here.
-            </Text>
-          </View>
+          <EmptyState
+            icon={BellOff}
+            title="No notifications"
+            description={
+              activeFilter === 'all'
+                ? 'Important clinical results and reminders will appear here.'
+                : 'No notifications in this category right now.'
+            }
+          />
         ) : (
           <>
             {/* Today Group */}
@@ -453,30 +451,5 @@ const styles = StyleSheet.create({
   },
   timeText: {
     fontSize: 11,
-  },
-  emptyStateContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 80,
-    paddingHorizontal: 24,
-  },
-  emptyIconBox: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    marginBottom: 6,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    lineHeight: 18,
-    textAlign: 'center',
   },
 });
