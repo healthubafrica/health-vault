@@ -8,49 +8,32 @@ import {
   SafeAreaView,
   StatusBar,
   Image,
-  Alert,
-  Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
-  ChevronRight,
   Bell,
   Calendar,
   Bike,
-  Plus,
-  FlaskConical,
-  Video,
-  ShieldCheck,
-  Heart,
-  CheckCircle2,
   Clock,
+  FlaskConical,
+  CheckCircle2,
 } from 'lucide-react-native';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_WIDTH = (SCREEN_WIDTH - 44) / 2;
-
-interface ServiceGridItem {
-  id: string;
-  name: string;
-  tagline: string;
-  logo: any;
-  categoryIcon: any;
-  categoryIconColor: string;
-  categoryIconBg: string;
-  route?: string;
-  actionText: string;
-}
+import ServiceCard from '@/components/ServiceCard';
+import { HUB_SERVICES } from '@/lib/services';
+import { useAuthStore } from '@/lib/stores/authStore';
+import { getScreenCardWidth } from '@/lib/layout';
 
 export default function ServicesTabScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
+  const user = useAuthStore((s) => s.user);
+  const cardWidth = getScreenCardWidth();
 
-  // Current formatted date
   const todayDateString = new Date().toLocaleDateString('en-GB', {
     weekday: 'short',
     day: 'numeric',
@@ -58,86 +41,7 @@ export default function ServicesTabScreen() {
     year: 'numeric',
   });
 
-  const serviceGridList: ServiceGridItem[] = [
-    {
-      id: 'dispatch-care',
-      name: 'DispatchCare',
-      tagline: 'Rapid Response, Lifesaving Care!',
-      logo: require('@/assets/images/dispatch care.png'),
-      categoryIcon: Bike,
-      categoryIconColor: '#C0392B',
-      categoryIconBg: '#FDECEA',
-      route: '/emergency',
-      actionText: 'Dispatch Emergency',
-    },
-    {
-      id: 'minute-care',
-      name: 'MinuteCare',
-      tagline: 'Quick Care, Anytime, Anywhere',
-      logo: require('@/assets/images/Minute care.png'),
-      categoryIcon: Plus,
-      categoryIconColor: '#137333',
-      categoryIconBg: '#EAF5E2',
-      route: '/appointments',
-      actionText: 'Book MinuteCare',
-    },
-    {
-      id: 'care-test',
-      name: 'CareTest',
-      tagline: 'Fast, Accurate, and Comprehensive Testing',
-      logo: require('@/assets/images/Caretest.png'),
-      categoryIcon: FlaskConical,
-      categoryIconColor: '#1565C0',
-      categoryIconBg: '#E3F2FD',
-      route: '/(tabs)/records',
-      actionText: 'Order Lab Test',
-    },
-    {
-      id: 'telecare',
-      name: 'TeleCare',
-      tagline: 'Telemedicine Services - Anywhere, Anytime',
-      logo: require('@/assets/images/Telecare.png'),
-      categoryIcon: Video,
-      categoryIconColor: '#0E4A30',
-      categoryIconBg: '#EBF5EC',
-      route: '/(tabs)/telecare',
-      actionText: 'Start TeleCare',
-    },
-    {
-      id: 'health-consult',
-      name: 'Health Consult',
-      tagline: 'Personalized Medicine & Healthcare',
-      logo: require('@/assets/images/Health Consult.png'),
-      categoryIcon: ShieldCheck,
-      categoryIconColor: '#E8930A',
-      categoryIconBg: '#FFF4E0',
-      route: '/book-appointment-step1',
-      actionText: 'Book Consult',
-    },
-    {
-      id: 'myhealth-vault',
-      name: 'MyHealth Vault+',
-      tagline: 'Smart Health & Safety Solutions',
-      logo: require('@/assets/images/myhealth vault+.png'),
-      categoryIcon: Heart,
-      categoryIconColor: '#137333',
-      categoryIconBg: '#EAF5E2',
-      route: '/(tabs)/records',
-      actionText: 'Open Health Vault',
-    },
-  ];
-
-  const handleServicePress = (service: ServiceGridItem) => {
-    if (service.route) {
-      router.push(service.route as any);
-    } else {
-      Alert.alert(
-        service.name,
-        `${service.tagline}\n\nScheduling an on-demand encounter. DispatchCare and care specialists are notified in real-time.`,
-        [{ text: 'OK' }]
-      );
-    }
-  };
+  const displayName = user ? `${user.firstName} ${user.lastName}`.trim() : 'there';
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -160,8 +64,8 @@ export default function ServicesTabScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
-        
-        {/* Template Header Section: Date & User Greeting */}
+
+        {/* Header Section: Date & User Greeting */}
         <View style={styles.headerSection}>
           <View style={styles.dateRow}>
             <View style={[styles.dateBadge, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -171,13 +75,17 @@ export default function ServicesTabScreen() {
           </View>
 
           <View style={styles.userGreetingRow}>
-            <Image
-              source={require('@/assets/images/avatar.png')}
-              style={styles.userAvatar}
-              defaultSource={require('@/assets/images/logo-icon.png')}
-            />
+            {user?.avatarUrl ? (
+              <Image source={{ uri: user.avatarUrl }} style={styles.userAvatar} />
+            ) : (
+              <View style={[styles.userAvatar, styles.avatarFallback, { backgroundColor: theme.primaryLight }]}>
+                <Text style={[styles.avatarInitials, { color: theme.primary }]}>
+                  {user ? `${user.firstName[0] ?? ''}${user.lastName[0] ?? ''}`.toUpperCase() : '?'}
+                </Text>
+              </View>
+            )}
             <View style={styles.greetingTextCol}>
-              <Text style={[styles.greetingTitle, { color: theme.text }]}>Hello, John Doe!</Text>
+              <Text style={[styles.greetingTitle, { color: theme.text }]}>Hello, {displayName}!</Text>
             </View>
           </View>
 
@@ -188,54 +96,20 @@ export default function ServicesTabScreen() {
 
         {/* 2-Column Grid of Services with Logos */}
         <View style={styles.servicesGrid}>
-          {serviceGridList.map((service) => {
-            const CategoryIcon = service.categoryIcon;
-            return (
-              <TouchableOpacity
-                key={service.id}
-                style={[
-                  styles.serviceCard,
-                  {
-                    width: CARD_WIDTH,
-                    backgroundColor: theme.surface,
-                    borderColor: theme.border,
-                  },
-                ]}
-                onPress={() => handleServicePress(service)}
-                activeOpacity={0.85}>
-                
-                {/* Brand Logo Header */}
-                <View style={styles.cardLogoContainer}>
-                  <Image
-                    source={service.logo}
-                    style={styles.serviceLogoImage}
-                    resizeMode="contain"
-                  />
-                </View>
-
-                {/* Tagline / Description */}
-                <Text
-                  style={[styles.cardTagline, { color: theme.textMuted }]}
-                  numberOfLines={2}
-                  ellipsizeMode="tail">
-                  {service.tagline}
-                </Text>
-
-                {/* Bottom Row: Category Icon Pill & Chevron */}
-                <View style={styles.cardBottomRow}>
-                  <View
-                    style={[
-                      styles.categoryIconPill,
-                      { backgroundColor: service.categoryIconBg },
-                    ]}>
-                    <CategoryIcon size={18} color={service.categoryIconColor} />
-                  </View>
-
-                  <ChevronRight size={18} color={theme.textMuted} />
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+          {HUB_SERVICES.map((service) => (
+            <ServiceCard
+              key={service.id}
+              service={service}
+              width={cardWidth}
+              onPress={() =>
+                router.push(
+                  service.hubRoute === '/book-appointment-step1'
+                    ? { pathname: '/book-appointment-step1', params: { preselect: service.id } }
+                    : (service.hubRoute as any)
+                )
+              }
+            />
+          ))}
         </View>
 
         {/* Service Details Section */}
@@ -258,7 +132,6 @@ export default function ServicesTabScreen() {
                   Emergency motorcycle responders and rapid ambulance dispatch for urgent home care and critical stabilization.
                 </Text>
               </View>
-              <ChevronRight size={18} color={theme.textMuted} style={{ alignSelf: 'center' }} />
             </View>
           </TouchableOpacity>
 
@@ -276,7 +149,6 @@ export default function ServicesTabScreen() {
                   Immediate non-emergency primary care encounters with certified clinical officers and local pharmacies.
                 </Text>
               </View>
-              <ChevronRight size={18} color={theme.textMuted} style={{ alignSelf: 'center' }} />
             </View>
           </TouchableOpacity>
 
@@ -294,7 +166,6 @@ export default function ServicesTabScreen() {
                   Certified phlebotomists collect lab samples at your doorstep with verified digital results uploaded directly to your Vault.
                 </Text>
               </View>
-              <ChevronRight size={18} color={theme.textMuted} style={{ alignSelf: 'center' }} />
             </View>
           </TouchableOpacity>
         </View>
@@ -316,7 +187,7 @@ export default function ServicesTabScreen() {
                   • Real-time digital results and prescription fulfillment
                 </Text>
                 <Text style={[styles.bulletText, { color: theme.textMuted }]}>
-                  • Available 24/7 across South Africa and partner regions
+                  • Available 24/7 across our partner regions
                 </Text>
               </View>
             </View>
@@ -403,6 +274,14 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     backgroundColor: '#EAEAEA',
   },
+  avatarFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitials: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
   greetingTextCol: {
     flex: 1,
   },
@@ -422,48 +301,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     rowGap: 14,
     marginBottom: 26,
-  },
-  serviceCard: {
-    borderRadius: 22,
-    borderWidth: 1,
-    padding: 14,
-    minHeight: 165,
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  cardLogoContainer: {
-    height: 42,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  serviceLogoImage: {
-    width: '100%',
-    height: 38,
-    alignSelf: 'flex-start',
-  },
-  cardTagline: {
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: '500',
-    marginBottom: 12,
-  },
-  cardBottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 'auto',
-  },
-  categoryIconPill: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   infoSection: {
     marginBottom: 20,

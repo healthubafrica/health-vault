@@ -26,7 +26,6 @@ import {
   Info,
   LogOut,
   ChevronRight,
-  Sparkles,
 } from 'lucide-react-native';
 
 import Colors from '@/constants/Colors';
@@ -170,18 +169,6 @@ export default function MoreMenuScreen() {
         {/* Settings & Preferences */}
         <View style={styles.section}>
           <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>SETTINGS & PREFERENCES</Text>
-
-          <TouchableOpacity
-            activeOpacity={0.75}
-            onPress={() => router.push('/onboarding')}
-            style={[styles.menuRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Sparkles size={20} color={theme.primary} />
-            <View style={styles.rowMiddle}>
-              <Text style={[styles.menuText, { color: theme.text }]}>App Onboarding Tour</Text>
-              <Text style={[styles.menuSub, { color: theme.textMuted }]}>View splash & feature tour</Text>
-            </View>
-            <ChevronRight size={18} color={theme.textMuted} />
-          </TouchableOpacity>
 
           <TouchableOpacity
             activeOpacity={0.75}

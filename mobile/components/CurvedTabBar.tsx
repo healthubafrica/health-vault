@@ -8,12 +8,12 @@ import {
   Platform,
 } from 'react-native';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import Svg, { Path, Circle } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
-  withTiming,
   interpolate,
 } from 'react-native-reanimated';
 import {
@@ -48,17 +48,18 @@ const TAB_LABELS: Record<string, string> = {
   profile: 'Profile',
 };
 
-const BAR_MARGIN = 16;
-const BAR_HEIGHT = 62;
-const NOTCH_WIDTH = 76;
-const NOTCH_HEIGHT = 16;
+const BAR_HEIGHT = 64;
+const NOTCH_WIDTH = 78;
+const NOTCH_HEIGHT = 20;
+const CIRCLE_SIZE = 48;
 
 export default function CurvedTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const { width: windowWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  const totalBarWidth = windowWidth - BAR_MARGIN * 2;
+  const totalBarWidth = windowWidth;
   const tabWidth = totalBarWidth / state.routes.length;
 
   const activeIndex = state.index;
@@ -66,66 +67,87 @@ export default function CurvedTabBar({ state, descriptors, navigation }: BottomT
 
   useEffect(() => {
     translateX.value = withSpring(activeIndex * tabWidth + tabWidth / 2, {
-      damping: 15,
-      stiffness: 120,
-      mass: 0.8,
+      damping: 16,
+      stiffness: 140,
+      mass: 0.7,
     });
   }, [activeIndex, tabWidth]);
 
+  // Animated style for the upward curve dome
   const animatedNotchStyle = useAnimatedStyle(() => {
     return {
       transform: [{ translateX: translateX.value - NOTCH_WIDTH / 2 }],
     };
   });
 
+  // Animated style for the elevated circular active button
+  const animatedCircleStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: translateX.value - CIRCLE_SIZE / 2 }],
+    };
+  });
+
+  const activeRoute = state.routes[activeIndex];
+  const ActiveIconComponent = TAB_ICONS[activeRoute.name] || Home;
+
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 8);
+
   return (
-    <View style={styles.outerContainer} pointerEvents="box-none">
+    <View style={[styles.outerContainer, { paddingBottom: bottomPadding }]} pointerEvents="box-none">
+      {/* Tab Bar Card Surface */}
       <View
         style={[
-          styles.barContainer,
+          styles.barSurface,
           {
-            width: totalBarWidth,
             backgroundColor: theme.surface,
-            borderColor: theme.border,
+            borderTopColor: theme.border,
             shadowColor: '#000000',
           },
         ]}>
         
-        {/* Animated Curved Top Wave Notch & Floating Dot */}
+        {/* Animated Smooth Upward Curved Notch */}
         <Animated.View style={[styles.notchWrapper, animatedNotchStyle]} pointerEvents="none">
           <Svg
             width={NOTCH_WIDTH}
-            height={NOTCH_HEIGHT + 14}
-            viewBox={`0 0 ${NOTCH_WIDTH} ${NOTCH_HEIGHT + 14}`}
-            pointerEvents="none"
+            height={NOTCH_HEIGHT + 16}
+            viewBox={`0 0 ${NOTCH_WIDTH} ${NOTCH_HEIGHT + 16}`}
             style={{ pointerEvents: 'none' as any }}>
-            {/* Smooth upward arching Bezier curve blending into the top edge */}
+            {/* Upward dome curve matching tab bar background */}
             <Path
               d={`M 0 ${NOTCH_HEIGHT} 
-                 C 14 ${NOTCH_HEIGHT}, 20 2, 38 2 
-                 C 56 2, 62 ${NOTCH_HEIGHT}, ${NOTCH_WIDTH} ${NOTCH_HEIGHT} 
-                 L ${NOTCH_WIDTH} ${NOTCH_HEIGHT + 14} 
-                 L 0 ${NOTCH_HEIGHT + 14} Z`}
+                 C 14 ${NOTCH_HEIGHT}, 20 2, 39 2 
+                 C 58 2, 64 ${NOTCH_HEIGHT}, ${NOTCH_WIDTH} ${NOTCH_HEIGHT} 
+                 L ${NOTCH_WIDTH} ${NOTCH_HEIGHT + 16} 
+                 L 0 ${NOTCH_HEIGHT + 16} Z`}
               fill={theme.surface}
             />
-            {/* Subtle highlight border curve matching bar border */}
+            {/* Top border line along the curve */}
             <Path
               d={`M 0 ${NOTCH_HEIGHT} 
-                 C 14 ${NOTCH_HEIGHT}, 20 2, 38 2 
-                 C 56 2, 62 ${NOTCH_HEIGHT}, ${NOTCH_WIDTH} ${NOTCH_HEIGHT}`}
+                 C 14 ${NOTCH_HEIGHT}, 20 2, 39 2 
+                 C 58 2, 64 ${NOTCH_HEIGHT}, ${NOTCH_WIDTH} ${NOTCH_HEIGHT}`}
               stroke={theme.border}
               strokeWidth={1}
               fill="none"
             />
           </Svg>
+        </Animated.View>
 
-          {/* Floating Indicator Dot */}
-          <View style={styles.dotContainer}>
-            <View style={[styles.floatingDot, { backgroundColor: theme.primary }]} />
+        {/* Animated Floating Elevated Active Circle */}
+        <Animated.View style={[styles.floatingCircleWrapper, animatedCircleStyle]} pointerEvents="none">
+          <View
+            style={[
+              styles.floatingCircle,
+              {
+                backgroundColor: theme.primary,
+                shadowColor: theme.primary,
+              },
+            ]}>
+            <ActiveIconComponent size={24} color="#FFFFFF" strokeWidth={2.2} />
           </View>
         </Animated.View>
 
-        {/* Tab Buttons Row */}
+        {/* Tab Items Row */}
         <View style={styles.tabsRow}>
           {state.routes.map((route, index) => {
             const isFocused = state.index === index;
@@ -195,52 +217,49 @@ function TabButton({
     });
   }, [isFocused]);
 
-  const animatedIconStyle = useAnimatedStyle(() => {
+  const animatedInactiveIconStyle = useAnimatedStyle(() => {
     return {
+      opacity: interpolate(focusAnim.value, [0, 1], [1, 0]),
       transform: [
-        { translateY: interpolate(focusAnim.value, [0, 1], [0, -5]) },
-        { scale: interpolate(focusAnim.value, [0, 1], [1, 1.12]) },
+        { scale: interpolate(focusAnim.value, [0, 1], [1, 0.6]) },
       ],
-    };
-  });
-
-  const animatedLabelStyle = useAnimatedStyle(() => {
-    return {
-      opacity: focusAnim.value,
-      transform: [
-        { translateY: interpolate(focusAnim.value, [0, 1], [4, 0]) },
-      ],
-      height: interpolate(focusAnim.value, [0, 1], [0, 14]),
     };
   });
 
   return (
     <TouchableOpacity
-      activeOpacity={0.8}
+      activeOpacity={0.7}
       onPress={onPress}
       onLongPress={onLongPress}
       style={styles.tabBtn}>
-      <Animated.View style={[styles.iconWrapper, animatedIconStyle]}>
-        <IconComponent
-          size={22}
-          color={isFocused ? theme.primary : theme.textMuted}
-          strokeWidth={isFocused ? 2.2 : 1.8}
-        />
-      </Animated.View>
-
-      {/* Active-Only Animated Label */}
-      <Animated.View style={[styles.labelContainer, animatedLabelStyle]}>
-        {isFocused && (
-          <Text
-            numberOfLines={1}
-            style={[
-              styles.tabLabel,
-              { color: theme.primary, fontWeight: '700' },
-            ]}>
-            {label}
-          </Text>
+      
+      {/* Inactive Icon (fades out when active since floating circle takes over) */}
+      <View style={styles.iconSlot}>
+        {!isFocused ? (
+          <Animated.View style={animatedInactiveIconStyle}>
+            <IconComponent
+              size={22}
+              color={theme.textMuted}
+              strokeWidth={1.8}
+            />
+          </Animated.View>
+        ) : (
+          <View style={{ height: 22 }} />
         )}
-      </Animated.View>
+      </View>
+
+      {/* Tab Label */}
+      <Text
+        numberOfLines={1}
+        style={[
+          styles.tabLabel,
+          {
+            color: isFocused ? theme.primary : theme.textMuted,
+            fontWeight: isFocused ? '700' : '500',
+          },
+        ]}>
+        {label}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -248,69 +267,82 @@ function TabButton({
 const styles = StyleSheet.create({
   outerContainer: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 24 : 16,
+    bottom: 0,
     left: 0,
     right: 0,
-    alignItems: 'center',
+    backgroundColor: 'transparent',
     zIndex: 9999,
-    elevation: 12,
   },
-  barContainer: {
+  barSurface: {
     height: BAR_HEIGHT,
-    borderRadius: 30,
-    borderWidth: 1,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    elevation: 12,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderTopWidth: 1,
+    borderLeftWidth: Platform.OS === 'ios' ? 0.5 : 0,
+    borderRightWidth: Platform.OS === 'ios' ? 0.5 : 0,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 16,
     position: 'relative',
     justifyContent: 'center',
-    zIndex: 10000,
   },
   notchWrapper: {
     position: 'absolute',
     top: -NOTCH_HEIGHT + 1,
     left: 0,
     width: NOTCH_WIDTH,
-    height: NOTCH_HEIGHT + 14,
+    height: NOTCH_HEIGHT + 16,
     alignItems: 'center',
+    zIndex: 10,
   },
-  dotContainer: {
+  floatingCircleWrapper: {
     position: 'absolute',
-    top: -6,
+    top: -NOTCH_HEIGHT - 6,
+    left: 0,
+    width: CIRCLE_SIZE,
+    height: CIRCLE_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 20,
   },
-  floatingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  floatingCircle: {
+    width: CIRCLE_SIZE,
+    height: CIRCLE_SIZE,
+    borderRadius: CIRCLE_SIZE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 10,
   },
   tabsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
     height: '100%',
+    paddingHorizontal: 6,
+    zIndex: 15,
   },
   tabBtn: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     height: '100%',
-    paddingVertical: 4,
+    paddingTop: 6,
+    paddingBottom: 2,
   },
-  iconWrapper: {
+  iconSlot: {
+    height: 24,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  labelContainer: {
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 2,
+    marginBottom: 4,
   },
   tabLabel: {
     fontSize: 11,
     letterSpacing: -0.2,
+    textAlign: 'center',
   },
 });
+
