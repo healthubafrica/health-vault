@@ -724,3 +724,141 @@ export const dispatch = {
       { method: 'POST', body: JSON.stringify(data) }
     ),
 };
+
+export interface NotificationPrefs {
+  emailEnabled: boolean;
+  smsEnabled: boolean;
+  pushEnabled: boolean;
+  whatsappEnabled: boolean;
+  appointmentReminders: boolean;
+  labResultAlerts: boolean;
+  paymentReceipts: boolean;
+  dispatchUpdates: boolean;
+  expertReviewUpdates: boolean;
+  marketingComms: boolean;
+}
+
+export const notificationPrefs = {
+  get: () => apiRequest<{ data: NotificationPrefs }>('/auth/notification-preferences'),
+
+  update: (prefs: Partial<NotificationPrefs>) =>
+    apiRequest<{ data: NotificationPrefs }>('/auth/notification-preferences', {
+      method: 'PATCH',
+      body: JSON.stringify(prefs),
+    }),
+};
+
+export type ConsentType = 'treatment' | 'data_sharing' | 'telecare' | 'research' | 'marketing' | 'analytics';
+
+export interface ConsentRecord {
+  id: string;
+  consentType: ConsentType;
+  granted: boolean;
+  grantedAt?: string;
+  revokedAt?: string;
+}
+
+export const consents = {
+  list: () => apiRequest<{ data: ConsentRecord[] }>('/consents'),
+
+  upsert: (data: { consentType: ConsentType; granted: boolean; version?: string }) =>
+    apiRequest<{ data: ConsentRecord }>('/consents', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+};
+
+export interface SubscriptionPlan {
+  id: string;
+  slug: string;
+  tier: string;
+  name: string;
+  priceKobo: number;
+  billingPeriod: string;
+  features: string[];
+  annualPriceKobo?: number;
+  launchPriceKobo?: number;
+  isMostPopular?: boolean;
+  isBestValue?: boolean;
+  bestFor?: string;
+  noClaimPct?: number;
+}
+
+export interface ActiveSubscription {
+  id: string;
+  status: string;
+  startedAt: string;
+  // null = never expires (Free tier)
+  expiresAt: string | null;
+  autoRenew: boolean;
+  plan: SubscriptionPlan;
+}
+
+export interface SubscriptionUpgradeResponse {
+  requiresPayment: true;
+  paymentId: string;
+  gateway: string;
+  authorizationUrl: string;
+  amountKobo: number;
+  currency: string;
+}
+
+export const subscriptions = {
+  listPlans: () => apiRequest<{ data: SubscriptionPlan[] }>('/subscriptions/plans'),
+
+  getMy: () => apiRequest<{ data: ActiveSubscription | null }>('/subscriptions/me'),
+
+  // billingCycle must match backend BillingCycle enum: 'monthly' | 'quarterly' | 'annually'.
+  // Free-tier only — paid upgrades must go through upgrade() so payment is collected first.
+  subscribe: (planId: string, billingCycle: string) =>
+    apiRequest<{ data: ActiveSubscription }>('/subscriptions', {
+      method: 'POST',
+      body: JSON.stringify({ planId, billingCycle }),
+    }),
+
+  // Patient-facing paid upgrade. Returns a gateway authorization URL to open;
+  // the subscription activates via payment webhook once the gateway confirms.
+  upgrade: (planId: string, billingCycle: string, gateway: 'Flutterwave' = 'Flutterwave') =>
+    apiRequest<SubscriptionUpgradeResponse>('/subscriptions/upgrade', {
+      method: 'POST',
+      body: JSON.stringify({ planId, billingCycle, gateway }),
+    }),
+
+  cancel: (subscriptionId: string) =>
+    apiRequest<{ message: string }>(`/subscriptions/${subscriptionId}`, { method: 'DELETE' }),
+};
+
+export type TravelSafeStatus = 'preparing' | 'active' | 'completed' | 'cancelled';
+
+export interface TravelSafeTrip {
+  id: string;
+  patientId: string;
+  partnerCode?: string;
+  partnerName?: string;
+  destinationCountry: string;
+  departureDate: string;
+  returnDate?: string;
+  purpose?: string;
+  status: TravelSafeStatus;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const travelsafe = {
+  create: (data: {
+    destinationCountry: string;
+    departureDate: string;
+    returnDate?: string;
+    purpose?: string;
+    notes?: string;
+  }) =>
+    apiRequest<{ data: TravelSafeTrip }>('/travelsafe/trips', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  list: () => apiRequest<{ data: TravelSafeTrip[] }>('/travelsafe/trips'),
+
+  get: (id: string) => apiRequest<{ data: TravelSafeTrip }>(`/travelsafe/trips/${id}`),
+};

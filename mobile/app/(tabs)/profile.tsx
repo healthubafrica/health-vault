@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 import {
   User,
   UserCheck,
@@ -17,8 +18,12 @@ import {
   Share2,
   CreditCard,
   Receipt,
+  Crown,
   Bell,
+  BellRing,
   Lock,
+  ShieldCheck,
+  Plane,
   Globe,
   HelpCircle,
   FileText,
@@ -32,6 +37,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useAuthStore } from '@/lib/stores/authStore';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
+import { patients } from '@/lib/api';
 
 export default function MoreMenuScreen() {
   const router = useRouter();
@@ -39,6 +45,12 @@ export default function MoreMenuScreen() {
   const user = useAuthStore((state) => state.user);
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
+
+  const { data: careTeamData } = useQuery({
+    queryKey: ['care-team'],
+    queryFn: () => patients.getMyCareTeam(),
+  });
+  const careTeamCount = careTeamData?.data.length ?? 0;
 
   const displayName = user ? `${user.firstName} ${user.lastName}` : 'My Account';
   const initials = user
@@ -124,7 +136,9 @@ export default function MoreMenuScreen() {
             <Users size={20} color={theme.primary} />
             <View style={styles.rowMiddle}>
               <Text style={[styles.menuText, { color: theme.text }]}>My Care Team</Text>
-              <Text style={[styles.menuSub, { color: theme.textMuted }]}>3 providers added</Text>
+              <Text style={[styles.menuSub, { color: theme.textMuted }]}>
+                {careTeamCount} provider{careTeamCount === 1 ? '' : 's'} added
+              </Text>
             </View>
             <ChevronRight size={18} color={theme.textMuted} />
           </TouchableOpacity>
@@ -138,6 +152,15 @@ export default function MoreMenuScreen() {
               <Text style={[styles.menuText, { color: theme.text }]}>Share My Records</Text>
               <Text style={[styles.menuSub, { color: theme.textMuted }]}>Grant temporary access to clinicians</Text>
             </View>
+            <ChevronRight size={18} color={theme.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.75}
+            onPress={() => router.push('/travelsafe')}
+            style={[styles.menuRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Plane size={20} color={theme.primary} />
+            <Text style={[styles.menuText, { color: theme.text }]}>TravelSafe Trips</Text>
             <ChevronRight size={18} color={theme.textMuted} />
           </TouchableOpacity>
         </View>
@@ -164,6 +187,15 @@ export default function MoreMenuScreen() {
             <ChevronRight size={18} color={theme.textMuted} />
           </TouchableOpacity>
 
+          <TouchableOpacity
+            activeOpacity={0.75}
+            onPress={() => router.push('/subscription')}
+            style={[styles.menuRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Crown size={20} color={theme.primary} />
+            <Text style={[styles.menuText, { color: theme.text }]}>Subscription Plan</Text>
+            <ChevronRight size={18} color={theme.textMuted} />
+          </TouchableOpacity>
+
         </View>
 
         {/* Settings & Preferences */}
@@ -181,10 +213,28 @@ export default function MoreMenuScreen() {
 
           <TouchableOpacity
             activeOpacity={0.75}
+            onPress={() => router.push('/notification-preferences')}
+            style={[styles.menuRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <BellRing size={20} color={theme.primary} />
+            <Text style={[styles.menuText, { color: theme.text }]}>Notification Preferences</Text>
+            <ChevronRight size={18} color={theme.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.75}
             onPress={() => router.push('/privacy-security')}
             style={[styles.menuRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <Lock size={20} color={theme.primary} />
             <Text style={[styles.menuText, { color: theme.text }]}>Privacy & Security</Text>
+            <ChevronRight size={18} color={theme.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.75}
+            onPress={() => router.push('/consents')}
+            style={[styles.menuRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <ShieldCheck size={20} color={theme.primary} />
+            <Text style={[styles.menuText, { color: theme.text }]}>Consents & Permissions</Text>
             <ChevronRight size={18} color={theme.textMuted} />
           </TouchableOpacity>
 
