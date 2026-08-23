@@ -1,7 +1,8 @@
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Notifications from 'expo-notifications';
 import { useEffect } from 'react';
 import { Platform, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -11,6 +12,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { useColorScheme } from '@/components/useColorScheme';
 import { queryClient } from '@/lib/queryClient';
 import { useAuthStore } from '@/lib/stores/authStore';
+import { registerForPushNotificationsAsync, syncPushTokenWithBackend } from '@/lib/notifications';
 import Colors from '@/constants/Colors';
 
 export {
@@ -69,6 +71,36 @@ export default function RootLayout() {
 function RootLayoutNav() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
+  const router = useRouter();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  useEffect(() => {
+    // 1. Register push notifications (FCM on Android / APNs on iOS)
+    registerForPushNotificationsAsync().then((result) => {
+      if (result.success && (result.expoPushToken || result.devicePushToken)) {
+        if (isAuthenticated) {
+          syncPushTokenWithBackend({
+            expoPushToken: result.expoPushToken,
+            devicePushToken: result.devicePushToken,
+          });
+        }
+      }
+    });
+
+    // 2. Handle deep linking when user taps an incoming notification
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data;
+      if (data?.route) {
+        router.push(data.route as any);
+      } else if (data?.url) {
+        router.push(data.url as any);
+      }
+    });
+
+    return () => {
+      responseSubscription.remove();
+    };
+  }, [isAuthenticated]);
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
