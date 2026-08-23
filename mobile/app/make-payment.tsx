@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -17,7 +17,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ShieldCheck, CreditCard, Building2, BadgeCheck } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
-import { payments, ApiError } from '@/lib/api';
+import { payments, generateIdempotencyKey, ApiError } from '@/lib/api';
 import { SuccessState } from '@/components/states';
 
 const BANK_DETAILS = {
@@ -40,17 +40,30 @@ export default function MakePaymentScreen() {
   const [saveCard, setSaveCard] = useState(true);
   const [transferConfirm, setTransferConfirm] = useState<{ ref: string; amount: string } | null>(null);
 
+  // One key per distinct (amount, description, gateway) combination — stays
+  // the same across repeated taps of "Pay" for the same values (so a retry
+  // after a dropped network response replays instead of double-charging),
+  // and changes the moment the patient edits any of those fields (so an
+  // edited request is never mistaken for a retry of the old one).
+  const idempotencyKey = useMemo(
+    () => generateIdempotencyKey(),
+    [amountNaira, description, gateway, saveCard],
+  );
+
   const initiateMutation = useMutation({
     mutationFn: () => {
       const parsed = parseFloat(amountNaira);
-      return payments.initiate({
-        gateway,
-        purpose: 'other',
-        description: description.trim(),
-        amountKobo: Math.round(parsed * 100),
-        currency: 'NGN',
-        savePaymentMethod: gateway === 'Flutterwave' ? saveCard : undefined,
-      });
+      return payments.initiate(
+        {
+          gateway,
+          purpose: 'other',
+          description: description.trim(),
+          amountKobo: Math.round(parsed * 100),
+          currency: 'NGN',
+          savePaymentMethod: gateway === 'Flutterwave' ? saveCard : undefined,
+        },
+        idempotencyKey,
+      );
     },
     onSuccess: async (result) => {
       if (result.authorizationUrl) {

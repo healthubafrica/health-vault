@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Receipt, CreditCard, X, Building2, Copy } from 'lucide-react'
-import { payments as paymentsApi, ApiError, type GatewayStatus } from '@/lib/api'
+import { payments as paymentsApi, generateIdempotencyKey, ApiError, type GatewayStatus } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
@@ -44,6 +44,15 @@ export function PaymentsScreen() {
   const [submitting, setSubmitting] = useState(false)
   const [transferConfirm, setTransferConfirm] = useState<{ ref: string; amount: string } | null>(null)
 
+  // One key per distinct (description, amount, gateway) combination — stays
+  // the same across repeated submits of the same values within this modal
+  // session (so retrying after a dropped response replays instead of
+  // double-charging), and changes the moment any of those fields change.
+  const idempotencyKey = useMemo(
+    () => generateIdempotencyKey(),
+    [description, amountNaira, gateway],
+  )
+
   if (isInitialLoad) return <ListSkeleton ariaLabel="Loading payment history" showStats />
   if (error && !paymentsRes) return <ErrorState message={error} onRetry={refetch} />
 
@@ -71,13 +80,16 @@ export function PaymentsScreen() {
       // Backend PaymentGateway enum values are PascalCase ('Flutterwave', 'manual')
       // — the local Gateway type stays lowercase for UI/select convenience.
       const apiGateway = gateway === 'bank_transfer' ? 'manual' : 'Flutterwave'
-      const result = await paymentsApi.initiate({
-        gateway: apiGateway,
-        purpose: 'other',
-        description: description.trim(),
-        amountKobo: Math.round(parsed * 100),
-        currency: 'NGN',
-      })
+      const result = await paymentsApi.initiate(
+        {
+          gateway: apiGateway,
+          purpose: 'other',
+          description: description.trim(),
+          amountKobo: Math.round(parsed * 100),
+          currency: 'NGN',
+        },
+        idempotencyKey,
+      )
 
       if (result.authorizationUrl) {
         window.location.href = result.authorizationUrl

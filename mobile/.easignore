@@ -1,5 +1,3 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-
 # dependencies
 node_modules/
 
@@ -30,9 +28,6 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
-.env*.local
-
 # typescript
 *.tsbuildinfo
 
@@ -40,6 +35,6 @@ yarn-error.*
 /ios
 /android
 
-# Firebase configuration
-google-services.json
-GoogleService-Info.plist
+# Allow EAS to bundle Firebase configuration files for Android/iOS builds
+!google-services.json
+!GoogleService-Info.plist

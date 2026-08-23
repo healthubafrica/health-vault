@@ -11,14 +11,14 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.healthhubafrica.myhealthvault",
+      "bundleIdentifier": "com.myvaultplus.app",
       "infoPlist": {
         "NSCameraUsageDescription": "MyHealth Vault+ needs camera access for TeleCare video consultations.",
         "NSMicrophoneUsageDescription": "MyHealth Vault+ needs microphone access for TeleCare video consultations."
       }
     },
     "android": {
-      "package": "com.healthhubafrica.myhealthvault",
+      "package": "com.myvaultsplus.app",
       "adaptiveIcon": {
         "backgroundColor": "#137333",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -30,7 +30,10 @@
         "CAMERA",
         "RECORD_AUDIO",
         "MODIFY_AUDIO_SETTINGS",
-        "BLUETOOTH"
+        "BLUETOOTH",
+        "POST_NOTIFICATIONS",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED"
       ]
     },
     "web": {
@@ -38,7 +41,14 @@
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
+    "updates": {
+      "url": "https://u.expo.dev/87ae595a-aad6-4c25-b0e4-69331153944c"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "plugins": [
+      "expo-updates",
       "expo-router",
       [
         "expo-splash-screen",
@@ -57,7 +67,14 @@
           "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone for TeleCare video calls"
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/android-icon-monochrome.png",
+          "color": "#137333"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
