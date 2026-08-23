@@ -775,15 +775,37 @@ export interface GatewayStatus {
   accountName?: string
 }
 
+// Generates a client-side key to send as the Idempotency-Key header on
+// payment initiation. Needs to be unpredictable enough that two different
+// attempts (this one and, say, an attacker racing to submit under a guessed
+// key) never collide — Math.random() isn't a CSPRNG, so this prefers
+// crypto.randomUUID() (available in every evergreen browser) and only falls
+// back if it's somehow missing. Callers should create one when a payment
+// form's inputs are set (or reset) and reuse it across retries of that same
+// attempt, not regenerate it per request.
+export function generateIdempotencyKey(): string {
+  const c = typeof crypto !== 'undefined' ? crypto : undefined
+  if (c?.randomUUID) return c.randomUUID()
+  if (c?.getRandomValues) {
+    const bytes = c.getRandomValues(new Uint8Array(16))
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+}
+
 export const payments = {
   list: () => request<{ data: Payment[] }>('/payments'),
 
   get: (id: string) => request<{ data: Payment }>(`/payments/${id}`),
 
-  initiate: (data: { gateway: string; purpose: string; amountKobo: number; currency: string; description?: string }) =>
+  initiate: (
+    data: { gateway: string; purpose: string; amountKobo: number; currency: string; description?: string },
+    idempotencyKey?: string,
+  ) =>
     request<{ paymentId: string; authorizationUrl?: string; gateway: string; status?: string }>('/payments', {
       method: 'POST',
       body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
     }),
 
   getGatewayStatus: () => request<GatewayStatus[]>('/payments/gateways/status'),

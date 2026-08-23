@@ -582,18 +582,39 @@ export interface PaymentMethod {
   createdAt: string;
 }
 
+// Generates a client-side key to send as the Idempotency-Key header on
+// payment initiation. Needs to be unpredictable enough that two different
+// attempts (this one and, say, an attacker racing to submit under a guessed
+// key) never collide — Math.random() isn't a CSPRNG, so this prefers
+// crypto.randomUUID()/getRandomValues where available and only falls back
+// to Math.random() if neither exists at all. Callers should create one when
+// a payment form mounts (or is reset) and reuse it across retries of that
+// same attempt, not regenerate it per request.
+export function generateIdempotencyKey(): string {
+  const c = (globalThis as { crypto?: Crypto }).crypto;
+  if (c?.randomUUID) return c.randomUUID();
+  if (c?.getRandomValues) {
+    const bytes = c.getRandomValues(new Uint8Array(16));
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
 export const payments = {
   list: () => apiRequest<{ data: Payment[] }>('/payments'),
 
-  initiate: (data: {
-    gateway: string;
-    purpose: string;
-    amountKobo: number;
-    currency: string;
-    description?: string;
-    savePaymentMethod?: boolean;
-    paymentMethodId?: string;
-  }) =>
+  initiate: (
+    data: {
+      gateway: string;
+      purpose: string;
+      amountKobo: number;
+      currency: string;
+      description?: string;
+      savePaymentMethod?: boolean;
+      paymentMethodId?: string;
+    },
+    idempotencyKey?: string,
+  ) =>
     apiRequest<{
       paymentId: string;
       authorizationUrl?: string;
@@ -601,7 +622,11 @@ export const payments = {
       status?: string;
       requiresOtp?: boolean;
       flwRef?: string;
-    }>('/payments', { method: 'POST', body: JSON.stringify(data) }),
+    }>('/payments', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+    }),
 
   validateCharge: (data: { paymentId: string; flwRef: string; otp: string }) =>
     apiRequest<{ status: string; paymentId: string }>('/payments/validate-charge', {
