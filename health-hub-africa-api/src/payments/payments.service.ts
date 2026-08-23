@@ -73,6 +73,13 @@ export class PaymentsService {
     // same stored result regardless of outcome; a genuine new attempt after
     // a failure is the client's responsibility to key freshly.
     const clientIdempotencyKey = options?.idempotencyKey?.trim() || undefined;
+    // This value bypasses class-validator (it arrives as a raw header, not a
+    // DTO field) and is later forwarded verbatim to Flutterwave as tx_ref —
+    // bound its shape before it touches the unique-indexed DB column or the
+    // gateway request.
+    if (clientIdempotencyKey && !/^[A-Za-z0-9_-]{1,128}$/.test(clientIdempotencyKey)) {
+      throw new BadRequestException('Idempotency-Key must be 1-128 characters: letters, numbers, "-", or "_".');
+    }
     if (clientIdempotencyKey) {
       const existing = await this.prisma.payment.findUnique({ where: { idempotencyKey: clientIdempotencyKey } });
       if (existing) {
@@ -116,8 +123,8 @@ export class PaymentsService {
       ...(dto.savePaymentMethod && { savePaymentMethod: true }),
     };
 
-    const payment = await this.prisma.payment.create({
-      data: {
+    const { payment, conflicted } = await this.createPaymentGuarded(
+      {
         hhaRef: await this.generatePaymentRef(),
         patientId: patient.id,
         gateway: dto.gateway,
@@ -128,7 +135,14 @@ export class PaymentsService {
         status: PaymentStatus.pending,
         ...(Object.keys(metadata).length > 0 && { metadata }),
       },
-    });
+      clientIdempotencyKey,
+    );
+    // Lost a create-time race to a concurrent identical request (both passed
+    // the earlier existence check before either had committed) — the DB's
+    // unique constraint on idempotencyKey already stopped a duplicate row
+    // from existing; replay the winner's result instead of surfacing its
+    // uncaught constraint violation as a 500.
+    if (conflicted) return this.replayInitiateResponse(payment);
 
     // Initiate charge with the selected gateway
     if (dto.gateway === PaymentGateway.Flutterwave) {
@@ -151,6 +165,39 @@ export class PaymentsService {
       currency: dto.currency,
       status: payment.status,
     };
+  }
+
+  // The existence check above and this create() are not atomic — two
+  // concurrent requests carrying the same fresh idempotency key can both
+  // pass the check before either commits. The DB's unique constraint on
+  // idempotencyKey stops a duplicate row from ever existing, but the loser's
+  // create() throws P2002 rather than succeeding; this turns that into a
+  // clean replay of the winner instead of an uncaught 500. A P2002 on a
+  // different constraint (e.g. the hhaRef sequence) is not this race and is
+  // rethrown unchanged.
+  private async createPaymentGuarded(
+    data: Prisma.PaymentUncheckedCreateInput,
+    clientIdempotencyKey: string | undefined,
+  ): Promise<{ payment: Awaited<ReturnType<typeof this.prisma.payment.create>>; conflicted: boolean }> {
+    try {
+      const payment = await this.prisma.payment.create({ data });
+      return { payment, conflicted: false };
+    } catch (err) {
+      const target = (err as { meta?: { target?: unknown } })?.meta?.target;
+      const isIdempotencyKeyConflict =
+        clientIdempotencyKey &&
+        (err as { code?: string })?.code === 'P2002' &&
+        Array.isArray(target) &&
+        target.some((t) => String(t).toLowerCase().includes('idempotency'));
+
+      if (isIdempotencyKeyConflict) {
+        const winner = await this.prisma.payment.findUniqueOrThrow({
+          where: { idempotencyKey: clientIdempotencyKey },
+        });
+        return { payment: winner, conflicted: true };
+      }
+      throw err;
+    }
   }
 
   // Reconstructs the exact response shape the original initiate() call would
@@ -397,8 +444,8 @@ export class PaymentsService {
     const description =
       dto.description?.trim() || `${dto.purpose} — ${dto.currency} ${(amountKobo / 100).toFixed(2)}`;
 
-    const payment = await this.prisma.payment.create({
-      data: {
+    const { payment, conflicted } = await this.createPaymentGuarded(
+      {
         hhaRef: await this.generatePaymentRef(),
         patientId,
         gateway: PaymentGateway.Flutterwave,
@@ -409,7 +456,9 @@ export class PaymentsService {
         description,
         status: PaymentStatus.pending,
       },
-    });
+      clientIdempotencyKey,
+    );
+    if (conflicted) return this.replayInitiateResponse(payment);
 
     const secret = this.config.getOrThrow<string>('FLUTTERWAVE_SECRET_KEY');
     const amount = (amountKobo / 100).toFixed(2);
@@ -834,7 +883,15 @@ export class PaymentsService {
       gateway === PaymentGateway.Flutterwave && typeof eventData?.id === 'number' ? (eventData.id as number) : undefined;
     let activation: { firstSubscription: boolean; planId: string } | null = null;
     let claimed = false;
+    let finalMetadata: Prisma.JsonValue | null = payment.metadata;
     await this.prisma.$transaction(async (tx) => {
+      // Re-read metadata inside the transaction rather than trusting the
+      // pre-transaction snapshot — narrows the window for a lost update if
+      // some other write (e.g. a saved-card OTP flow persisting flwRef) lands
+      // on this same row between our initial findFirst and this point.
+      const fresh = await tx.payment.findUnique({ where: { id: payment.id }, select: { metadata: true } });
+      finalMetadata = fresh?.metadata ?? payment.metadata;
+
       // Atomic conditional update — this, not the pre-check above, is what
       // makes concurrent deliveries safe (a duplicate webhook redelivery
       // racing itself, or racing the verifyPayment() client-side fallback,
@@ -849,7 +906,7 @@ export class PaymentsService {
           paidAt,
           gatewayResponse: event as Prisma.InputJsonValue,
           metadata: this.mergeMetadata(
-            payment.metadata,
+            finalMetadata,
             'charge.success',
             flwTransactionId !== undefined ? { flwTransactionId } : undefined,
           ),
@@ -858,7 +915,7 @@ export class PaymentsService {
       claimed = result.count === 1;
       if (!claimed) return;
 
-      activation = await this.activateSubscriptionFromPayment(tx, payment.id, payment.patientId, payment.metadata);
+      activation = await this.activateSubscriptionFromPayment(tx, payment.id, payment.patientId, finalMetadata);
       await this.createInvoice(tx, payment.id, payment.patientId, payment.amountKobo, paidAt);
     });
 
@@ -875,7 +932,7 @@ export class PaymentsService {
     // client-side fallback's synthetic event, so a save-card request that
     // resolves only through that fallback won't save a card; the normal
     // webhook path covers the common case.
-    const meta = payment.metadata as { savePaymentMethod?: boolean } | null;
+    const meta = finalMetadata as { savePaymentMethod?: boolean } | null;
     if (meta?.savePaymentMethod && gateway === PaymentGateway.Flutterwave) {
       await this.saveCardFromWebhook(payment.id, payment.patientId, eventData).catch((err) =>
         this.logger.error(`Failed to save card for payment ${payment.id}: ${err instanceof Error ? err.message : err}`),
@@ -987,6 +1044,11 @@ export class PaymentsService {
     let claimed = false;
 
     await this.prisma.$transaction(async (tx) => {
+      // Re-read metadata inside the transaction rather than trusting the
+      // pre-transaction snapshot — same rationale as handleChargeSuccess.
+      const fresh = await tx.payment.findUnique({ where: { id: payment.id }, select: { metadata: true } });
+      const currentMetadata = fresh?.metadata ?? payment.metadata;
+
       // Atomic conditional update, same rationale as handleChargeSuccess:
       // matches only if no concurrent delivery has already recorded a refund
       // of at least this amount. Prisma's `lt` filter never matches a NULL
@@ -1001,13 +1063,13 @@ export class PaymentsService {
           refundedAt: new Date(),
           refundAmountKobo: amountKobo,
           gatewayResponse: event as Prisma.InputJsonValue,
-          metadata: this.mergeMetadata(payment.metadata, 'refund.processed'),
+          metadata: this.mergeMetadata(currentMetadata, 'refund.processed'),
         },
       });
       claimed = result.count === 1;
       if (!claimed) return;
 
-      if (isFullRefund) await this.cancelSubscriptionForRefund(tx, payment.id, payment.metadata);
+      if (isFullRefund) await this.cancelSubscriptionForRefund(tx, payment.id, currentMetadata);
     });
 
     if (!claimed) {

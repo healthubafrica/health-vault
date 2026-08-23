@@ -13,6 +13,7 @@ import { JwtPayload } from '../common/decorators/current-user.decorator';
 const makeTx = (overrides: Record<string, unknown> = {}) => ({
   payment: {
     updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    findUnique: jest.fn().mockResolvedValue({ metadata: null }),
   },
   patientSubscription: {
     updateMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -31,6 +32,7 @@ const mockPrisma = {
   payment: {
     create: jest.fn(),
     findUnique: jest.fn(),
+    findUniqueOrThrow: jest.fn(),
     findFirst: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
@@ -135,6 +137,54 @@ describe('PaymentsService', () => {
       );
       expect(result).toEqual(expect.objectContaining({ paymentId: 'pay-2', idempotencyKey: 'key-fresh' }));
     });
+
+    it('rejects a malformed key before ever touching the database', async () => {
+      await expect(
+        service.initiate(dto as any, patientUser, { idempotencyKey: 'has a space & a slash/here' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.payment.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.payment.create).not.toHaveBeenCalled();
+    });
+
+    it('replays the winner instead of throwing when two concurrent requests race the create() call', async () => {
+      // Both requests pass the pre-create existence check (miss) before
+      // either has committed — the DB unique constraint stops the loser's
+      // row from being created, surfaced here as a P2002 on create().
+      mockPrisma.payment.findUnique.mockResolvedValue(null); // pre-create existence check: miss
+      mockPrisma.payment.findUniqueOrThrow.mockResolvedValue({
+        id: 'pay-winner',
+        patientId: patient.id,
+        amountKobo: dto.amountKobo,
+        currency: dto.currency,
+        gateway: dto.gateway,
+        gatewayRef: null,
+        idempotencyKey: 'key-race',
+        status: PaymentStatus.pending,
+        metadata: null,
+      }); // re-fetch after P2002
+      mockPrisma.payment.findFirst.mockResolvedValue(null); // generatePaymentRef lookup
+      const p2002 = Object.assign(new Error('Unique constraint failed'), {
+        code: 'P2002',
+        meta: { target: ['idempotency_key'] },
+      });
+      mockPrisma.payment.create.mockRejectedValue(p2002);
+
+      const result = await service.initiate(dto as any, patientUser, { idempotencyKey: 'key-race' });
+
+      expect(result).toEqual(expect.objectContaining({ paymentId: 'pay-winner' }));
+    });
+
+    it('rethrows a P2002 on an unrelated constraint instead of misattributing it to the idempotency race', async () => {
+      mockPrisma.payment.findUnique.mockResolvedValue(null);
+      mockPrisma.payment.findFirst.mockResolvedValue(null);
+      const p2002 = Object.assign(new Error('Unique constraint failed'), {
+        code: 'P2002',
+        meta: { target: ['hha_ref'] },
+      });
+      mockPrisma.payment.create.mockRejectedValue(p2002);
+
+      await expect(service.initiate(dto as any, patientUser, { idempotencyKey: 'key-x' })).rejects.toBe(p2002);
+    });
   });
 
   // ── handleChargeSuccess: concurrent-delivery race guard ────────────────────
@@ -151,7 +201,9 @@ describe('PaymentsService', () => {
 
     it('runs invoice/subscription side effects when it wins the atomic update', async () => {
       mockPrisma.payment.findFirst.mockResolvedValue(payment);
-      const tx = makeTx({ payment: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) } });
+      const tx = makeTx({
+        payment: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), findUnique: jest.fn().mockResolvedValue({ metadata: null }) },
+      });
       mockPrisma.$transaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(tx));
 
       await (service as any).handleChargeSuccess(event, event.data, PaymentGateway.Flutterwave);
@@ -168,7 +220,9 @@ describe('PaymentsService', () => {
       // Simulates a second, concurrent webhook delivery (or the verifyPayment
       // client-side fallback) having already claimed this payment — the
       // WHERE guard matches zero rows.
-      const tx = makeTx({ payment: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) } });
+      const tx = makeTx({
+        payment: { updateMany: jest.fn().mockResolvedValue({ count: 0 }), findUnique: jest.fn().mockResolvedValue({ metadata: null }) },
+      });
       mockPrisma.$transaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(tx));
 
       await (service as any).handleChargeSuccess(event, event.data, PaymentGateway.Flutterwave);
