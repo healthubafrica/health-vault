@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  Image,
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -39,7 +40,8 @@ export default function MyProfileScreen() {
 
   const profile = profileRes?.data;
   const displayName = profile ? `${profile.firstName} ${profile.lastName}` : (authUser ? `${authUser.firstName} ${authUser.lastName}` : 'My Profile');
-  const initials = profile ? `${profile.firstName?.[0] ?? ''}${profile.lastName?.[0] ?? ''}`.toUpperCase() : 'ME';
+  const initials = profile ? `${profile.firstName?.[0] ?? ''}${profile.lastName?.[0] ?? ''}`.toUpperCase() : (authUser ? `${authUser.firstName?.[0] ?? ''}${authUser.lastName?.[0] ?? ''}`.toUpperCase() : 'ME');
+  const avatarUrl = profile?.profilePhotoUrl || authUser?.profilePhotoUrl || authUser?.avatarUrl;
   const email = profile?.user?.email ?? authUser?.email ?? '';
   const phone = profile?.user?.phone ?? authUser?.phone ?? '—';
   const dob = profile?.dateOfBirth ? new Date(profile.dateOfBirth).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
@@ -89,9 +91,13 @@ export default function MyProfileScreen() {
         
         {/* Profile Avatar & Basic Info */}
         <View style={[styles.avatarCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <View style={[styles.bigAvatar, { backgroundColor: theme.primaryDark }]}>
-            <Text style={styles.bigAvatarText}>{initials}</Text>
-          </View>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={styles.bigAvatar} />
+          ) : (
+            <View style={[styles.bigAvatar, { backgroundColor: theme.primaryDark }]}>
+              <Text style={styles.bigAvatarText}>{initials}</Text>
+            </View>
+          )}
           <Text style={[styles.userName, { color: theme.text }]}>{displayName}</Text>
           <Text style={[styles.userEmail, { color: theme.textMuted }]}>{email}</Text>
           <View style={[styles.memberBadge, { backgroundColor: theme.primaryLight }]}>

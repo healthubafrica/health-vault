@@ -8,9 +8,12 @@ import {
   SafeAreaView,
   StatusBar,
   TextInput,
+  Image,
+  ActivityIndicator,
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as DocumentPicker from 'expo-document-picker';
 import {
   ChevronLeft,
   Camera,
@@ -31,6 +34,7 @@ export default function EditProfileScreen() {
   const theme = Colors[colorScheme];
   const authUser = useAuthStore((s) => s.user);
   const qc = useQueryClient();
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   const { data: profileRes } = useQuery({
     queryKey: ['patient', 'profile'],
@@ -38,6 +42,12 @@ export default function EditProfileScreen() {
   });
 
   const profile = profileRes?.data;
+  const initials = profile
+    ? `${profile.firstName?.[0] ?? ''}${profile.lastName?.[0] ?? ''}`.toUpperCase()
+    : authUser
+    ? `${authUser.firstName?.[0] ?? ''}${authUser.lastName?.[0] ?? ''}`.toUpperCase()
+    : 'ME';
+  const avatarUrl = profile?.profilePhotoUrl || authUser?.profilePhotoUrl || authUser?.avatarUrl;
 
   const [formData, setFormData] = useState({
     firstName: profile?.firstName ?? authUser?.firstName ?? '',
@@ -88,12 +98,50 @@ export default function EditProfileScreen() {
     updateMutation.mutate();
   };
 
-  const handleChangePhoto = () => {
-    Alert.alert('Change Profile Photo', 'Choose an option to update your photo:', [
-      { text: 'Take Photo', onPress: () => {} },
-      { text: 'Choose from Gallery', onPress: () => {} },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+  const handleChangePhoto = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['image/jpeg', 'image/png', 'image/webp'],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
+
+      const file = result.assets[0];
+      if (!file.uri) return;
+
+      setIsUploadingPhoto(true);
+
+      const mimeType = file.mimeType || 'image/jpeg';
+      const sizeBytes = file.size || 1024 * 500;
+
+      const { uploadUrl, publicUrl } = await patients.getProfilePhotoUploadUrl({
+        contentType: mimeType,
+        sizeBytes,
+      });
+
+      const response = await fetch(file.uri);
+      const blob = await response.blob();
+
+      const uploadRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': mimeType },
+        body: blob,
+      });
+
+      if (!uploadRes.ok) throw new Error('Failed to upload photo to storage.');
+
+      if (profile?.id) {
+        await patients.update(profile.id, { profilePhotoUrl: publicUrl });
+        qc.invalidateQueries({ queryKey: ['patient', 'profile'] });
+        Alert.alert('Success', 'Profile photo updated successfully!');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Could not upload photo.';
+      Alert.alert('Upload Error', msg);
+    } finally {
+      setIsUploadingPhoto(false);
+    }
   };
 
   return (
@@ -116,15 +164,26 @@ export default function EditProfileScreen() {
         
         {/* Avatar Section */}
         <View style={styles.avatarSection}>
-          <View style={[styles.avatarBox, { backgroundColor: theme.primaryDark }]}>
-            <Text style={styles.avatarText}>AO</Text>
-          </View>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={styles.avatarBox} />
+          ) : (
+            <View style={[styles.avatarBox, { backgroundColor: theme.primaryDark }]}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+          )}
           <TouchableOpacity
             onPress={handleChangePhoto}
+            disabled={isUploadingPhoto}
             activeOpacity={0.75}
             style={styles.changePhotoBtn}>
-            <Camera size={16} color={theme.primary} />
-            <Text style={[styles.changePhotoText, { color: theme.primary }]}>Change Photo</Text>
+            {isUploadingPhoto ? (
+              <ActivityIndicator size="small" color={theme.primary} />
+            ) : (
+              <>
+                <Camera size={16} color={theme.primary} />
+                <Text style={[styles.changePhotoText, { color: theme.primary }]}>Change Photo</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
 

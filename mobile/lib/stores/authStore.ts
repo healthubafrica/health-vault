@@ -16,6 +16,7 @@ export interface UserProfile {
   phone?: string;
   role?: string;
   avatarUrl?: string;
+  profilePhotoUrl?: string | null;
 }
 
 interface AuthState {
@@ -25,6 +26,7 @@ interface AuthState {
   isBiometricSupported: boolean;
   isBiometricEnrolled: boolean;
   login: (accessToken: string, refreshToken: string, user: UserProfile) => Promise<void>;
+  updateUser: (partial: Partial<UserProfile>) => void;
   logout: () => Promise<void>;
   restoreSession: () => Promise<boolean>;
   checkBiometrics: () => Promise<boolean>;
@@ -37,6 +39,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: true,
   isBiometricSupported: false,
   isBiometricEnrolled: false,
+
+  updateUser: (partial: Partial<UserProfile>) => {
+    set((state) => ({
+      user: state.user ? { ...state.user, ...partial } : null,
+    }));
+  },
 
   checkBiometrics: async () => {
     try {

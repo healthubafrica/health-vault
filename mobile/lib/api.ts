@@ -403,6 +403,12 @@ export const patients = {
       { method: 'PATCH', body: JSON.stringify(data) }
     ),
 
+  getProfilePhotoUploadUrl: (data: { contentType: string; sizeBytes: number }) =>
+    apiRequest<{ uploadUrl: string; publicUrl: string }>('/patients/me/photo-upload-url', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   // Derived from appointment history, not a dedicated assignment table —
   // see patients.service.ts findMyCareTeam.
   getMyCareTeam: () => apiRequest<{ data: CareTeamMember[] }>('/patients/me/care-team'),
