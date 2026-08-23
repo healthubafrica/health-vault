@@ -775,15 +775,30 @@ export interface GatewayStatus {
   accountName?: string
 }
 
+// Generates a client-side key to send as the Idempotency-Key header on
+// payment initiation. Not a security token — just needs to be unique per
+// logical "Pay" attempt so a double-submit or a retry after a dropped
+// response reuses the same key and the backend replays the original result
+// instead of creating a second payment/checkout link. Callers should create
+// one when a payment form's inputs are set (or reset) and reuse it across
+// retries of that same attempt, not regenerate it per request.
+export function generateIdempotencyKey(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+}
+
 export const payments = {
   list: () => request<{ data: Payment[] }>('/payments'),
 
   get: (id: string) => request<{ data: Payment }>(`/payments/${id}`),
 
-  initiate: (data: { gateway: string; purpose: string; amountKobo: number; currency: string; description?: string }) =>
+  initiate: (
+    data: { gateway: string; purpose: string; amountKobo: number; currency: string; description?: string },
+    idempotencyKey?: string,
+  ) =>
     request<{ paymentId: string; authorizationUrl?: string; gateway: string; status?: string }>('/payments', {
       method: 'POST',
       body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
     }),
 
   getGatewayStatus: () => request<GatewayStatus[]>('/payments/gateways/status'),

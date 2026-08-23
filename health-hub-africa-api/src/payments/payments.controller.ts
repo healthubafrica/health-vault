@@ -37,8 +37,12 @@ export class PaymentsController {
   @Post()
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @ApiOperation({ summary: 'Initiate a payment' })
-  initiate(@Body() dto: InitiatePaymentDto, @CurrentUser() user: JwtPayload) {
-    return this.paymentsService.initiate(dto, user);
+  initiate(
+    @Body() dto: InitiatePaymentDto,
+    @CurrentUser() user: JwtPayload,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.paymentsService.initiate(dto, user, { idempotencyKey });
   }
 
   @ApiBearerAuth()

@@ -582,18 +582,32 @@ export interface PaymentMethod {
   createdAt: string;
 }
 
+// Generates a client-side key to send as the Idempotency-Key header on
+// payment initiation. Not a security token — just needs to be unique per
+// logical "Pay" attempt so a double-tap or a client retry after a dropped
+// response reuses the same key and the backend can replay the original
+// result instead of creating a second payment/checkout link. Callers should
+// create one when a payment form mounts (or is reset) and reuse it across
+// retries of that same attempt, not regenerate it per request.
+export function generateIdempotencyKey(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
 export const payments = {
   list: () => apiRequest<{ data: Payment[] }>('/payments'),
 
-  initiate: (data: {
-    gateway: string;
-    purpose: string;
-    amountKobo: number;
-    currency: string;
-    description?: string;
-    savePaymentMethod?: boolean;
-    paymentMethodId?: string;
-  }) =>
+  initiate: (
+    data: {
+      gateway: string;
+      purpose: string;
+      amountKobo: number;
+      currency: string;
+      description?: string;
+      savePaymentMethod?: boolean;
+      paymentMethodId?: string;
+    },
+    idempotencyKey?: string,
+  ) =>
     apiRequest<{
       paymentId: string;
       authorizationUrl?: string;
@@ -601,7 +615,11 @@ export const payments = {
       status?: string;
       requiresOtp?: boolean;
       flwRef?: string;
-    }>('/payments', { method: 'POST', body: JSON.stringify(data) }),
+    }>('/payments', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+    }),
 
   validateCharge: (data: { paymentId: string; flwRef: string; otp: string }) =>
     apiRequest<{ status: string; paymentId: string }>('/payments/validate-charge', {

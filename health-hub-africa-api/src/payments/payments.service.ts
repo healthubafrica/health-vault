@@ -48,7 +48,7 @@ export class PaymentsService {
   async initiate(
     dto: InitiatePaymentDto,
     currentUser: JwtPayload,
-    options?: { metadata?: Prisma.InputJsonValue; description?: string },
+    options?: { metadata?: Prisma.InputJsonValue; description?: string; idempotencyKey?: string },
   ) {
     const patient = await this.prisma.patient.findUnique({
       where: { userId: currentUser.sub },
@@ -65,6 +65,35 @@ export class PaymentsService {
       throw new BadRequestException('Paystack is coming soon. Please use Flutterwave or bank transfer.');
     }
 
+    // Idempotency: a client-supplied key lets a retried or double-submitted
+    // request (double-tap, a client timeout retry, an app resume after a
+    // dropped response) replay the original result instead of creating a
+    // second Payment row and — for hosted checkout — a second live payment
+    // link the patient could complete twice. Same key always returns the
+    // same stored result regardless of outcome; a genuine new attempt after
+    // a failure is the client's responsibility to key freshly.
+    const clientIdempotencyKey = options?.idempotencyKey?.trim() || undefined;
+    if (clientIdempotencyKey) {
+      const existing = await this.prisma.payment.findUnique({ where: { idempotencyKey: clientIdempotencyKey } });
+      if (existing) {
+        // A key reused for a genuinely different request (different patient,
+        // amount, currency, or gateway) is either a client bug or a stale key
+        // left over from an edited form — replaying it would silently return
+        // a response for the wrong amount. Reject rather than guess.
+        const sameRequest =
+          existing.patientId === patient.id &&
+          existing.amountKobo === dto.amountKobo &&
+          existing.currency === dto.currency &&
+          existing.gateway === dto.gateway;
+        if (!sameRequest) {
+          throw new BadRequestException(
+            'This idempotency key was already used for a different request. Please retry with a fresh key.',
+          );
+        }
+        return this.replayInitiateResponse(existing);
+      }
+    }
+
     // Charging a saved card skips the hosted-checkout flow entirely — a
     // separate path since it needs the stored token and a different
     // Flutterwave endpoint (tokenized-charges, not payments).
@@ -72,10 +101,10 @@ export class PaymentsService {
       if (dto.gateway !== PaymentGateway.Flutterwave) {
         throw new BadRequestException('Saved-card charging is only supported for Flutterwave.');
       }
-      return this.chargeWithSavedMethod(dto, patient.id, patient.user.email);
+      return this.chargeWithSavedMethod(dto, patient.id, patient.user.email, clientIdempotencyKey);
     }
 
-    const idempotencyKey = randomUUID();
+    const idempotencyKey = clientIdempotencyKey ?? randomUUID();
     const amountKobo = dto.amountKobo;
     const description =
       dto.description?.trim() ||
@@ -103,7 +132,15 @@ export class PaymentsService {
 
     // Initiate charge with the selected gateway
     if (dto.gateway === PaymentGateway.Flutterwave) {
-      return this.initiateFlutterwave(payment.id, patient.user.email, amountKobo, dto.currency, idempotencyKey, description);
+      return this.initiateFlutterwave(
+        payment.id,
+        patient.user.email,
+        amountKobo,
+        dto.currency,
+        idempotencyKey,
+        description,
+        metadata,
+      );
     }
 
     return {
@@ -112,6 +149,55 @@ export class PaymentsService {
       gateway: dto.gateway,
       amountKobo,
       currency: dto.currency,
+      status: payment.status,
+    };
+  }
+
+  // Reconstructs the exact response shape the original initiate() call would
+  // have returned, from what was persisted at the time — never re-calls the
+  // gateway, so a replayed request can't accidentally create a second
+  // Flutterwave payment intent for the same logical charge.
+  private replayInitiateResponse(payment: {
+    id: string;
+    gateway: PaymentGateway;
+    gatewayRef: string | null;
+    idempotencyKey: string | null;
+    amountKobo: number;
+    currency: string;
+    status: PaymentStatus;
+    metadata: Prisma.JsonValue | null;
+  }) {
+    const meta = (payment.metadata ?? {}) as { authorizationUrl?: string; flwRef?: string };
+
+    if (payment.status === PaymentStatus.paid) {
+      return { paymentId: payment.id, gateway: payment.gateway, status: 'paid', amountKobo: payment.amountKobo, currency: payment.currency };
+    }
+    if (meta.authorizationUrl) {
+      return {
+        paymentId: payment.id,
+        gateway: payment.gateway,
+        authorizationUrl: meta.authorizationUrl,
+        reference: payment.gatewayRef,
+        amountKobo: payment.amountKobo,
+        currency: payment.currency,
+      };
+    }
+    if (meta.flwRef) {
+      return {
+        paymentId: payment.id,
+        gateway: payment.gateway,
+        requiresOtp: true,
+        flwRef: meta.flwRef,
+        amountKobo: payment.amountKobo,
+        currency: payment.currency,
+      };
+    }
+    return {
+      paymentId: payment.id,
+      idempotencyKey: payment.idempotencyKey,
+      gateway: payment.gateway,
+      amountKobo: payment.amountKobo,
+      currency: payment.currency,
       status: payment.status,
     };
   }
@@ -172,6 +258,7 @@ export class PaymentsService {
     currency: string,
     txRef: string,
     description: string,
+    metadata: Prisma.InputJsonValue,
   ) {
     const secret = this.config.getOrThrow<string>('FLUTTERWAVE_SECRET_KEY');
     // Flutterwave amounts are in the currency's major unit (naira), not kobo.
@@ -205,9 +292,15 @@ export class PaymentsService {
       throw new BadRequestException('Payment gateway error. Please try again.');
     }
 
+    // authorizationUrl is persisted so a replayed initiate() (same
+    // idempotency key) can return the exact same checkout link instead of
+    // calling Flutterwave again and minting a second live payment intent.
     await this.prisma.payment.update({
       where: { id: paymentId },
-      data: { gatewayRef: txRef },
+      data: {
+        gatewayRef: txRef,
+        metadata: { ...(metadata as Record<string, unknown>), authorizationUrl: data.data.link },
+      },
     });
 
     return {
@@ -285,7 +378,12 @@ export class PaymentsService {
     return { ok: true };
   }
 
-  private async chargeWithSavedMethod(dto: InitiatePaymentDto, patientId: string, email: string) {
+  private async chargeWithSavedMethod(
+    dto: InitiatePaymentDto,
+    patientId: string,
+    email: string,
+    clientIdempotencyKey?: string,
+  ) {
     const method = await this.prisma.paymentMethod.findUnique({ where: { id: dto.paymentMethodId } });
     if (!method || method.patientId !== patientId) {
       throw new NotFoundException('Payment method not found');
@@ -294,7 +392,7 @@ export class PaymentsService {
     const encryptionKey = this.config.getOrThrow<string>('CARD_TOKEN_ENCRYPTION_KEY');
     const token = decryptCardToken(method.gatewayToken, encryptionKey);
 
-    const idempotencyKey = randomUUID();
+    const idempotencyKey = clientIdempotencyKey ?? randomUUID();
     const amountKobo = dto.amountKobo;
     const description =
       dto.description?.trim() || `${dto.purpose} — ${dto.currency} ${(amountKobo / 100).toFixed(2)}`;
@@ -347,7 +445,10 @@ export class PaymentsService {
 
     // Some cards require an OTP/3DS step even on a tokenized (repeat) charge
     // — the caller must collect it and call validateCharge to finish.
+    // flwRef is persisted so a replayed initiate() (same idempotency key)
+    // can return it again without re-charging the card.
     if (body.data.status === 'pending') {
+      await this.prisma.payment.update({ where: { id: payment.id }, data: { metadata: { flwRef: body.data.flw_ref } } });
       return {
         paymentId: payment.id,
         gateway: PaymentGateway.Flutterwave,
@@ -705,26 +806,26 @@ export class PaymentsService {
       return;
     }
 
-    // Idempotency: skip if this reference was already processed successfully
-    const existing = await this.prisma.payment.findFirst({
-      where: { gatewayRef, status: PaymentStatus.paid },
-    });
-    if (existing) {
-      this.logger.log(`Idempotent skip for ref: ${gatewayRef}`);
-      return;
-    }
-
     const payment = await this.prisma.payment.findFirst({ where: { gatewayRef } });
     if (!payment) {
       this.logger.warn(`No payment found for ref: ${gatewayRef}`);
       return;
     }
 
+    // Cheap pre-check to skip the transaction entirely for the common case
+    // (a plain webhook retry arriving after we've already finished). The
+    // guard that actually matters against a genuine race — two deliveries
+    // landing concurrently — is the conditional update inside the
+    // transaction below, not this check.
+    if (payment.status === PaymentStatus.paid) {
+      this.logger.log(`Idempotent skip for ref: ${gatewayRef}`);
+      return;
+    }
+
     // Payment status, subscription activation, and invoice creation happen in
     // one transaction: if activation throws, everything rolls back, the
     // payment stays non-paid, and a webhook retry (or the verifyPayment
-    // client-side fallback) can safely re-attempt from scratch — the
-    // idempotency check above only blocks retries for payments already paid.
+    // client-side fallback) can safely re-attempt from scratch.
     const paidAt = new Date();
     // Flutterwave refunds/lookups by API need the numeric transaction id
     // (distinct from our own tx_ref/gatewayRef) — persist it once here so
@@ -732,9 +833,17 @@ export class PaymentsService {
     const flwTransactionId =
       gateway === PaymentGateway.Flutterwave && typeof eventData?.id === 'number' ? (eventData.id as number) : undefined;
     let activation: { firstSubscription: boolean; planId: string } | null = null;
+    let claimed = false;
     await this.prisma.$transaction(async (tx) => {
-      await tx.payment.update({
-        where: { id: payment.id },
+      // Atomic conditional update — this, not the pre-check above, is what
+      // makes concurrent deliveries safe (a duplicate webhook redelivery
+      // racing itself, or racing the verifyPayment() client-side fallback,
+      // which both funnel through this same method). Postgres row-locking on
+      // the UPDATE means only one concurrent transaction can ever match the
+      // `status: { not: paid } ` guard; the loser affects zero rows and its
+      // WHERE clause re-evaluates against the winner's already-committed row.
+      const result = await tx.payment.updateMany({
+        where: { id: payment.id, status: { not: PaymentStatus.paid } },
         data: {
           status: PaymentStatus.paid,
           paidAt,
@@ -746,10 +855,17 @@ export class PaymentsService {
           ),
         },
       });
+      claimed = result.count === 1;
+      if (!claimed) return;
 
       activation = await this.activateSubscriptionFromPayment(tx, payment.id, payment.patientId, payment.metadata);
       await this.createInvoice(tx, payment.id, payment.patientId, payment.amountKobo, paidAt);
     });
+
+    if (!claimed) {
+      this.logger.log(`Idempotent skip for ref: ${gatewayRef} (lost the race to a concurrent delivery)`);
+      return;
+    }
 
     this.logger.log(`Payment ${payment.id} → paid via ${gateway}`);
 
@@ -859,17 +975,27 @@ export class PaymentsService {
 
     const amountKobo = refundedAmountKobo ?? payment.amountKobo;
 
-    // Idempotency: skip if we've already recorded a refund of at least this amount.
+    // Cheap pre-check for the common case (a plain webhook retry). As with
+    // handleChargeSuccess, the actual race guard is the conditional update
+    // inside the transaction below.
     if ((payment.refundAmountKobo ?? 0) >= amountKobo) {
       this.logger.log(`Idempotent skip for refund on payment ${payment.id}`);
       return;
     }
 
     const isFullRefund = amountKobo >= payment.amountKobo;
+    let claimed = false;
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.payment.update({
-        where: { id: payment.id },
+      // Atomic conditional update, same rationale as handleChargeSuccess:
+      // matches only if no concurrent delivery has already recorded a refund
+      // of at least this amount. Prisma's `lt` filter never matches a NULL
+      // column, so the null case is spelled out explicitly.
+      const result = await tx.payment.updateMany({
+        where: {
+          id: payment.id,
+          OR: [{ refundAmountKobo: null }, { refundAmountKobo: { lt: amountKobo } }],
+        },
         data: {
           status: isFullRefund ? PaymentStatus.refunded : payment.status,
           refundedAt: new Date(),
@@ -878,9 +1004,16 @@ export class PaymentsService {
           metadata: this.mergeMetadata(payment.metadata, 'refund.processed'),
         },
       });
+      claimed = result.count === 1;
+      if (!claimed) return;
 
       if (isFullRefund) await this.cancelSubscriptionForRefund(tx, payment.id, payment.metadata);
     });
+
+    if (!claimed) {
+      this.logger.log(`Idempotent skip for refund on payment ${payment.id} (lost the race to a concurrent delivery)`);
+      return;
+    }
 
     this.logger.log(`Payment ${payment.id} refund processed (${amountKobo} kobo, ${isFullRefund ? 'full' : 'partial'}) via ${gateway}`);
 
