@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { toast } from 'sonner'
 import { adminApi } from '@/lib/api'
 import { useAutoRefresh } from '@/lib/hooks/useLiveData'
 import { Card } from '@/components/ui/Card'
@@ -238,6 +239,8 @@ export default function ExpertReviewPage() {
       const res = await adminApi.operations.expertReview(params)
       setCases(res.data as ExpertReviewCase[])
       setTotal(res.meta.total)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not load expert review cases')
     } finally {
       setLoading(false)
     }

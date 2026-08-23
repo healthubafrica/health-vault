@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpStatus, Param, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpStatus, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { Response } from 'express';
@@ -24,6 +24,53 @@ export class OpenemrController {
   @ApiOperation({ summary: 'Retry a failed sync queue item' })
   retry(@Param('id') id: string) {
     return this.openemrService.retryFailed(id);
+  }
+
+  // ── Partner Referral Code Administration ──────────────────────────────────
+
+  @Get('routing/partners')
+  @ApiOperation({ summary: 'List partner organizations for the referral-code create form (admin only)' })
+  listReferralPartners() {
+    return this.openemrService.listReferralPartners();
+  }
+
+  @Get('routing/referral-codes')
+  @ApiOperation({ summary: 'List all partner referral codes with usage stats (admin only)' })
+  listReferralCodes() {
+    return this.openemrService.listReferralCodes();
+  }
+
+  @Post('routing/referral-codes')
+  @ApiOperation({ summary: 'Create a new partner/provider referral code (admin only)' })
+  createReferralCode(
+    @Body()
+    body: {
+      code: string;
+      partnerId: number;
+      providerId?: number | null;
+      campaignName?: string;
+      description?: string;
+      expiresAt?: string | null;
+      maxUses?: number | null;
+    },
+  ) {
+    return this.openemrService.createReferralCode(body);
+  }
+
+  @Patch('routing/referral-codes/:id')
+  @ApiOperation({ summary: 'Update a referral code — activate/deactivate, change expiry/max-uses/description (admin only)' })
+  updateReferralCode(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      active?: boolean;
+      expiresAt?: string | null;
+      maxUses?: number | null;
+      description?: string;
+      campaignName?: string;
+    },
+  ) {
+    return this.openemrService.updateReferralCode(Number(id), body);
   }
 
   @Post('recover-all')
