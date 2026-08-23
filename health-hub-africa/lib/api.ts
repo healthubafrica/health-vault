@@ -776,13 +776,20 @@ export interface GatewayStatus {
 }
 
 // Generates a client-side key to send as the Idempotency-Key header on
-// payment initiation. Not a security token — just needs to be unique per
-// logical "Pay" attempt so a double-submit or a retry after a dropped
-// response reuses the same key and the backend replays the original result
-// instead of creating a second payment/checkout link. Callers should create
-// one when a payment form's inputs are set (or reset) and reuse it across
-// retries of that same attempt, not regenerate it per request.
+// payment initiation. Needs to be unpredictable enough that two different
+// attempts (this one and, say, an attacker racing to submit under a guessed
+// key) never collide — Math.random() isn't a CSPRNG, so this prefers
+// crypto.randomUUID() (available in every evergreen browser) and only falls
+// back if it's somehow missing. Callers should create one when a payment
+// form's inputs are set (or reset) and reuse it across retries of that same
+// attempt, not regenerate it per request.
 export function generateIdempotencyKey(): string {
+  const c = typeof crypto !== 'undefined' ? crypto : undefined
+  if (c?.randomUUID) return c.randomUUID()
+  if (c?.getRandomValues) {
+    const bytes = c.getRandomValues(new Uint8Array(16))
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+  }
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 }
 
