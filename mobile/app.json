@@ -12,7 +12,6 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.myvaultplus.app",
-      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSCameraUsageDescription": "MyHealth Vault+ needs camera access for TeleCare video consultations.",
         "NSMicrophoneUsageDescription": "MyHealth Vault+ needs microphone access for TeleCare video consultations."
@@ -20,7 +19,6 @@
     },
     "android": {
       "package": "com.myvaultsplus.app",
-      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#137333",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
