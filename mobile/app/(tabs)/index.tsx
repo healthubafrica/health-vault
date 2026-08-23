@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  Image,
   ImageBackground,
   ActivityIndicator,
 } from 'react-native';
@@ -21,7 +22,7 @@ import AppointmentCard from '@/components/AppointmentCard';
 import ActivityCard from '@/components/ActivityCard';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
 import { useAuthStore } from '@/lib/stores/authStore';
-import { vitals, appointments, payments } from '@/lib/api';
+import { vitals, appointments, payments, patients } from '@/lib/api';
 
 function getTimeGreeting() {
   const h = new Date().getHours();
@@ -46,10 +47,24 @@ export default function HomeDashboardScreen() {
   const theme = Colors[colorScheme];
   const user = useAuthStore((s) => s.user);
 
-  const displayName = user ? `${user.firstName} ${user.lastName}` : '—';
-  const initials = user
+  const { data: profileRes } = useQuery({
+    queryKey: ['patient', 'profile'],
+    queryFn: () => patients.getMyProfile(),
+    enabled: !!user,
+  });
+
+  const profile = profileRes?.data;
+  const displayName = profile
+    ? `${profile.firstName} ${profile.lastName}`
+    : user
+    ? `${user.firstName} ${user.lastName}`
+    : '—';
+  const initials = profile
+    ? `${profile.firstName?.[0] ?? ''}${profile.lastName?.[0] ?? ''}`.toUpperCase()
+    : user
     ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase()
     : '?';
+  const avatarUrl = profile?.profilePhotoUrl || user?.profilePhotoUrl || user?.avatarUrl;
 
   // ── Data queries ──────────────────────────────────────────────────────────
 
@@ -100,15 +115,22 @@ export default function HomeDashboardScreen() {
 
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.userRow}>
-            <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
-              <Text style={styles.avatarText}>{initials}</Text>
-            </View>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => router.push('/(tabs)/profile')}
+            style={styles.userRow}>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
+                <Text style={styles.avatarText}>{initials}</Text>
+              </View>
+            )}
             <View>
               <Text style={[styles.subGreeting, { color: theme.textMuted }]}>{getTimeGreeting()}</Text>
               <Text style={[styles.greeting, { color: theme.text }]}>{displayName}</Text>
             </View>
-          </View>
+          </TouchableOpacity>
 
           <View style={styles.headerActions}>
             <TopHeaderEmergency />

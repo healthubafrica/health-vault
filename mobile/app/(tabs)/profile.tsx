@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  Image,
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -46,17 +47,30 @@ export default function MoreMenuScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
+  const { data: profileData } = useQuery({
+    queryKey: ['patient', 'profile'],
+    queryFn: () => patients.getMyProfile(),
+  });
+  const profile = profileData?.data;
+
   const { data: careTeamData } = useQuery({
     queryKey: ['care-team'],
     queryFn: () => patients.getMyCareTeam(),
   });
   const careTeamCount = careTeamData?.data.length ?? 0;
 
-  const displayName = user ? `${user.firstName} ${user.lastName}` : 'My Account';
-  const initials = user
+  const displayName = profile
+    ? `${profile.firstName} ${profile.lastName}`
+    : user
+    ? `${user.firstName} ${user.lastName}`
+    : 'My Account';
+  const initials = profile
+    ? `${profile.firstName?.[0] ?? ''}${profile.lastName?.[0] ?? ''}`.toUpperCase()
+    : user
     ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase()
     : '?';
-  const email = user?.email ?? '';
+  const avatarUrl = profile?.profilePhotoUrl || user?.profilePhotoUrl || user?.avatarUrl;
+  const email = profile?.user?.email ?? user?.email ?? '';
 
   const handleLogout = () => {
     Alert.alert('Log Out', 'Are you sure you want to log out of MyHealth Vault+?', [
@@ -94,9 +108,13 @@ export default function MoreMenuScreen() {
             activeOpacity={0.75}
             onPress={() => router.push('/my-profile')}
             style={[styles.userCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <View style={[styles.avatarBox, { backgroundColor: theme.primary }]}>
-              <Text style={styles.avatarText}>{initials}</Text>
-            </View>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.avatarBox} />
+            ) : (
+              <View style={[styles.avatarBox, { backgroundColor: theme.primary }]}>
+                <Text style={styles.avatarText}>{initials}</Text>
+              </View>
+            )}
             <View style={styles.userInfo}>
               <Text style={[styles.userName, { color: theme.text }]}>{displayName}</Text>
               <Text style={[styles.userEmail, { color: theme.textMuted }]}>{email}</Text>

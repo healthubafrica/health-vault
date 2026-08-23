@@ -23,8 +23,10 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
 import ServiceCard from '@/components/ServiceCard';
+import { useQuery } from '@tanstack/react-query';
 import { HUB_SERVICES } from '@/lib/services';
 import { useAuthStore } from '@/lib/stores/authStore';
+import { patients } from '@/lib/api';
 import { getScreenCardWidth } from '@/lib/layout';
 
 export default function ServicesTabScreen() {
@@ -34,14 +36,31 @@ export default function ServicesTabScreen() {
   const user = useAuthStore((s) => s.user);
   const cardWidth = getScreenCardWidth();
 
+  const { data: profileRes } = useQuery({
+    queryKey: ['patient', 'profile'],
+    queryFn: () => patients.getMyProfile(),
+    enabled: !!user,
+  });
+
+  const profile = profileRes?.data;
+  const avatarUrl = profile?.profilePhotoUrl || user?.profilePhotoUrl || user?.avatarUrl;
+  const displayName = profile
+    ? `${profile.firstName} ${profile.lastName}`.trim()
+    : user
+    ? `${user.firstName} ${user.lastName}`.trim()
+    : 'there';
+  const initials = profile
+    ? `${profile.firstName?.[0] ?? ''}${profile.lastName?.[0] ?? ''}`.toUpperCase()
+    : user
+    ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase()
+    : '?';
+
   const todayDateString = new Date().toLocaleDateString('en-GB', {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
     year: 'numeric',
   });
-
-  const displayName = user ? `${user.firstName} ${user.lastName}`.trim() : 'there';
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -74,20 +93,23 @@ export default function ServicesTabScreen() {
             </View>
           </View>
 
-          <View style={styles.userGreetingRow}>
-            {user?.avatarUrl ? (
-              <Image source={{ uri: user.avatarUrl }} style={styles.userAvatar} />
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => router.push('/(tabs)/profile')}
+            style={styles.userGreetingRow}>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.userAvatar} />
             ) : (
               <View style={[styles.userAvatar, styles.avatarFallback, { backgroundColor: theme.primaryLight }]}>
                 <Text style={[styles.avatarInitials, { color: theme.primary }]}>
-                  {user ? `${user.firstName[0] ?? ''}${user.lastName[0] ?? ''}`.toUpperCase() : '?'}
+                  {initials}
                 </Text>
               </View>
             )}
             <View style={styles.greetingTextCol}>
               <Text style={[styles.greetingTitle, { color: theme.text }]}>Hello, {displayName}!</Text>
             </View>
-          </View>
+          </TouchableOpacity>
 
           <Text style={[styles.sectionPrompt, { color: theme.textMuted }]}>
             What are you looking for?
