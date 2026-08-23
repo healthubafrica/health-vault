@@ -18,7 +18,7 @@
       }
     },
     "android": {
-      "package": "com.myvaultsplus.app",
+      "package": "com.myvaultplus.app",
       "adaptiveIcon": {
         "backgroundColor": "#137333",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
