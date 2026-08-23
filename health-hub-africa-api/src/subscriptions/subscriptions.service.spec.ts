@@ -4,6 +4,7 @@ import { SubscriptionsService } from './subscriptions.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentsService } from '../payments/payments.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { OpenemrService } from '../openemr/openemr.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { BillingCycle } from '../common/enums';
 
@@ -45,6 +46,13 @@ const mockNotifications = {
   sendPatientWelcomeEmail: jest.fn().mockResolvedValue(undefined),
 };
 
+// None of the tests below exercise a path that triggers an OpenEMR sync
+// directly from SubscriptionsService, so a no-op mock is enough to satisfy
+// the constructor.
+const mockOpenemrService = {
+  syncSubscription: jest.fn().mockResolvedValue(undefined),
+};
+
 // ----- Fixtures -------------------------------------------------------------
 
 const patientUser: JwtPayload = { sub: 'user-p1', email: 'p@test.com', role: 'patient' };
@@ -68,6 +76,7 @@ describe('SubscriptionsService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: PaymentsService, useValue: mockPaymentsService },
         { provide: NotificationsService, useValue: mockNotifications },
+        { provide: OpenemrService, useValue: mockOpenemrService },
       ],
     }).compile();
 

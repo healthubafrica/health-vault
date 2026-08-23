@@ -12,6 +12,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { OpenemrService } from '../openemr/openemr.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
 import { RefundPaymentDto } from './dto/refund-payment.dto';
@@ -24,6 +25,7 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly notifications: NotificationsService,
+    private readonly openemrService: OpenemrService,
   ) {}
 
   // PAY-YYYY-000001 sequential payment reference
@@ -350,6 +352,10 @@ export class PaymentsService {
 
     this.logger.log(`Payment ${payment.id} → paid via ${gateway}`);
 
+    // Best-effort, non-blocking — subscription/payment state just changed
+    // (new subscription, upgrade, or renewal), keep OpenEMR's copy current.
+    void this.openemrService.syncSubscription(payment.patientId);
+
     // Receipt email is best-effort — a failure here must not undo the
     // payment/activation transaction that already committed above.
     await this.sendReceiptEmail(payment.id).catch((err) =>
@@ -409,6 +415,11 @@ export class PaymentsService {
     });
 
     this.logger.log(`Payment ${payment.id} → failed via ${gateway}`);
+
+    // Best-effort — only actually changes anything on the OpenEMR side if
+    // this failed payment happens to be the one linked to the patient's
+    // current subscription (e.g. a renewal charge failure); a no-op otherwise.
+    void this.openemrService.syncSubscription(payment.patientId);
   }
 
   private async handleRefundProcessed(
@@ -458,6 +469,8 @@ export class PaymentsService {
     });
 
     this.logger.log(`Payment ${payment.id} refund processed (${amountKobo} kobo, ${isFullRefund ? 'full' : 'partial'}) via ${gateway}`);
+
+    if (isFullRefund) void this.openemrService.syncSubscription(payment.patientId);
 
     await this.sendRefundEmail(payment.id, amountKobo).catch((err) =>
       this.logger.error(`Failed to send refund email for payment ${payment.id}: ${err instanceof Error ? err.message : err}`),

@@ -206,6 +206,15 @@ export const auth = {
       body: JSON.stringify({ email, password, phoneNumber, fullName, newsletterOptIn }),
     }),
 
+  // Read-only pre-registration check — never assigns a partner, just powers
+  // the "Referral recognized: X" acknowledgement. The real routing decision
+  // happens server-side once the code is submitted with the health profile.
+  validateReferral: (referralCode: string) =>
+    request<{ valid: boolean; partnerName?: string; reason?: string }>('/auth/validate-referral', {
+      method: 'POST',
+      body: JSON.stringify({ referralCode }),
+    }),
+
   // login/verifyOtp go through the same-origin BFF so the HttpOnly refresh
   // cookie is set server-side and never touches JS.
   login: (email: string, password: string) =>
