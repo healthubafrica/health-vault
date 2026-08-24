@@ -24,7 +24,8 @@
   "submit": {
     "production": {
       "android": {
-        "track": "internal"
+        "serviceAccountKeyPath": "./health-hub-africa-b5b33d17416c.json",
+        "track": "alpha"
       }
     }
   }
