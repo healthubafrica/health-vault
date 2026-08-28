@@ -1,4 +1,4 @@
-import { IsString, IsInt, IsOptional, IsEnum, Min } from 'class-validator';
+import { IsString, IsInt, IsOptional, IsEnum, IsBoolean, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaymentGateway } from '@prisma/client';
 
@@ -12,7 +12,7 @@ export enum PaymentPurpose {
 }
 
 export class InitiatePaymentDto {
-  @ApiProperty({ enum: PaymentGateway, example: 'Paystack' })
+  @ApiProperty({ enum: PaymentGateway, example: 'Flutterwave' })
   @IsEnum(PaymentGateway)
   gateway: PaymentGateway;
 
@@ -38,4 +38,14 @@ export class InitiatePaymentDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiPropertyOptional({ description: 'Tokenize and save this card for future one-click charges (Flutterwave only)' })
+  @IsOptional()
+  @IsBoolean()
+  savePaymentMethod?: boolean;
+
+  @ApiPropertyOptional({ description: 'Charge a previously-saved payment method instead of opening a hosted checkout (Flutterwave only)' })
+  @IsOptional()
+  @IsString()
+  paymentMethodId?: string;
 }

@@ -28,6 +28,7 @@ interface FhirDiagnosticReport {
   result?: Array<{ reference?: string; display?: string }>;
   conclusion?: string;
   conclusionCode?: FhirCodeableConcept[];
+  basedOn?: Array<{ reference?: string }>;
 }
 
 interface FhirObservation {
@@ -128,6 +129,36 @@ interface FhirImmunization {
   meta?: { lastUpdated?: string };
 }
 
+// Procedure/lab/referral orders. OpenEMR maps one procedure_order row (plus
+// its procedure_order_code line items) to one ServiceRequest — category
+// comes from procedure_order.procedure_order_type (SNOMED-coded), and the
+// destination comes from lab_id → procedure_providers, surfaced only as an
+// Organization reference in `performer` (no type field on the reference
+// itself — see resolveOrganizationName).
+interface FhirServiceRequest {
+  resourceType: string;
+  id?: string;
+  status?: string;
+  intent?: string;
+  category?: FhirCodeableConcept[];
+  code?: FhirCodeableConcept;
+  subject?: { reference?: string };
+  encounter?: { reference?: string };
+  authoredOn?: string;
+  requester?: { reference?: string };
+  performer?: Array<{ reference?: string }>;
+  priority?: string;
+  patientInstruction?: string;
+  note?: Array<{ text?: string }>;
+  meta?: { lastUpdated?: string };
+}
+
+interface FhirOrganization {
+  resourceType: string;
+  id?: string;
+  name?: string;
+}
+
 interface FhirBundle {
   resourceType: string;
   entry?: Array<{ resource: Record<string, unknown> }>;
@@ -189,6 +220,18 @@ const VITALS_INT_FIELDS = new Set<keyof typeof VITALS_LOINC>([
 
 const PULL_PAGE_SIZE = 200;
 const PULL_MAX_PAGES = 5;
+
+// ServiceRequest.category (from procedure_order.procedure_order_type) does
+// NOT reliably distinguish an internal lab order from an external referral
+// — confirmed against OpenEMR's own FhirServiceRequestService.php: both a
+// CareTest lab panel and a specialist referral can carry the same
+// 'procedure' order_type (category SNOMED 387713003) depending on how the
+// order was catalogued, and procedure_providers.type ('lab' vs 'procedure'),
+// the field that actually distinguishes them, is never exposed on the
+// ServiceRequest itself — only as an opaque Organization reference in
+// `performer`. So routing is done by resolving that Organization's display
+// name and matching against known internal lab facilities.
+const INTERNAL_LAB_ORGANIZATION_NAMES = new Set(['HHA CareTest Internal Lab']);
 
 // OpenEMR pc_apptstatus codes that mean the clinic took the appointment off
 // the schedule: 'x' = cancelled, '%' = cancelled within 24h. '?' = no show.
@@ -1223,6 +1266,144 @@ export class OpenemrProcessor {
     );
   }
 
+  // ── Procedure / Lab / Referral Orders (pull) ──────────────────────────────
+  //
+  // Orders placed natively in OpenEMR — a clinician ordering an ECHO
+  // referral to an external facility or a CareTest lab panel directly in
+  // the OpenEMR UI, rather than through the portal's own order-entry flow
+  // — never land in HHA's own tables otherwise. Routed to LabOrder
+  // (destination is the internal CareTest lab) or ClinicalRecord(recordType
+  // =referral) (any other destination) based on the order's performer.
+  // A per-run cache avoids re-fetching the same Organization for every
+  // order that shares a destination.
+
+  private organizationNameCache = new Map<string, string | null>();
+
+  @Process({ name: 'pull-service-requests' })
+  async handlePullServiceRequests() {
+    this.organizationNameCache.clear();
+    await this.handleGenericPull<FhirServiceRequest>(
+      'ServiceRequest',
+      '/fhir/ServiceRequest',
+      async (resource) => this.upsertServiceRequestFromFhir(resource),
+    );
+  }
+
+  // ── After-Visit Summary (pull) ────────────────────────────────────────────
+  //
+  // Consumes the HHA AI Clinical Assistant module's own AVS REST API
+  // (interface/modules/custom_modules/oe-module-hha-ai-clinical-assistant on
+  // the OpenEMR box), not FHIR. That module owns the clinician
+  // approval/release gate entirely on the OpenEMR side — a summary only
+  // ever comes back from GET .../published/encounter/:id once its row has
+  // status='approved' AND publication_status='ready'. We never query the
+  // underlying hha_ai_after_visit_summary table directly (no such access
+  // exists from the portal anyway), so there is no path for a draft or
+  // unapproved summary to reach the portal — the gate can't be bypassed by
+  // construction, only by a bug in that module itself.
+  //
+  // Keyed by OpenEMR's numeric encounter id (form_encounter.encounter —
+  // what "Encounter 102" refers to throughout this integration), which is
+  // independent of the FHIR Encounter pull's uuid-keyed records. For each
+  // synced patient we list their OpenEMR encounters via the standard REST
+  // API (GET /api/patient/{puuid}/encounter — takes the patient uuid we
+  // already store, no numeric pid resolution needed) and check each one.
+
+  @Process({ name: 'pull-avs-summaries' })
+  async handlePullAvsSummaries() {
+    const patients = await this.prisma.patient.findMany({
+      where: { openemrPatientUuid: { not: null } },
+      select: { id: true, openemrPatientUuid: true },
+      take: 200,
+    });
+
+    let checked = 0;
+    let created = 0;
+
+    for (const patient of patients) {
+      try {
+        const token = await this.openemrService.getAccessToken();
+        const res = await this.openemrService['callOpenemr'](
+          token, 'GET', `/api/patient/${patient.openemrPatientUuid}/encounter`, undefined, patient.id,
+        );
+        const encounters = (res.data as Array<Record<string, unknown>> | undefined) ?? [];
+
+        for (const enc of encounters) {
+          const encounterId = Number(enc.encounter);
+          if (!encounterId || encounterId <= 0) continue;
+          checked++;
+
+          const result = await this.upsertAvsSummary(patient.id, encounterId, token);
+          if (result === 'created') created++;
+        }
+      } catch (err) {
+        this.logger.error(
+          `AVS pull failed for patient ${patient.id}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
+    this.logger.log(`AVS pull: checked ${checked} encounter(s) → created ${created} summary record(s)`);
+  }
+
+  private async upsertAvsSummary(
+    patientId: string,
+    encounterId: number,
+    token: string,
+  ): Promise<'created' | 'skipped'> {
+    const status = await this.openemrService['callOpenemr'](
+      token, 'GET', `/api/hha/avs/published/encounter/${encounterId}`, undefined, patientId,
+    );
+
+    if (status.status !== 'ok') return 'skipped';
+
+    const version = Number(status.version);
+    if (!version || version <= 0) return 'skipped';
+
+    // One record per (encounter, version) — a re-approved/re-published
+    // revision of the same visit gets its own row rather than overwriting
+    // history, matching how every other OpenEMR-origin record here dedups.
+    const openemrResourceId = `AVS-${encounterId}-v${version}`;
+    const existing = await this.prisma.clinicalRecord.findUnique({
+      where: { openemrResourceId },
+      select: { id: true },
+    });
+    if (existing) return 'skipped';
+
+    const approvedAtRaw = status.approved_at as string | undefined;
+    const approvedAt = approvedAtRaw ? new Date(approvedAtRaw) : new Date();
+
+    const record = await this.prisma.clinicalRecord.create({
+      data: {
+        hhaRef: `AVS-OE-${encounterId}-${version}`,
+        patientId,
+        recordType: RecordType.visit_summary,
+        title: `After-Visit Summary — Encounter ${encounterId}`,
+        description: (status.approved_text as string | undefined) ?? undefined,
+        recordedAt: isNaN(approvedAt.getTime()) ? new Date() : approvedAt,
+        openemrResourceId,
+      },
+    });
+
+    // Delivery acknowledgement completes the release → delivered lifecycle:
+    // OpenEMR flips publication_status to 'published' and records an audit
+    // row. Best-effort — the ClinicalRecord above already committed, so a
+    // failed ack here just means OpenEMR's own status/audit trail lags;
+    // never worth rolling back a summary the patient can already see.
+    try {
+      await this.openemrService['callOpenemr'](
+        token, 'POST', `/api/hha/avs/published/encounter/${encounterId}/ack`,
+        { version, portal_record_id: record.id }, patientId,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `AVS delivery ack failed for encounter ${encounterId} v${version} (record ${record.id} was still created): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    return 'created';
+  }
+
   // ── Clinical history (pull) ───────────────────────────────────────────────
   //
   // Allergies, medical problems and immunizations recorded by clinicians in
@@ -1444,7 +1625,21 @@ export class OpenemrProcessor {
     // deliver the order to clinic staff as a patient message (pnote). It
     // lands in OpenEMR's Messages inbox attached to the patient's chart.
     try {
-      await this.openemrService['callOpenemr'](token, 'POST', '/fhir/ServiceRequest', fhirPayload, patientId);
+      const created = await this.openemrService['callOpenemr'](token, 'POST', '/fhir/ServiceRequest', fhirPayload, patientId);
+      // Capture the uuid OpenEMR assigned so a later DiagnosticReport pull
+      // can match its basedOn reference back to this exact order (see
+      // upsertLabResultFromFhir) instead of falling back to "oldest pending
+      // order for this patient" — the same key the pull path already writes
+      // for OpenEMR-native orders (see upsertServiceRequestAsLabOrder).
+      const openemrResourceId = (created as Record<string, unknown>).id as string | undefined;
+      if (openemrResourceId) {
+        await this.prisma.labOrder.update({
+          where: { id: labOrder.id },
+          data: { openemrResourceId },
+        }).catch((err) =>
+          this.logger.warn(`Could not persist ServiceRequest id for lab order ${labOrder.id}: ${err instanceof Error ? err.message : err}`),
+        );
+      }
       this.logger.log(`Lab order ${labOrder.id} synced → OpenEMR FHIR ServiceRequest`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1589,12 +1784,42 @@ export class OpenemrProcessor {
     report: FhirDiagnosticReport,
     patientId: string,
   ): Promise<void> {
-    // Find the oldest pending order that has no results yet; skip if none found
-    const order = await this.prisma.labOrder.findFirst({
-      where: { patientId, overallStatus: 'pending' },
-      orderBy: { orderedAt: 'asc' },
-      include: { results: { select: { id: true } } },
-    });
+    // Match the report back to its exact originating order via
+    // basedOn → ServiceRequest/{uuid}, which OpenEMR's FHIR DiagnosticReport
+    // export populates (confirmed against FhirDiagnosticReportLaboratoryService.php).
+    // Both the pull path (upsertServiceRequestAsLabOrder) and the push path
+    // (handleSyncLabOrder) persist that same uuid as LabOrder.openemrResourceId,
+    // so this is an exact, unambiguous match whenever it's available.
+    const serviceRequestUuid = report.basedOn?.[0]?.reference?.replace(/^ServiceRequest\//, '');
+    let order = serviceRequestUuid
+      ? await this.prisma.labOrder.findFirst({
+          where: { openemrResourceId: serviceRequestUuid, overallStatus: 'pending' },
+          include: { results: { select: { id: true } } },
+        })
+      : null;
+
+    // Fallback for reports with no basedOn (older OpenEMR builds, or a lab
+    // order delivered via the patient-message path with no FHIR
+    // ServiceRequest ever created to link to) — best-effort, and can
+    // misattribute a result if the patient has more than one pending order
+    // at once. Logged loudly since it's a real, if rare, correctness risk.
+    if (!order) {
+      if (serviceRequestUuid) {
+        this.logger.warn(
+          `DiagnosticReport basedOn=ServiceRequest/${serviceRequestUuid} did not match any pending LabOrder for patient ${patientId} — falling back to oldest-pending match`,
+        );
+      }
+      order = await this.prisma.labOrder.findFirst({
+        where: { patientId, overallStatus: 'pending' },
+        orderBy: { orderedAt: 'asc' },
+        include: { results: { select: { id: true } } },
+      });
+      if (order) {
+        this.logger.warn(
+          `Matched DiagnosticReport to LabOrder ${order.id} by oldest-pending heuristic (no exact basedOn match) — verify this is the correct order`,
+        );
+      }
+    }
 
     if (!order || order.results.length > 0) return;
 
@@ -1869,6 +2094,138 @@ export class OpenemrProcessor {
         title: reason,
         recordedAt,
         openemrResourceId: enc.id,
+      },
+    });
+
+    return 'created';
+  }
+
+  // Resolves a `performer`/`Organization` reference to its display name,
+  // memoized per pull run — most orders in a batch share one of a small
+  // handful of destinations, so this keeps the extra round-trip rare rather
+  // than one-per-order.
+  private async resolveOrganizationName(orgRef: string | undefined): Promise<string | null> {
+    const uuid = (orgRef ?? '').replace(/^Organization\//, '');
+    if (!uuid) return null;
+    if (this.organizationNameCache.has(uuid)) return this.organizationNameCache.get(uuid)!;
+
+    let name: string | null = null;
+    try {
+      const org = (await this.openemrService.fhirCall('GET', `/fhir/Organization/${uuid}`)) as unknown as FhirOrganization;
+      name = org.name ?? null;
+    } catch (err) {
+      this.logger.warn(`Could not resolve Organization ${uuid}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    this.organizationNameCache.set(uuid, name);
+    return name;
+  }
+
+  private async upsertServiceRequestFromFhir(
+    sr: FhirServiceRequest,
+  ): Promise<'created' | 'skipped'> {
+    if (!sr.id) return 'skipped';
+
+    const patientUuid = (sr.subject?.reference ?? '').replace(/^Patient\//, '');
+    if (!patientUuid) return 'skipped';
+
+    const patient = await this.prisma.patient.findFirst({
+      where: { openemrPatientUuid: patientUuid },
+      select: { id: true },
+    });
+    if (!patient) return 'skipped';
+
+    const destinationName = await this.resolveOrganizationName(sr.performer?.[0]?.reference);
+    const isInternalLab = destinationName != null && INTERNAL_LAB_ORGANIZATION_NAMES.has(destinationName);
+
+    const procedureName = sr.code?.text ?? sr.code?.coding?.find(c => c.display)?.display ?? 'Ordered test';
+    const procedureCode = sr.code?.coding?.find(c => c.code)?.code;
+    const orderedAt = sr.authoredOn ? new Date(sr.authoredOn) : new Date();
+
+    const requesterUuid = (sr.requester?.reference ?? '').replace(/^Practitioner\//, '');
+    const provider = requesterUuid
+      ? await this.prisma.provider.findFirst({ where: { openemrProviderUuid: requesterUuid }, select: { id: true } })
+      : null;
+
+    return isInternalLab
+      ? this.upsertServiceRequestAsLabOrder(sr, patient.id, provider?.id, procedureName, procedureCode, orderedAt, destinationName)
+      : this.upsertServiceRequestAsReferral(sr, patient.id, provider?.id, procedureName, orderedAt, destinationName);
+  }
+
+  private async upsertServiceRequestAsLabOrder(
+    sr: FhirServiceRequest,
+    patientId: string,
+    providerId: string | undefined,
+    testName: string,
+    testCode: string | undefined,
+    orderedAt: Date,
+    labFacility: string | null,
+  ): Promise<'created' | 'skipped'> {
+    const existing = await this.prisma.labOrder.findUnique({
+      where: { openemrResourceId: sr.id },
+      select: { id: true },
+    });
+    if (existing) return 'skipped';
+
+    // Same requirement LabOrder already has for portal-initiated orders — an
+    // order needs an attributable HHA provider. Skip rather than relax the
+    // schema; a mismatched/unresolvable requester will retry on the next
+    // pull once the provider's own OpenEMR sync catches up.
+    if (!providerId) {
+      this.logger.warn(
+        `ServiceRequest ${sr.id} (lab order) has no resolvable HHA provider for requester=${sr.requester?.reference ?? 'none'}; skipping`,
+      );
+      return 'skipped';
+    }
+
+    await this.prisma.labOrder.create({
+      data: {
+        hhaRef: `LAB-OE-${sr.id!.slice(0, 12)}`,
+        patientId,
+        orderedBy: providerId,
+        orderedAt,
+        labFacility: labFacility ?? undefined,
+        notes: [sr.patientInstruction, ...(sr.note?.map(n => n.text) ?? [])].filter(Boolean).join(' | ') || undefined,
+        openemrResourceId: sr.id,
+        results: {
+          create: [{ patientId, testName, testCode }],
+        },
+      },
+    });
+
+    return 'created';
+  }
+
+  private async upsertServiceRequestAsReferral(
+    sr: FhirServiceRequest,
+    patientId: string,
+    providerId: string | undefined,
+    procedureName: string,
+    orderedAt: Date,
+    destinationName: string | null,
+  ): Promise<'created' | 'skipped'> {
+    const existing = await this.prisma.clinicalRecord.findUnique({
+      where: { openemrResourceId: sr.id },
+      select: { id: true },
+    });
+    if (existing) return 'skipped';
+
+    const description = [
+      destinationName ? `Referred to: ${destinationName}` : null,
+      sr.priority ? `Priority: ${sr.priority}` : null,
+      sr.patientInstruction,
+      ...(sr.note?.map(n => n.text) ?? []),
+    ].filter(Boolean).join(' | ') || undefined;
+
+    await this.prisma.clinicalRecord.create({
+      data: {
+        hhaRef: `REF-OE-${sr.id!.slice(0, 12)}`,
+        patientId,
+        providerId: providerId ?? null,
+        recordType: RecordType.referral,
+        title: procedureName,
+        description,
+        recordedAt: orderedAt,
+        openemrResourceId: sr.id,
       },
     });
 

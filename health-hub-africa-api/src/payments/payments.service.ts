@@ -16,6 +16,8 @@ import { OpenemrService } from '../openemr/openemr.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
 import { RefundPaymentDto } from './dto/refund-payment.dto';
+import { ValidateChargeDto } from './dto/validate-charge.dto';
+import { encryptCardToken, decryptCardToken } from '../common/utils/card-token-crypto.util';
 
 @Injectable()
 export class PaymentsService {
@@ -46,7 +48,7 @@ export class PaymentsService {
   async initiate(
     dto: InitiatePaymentDto,
     currentUser: JwtPayload,
-    options?: { metadata?: Prisma.InputJsonValue; description?: string },
+    options?: { metadata?: Prisma.InputJsonValue; description?: string; idempotencyKey?: string },
   ) {
     const patient = await this.prisma.patient.findUnique({
       where: { userId: currentUser.sub },
@@ -54,23 +56,75 @@ export class PaymentsService {
     });
     if (!patient) throw new NotFoundException('Patient profile not found');
 
-    // Flutterwave is currently disabled (no working integration) — the enum
-    // value stays in the schema for historical rows, but a new charge request
+    // Paystack is temporarily disabled for new charges pending a compliance
+    // review — the enum value and all existing verify/refund paths stay
+    // intact for historical Paystack payments, but a new charge request
     // against it must fail loudly here rather than silently create a payment
     // that can never be completed.
-    if (dto.gateway === PaymentGateway.Flutterwave) {
-      throw new BadRequestException('Flutterwave is not currently available. Please use Paystack or bank transfer.');
+    if (dto.gateway === PaymentGateway.Paystack) {
+      throw new BadRequestException('Paystack is coming soon. Please use Flutterwave or bank transfer.');
     }
 
-    const idempotencyKey = randomUUID();
+    // Idempotency: a client-supplied key lets a retried or double-submitted
+    // request (double-tap, a client timeout retry, an app resume after a
+    // dropped response) replay the original result instead of creating a
+    // second Payment row and — for hosted checkout — a second live payment
+    // link the patient could complete twice. Same key always returns the
+    // same stored result regardless of outcome; a genuine new attempt after
+    // a failure is the client's responsibility to key freshly.
+    const clientIdempotencyKey = options?.idempotencyKey?.trim() || undefined;
+    // This value bypasses class-validator (it arrives as a raw header, not a
+    // DTO field) and is later forwarded verbatim to Flutterwave as tx_ref —
+    // bound its shape before it touches the unique-indexed DB column or the
+    // gateway request.
+    if (clientIdempotencyKey && !/^[A-Za-z0-9_-]{1,128}$/.test(clientIdempotencyKey)) {
+      throw new BadRequestException('Idempotency-Key must be 1-128 characters: letters, numbers, "-", or "_".');
+    }
+    if (clientIdempotencyKey) {
+      const existing = await this.prisma.payment.findUnique({ where: { idempotencyKey: clientIdempotencyKey } });
+      if (existing) {
+        // A key reused for a genuinely different request (different patient,
+        // amount, currency, or gateway) is either a client bug or a stale key
+        // left over from an edited form — replaying it would silently return
+        // a response for the wrong amount. Reject rather than guess.
+        const sameRequest =
+          existing.patientId === patient.id &&
+          existing.amountKobo === dto.amountKobo &&
+          existing.currency === dto.currency &&
+          existing.gateway === dto.gateway;
+        if (!sameRequest) {
+          throw new BadRequestException(
+            'This idempotency key was already used for a different request. Please retry with a fresh key.',
+          );
+        }
+        return this.replayInitiateResponse(existing);
+      }
+    }
+
+    // Charging a saved card skips the hosted-checkout flow entirely — a
+    // separate path since it needs the stored token and a different
+    // Flutterwave endpoint (tokenized-charges, not payments).
+    if (dto.paymentMethodId) {
+      if (dto.gateway !== PaymentGateway.Flutterwave) {
+        throw new BadRequestException('Saved-card charging is only supported for Flutterwave.');
+      }
+      return this.chargeWithSavedMethod(dto, patient.id, patient.user.email, clientIdempotencyKey);
+    }
+
+    const idempotencyKey = clientIdempotencyKey ?? randomUUID();
     const amountKobo = dto.amountKobo;
     const description =
       dto.description?.trim() ||
       options?.description ||
       `${dto.purpose} — ${dto.currency} ${(amountKobo / 100).toFixed(2)}`;
 
-    const payment = await this.prisma.payment.create({
-      data: {
+    const metadata: Prisma.InputJsonValue = {
+      ...(options?.metadata as Record<string, unknown> | undefined),
+      ...(dto.savePaymentMethod && { savePaymentMethod: true }),
+    };
+
+    const { payment, conflicted } = await this.createPaymentGuarded(
+      {
         hhaRef: await this.generatePaymentRef(),
         patientId: patient.id,
         gateway: dto.gateway,
@@ -79,13 +133,28 @@ export class PaymentsService {
         idempotencyKey,
         description,
         status: PaymentStatus.pending,
-        ...(options?.metadata !== undefined && { metadata: options.metadata }),
+        ...(Object.keys(metadata).length > 0 && { metadata }),
       },
-    });
+      clientIdempotencyKey,
+    );
+    // Lost a create-time race to a concurrent identical request (both passed
+    // the earlier existence check before either had committed) — the DB's
+    // unique constraint on idempotencyKey already stopped a duplicate row
+    // from existing; replay the winner's result instead of surfacing its
+    // uncaught constraint violation as a 500.
+    if (conflicted) return this.replayInitiateResponse(payment);
 
     // Initiate charge with the selected gateway
-    if (dto.gateway === PaymentGateway.Paystack) {
-      return this.initiatePaystack(payment.id, patient.user.email, amountKobo, dto.currency, idempotencyKey, description);
+    if (dto.gateway === PaymentGateway.Flutterwave) {
+      return this.initiateFlutterwave(
+        payment.id,
+        patient.user.email,
+        amountKobo,
+        dto.currency,
+        idempotencyKey,
+        description,
+        metadata,
+      );
     }
 
     return {
@@ -94,6 +163,88 @@ export class PaymentsService {
       gateway: dto.gateway,
       amountKobo,
       currency: dto.currency,
+      status: payment.status,
+    };
+  }
+
+  // The existence check above and this create() are not atomic — two
+  // concurrent requests carrying the same fresh idempotency key can both
+  // pass the check before either commits. The DB's unique constraint on
+  // idempotencyKey stops a duplicate row from ever existing, but the loser's
+  // create() throws P2002 rather than succeeding; this turns that into a
+  // clean replay of the winner instead of an uncaught 500. A P2002 on a
+  // different constraint (e.g. the hhaRef sequence) is not this race and is
+  // rethrown unchanged.
+  private async createPaymentGuarded(
+    data: Prisma.PaymentUncheckedCreateInput,
+    clientIdempotencyKey: string | undefined,
+  ): Promise<{ payment: Awaited<ReturnType<typeof this.prisma.payment.create>>; conflicted: boolean }> {
+    try {
+      const payment = await this.prisma.payment.create({ data });
+      return { payment, conflicted: false };
+    } catch (err) {
+      const target = (err as { meta?: { target?: unknown } })?.meta?.target;
+      const isIdempotencyKeyConflict =
+        clientIdempotencyKey &&
+        (err as { code?: string })?.code === 'P2002' &&
+        Array.isArray(target) &&
+        target.some((t) => String(t).toLowerCase().includes('idempotency'));
+
+      if (isIdempotencyKeyConflict) {
+        const winner = await this.prisma.payment.findUniqueOrThrow({
+          where: { idempotencyKey: clientIdempotencyKey },
+        });
+        return { payment: winner, conflicted: true };
+      }
+      throw err;
+    }
+  }
+
+  // Reconstructs the exact response shape the original initiate() call would
+  // have returned, from what was persisted at the time — never re-calls the
+  // gateway, so a replayed request can't accidentally create a second
+  // Flutterwave payment intent for the same logical charge.
+  private replayInitiateResponse(payment: {
+    id: string;
+    gateway: PaymentGateway;
+    gatewayRef: string | null;
+    idempotencyKey: string | null;
+    amountKobo: number;
+    currency: string;
+    status: PaymentStatus;
+    metadata: Prisma.JsonValue | null;
+  }) {
+    const meta = (payment.metadata ?? {}) as { authorizationUrl?: string; flwRef?: string };
+
+    if (payment.status === PaymentStatus.paid) {
+      return { paymentId: payment.id, gateway: payment.gateway, status: 'paid', amountKobo: payment.amountKobo, currency: payment.currency };
+    }
+    if (meta.authorizationUrl) {
+      return {
+        paymentId: payment.id,
+        gateway: payment.gateway,
+        authorizationUrl: meta.authorizationUrl,
+        reference: payment.gatewayRef,
+        amountKobo: payment.amountKobo,
+        currency: payment.currency,
+      };
+    }
+    if (meta.flwRef) {
+      return {
+        paymentId: payment.id,
+        gateway: payment.gateway,
+        requiresOtp: true,
+        flwRef: meta.flwRef,
+        amountKobo: payment.amountKobo,
+        currency: payment.currency,
+      };
+    }
+    return {
+      paymentId: payment.id,
+      idempotencyKey: payment.idempotencyKey,
+      gateway: payment.gateway,
+      amountKobo: payment.amountKobo,
+      currency: payment.currency,
       status: payment.status,
     };
   }
@@ -147,6 +298,314 @@ export class PaymentsService {
     };
   }
 
+  private async initiateFlutterwave(
+    paymentId: string,
+    email: string,
+    amountKobo: number,
+    currency: string,
+    txRef: string,
+    description: string,
+    metadata: Prisma.InputJsonValue,
+  ) {
+    const secret = this.config.getOrThrow<string>('FLUTTERWAVE_SECRET_KEY');
+    // Flutterwave amounts are in the currency's major unit (naira), not kobo.
+    const amount = (amountKobo / 100).toFixed(2);
+    const res = await fetch('https://api.flutterwave.com/v3/payments', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        tx_ref: txRef,
+        amount,
+        currency,
+        redirect_url: `${this.config.get('FRONTEND_URL')}/payments/verify`,
+        customer: { email },
+        customizations: { title: 'Health Hub Africa' },
+        meta: { paymentId, description },
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      this.logger.error(`Flutterwave init failed: ${err}`);
+      throw new BadRequestException('Payment gateway error. Please try again.');
+    }
+
+    const data = (await res.json()) as { status: string; data?: { link: string } };
+    if (data.status !== 'success' || !data.data?.link) {
+      this.logger.error(`Flutterwave init returned non-success: ${JSON.stringify(data)}`);
+      throw new BadRequestException('Payment gateway error. Please try again.');
+    }
+
+    // authorizationUrl is persisted so a replayed initiate() (same
+    // idempotency key) can return the exact same checkout link instead of
+    // calling Flutterwave again and minting a second live payment intent.
+    await this.prisma.payment.update({
+      where: { id: paymentId },
+      data: {
+        gatewayRef: txRef,
+        metadata: { ...(metadata as Record<string, unknown>), authorizationUrl: data.data.link },
+      },
+    });
+
+    return {
+      paymentId,
+      gateway: PaymentGateway.Flutterwave,
+      authorizationUrl: data.data.link,
+      reference: txRef,
+      amountKobo,
+      currency,
+    };
+  }
+
+  // ── Saved Payment Methods (Flutterwave) ──────────────────────────────────
+  //
+  // No raw card details ever pass through our servers. A card is tokenized
+  // by Flutterwave the first time it's charged through the normal hosted
+  // checkout (initiate → redirect → webhook), when the patient opts in via
+  // savePaymentMethod: true — the webhook then captures the reusable token
+  // Flutterwave returns for that transaction. From then on, charging that
+  // saved method calls Flutterwave's tokenized-charges endpoint directly,
+  // skipping the checkout redirect entirely.
+
+  async listPaymentMethods(currentUser: JwtPayload) {
+    const patient = await this.prisma.patient.findUnique({
+      where: { userId: currentUser.sub },
+      select: { id: true },
+    });
+    if (!patient) throw new NotFoundException('Patient profile not found');
+
+    const methods = await this.prisma.paymentMethod.findMany({
+      where: { patientId: patient.id },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    // Never return the token itself — display fields only.
+    return methods.map(({ gatewayToken: _gatewayToken, ...rest }) => rest);
+  }
+
+  async deletePaymentMethod(id: string, currentUser: JwtPayload) {
+    const patient = await this.prisma.patient.findUnique({
+      where: { userId: currentUser.sub },
+      select: { id: true },
+    });
+    if (!patient) throw new NotFoundException('Patient profile not found');
+
+    const method = await this.prisma.paymentMethod.findUnique({ where: { id } });
+    if (!method || method.patientId !== patient.id) {
+      throw new NotFoundException('Payment method not found');
+    }
+
+    await this.prisma.paymentMethod.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  async setDefaultPaymentMethod(id: string, currentUser: JwtPayload) {
+    const patient = await this.prisma.patient.findUnique({
+      where: { userId: currentUser.sub },
+      select: { id: true },
+    });
+    if (!patient) throw new NotFoundException('Patient profile not found');
+
+    const method = await this.prisma.paymentMethod.findUnique({ where: { id } });
+    if (!method || method.patientId !== patient.id) {
+      throw new NotFoundException('Payment method not found');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.paymentMethod.updateMany({
+        where: { patientId: patient.id, isDefault: true },
+        data: { isDefault: false },
+      }),
+      this.prisma.paymentMethod.update({ where: { id }, data: { isDefault: true } }),
+    ]);
+
+    return { ok: true };
+  }
+
+  private async chargeWithSavedMethod(
+    dto: InitiatePaymentDto,
+    patientId: string,
+    email: string,
+    clientIdempotencyKey?: string,
+  ) {
+    const method = await this.prisma.paymentMethod.findUnique({ where: { id: dto.paymentMethodId } });
+    if (!method || method.patientId !== patientId) {
+      throw new NotFoundException('Payment method not found');
+    }
+
+    const encryptionKey = this.config.getOrThrow<string>('CARD_TOKEN_ENCRYPTION_KEY');
+    const token = decryptCardToken(method.gatewayToken, encryptionKey);
+
+    const idempotencyKey = clientIdempotencyKey ?? randomUUID();
+    const amountKobo = dto.amountKobo;
+    const description =
+      dto.description?.trim() || `${dto.purpose} — ${dto.currency} ${(amountKobo / 100).toFixed(2)}`;
+
+    const { payment, conflicted } = await this.createPaymentGuarded(
+      {
+        hhaRef: await this.generatePaymentRef(),
+        patientId,
+        gateway: PaymentGateway.Flutterwave,
+        amountKobo,
+        currency: dto.currency,
+        idempotencyKey,
+        gatewayRef: idempotencyKey,
+        description,
+        status: PaymentStatus.pending,
+      },
+      clientIdempotencyKey,
+    );
+    if (conflicted) return this.replayInitiateResponse(payment);
+
+    const secret = this.config.getOrThrow<string>('FLUTTERWAVE_SECRET_KEY');
+    const amount = (amountKobo / 100).toFixed(2);
+    let res: Response;
+    try {
+      res = await fetch('https://api.flutterwave.com/v3/tokenized-charges', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          currency: dto.currency,
+          amount,
+          email,
+          tx_ref: idempotencyKey,
+          narration: description,
+        }),
+      });
+    } catch (err) {
+      this.logger.error(`Flutterwave tokenized charge request failed: ${err instanceof Error ? err.message : err}`);
+      throw new BadRequestException('Could not reach the payment gateway. Please try again.');
+    }
+
+    const body = (await res.json().catch(() => ({}))) as {
+      status?: string;
+      data?: { status?: string; flw_ref?: string; id?: number };
+    };
+
+    if (!res.ok || body.status !== 'success' || !body.data) {
+      this.logger.error(`Flutterwave tokenized charge failed for payment ${payment.id}: ${JSON.stringify(body)}`);
+      await this.prisma.payment.update({ where: { id: payment.id }, data: { status: PaymentStatus.failed } });
+      throw new BadRequestException('The saved card was declined. Please try a different payment method.');
+    }
+
+    // Some cards require an OTP/3DS step even on a tokenized (repeat) charge
+    // — the caller must collect it and call validateCharge to finish.
+    // flwRef is persisted so a replayed initiate() (same idempotency key)
+    // can return it again without re-charging the card.
+    if (body.data.status === 'pending') {
+      await this.prisma.payment.update({ where: { id: payment.id }, data: { metadata: { flwRef: body.data.flw_ref } } });
+      return {
+        paymentId: payment.id,
+        gateway: PaymentGateway.Flutterwave,
+        requiresOtp: true,
+        flwRef: body.data.flw_ref,
+        amountKobo,
+        currency: dto.currency,
+      };
+    }
+
+    if (body.data.status === 'successful') {
+      const syntheticEvent = {
+        event: 'charge.success',
+        data: { reference: idempotencyKey, status: body.data.status, id: body.data.id },
+      };
+      await this.processWebhookEvent(syntheticEvent, PaymentGateway.Flutterwave);
+      return { paymentId: payment.id, gateway: PaymentGateway.Flutterwave, status: 'paid', amountKobo, currency: dto.currency };
+    }
+
+    this.logger.error(`Flutterwave tokenized charge returned unexpected status for payment ${payment.id}: ${JSON.stringify(body)}`);
+    await this.prisma.payment.update({ where: { id: payment.id }, data: { status: PaymentStatus.failed } });
+    throw new BadRequestException('The saved card was declined. Please try a different payment method.');
+  }
+
+  async validateCharge(dto: ValidateChargeDto, currentUser: JwtPayload) {
+    const payment = await this.findPayment(dto.paymentId, currentUser); // reuses ownership check
+    if (payment.status === PaymentStatus.paid) {
+      return { status: 'paid', paymentId: payment.id };
+    }
+
+    const secret = this.config.getOrThrow<string>('FLUTTERWAVE_SECRET_KEY');
+    const res = await fetch('https://api.flutterwave.com/v3/validate-charge', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ otp: dto.otp, flw_ref: dto.flwRef, type: 'card' }),
+    });
+
+    const body = (await res.json().catch(() => ({}))) as {
+      status?: string;
+      data?: { status?: string; tx_ref?: string; id?: number };
+    };
+
+    if (!res.ok || body.status !== 'success' || body.data?.status !== 'successful') {
+      this.logger.error(`Flutterwave validate-charge failed for payment ${payment.id}: ${JSON.stringify(body)}`);
+      throw new BadRequestException('Incorrect or expired code. Please try again.');
+    }
+
+    const syntheticEvent = {
+      event: 'charge.success',
+      data: { reference: body.data.tx_ref ?? payment.idempotencyKey, status: body.data.status, id: body.data.id },
+    };
+    await this.processWebhookEvent(syntheticEvent, PaymentGateway.Flutterwave);
+    return { status: 'paid', paymentId: payment.id };
+  }
+
+  private async saveCardFromWebhook(
+    paymentId: string,
+    patientId: string,
+    eventData: Record<string, unknown> | undefined,
+  ): Promise<void> {
+    const card = eventData?.card as
+      | { token?: string; last_4digits?: string; type?: string; expiry?: string }
+      | undefined;
+    if (!card?.token) {
+      this.logger.warn(`Payment ${paymentId} requested savePaymentMethod but webhook carried no card token.`);
+      return;
+    }
+
+    // Flutterwave issues one token per card, stable across charges — reuse
+    // the existing row (refresh expiry/brand) instead of creating a
+    // duplicate every time the same card is used with "save" checked again.
+    const encryptionKey = this.config.getOrThrow<string>('CARD_TOKEN_ENCRYPTION_KEY');
+    const encryptedToken = encryptCardToken(card.token, encryptionKey);
+    const [expiryMonth, expiryYear] = (card.expiry ?? '').split('/');
+
+    const existing = await this.prisma.paymentMethod.findMany({ where: { patientId } });
+    const duplicate = existing.find((m) => {
+      try {
+        return decryptCardToken(m.gatewayToken, encryptionKey) === card.token;
+      } catch {
+        return false;
+      }
+    });
+
+    if (duplicate) {
+      await this.prisma.paymentMethod.update({
+        where: { id: duplicate.id },
+        data: { cardBrand: card.type, last4: card.last_4digits, expiryMonth, expiryYear },
+      });
+      return;
+    }
+
+    await this.prisma.paymentMethod.create({
+      data: {
+        patientId,
+        gateway: PaymentGateway.Flutterwave,
+        gatewayToken: encryptedToken,
+        cardBrand: card.type,
+        last4: card.last_4digits,
+        expiryMonth,
+        expiryYear,
+        isDefault: existing.length === 0,
+      },
+    });
+
+    this.logger.log(`Saved new card for patient ${patientId} from payment ${paymentId}`);
+  }
+
   // ── Paystack Webhook ───────────────────────────────────────────────────────
 
   async handlePaystackWebhook(rawBody: Buffer, signature: string) {
@@ -166,6 +625,52 @@ export class PaymentsService {
 
     await this.processWebhookEvent(event, PaymentGateway.Paystack);
 
+    return { received: true };
+  }
+
+  // ── Flutterwave Webhook ─────────────────────────────────────────────────────
+
+  async handleFlutterwaveWebhook(rawBody: Buffer, signature: string) {
+    const secretHash = this.config.getOrThrow<string>('FLUTTERWAVE_SECRET_HASH');
+    this.verifyFlutterwaveSignature(signature, secretHash);
+
+    let event: Record<string, unknown>;
+    try {
+      event = JSON.parse(rawBody.toString()) as Record<string, unknown>;
+    } catch (err) {
+      this.logger.error(`Failed to parse Flutterwave webhook body: ${err instanceof Error ? err.message : err}`);
+      return { received: true };
+    }
+
+    const eventType = (event.event ?? '') as string;
+    const data = event.data as Record<string, unknown> | undefined;
+    const status = data?.status as string | undefined;
+
+    // Flutterwave fires "charge.completed" for BOTH successful and failed
+    // charges (unlike Paystack's separate charge.success/charge.failed), so
+    // the actual outcome is read from data.status — normalize into the same
+    // canonical shape processWebhookEvent expects before dispatching.
+    if (eventType === 'charge.completed') {
+      const normalized = {
+        event: status === 'successful' ? 'charge.success' : 'charge.failed',
+        data: { ...data, reference: data?.tx_ref },
+      };
+      await this.processWebhookEvent(normalized, PaymentGateway.Flutterwave);
+      return { received: true };
+    }
+
+    if (eventType === 'refund.completed' && status === 'completed') {
+      const refundedAmountKobo =
+        typeof data?.amount_refunded === 'number' ? Math.round((data.amount_refunded as number) * 100) : undefined;
+      const normalized = {
+        event: 'refund.processed',
+        data: { ...data, transaction_reference: data?.tx_ref, amount: refundedAmountKobo },
+      };
+      await this.processWebhookEvent(normalized, PaymentGateway.Flutterwave);
+      return { received: true };
+    }
+
+    this.logger.warn(`Unhandled Flutterwave webhook event "${eventType}" (status: ${status}) — no-op.`);
     return { received: true };
   }
 
@@ -248,6 +753,37 @@ export class PaymentsService {
       }
     }
 
+    // For Flutterwave payments: re-verify with the PSP so we don't depend
+    // solely on the webhook arriving before the user navigates back.
+    if (payment.gateway === PaymentGateway.Flutterwave) {
+      const secret = this.config.getOrThrow<string>('FLUTTERWAVE_SECRET_KEY');
+      let res: Response;
+      try {
+        res = await fetch(
+          `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(reference)}`,
+          { headers: { Authorization: `Bearer ${secret}` } },
+        );
+      } catch (err) {
+        this.logger.error(`Flutterwave verify call failed for ref ${reference}: ${err instanceof Error ? err.message : err}`);
+        return { status: payment.status, paymentId: payment.id, gateway: payment.gateway };
+      }
+
+      if (res.ok) {
+        const body = (await res.json()) as { data: { status: string; tx_ref: string; id: number; amount_refunded?: number } };
+        if (body.data?.status === 'successful') {
+          const syntheticEvent = {
+            event: 'charge.success',
+            data: { reference: body.data.tx_ref, status: body.data.status, id: body.data.id },
+          };
+          await this.processWebhookEvent(syntheticEvent, PaymentGateway.Flutterwave);
+          return { status: 'paid', paymentId: payment.id, gateway: payment.gateway };
+        }
+      } else {
+        const errBody = await res.text().catch(() => '');
+        this.logger.error(`Flutterwave verify returned ${res.status} for ref ${reference}: ${errBody}`);
+      }
+    }
+
     return { status: payment.status, paymentId: payment.id, gateway: payment.gateway };
   }
 
@@ -256,9 +792,15 @@ export class PaymentsService {
   getGatewayStatus() {
     return [
       {
+        gateway: 'flutterwave',
+        name: 'Flutterwave',
+        active: !!this.config.get<string>('FLUTTERWAVE_SECRET_KEY'),
+      },
+      {
         gateway: 'paystack',
         name: 'Paystack',
-        active: !!this.config.get<string>('PAYSTACK_SECRET_KEY'),
+        active: false,
+        comingSoon: true,
       },
       {
         gateway: 'bank_transfer',
@@ -313,44 +855,89 @@ export class PaymentsService {
       return;
     }
 
-    // Idempotency: skip if this reference was already processed successfully
-    const existing = await this.prisma.payment.findFirst({
-      where: { gatewayRef, status: PaymentStatus.paid },
-    });
-    if (existing) {
-      this.logger.log(`Idempotent skip for ref: ${gatewayRef}`);
-      return;
-    }
-
     const payment = await this.prisma.payment.findFirst({ where: { gatewayRef } });
     if (!payment) {
       this.logger.warn(`No payment found for ref: ${gatewayRef}`);
       return;
     }
 
+    // Cheap pre-check to skip the transaction entirely for the common case
+    // (a plain webhook retry arriving after we've already finished). The
+    // guard that actually matters against a genuine race — two deliveries
+    // landing concurrently — is the conditional update inside the
+    // transaction below, not this check.
+    if (payment.status === PaymentStatus.paid) {
+      this.logger.log(`Idempotent skip for ref: ${gatewayRef}`);
+      return;
+    }
+
     // Payment status, subscription activation, and invoice creation happen in
     // one transaction: if activation throws, everything rolls back, the
     // payment stays non-paid, and a webhook retry (or the verifyPayment
-    // client-side fallback) can safely re-attempt from scratch — the
-    // idempotency check above only blocks retries for payments already paid.
+    // client-side fallback) can safely re-attempt from scratch.
     const paidAt = new Date();
+    // Flutterwave refunds/lookups by API need the numeric transaction id
+    // (distinct from our own tx_ref/gatewayRef) — persist it once here so
+    // refundPayment() can find it later without another PSP round-trip.
+    const flwTransactionId =
+      gateway === PaymentGateway.Flutterwave && typeof eventData?.id === 'number' ? (eventData.id as number) : undefined;
     let activation: { firstSubscription: boolean; planId: string } | null = null;
+    let claimed = false;
+    let finalMetadata: Prisma.JsonValue | null = payment.metadata;
     await this.prisma.$transaction(async (tx) => {
-      await tx.payment.update({
-        where: { id: payment.id },
+      // Re-read metadata inside the transaction rather than trusting the
+      // pre-transaction snapshot — narrows the window for a lost update if
+      // some other write (e.g. a saved-card OTP flow persisting flwRef) lands
+      // on this same row between our initial findFirst and this point.
+      const fresh = await tx.payment.findUnique({ where: { id: payment.id }, select: { metadata: true } });
+      finalMetadata = fresh?.metadata ?? payment.metadata;
+
+      // Atomic conditional update — this, not the pre-check above, is what
+      // makes concurrent deliveries safe (a duplicate webhook redelivery
+      // racing itself, or racing the verifyPayment() client-side fallback,
+      // which both funnel through this same method). Postgres row-locking on
+      // the UPDATE means only one concurrent transaction can ever match the
+      // `status: { not: paid } ` guard; the loser affects zero rows and its
+      // WHERE clause re-evaluates against the winner's already-committed row.
+      const result = await tx.payment.updateMany({
+        where: { id: payment.id, status: { not: PaymentStatus.paid } },
         data: {
           status: PaymentStatus.paid,
           paidAt,
           gatewayResponse: event as Prisma.InputJsonValue,
-          metadata: this.mergeMetadata(payment.metadata, 'charge.success'),
+          metadata: this.mergeMetadata(
+            finalMetadata,
+            'charge.success',
+            flwTransactionId !== undefined ? { flwTransactionId } : undefined,
+          ),
         },
       });
+      claimed = result.count === 1;
+      if (!claimed) return;
 
-      activation = await this.activateSubscriptionFromPayment(tx, payment.id, payment.patientId, payment.metadata);
+      activation = await this.activateSubscriptionFromPayment(tx, payment.id, payment.patientId, finalMetadata);
       await this.createInvoice(tx, payment.id, payment.patientId, payment.amountKobo, paidAt);
     });
 
+    if (!claimed) {
+      this.logger.log(`Idempotent skip for ref: ${gatewayRef} (lost the race to a concurrent delivery)`);
+      return;
+    }
+
     this.logger.log(`Payment ${payment.id} → paid via ${gateway}`);
+
+    // Capture and save the card token, only if the patient opted in when
+    // initiating this payment. Only present on the real Flutterwave webhook
+    // (which carries the full `card` object) — not on the verifyPayment
+    // client-side fallback's synthetic event, so a save-card request that
+    // resolves only through that fallback won't save a card; the normal
+    // webhook path covers the common case.
+    const meta = finalMetadata as { savePaymentMethod?: boolean } | null;
+    if (meta?.savePaymentMethod && gateway === PaymentGateway.Flutterwave) {
+      await this.saveCardFromWebhook(payment.id, payment.patientId, eventData).catch((err) =>
+        this.logger.error(`Failed to save card for payment ${payment.id}: ${err instanceof Error ? err.message : err}`),
+      );
+    }
 
     // Best-effort, non-blocking — subscription/payment state just changed
     // (new subscription, upgrade, or renewal), keep OpenEMR's copy current.
@@ -445,28 +1032,50 @@ export class PaymentsService {
 
     const amountKobo = refundedAmountKobo ?? payment.amountKobo;
 
-    // Idempotency: skip if we've already recorded a refund of at least this amount.
+    // Cheap pre-check for the common case (a plain webhook retry). As with
+    // handleChargeSuccess, the actual race guard is the conditional update
+    // inside the transaction below.
     if ((payment.refundAmountKobo ?? 0) >= amountKobo) {
       this.logger.log(`Idempotent skip for refund on payment ${payment.id}`);
       return;
     }
 
     const isFullRefund = amountKobo >= payment.amountKobo;
+    let claimed = false;
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.payment.update({
-        where: { id: payment.id },
+      // Re-read metadata inside the transaction rather than trusting the
+      // pre-transaction snapshot — same rationale as handleChargeSuccess.
+      const fresh = await tx.payment.findUnique({ where: { id: payment.id }, select: { metadata: true } });
+      const currentMetadata = fresh?.metadata ?? payment.metadata;
+
+      // Atomic conditional update, same rationale as handleChargeSuccess:
+      // matches only if no concurrent delivery has already recorded a refund
+      // of at least this amount. Prisma's `lt` filter never matches a NULL
+      // column, so the null case is spelled out explicitly.
+      const result = await tx.payment.updateMany({
+        where: {
+          id: payment.id,
+          OR: [{ refundAmountKobo: null }, { refundAmountKobo: { lt: amountKobo } }],
+        },
         data: {
           status: isFullRefund ? PaymentStatus.refunded : payment.status,
           refundedAt: new Date(),
           refundAmountKobo: amountKobo,
           gatewayResponse: event as Prisma.InputJsonValue,
-          metadata: this.mergeMetadata(payment.metadata, 'refund.processed'),
+          metadata: this.mergeMetadata(currentMetadata, 'refund.processed'),
         },
       });
+      claimed = result.count === 1;
+      if (!claimed) return;
 
-      if (isFullRefund) await this.cancelSubscriptionForRefund(tx, payment.id, payment.metadata);
+      if (isFullRefund) await this.cancelSubscriptionForRefund(tx, payment.id, currentMetadata);
     });
+
+    if (!claimed) {
+      this.logger.log(`Idempotent skip for refund on payment ${payment.id} (lost the race to a concurrent delivery)`);
+      return;
+    }
 
     this.logger.log(`Payment ${payment.id} refund processed (${amountKobo} kobo, ${isFullRefund ? 'full' : 'partial'}) via ${gateway}`);
 
@@ -716,6 +1325,51 @@ export class PaymentsService {
       return { refunded: true, amountKobo, status: isFullRefund ? 'refunded' : 'paid' };
     }
 
+    if (payment.gateway === PaymentGateway.Flutterwave) {
+      const meta = payment.metadata as { flwTransactionId?: number } | null;
+      const flwTransactionId = meta?.flwTransactionId;
+      if (!flwTransactionId) {
+        throw new BadRequestException(
+          'This Flutterwave payment has no recorded transaction id — process the refund from the Flutterwave dashboard instead.',
+        );
+      }
+
+      const secret = this.config.getOrThrow<string>('FLUTTERWAVE_SECRET_KEY');
+      const res = await fetch(`https://api.flutterwave.com/v3/transactions/${flwTransactionId}/refund`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${secret}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ amount: amountKobo / 100 }),
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        this.logger.error(`Flutterwave refund request failed for payment ${payment.id}: ${err}`);
+        throw new BadRequestException('Refund request failed. Please try again.');
+      }
+
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          metadata: this.mergeMetadata(payment.metadata, 'refund_requested', {
+            refundRequestedAt: new Date().toISOString(),
+            refundReason: dto.reason,
+          }),
+        },
+      });
+
+      this.logger.log(`Flutterwave refund requested for payment ${payment.id}: ${amountKobo} kobo`);
+
+      return {
+        refunded: false,
+        requested: true,
+        amountKobo,
+        message: 'Refund requested — will be confirmed once Flutterwave processes it.',
+      };
+    }
+
     // Paystack: initiate the refund via their API. Confirmation is
     // asynchronous — the refund.processed webhook is what actually marks the
     // payment refunded, so this only records that a request was made.
@@ -791,6 +1445,20 @@ export class PaymentsService {
 
     if (sig.length !== computed.length || !timingSafeEqual(sig, computed)) {
       throw new UnauthorizedException('Invalid Paystack webhook signature');
+    }
+  }
+
+  // Flutterwave webhooks carry the configured "Secret Hash" verbatim in the
+  // verif-hash header (a shared secret comparison, not an HMAC of the body).
+  private verifyFlutterwaveSignature(signature: string, secretHash: string) {
+    if (!signature) {
+      throw new UnauthorizedException('Missing Flutterwave webhook signature');
+    }
+    const sig = Buffer.from(signature);
+    const expected = Buffer.from(secretHash);
+
+    if (sig.length !== expected.length || !timingSafeEqual(sig, expected)) {
+      throw new UnauthorizedException('Invalid Flutterwave webhook signature');
     }
   }
 }
