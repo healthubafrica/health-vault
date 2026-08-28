@@ -1,0 +1,88 @@
+{
+  "expo": {
+    "name": "MyHealth Vault+",
+    "slug": "myvaultplus",
+    "owner": "health-hub-africa",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "myhealthvault",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.myvaultplus.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "MyHealth Vault+ needs camera access for TeleCare video consultations.",
+        "NSMicrophoneUsageDescription": "MyHealth Vault+ needs microphone access for TeleCare video consultations."
+      }
+    },
+    "android": {
+      "package": "com.myvaultsplus.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#137333",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "BLUETOOTH",
+        "POST_NOTIFICATIONS",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/87ae595a-aad6-4c25-b0e4-69331153944c"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "plugins": [
+      "expo-updates",
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#137333"
+        }
+      ],
+      "expo-asset",
+      "@livekit/react-native-expo-plugin",
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera for TeleCare video calls",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone for TeleCare video calls"
+        }
+      ],
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/android-icon-monochrome.png",
+          "color": "#137333"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "87ae595a-aad6-4c25-b0e4-69331153944c"
+      }
+    }
+  }
+}

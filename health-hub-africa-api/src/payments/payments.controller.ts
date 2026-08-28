@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   HttpCode,
@@ -21,6 +22,7 @@ import { UserRole } from '@prisma/client';
 import { PaymentsService } from './payments.service';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
 import { RefundPaymentDto } from './dto/refund-payment.dto';
+import { ValidateChargeDto } from './dto/validate-charge.dto';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 
 @ApiTags('Payments')
@@ -35,8 +37,12 @@ export class PaymentsController {
   @Post()
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @ApiOperation({ summary: 'Initiate a payment' })
-  initiate(@Body() dto: InitiatePaymentDto, @CurrentUser() user: JwtPayload) {
-    return this.paymentsService.initiate(dto, user);
+  initiate(
+    @Body() dto: InitiatePaymentDto,
+    @CurrentUser() user: JwtPayload,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.paymentsService.initiate(dto, user, { idempotencyKey });
   }
 
   @ApiBearerAuth()
@@ -59,6 +65,37 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Verify a payment by gateway reference (public — Paystack callback fallback)' })
   verifyPayment(@Query('reference') reference: string) {
     return this.paymentsService.verifyPayment(reference);
+  }
+
+  // Same rationale as initiate() above — bounds retry/enumeration attempts
+  // against the OTP step of a tokenized charge.
+  @ApiBearerAuth()
+  @Post('validate-charge')
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @ApiOperation({ summary: 'Submit the OTP for a pending tokenized (saved-card) charge' })
+  validateCharge(@Body() dto: ValidateChargeDto, @CurrentUser() user: JwtPayload) {
+    return this.paymentsService.validateCharge(dto, user);
+  }
+
+  @ApiBearerAuth()
+  @Get('methods')
+  @ApiOperation({ summary: 'List my saved payment methods' })
+  listPaymentMethods(@CurrentUser() user: JwtPayload) {
+    return this.paymentsService.listPaymentMethods(user);
+  }
+
+  @ApiBearerAuth()
+  @Post('methods/:id/default')
+  @ApiOperation({ summary: 'Set a saved payment method as the default' })
+  setDefaultPaymentMethod(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.paymentsService.setDefaultPaymentMethod(id, user);
+  }
+
+  @ApiBearerAuth()
+  @Delete('methods/:id')
+  @ApiOperation({ summary: 'Delete a saved payment method' })
+  deletePaymentMethod(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.paymentsService.deletePaymentMethod(id, user);
   }
 
   @ApiBearerAuth()
@@ -98,5 +135,20 @@ export class PaymentsController {
       throw new BadRequestException('Missing raw request body');
     }
     return this.paymentsService.handlePaystackWebhook(req.rawBody, signature);
+  }
+
+  @Public()
+  @SkipThrottle()
+  @Post('webhooks/flutterwave')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Flutterwave webhook receiver' })
+  flutterwaveWebhook(
+    @Req() req: RawBodyRequest<Request>,
+    @Headers('verif-hash') signature: string,
+  ) {
+    if (!req.rawBody) {
+      throw new BadRequestException('Missing raw request body');
+    }
+    return this.paymentsService.handleFlutterwaveWebhook(req.rawBody, signature);
   }
 }

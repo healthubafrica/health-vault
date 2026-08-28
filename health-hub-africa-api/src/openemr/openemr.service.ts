@@ -29,7 +29,8 @@ export type PullResourceType =
   | 'Encounter'
   | 'AllergyIntolerance'
   | 'Condition'
-  | 'Immunization';
+  | 'Immunization'
+  | 'ServiceRequest';
 
 const ALLOWED_REDIRECT_URIS = new Set([
   'https://www.myvaultplus.com/auth/callback',
@@ -70,6 +71,8 @@ export class OpenemrService implements OnModuleInit {
       'pull-medications',
       'pull-documents',
       'pull-encounters',
+      'pull-service-requests',
+      'pull-avs-summaries',
       'pull-appointments',
       'pull-allergies',
       'pull-conditions',
@@ -113,6 +116,28 @@ export class OpenemrService implements OnModuleInit {
 
     await this.syncQueue.add(
       'pull-encounters',
+      { patientId: '', operation: 'sync_record' },
+      { repeat: { cron: '*/15 * * * *' }, removeOnComplete: 10 },
+    );
+
+    // Procedure/lab/referral orders placed natively in OpenEMR (not via the
+    // portal's own LabsService.createOrder push) — e.g. a clinician ordering
+    // an echocardiogram referral or a CareTest lab panel directly in the
+    // OpenEMR UI during a visit. Routed to either a LabOrder (internal HHA
+    // CareTest lab) or a ClinicalRecord(recordType=referral) (any other
+    // destination) based on the ServiceRequest's performer organization.
+    await this.syncQueue.add(
+      'pull-service-requests',
+      { patientId: '', operation: 'sync_record' },
+      { repeat: { cron: '*/15 * * * *' }, removeOnComplete: 10 },
+    );
+
+    // After-Visit Summaries approved and released by a clinician in the HHA
+    // AI Clinical Assistant module. Delivery is acknowledged back to
+    // OpenEMR in the same cycle a summary is pulled, closing the release →
+    // delivered loop.
+    await this.syncQueue.add(
+      'pull-avs-summaries',
       { patientId: '', operation: 'sync_record' },
       { repeat: { cron: '*/15 * * * *' }, removeOnComplete: 10 },
     );

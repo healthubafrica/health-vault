@@ -78,10 +78,36 @@ class EnvironmentVariables {
 
   // Optional: PaymentsService uses getOrThrow at call time, so a missing key
   // fails loudly on the first payment attempt instead of blocking startup
-  // with dummy placeholder values.
+  // with dummy placeholder values. Paystack is temporarily disabled for new
+  // charges (compliance review) but the key stays supported so existing
+  // Paystack payments can still be verified/refunded.
   @IsOptional()
   @IsString()
   PAYSTACK_SECRET_KEY?: string;
+
+  // Flutterwave — active gateway for new charges.
+  @IsOptional()
+  @IsString()
+  FLUTTERWAVE_SECRET_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  FLUTTERWAVE_ENCRYPTION_KEY?: string;
+
+  // Shared secret compared against the `verif-hash` header on incoming
+  // Flutterwave webhooks (configured as "Secret Hash" in the Flutterwave
+  // dashboard under Settings → Webhooks) — not derived from the keys above.
+  @IsOptional()
+  @IsString()
+  FLUTTERWAVE_SECRET_HASH?: string;
+
+  // 32-byte key (base64 or hex) used to encrypt saved-card gateway tokens
+  // at rest in payment_methods.gateway_token. Distinct from
+  // FLUTTERWAVE_ENCRYPTION_KEY above — that one is Flutterwave's own wire
+  // protocol key, this one protects our database column.
+  @IsOptional()
+  @IsString()
+  CARD_TOKEN_ENCRYPTION_KEY?: string;
 
   @IsString()
   @IsNotEmpty()
