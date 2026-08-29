@@ -1308,11 +1308,29 @@ export class OpenemrProcessor {
   // synced patient we list their OpenEMR encounters via the standard REST
   // API (GET /api/patient/{puuid}/encounter — takes the patient uuid we
   // already store, no numeric pid resolution needed) and check each one.
+  //
+  // This listing call has no incremental filter of its own (OpenEMR's AVS
+  // module exposes no bulk "who has a pending summary" endpoint), so scanning
+  // the full patient roster every 15min re-fetches years-old encounter lists
+  // for patients with nothing new. Bounded instead to patients with a visit
+  // recorded in the lookback window — an AVS is only ever published against
+  // an already-finished encounter, and pull-encounters (same cron) records
+  // that visit before or in the same cycle a summary could exist for it.
+  // ponytail: fixed 90-day window, not a per-patient "already checked"
+  // cursor — a patient re-enters the scan every cycle for 90 days after
+  // their last visit even once fully checked. Add a per-patient checkpoint
+  // (e.g. Patient.avsLastCheckedAt) if that residual churn ever matters.
+
+  private static readonly AVS_LOOKBACK_DAYS = 90;
 
   @Process({ name: 'pull-avs-summaries' })
   async handlePullAvsSummaries() {
+    const cutoff = new Date(Date.now() - OpenemrProcessor.AVS_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
     const patients = await this.prisma.patient.findMany({
-      where: { openemrPatientUuid: { not: null } },
+      where: {
+        openemrPatientUuid: { not: null },
+        clinicalRecords: { some: { recordType: RecordType.visit, recordedAt: { gte: cutoff } } },
+      },
       select: { id: true, openemrPatientUuid: true },
       take: 200,
     });
@@ -1343,7 +1361,7 @@ export class OpenemrProcessor {
       }
     }
 
-    this.logger.log(`AVS pull: checked ${checked} encounter(s) → created ${created} summary record(s)`);
+    this.logger.log(`AVS pull: scanned ${patients.length} patient(s) → checked ${checked} encounter(s) → created ${created} summary record(s)`);
   }
 
   private async upsertAvsSummary(
@@ -1911,7 +1929,9 @@ export class OpenemrProcessor {
     }
 
     await this.openemrService.setPullCursor(resource, highWater);
-    this.logger.log(`Pulled ${total} ${resource}(s) → created ${created}`);
+    this.logger.log(
+      `Pulled ${total} ${resource}(s) → created ${created} | cursor ${since ?? '(none)'} → ${highWater}`,
+    );
   }
 
   private async upsertMedicationFromFhir(
