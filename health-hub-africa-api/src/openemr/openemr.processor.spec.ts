@@ -664,6 +664,26 @@ describe('OpenemrProcessor.handlePullAvsSummaries', () => {
 
     expect(prisma.clinicalRecord.create).not.toHaveBeenCalled();
   });
+
+  it('scopes the patient roster to those with a recent visit, not the full roster', async () => {
+    const { prisma, openemr } = buildAvsMocks({ encounters: [], avsResponses: {} });
+    const processor = buildProcessor(prisma, openemr);
+
+    await processor.handlePullAvsSummaries();
+
+    expect(prisma.patient.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          clinicalRecords: {
+            some: expect.objectContaining({
+              recordType: 'visit',
+              recordedAt: { gte: expect.any(Date) },
+            }),
+          },
+        }),
+      }),
+    );
+  });
 });
 
 describe('OpenemrProcessor.handlePullLabResults (order matching)', () => {
