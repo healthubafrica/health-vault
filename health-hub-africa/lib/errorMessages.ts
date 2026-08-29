@@ -9,7 +9,7 @@ const NETWORK_MSG =
 const GENERIC_MSG =
   'Something went wrong on our side. Please try again shortly.'
 const SESSION_EXPIRED_MSG =
-  'Your session has timed out. Kindly sign in again to continue.'
+  "You've been signed out due to inactivity. Kindly sign in again — any unsaved changes on this page may be lost."
 
 interface Rule {
   test: (status: number, msg: string) => boolean
@@ -32,6 +32,10 @@ const RULES: Rule[] = [
     test: (s, m) => s === 401 && /invalid credentials/i.test(m),
     message:
       "Your email or password isn't right. Kindly check and try again.",
+  },
+  {
+    test: (s, m) => s === 401 && /invalid or expired token/i.test(m),
+    message: SESSION_EXPIRED_MSG,
   },
   {
     test: (_, m) => /not verified/i.test(m),
