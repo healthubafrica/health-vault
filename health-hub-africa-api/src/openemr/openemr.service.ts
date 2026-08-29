@@ -781,6 +781,11 @@ export class OpenemrService implements OnModuleInit {
 
   private cachedToken: { value: string; expiresAt: number } | null = null;
   private refreshToken: string | null = null;
+  // Dedupes concurrent refreshes: several sync jobs (Encounter, AVS, etc.)
+  // call getAccessToken() around the same moment, and OpenEMR's refresh
+  // token is one-time-use — without this, whichever call loses the race
+  // gets a 401 on an already-rotated token. Confirmed in production logs.
+  private refreshInFlight: Promise<string> | null = null;
 
   private get clientId(): string {
     return this.config.getOrThrow<string>('OPENEMR_CLIENT_ID');
@@ -868,7 +873,12 @@ export class OpenemrService implements OnModuleInit {
       );
     }
 
-    return this.refreshAccessToken();
+    if (!this.refreshInFlight) {
+      this.refreshInFlight = this.refreshAccessToken().finally(() => {
+        this.refreshInFlight = null;
+      });
+    }
+    return this.refreshInFlight;
   }
 
   private async refreshAccessToken(): Promise<string> {

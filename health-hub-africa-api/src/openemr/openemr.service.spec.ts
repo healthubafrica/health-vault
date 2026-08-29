@@ -75,3 +75,32 @@ describe('OpenemrService.buildAuthorizationUrl', () => {
     ).rejects.toThrow('redirect_uri not in allowlist');
   });
 });
+
+describe('OpenemrService.getAccessToken (concurrent refresh)', () => {
+  // Reproduces the production race: several sync jobs (Encounter, AVS, etc.)
+  // call getAccessToken() around the same moment the cached token expires.
+  // OpenEMR's refresh token is one-time-use, so a second real HTTP refresh
+  // would 401 on the already-rotated token — getAccessToken() must dedupe
+  // concurrent callers onto a single in-flight refresh instead.
+  it('issues only one token-refresh request for concurrent callers', async () => {
+    const service = buildService();
+    (service as unknown as { refreshToken: string }).refreshToken = 'stored-refresh-token';
+
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ access_token: 'new-access-token', expires_in: 3600 }),
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const [a, b, c] = await Promise.all([
+      service.getAccessToken(),
+      service.getAccessToken(),
+      service.getAccessToken(),
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(a).toBe('new-access-token');
+    expect(b).toBe('new-access-token');
+    expect(c).toBe('new-access-token');
+  });
+});
