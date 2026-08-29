@@ -100,19 +100,23 @@ async function request<T>(
       throw new ApiError(0, friendlyNetworkError())
     }
 
-    // Only treat a 401 as "session expired" when the request actually carried
-    // a token — i.e. this was a previously-authenticated call. A 401 on a
-    // request made with no token (login, register, verify-otp, etc.) means
-    // the credentials/code were wrong, not that a session lapsed, so it must
-    // not trigger the refresh-then-hard-redirect flow below: that redirect
-    // was overwriting the real "wrong password" message and reloading the
-    // page out from under the user before they could read it.
-    if (res.status === 401 && retry && token) {
+    // Always try a silent refresh on 401 first — the access-token cookie
+    // (15min) can expire and vanish client-side while the long-lived refresh
+    // cookie (hha_rt, 7d) is still good, e.g. a user idling through a long
+    // form. Only escalate to "session expired" + hard redirect when a token
+    // HAD been attached — a 401 with no token at all (login, register,
+    // verify-otp) means the credentials/code were wrong, not that a session
+    // lapsed, so it must not trigger the redirect: that would overwrite the
+    // real "wrong password" message and reload the page out from under the
+    // user before they could read it.
+    if (res.status === 401 && retry) {
       const refreshed = await attemptTokenRefresh()
       if (refreshed) return request<T>(path, options, false)
-      clearTokens()
-      if (typeof window !== 'undefined') window.location.href = '/login'
-      throw new ApiError(401, friendlySessionExpired())
+      if (token) {
+        clearTokens()
+        if (typeof window !== 'undefined') window.location.href = '/login'
+        throw new ApiError(401, friendlySessionExpired())
+      }
     }
 
     if (!res.ok) {
