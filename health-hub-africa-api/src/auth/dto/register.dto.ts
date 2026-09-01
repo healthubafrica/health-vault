@@ -8,6 +8,15 @@ import {
   MinLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEnum } from 'class-validator';
+import { MarketingAttributionDto } from './marketing-attribution.dto';
+
+export enum AcquisitionSource {
+  social_media = 'social_media',
+  friend = 'friend',
+  referral = 'referral',
+  family = 'family',
+}
 
 // SEC-003: Minimum 12 chars, requires upper, lower, digit, and special character
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{12,}$/;
@@ -17,7 +26,7 @@ const PASSWORD_MESSAGE =
 const PHONE_REGEX = /^\+[1-9]\d{1,14}$/;
 const PHONE_MESSAGE = 'Phone must be in E.164 format (e.g. +2348012345678)';
 
-export class RegisterDto {
+export class RegisterDto extends MarketingAttributionDto {
   @ApiProperty({ example: 'jane.doe@example.com' })
   @IsEmail()
   @MaxLength(254)
@@ -52,6 +61,14 @@ export class RegisterDto {
   @IsOptional()
   @IsBoolean()
   newsletterOptIn?: boolean;
+
+  @ApiProperty({
+    enum: AcquisitionSource,
+    example: AcquisitionSource.social_media,
+    description: 'How the user first heard about Health-Hub Africa.',
+  })
+  @IsEnum(AcquisitionSource)
+  acquisitionSource: AcquisitionSource;
 
   // SEC-001: role is intentionally omitted. All new accounts are created as
   // 'patient'. Admin/provider roles are assigned by existing admins only.

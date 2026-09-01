@@ -1,7 +1,8 @@
 import { IsEmail, IsString, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { MarketingAttributionDto } from './marketing-attribution.dto';
 
-export class LoginDto {
+export class LoginDto extends MarketingAttributionDto {
   @ApiProperty({ example: 'jane.doe@example.com' })
   @IsEmail()
   email: string;

@@ -344,6 +344,8 @@ export interface TelecareSession {
   provider?: { firstName: string; lastName: string; title?: string | null } | null;
 }
 
+export type AcquisitionSource = 'social_media' | 'friend' | 'referral' | 'family';
+
 // ── API Namespaces ────────────────────────────────────────────────────────
 
 export const auth = {
@@ -354,10 +356,10 @@ export const auth = {
       false
     ),
 
-  register: (email: string, password: string, phoneNumber?: string, fullName?: string) =>
+  register: (email: string, password: string, phoneNumber: string | undefined, fullName: string, acquisitionSource: AcquisitionSource) =>
     apiRequest<{ message: string }>(
       '/auth/register',
-      { method: 'POST', body: JSON.stringify({ email, password, phoneNumber, fullName }) },
+      { method: 'POST', body: JSON.stringify({ email, password, phoneNumber, fullName, acquisitionSource }) },
       false
     ),
 

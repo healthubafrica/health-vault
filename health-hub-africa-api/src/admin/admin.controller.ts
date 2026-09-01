@@ -135,6 +135,12 @@ export class AdminController {
     return this.adminService.getAnalyticsUsage(period);
   }
 
+  @Get('analytics/marketing')
+  @ApiOperation({ summary: 'Get registration, campaign attribution, and login-location analytics' })
+  getMarketingAnalytics(@Query('period') period?: string) {
+    return this.adminService.getMarketingAnalytics(period);
+  }
+
   // ── System ────────────────────────────────────────────────────────────────
 
   @Get('system/health')
