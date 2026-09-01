@@ -12,7 +12,6 @@ import {
   friendlyNetworkError,
   friendlySessionExpired,
 } from './errorMessages'
-import type { AcquisitionSource, MarketingAttribution } from '@/lib/marketingAttribution'
 
 const BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000') + '/api/v1'
 
@@ -205,18 +204,10 @@ export interface NotificationPrefs {
 }
 
 export const auth = {
-  register: (
-    email: string,
-    password: string,
-    phoneNumber: string | undefined,
-    fullName: string | undefined,
-    newsletterOptIn: boolean,
-    acquisitionSource: AcquisitionSource,
-    attribution: MarketingAttribution,
-  ) =>
+  register: (email: string, password: string, phoneNumber?: string, fullName?: string, newsletterOptIn?: boolean) =>
     request<{ message: string }>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password, phoneNumber, fullName, newsletterOptIn, acquisitionSource, ...attribution }),
+      body: JSON.stringify({ email, password, phoneNumber, fullName, newsletterOptIn }),
     }),
 
   // Read-only pre-registration check — never assigns a partner, just powers
@@ -230,14 +221,14 @@ export const auth = {
 
   // login/verifyOtp go through the same-origin BFF so the HttpOnly refresh
   // cookie is set server-side and never touches JS.
-  login: (email: string, password: string, attribution: MarketingAttribution = {}) =>
+  login: (email: string, password: string) =>
     bffFetch<{ accessToken: string } | { requiresTwoFactor: true; userId: string }>(
       '/api/auth/login',
-      { email, password, ...attribution },
+      { email, password },
     ),
 
-  verifyOtp: (email: string, otp: string, type = 'email', attribution: MarketingAttribution = {}) =>
-    bffFetch<{ accessToken: string }>('/api/auth/verify-otp', { email, otp, type, ...attribution }),
+  verifyOtp: (email: string, otp: string, type = 'email') =>
+    bffFetch<{ accessToken: string }>('/api/auth/verify-otp', { email, otp, type }),
 
   requestSmsOtp: (email: string, phone?: string) =>
     request<{ message: string }>('/auth/request-sms-otp', {
