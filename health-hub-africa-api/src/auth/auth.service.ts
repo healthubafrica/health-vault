@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -33,8 +34,24 @@ const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_FAILED_LOGINS = 10;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
+export interface LoginContext {
+  ipAddress?: string;
+  userAgent?: string;
+  countryCode?: string;
+  region?: string;
+  city?: string;
+  timezone?: string;
+  referrer?: string;
+  landingPage?: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+}
+
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
@@ -92,6 +109,8 @@ export class AuthService {
         }),
       ]);
 
+      await this.saveRegistrationAttribution(existingEmail.id, dto);
+
       await this.sendEmailOtp(existingEmail.email, existingEmail.id, 'email');
       return { message: 'Registration successful. Check your email for OTP.' };
     }
@@ -137,6 +156,8 @@ export class AuthService {
       throw err;
     }
 
+    await this.saveRegistrationAttribution(user.id, dto);
+
     await this.sendEmailOtp(user.email, user.id, 'email');
 
     return { message: 'Registration successful. Check your email for OTP.' };
@@ -144,7 +165,7 @@ export class AuthService {
 
   // ── Login ─────────────────────────────────────────────────────────────────
 
-  async login(dto: LoginDto, ipAddress?: string, userAgent?: string) {
+  async login(dto: LoginDto, context: LoginContext = {}) {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
       include: {
@@ -184,8 +205,8 @@ export class AuthService {
 
     const tokens = await this.issueTokens(
       { sub: user.id, email: user.email, role: user.role, patientId: user.patient?.id, providerId: user.provider?.id },
-      ipAddress,
-      userAgent,
+      context.ipAddress,
+      context.userAgent,
     );
 
     // Successful login resets the counter so a user who later mistypes
@@ -198,6 +219,8 @@ export class AuthService {
         lockedUntil: null,
       },
     });
+
+    await this.recordLoginEvent(user.id, context);
 
     return tokens;
   }
@@ -254,7 +277,7 @@ export class AuthService {
 
   // ── OTP ───────────────────────────────────────────────────────────────────
 
-  async verifyEmailOtp(email: string, otp: string) {
+  async verifyEmailOtp(email: string, otp: string, context: LoginContext = {}) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new BadRequestException('User not found');
 
@@ -285,7 +308,13 @@ export class AuthService {
     ]);
 
     // Issue tokens on successful verification so the client is logged in immediately
-    return this.issueTokens({ sub: user.id, email: user.email, role: user.role });
+    const tokens = await this.issueTokens(
+      { sub: user.id, email: user.email, role: user.role },
+      context.ipAddress,
+      context.userAgent,
+    );
+    await this.recordLoginEvent(user.id, context);
+    return tokens;
   }
 
   async requestSmsOtp(email: string) {
@@ -582,7 +611,7 @@ export class AuthService {
 
   // ── Two-Factor Verification ───────────────────────────────────────────────
 
-  async verify2fa(userId: string, otp: string, ipAddress?: string, userAgent?: string) {
+  async verify2fa(userId: string, otp: string, context: LoginContext = {}) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { patient: { select: { id: true } }, provider: { select: { id: true } } },
@@ -609,11 +638,47 @@ export class AuthService {
       data: { lastLoginAt: new Date(), failedLoginAttempts: 0, lockedUntil: null },
     });
 
-    return this.issueTokens(
+    const tokens = await this.issueTokens(
       { sub: user.id, email: user.email, role: user.role, patientId: user.patient?.id, providerId: user.provider?.id },
-      ipAddress,
-      userAgent,
+      context.ipAddress,
+      context.userAgent,
     );
+    await this.recordLoginEvent(user.id, context);
+    return tokens;
+  }
+
+  private async recordLoginEvent(userId: string, context: LoginContext) {
+    try {
+      await this.prisma.$executeRaw`
+        INSERT INTO "login_events" (
+          "user_id", "ip_address", "country_code", "region", "city", "timezone",
+          "user_agent", "referrer", "landing_page", "utm_source", "utm_medium", "utm_campaign"
+        ) VALUES (
+          ${userId}::uuid, ${context.ipAddress ?? null}, ${context.countryCode ?? null},
+          ${context.region ?? null}, ${context.city ?? null}, ${context.timezone ?? null},
+          ${context.userAgent ?? null}, ${context.referrer ?? null}, ${context.landingPage ?? null},
+          ${context.utmSource ?? null}, ${context.utmMedium ?? null}, ${context.utmCampaign ?? null}
+        )
+      `;
+    } catch (error) {
+      this.logger.warn(`Unable to record login analytics for user ${userId}: ${String(error)}`);
+    }
+  }
+
+  private async saveRegistrationAttribution(userId: string, dto: RegisterDto) {
+    await this.prisma.$executeRaw`
+      UPDATE "users"
+      SET
+        "acquisition_source" = ${dto.acquisitionSource}::"AcquisitionSource",
+        "utm_source" = ${dto.utmSource ?? null},
+        "utm_medium" = ${dto.utmMedium ?? null},
+        "utm_campaign" = ${dto.utmCampaign ?? null},
+        "utm_term" = ${dto.utmTerm ?? null},
+        "utm_content" = ${dto.utmContent ?? null},
+        "registration_referrer" = ${dto.referrer ?? null},
+        "registration_landing_page" = ${dto.landingPage ?? null}
+      WHERE "id" = ${userId}::uuid
+    `;
   }
 
   async getUserById(id: string) {

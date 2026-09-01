@@ -1,12 +1,13 @@
 import { IsEmail, IsOptional, IsString, Length, Matches, MaxLength, MinLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { MarketingAttributionDto } from './marketing-attribution.dto';
 
 // SEC-003: same policy as RegisterDto
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{12,}$/;
 const PASSWORD_MESSAGE =
   'Password must be at least 12 characters and include uppercase, lowercase, a number, and a special character';
 
-export class VerifyOtpDto {
+export class VerifyOtpDto extends MarketingAttributionDto {
   @ApiProperty()
   @IsEmail()
   @MaxLength(254)
