@@ -546,6 +546,9 @@ export interface ClinicalRecord {
   recordType: string
   title: string
   description?: string
+  orderStatus?: string
+  destination?: string
+  patientInstruction?: string
   fileUrl?: string
   fileMimeType?: string
   isDownloadable: boolean
