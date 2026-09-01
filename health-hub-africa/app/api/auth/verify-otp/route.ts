@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
+import { forwardAnalyticsHeaders } from '@/lib/server/forwardAnalyticsHeaders'
 
 const BACKEND = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000') + '/api/v1'
 
@@ -18,8 +19,20 @@ export async function POST(req: NextRequest) {
   try {
     upstream = await fetch(`${BACKEND}/auth/verify-otp`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: body.email, otp: body.otp, type: body.type ?? 'email' }),
+      headers: forwardAnalyticsHeaders(req),
+      body: JSON.stringify({
+        email: body.email,
+        otp: body.otp,
+        type: body.type ?? 'email',
+        utmSource: body.utmSource,
+        utmMedium: body.utmMedium,
+        utmCampaign: body.utmCampaign,
+        utmTerm: body.utmTerm,
+        utmContent: body.utmContent,
+        referrer: body.referrer,
+        landingPage: body.landingPage,
+        timezone: body.timezone,
+      }),
     })
   } catch {
     return NextResponse.json({ message: 'API unavailable — check that the backend is running' }, { status: 503 })

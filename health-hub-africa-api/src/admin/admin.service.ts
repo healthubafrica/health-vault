@@ -604,6 +604,205 @@ export class AdminService {
     };
   }
 
+  async getMarketingAnalytics(period = '30d') {
+    const since = this.periodToDate(period);
+
+    type RegistrationRow = {
+      id: string;
+      createdAt: Date;
+      isVerified: boolean;
+      acquisitionSource: string | null;
+      utmSource: string | null;
+      utmMedium: string | null;
+      utmCampaign: string | null;
+      registrationReferrer: string | null;
+    };
+    type LoginRow = {
+      userId: string;
+      occurredAt: Date;
+      countryCode: string | null;
+      region: string | null;
+      city: string | null;
+      timezone: string | null;
+      userAgent: string | null;
+      referrer: string | null;
+      utmSource: string | null;
+      utmMedium: string | null;
+      utmCampaign: string | null;
+    };
+
+    const [registrations, logins] = await Promise.all([
+      this.prisma.$queryRaw<RegistrationRow[]>`
+        SELECT
+          "id", "created_at" AS "createdAt", "is_verified" AS "isVerified",
+          "acquisition_source"::text AS "acquisitionSource", "utm_source" AS "utmSource",
+          "utm_medium" AS "utmMedium", "utm_campaign" AS "utmCampaign",
+          "registration_referrer" AS "registrationReferrer"
+        FROM "users"
+        WHERE "role"::text = 'patient'
+          AND "created_at" >= ${since}
+          AND "deleted_at" IS NULL
+      `,
+      this.prisma.$queryRaw<LoginRow[]>`
+        SELECT
+          le."user_id" AS "userId", le."occurred_at" AS "occurredAt",
+          le."country_code" AS "countryCode", le."region", le."city", le."timezone",
+          le."user_agent" AS "userAgent", le."referrer", le."utm_source" AS "utmSource",
+          le."utm_medium" AS "utmMedium", le."utm_campaign" AS "utmCampaign"
+        FROM "login_events" le
+        INNER JOIN "users" u ON u."id" = le."user_id"
+        WHERE le."occurred_at" >= ${since}
+          AND u."role"::text = 'patient'
+          AND u."deleted_at" IS NULL
+      `,
+    ]);
+
+    const dayMap = new Map<string, { registrations: number; logins: number }>();
+    const cursor = new Date(since);
+    cursor.setUTCHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    while (cursor <= today) {
+      dayMap.set(cursor.toISOString().slice(0, 10), { registrations: 0, logins: 0 });
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+
+    for (const user of registrations) {
+      const day = user.createdAt.toISOString().slice(0, 10);
+      const row = dayMap.get(day);
+      if (row) row.registrations++;
+    }
+    for (const login of logins) {
+      const day = login.occurredAt.toISOString().slice(0, 10);
+      const row = dayMap.get(day);
+      if (row) row.logins++;
+    }
+
+    const sourceMap = new Map<string, number>();
+    for (const user of registrations) {
+      const source = user.acquisitionSource ?? 'unknown';
+      sourceMap.set(source, (sourceMap.get(source) ?? 0) + 1);
+    }
+
+    type CampaignAggregate = {
+      campaign: string;
+      source: string;
+      medium: string;
+      registrations: number;
+      logins: number;
+    };
+    const campaignMap = new Map<string, CampaignAggregate>();
+    const addCampaign = (
+      campaign: string | null,
+      source: string | null,
+      medium: string | null,
+      metric: 'registrations' | 'logins',
+    ) => {
+      if (!campaign && !source && !medium) return;
+      const row: CampaignAggregate = {
+        campaign: campaign ?? '(not set)',
+        source: source ?? '(direct)',
+        medium: medium ?? '(not set)',
+        registrations: 0,
+        logins: 0,
+      };
+      const key = `${row.campaign}\u0000${row.source}\u0000${row.medium}`;
+      const existing = campaignMap.get(key) ?? row;
+      existing[metric]++;
+      campaignMap.set(key, existing);
+    };
+    for (const user of registrations) {
+      addCampaign(user.utmCampaign, user.utmSource, user.utmMedium, 'registrations');
+    }
+    for (const login of logins) {
+      addCampaign(login.utmCampaign, login.utmSource, login.utmMedium, 'logins');
+    }
+
+    type LocationAggregate = {
+      countryCode: string;
+      region: string;
+      city: string;
+      timezone: string;
+      logins: number;
+      userIds: Set<string>;
+    };
+    const locationMap = new Map<string, LocationAggregate>();
+    const deviceMap = new Map<string, number>();
+    const referrerMap = new Map<string, number>();
+
+    for (const login of logins) {
+      const countryCode = login.countryCode?.toUpperCase() ?? 'Unknown';
+      const region = login.region ?? 'Unknown';
+      const city = login.city ?? 'Unknown';
+      const timezone = login.timezone ?? 'Unknown';
+      const locationKey = `${countryCode}\u0000${region}\u0000${city}\u0000${timezone}`;
+      const location = locationMap.get(locationKey) ?? {
+        countryCode,
+        region,
+        city,
+        timezone,
+        logins: 0,
+        userIds: new Set<string>(),
+      };
+      location.logins++;
+      location.userIds.add(login.userId);
+      locationMap.set(locationKey, location);
+
+      const ua = login.userAgent?.toLowerCase() ?? '';
+      const device = /ipad|tablet|kindle/.test(ua)
+        ? 'Tablet'
+        : /mobile|iphone|android/.test(ua)
+          ? 'Mobile'
+          : ua
+            ? 'Desktop'
+            : 'Unknown';
+      deviceMap.set(device, (deviceMap.get(device) ?? 0) + 1);
+
+      if (login.referrer) {
+        let referrer = login.referrer;
+        try {
+          referrer = new URL(login.referrer).hostname.replace(/^www\./, '');
+        } catch {
+          referrer = login.referrer.slice(0, 120);
+        }
+        referrerMap.set(referrer, (referrerMap.get(referrer) ?? 0) + 1);
+      }
+    }
+
+    const sourceTotal = registrations.length || 1;
+    return {
+      data: {
+        totals: {
+          registrations: registrations.length,
+          verifiedRegistrations: registrations.filter((user) => user.isVerified).length,
+          attributedRegistrations: registrations.filter(
+            (user) => user.utmCampaign || user.utmSource || user.utmMedium,
+          ).length,
+          logins: logins.length,
+          uniqueLoginUsers: new Set(logins.map((login) => login.userId)).size,
+        },
+        activity: Array.from(dayMap.entries()).map(([date, counts]) => ({ date, ...counts })),
+        acquisitionSources: Array.from(sourceMap.entries())
+          .map(([source, count]) => ({ source, count, percentage: Math.round((count / sourceTotal) * 1000) / 10 }))
+          .sort((a, b) => b.count - a.count),
+        campaigns: Array.from(campaignMap.values())
+          .sort((a, b) => (b.registrations + b.logins) - (a.registrations + a.logins))
+          .slice(0, 20),
+        loginLocations: Array.from(locationMap.values())
+          .map(({ userIds, ...location }) => ({ ...location, uniqueUsers: userIds.size }))
+          .sort((a, b) => b.logins - a.logins)
+          .slice(0, 20),
+        devices: Array.from(deviceMap.entries())
+          .map(([device, count]) => ({ device, count }))
+          .sort((a, b) => b.count - a.count),
+        referrers: Array.from(referrerMap.entries())
+          .map(([referrer, count]) => ({ referrer, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 10),
+      },
+    };
+  }
+
   // ── System ────────────────────────────────────────────────────────────────
 
   async getSystemHealth() {
