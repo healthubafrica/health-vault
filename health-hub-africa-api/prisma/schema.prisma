@@ -655,6 +655,13 @@ model ClinicalRecord {
   isDownloadable Boolean   @default(true) @map("is_downloadable")
   recordedAt    DateTime   @map("recorded_at") @db.Date
   openemrResourceId String? @unique @map("openemr_resource_id")
+  openemrAckedAt    DateTime? @map("openemr_acked_at")
+  // Referral/order-specific — populated for recordType=referral, sourced
+  // from the FHIR ServiceRequest pull (status/performer/patientInstruction).
+  // Nullable and unused by every other recordType.
+  orderStatus         String? @map("order_status")
+  destination         String?
+  patientInstruction  String? @map("patient_instruction")
   category           DocumentCategory?
   tags               String[]          @default([])
   originalFileName   String?           @map("original_file_name")

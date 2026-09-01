@@ -36,6 +36,42 @@ import {
 import { S3Service } from '../storage/s3.service';
 import { randomUUID } from 'crypto';
 import { BadRequestException } from '@nestjs/common';
+import { MarketingAttributionDto } from './dto/marketing-attribution.dto';
+
+function headerValue(req: Request, name: string): string | undefined {
+  const value = req.headers[name];
+  const first = Array.isArray(value) ? value[0] : value;
+  if (!first) return undefined;
+  try {
+    return decodeURIComponent(first).slice(0, 1000);
+  } catch {
+    return first.slice(0, 1000);
+  }
+}
+
+function loginContext(req: Request, attribution?: MarketingAttributionDto) {
+  return {
+    ipAddress: headerValue(req, 'x-hha-client-ip') ?? req.ip,
+    userAgent: req.headers['user-agent'],
+    countryCode:
+      headerValue(req, 'x-vercel-ip-country') ??
+      headerValue(req, 'cf-ipcountry') ??
+      headerValue(req, 'cloudfront-viewer-country'),
+    region:
+      headerValue(req, 'x-vercel-ip-country-region') ??
+      headerValue(req, 'x-vercel-ip-region') ??
+      headerValue(req, 'cloudfront-viewer-country-region'),
+    city:
+      headerValue(req, 'x-vercel-ip-city') ??
+      headerValue(req, 'cloudfront-viewer-city'),
+    timezone: attribution?.timezone,
+    referrer: attribution?.referrer,
+    landingPage: attribution?.landingPage,
+    utmSource: attribution?.utmSource,
+    utmMedium: attribution?.utmMedium,
+    utmCampaign: attribution?.utmCampaign,
+  };
+}
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -50,7 +86,7 @@ export class AuthController {
   @Throttle({ auth: { ttl: 60_000, limit: 5 } })
   @ApiOperation({ summary: 'Register a new user account' })
   register(@Body() dto: RegisterDto, @Req() req: Request) {
-    return this.authService.register(dto, req.ip);
+    return this.authService.register(dto, loginContext(req, dto).ipAddress);
   }
 
   // Pre-registration referral check — read-only, never assigns a partner.
@@ -73,7 +109,7 @@ export class AuthController {
   @Throttle({ auth: { ttl: 60_000, limit: 10 } })
   @ApiOperation({ summary: 'Login and receive access + refresh tokens' })
   login(@Body() dto: LoginDto, @Req() req: Request) {
-    return this.authService.login(dto, req.ip, req.headers['user-agent']);
+    return this.authService.login(dto, loginContext(req, dto));
   }
 
   @Public()
@@ -106,8 +142,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ auth: { ttl: 60_000, limit: 5 } }) // SEC-005: prevent OTP brute-force
   @ApiOperation({ summary: 'Verify email OTP to activate account' })
-  verifyOtp(@Body() dto: VerifyOtpDto) {
-    return this.authService.verifyEmailOtp(dto.email, dto.otp);
+  verifyOtp(@Body() dto: VerifyOtpDto, @Req() req: Request) {
+    return this.authService.verifyEmailOtp(dto.email, dto.otp, loginContext(req, dto));
   }
 
   @Public()
@@ -119,7 +155,7 @@ export class AuthController {
     @Body() body: { userId: string; otp: string },
     @Req() req: Request,
   ) {
-    return this.authService.verify2fa(body.userId, body.otp, req.ip, req.headers['user-agent']);
+    return this.authService.verify2fa(body.userId, body.otp, loginContext(req));
   }
 
   @Public()

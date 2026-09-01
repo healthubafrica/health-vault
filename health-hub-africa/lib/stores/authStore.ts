@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { auth, clearTokens, type User } from '@/lib/api'
+import type { AcquisitionSource, MarketingAttribution } from '@/lib/marketingAttribution'
 
 interface AuthState {
   user: User | null
@@ -10,9 +11,9 @@ interface AuthState {
   isLoading: boolean
   error: string | null
 
-  login: (email: string, password: string) => Promise<void>
-  register: (email: string, password: string, phoneNumber?: string, fullName?: string, newsletterOptIn?: boolean) => Promise<void>
-  verifyOtp: (email: string, otp: string) => Promise<void>
+  login: (email: string, password: string, attribution?: MarketingAttribution) => Promise<void>
+  register: (email: string, password: string, phoneNumber: string | undefined, fullName: string | undefined, newsletterOptIn: boolean, acquisitionSource: AcquisitionSource, attribution: MarketingAttribution) => Promise<void>
+  verifyOtp: (email: string, otp: string, attribution?: MarketingAttribution) => Promise<void>
   forgotPassword: (email: string) => Promise<void>
   resetPassword: (email: string, otp: string, newPassword: string) => Promise<void>
   requestSmsOtp: (email: string, phone?: string) => Promise<void>
@@ -29,11 +30,11 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
       error: null,
 
-      login: async (email, password) => {
+      login: async (email, password, attribution) => {
         set({ isLoading: true, error: null })
         try {
           // The /api/auth/login BFF sets the session cookies (HttpOnly refresh).
-          await auth.login(email, password)
+          await auth.login(email, password, attribution)
           // Fetch full user profile after login
           const meRes = await auth.me()
           set({ user: meRes.data, isAuthenticated: true, isLoading: false })
@@ -43,10 +44,10 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      register: async (email, password, phoneNumber, fullName, newsletterOptIn) => {
+      register: async (email, password, phoneNumber, fullName, newsletterOptIn, acquisitionSource, attribution) => {
         set({ isLoading: true, error: null })
         try {
-          await auth.register(email, password, phoneNumber, fullName, newsletterOptIn)
+          await auth.register(email, password, phoneNumber, fullName, newsletterOptIn, acquisitionSource, attribution)
           set({ isLoading: false })
         } catch (e: unknown) {
           set({ error: e instanceof Error ? e.message : "We couldn't create your account. Please try again.", isLoading: false })
@@ -54,11 +55,11 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      verifyOtp: async (email, otp) => {
+      verifyOtp: async (email, otp, attribution) => {
         set({ isLoading: true, error: null })
         try {
           // verify-otp auto-logs in; the BFF sets the session cookies.
-          await auth.verifyOtp(email, otp)
+          await auth.verifyOtp(email, otp, 'email', attribution)
           const meRes = await auth.me()
           set({ user: meRes.data, isAuthenticated: true, isLoading: false })
         } catch (e: unknown) {

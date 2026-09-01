@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { FormInput } from '@/components/ui/FormInput'
+import { FormInput, FormSelect } from '@/components/ui/FormInput'
 import { Button } from '@/components/ui/Button'
 import { Eye, EyeOff, Shield, Activity, Cpu } from 'lucide-react'
 import { useAuthStore } from '@/lib/stores/authStore'
+import { captureMarketingAttribution, type AcquisitionSource } from '@/lib/marketingAttribution'
 
 // OTP verification step shown after registration
 function OtpStep({ email, initialPhone, onSuccess }: { email: string; initialPhone: string; onSuccess: () => void }) {
@@ -23,7 +24,7 @@ function OtpStep({ email, initialPhone, onSuccess }: { email: string; initialPho
     setLocalError('')
     clearError()
     try {
-      await verifyOtp(email, otp)
+      await verifyOtp(email, otp, captureMarketingAttribution())
       onSuccess()
     } catch {
       // error is set in store
@@ -139,6 +140,7 @@ export function LoginScreen() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [agreeTerms, setAgreeTerms] = useState(false)
   const [newsletterOptIn, setNewsletterOptIn] = useState(false)
+  const [acquisitionSource, setAcquisitionSource] = useState<AcquisitionSource | ''>('')
   const [localError, setLocalError] = useState('')
 
   // Forgot password states
@@ -152,6 +154,10 @@ export function LoginScreen() {
 
   const displayError = localError || error
 
+  useEffect(() => {
+    captureMarketingAttribution()
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLocalError('')
@@ -164,6 +170,10 @@ export function LoginScreen() {
       }
       if (!agreeTerms) {
         setLocalError('Kindly accept the Terms of Service and Privacy Policy to continue.')
+        return
+      }
+      if (!acquisitionSource) {
+        setLocalError('Kindly tell us how you first heard about Health-Hub Africa.')
         return
       }
       if (phone && !/^\+[1-9]\d{1,14}$/.test(phone)) {
@@ -196,7 +206,15 @@ export function LoginScreen() {
         }
       }
       try {
-        await register(email, password, phone || undefined, name || undefined, newsletterOptIn)
+        await register(
+          email,
+          password,
+          phone || undefined,
+          name || undefined,
+          newsletterOptIn,
+          acquisitionSource,
+          captureMarketingAttribution(),
+        )
         if (typeof window !== 'undefined') {
           sessionStorage.setItem('onboarding_name', name || 'Valued Patient')
           sessionStorage.setItem('pending_otp_email', email)
@@ -207,7 +225,7 @@ export function LoginScreen() {
       }
     } else {
       try {
-        await login(email, password)
+        await login(email, password, captureMarketingAttribution())
         router.push('/dashboard')
       } catch {
         // error shown via store
@@ -497,6 +515,21 @@ export function LoginScreen() {
                     onChange={e => setName(e.target.value)}
                     required
                   />
+                )}
+
+                {isSignUp && (
+                  <FormSelect
+                    label="How did you first hear about us?"
+                    value={acquisitionSource}
+                    onChange={e => setAcquisitionSource(e.target.value as AcquisitionSource)}
+                    required
+                  >
+                    <option value="">Select an option</option>
+                    <option value="social_media">Social media</option>
+                    <option value="friend">Friend</option>
+                    <option value="referral">Referral</option>
+                    <option value="family">Family</option>
+                  </FormSelect>
                 )}
 
                 <FormInput
