@@ -105,3 +105,81 @@ describe('AdminService.updateUserEmail', () => {
     expect(result.data.message).toBe('Email updated and password reset code sent.');
   });
 });
+
+describe('AdminService.getMarketingAnalytics', () => {
+  // Both writes into "users"/"login_events" happen via raw SQL (no schema.prisma
+  // model for AcquisitionSource/LoginEvent), so reads here go through
+  // $queryRaw too — mocked as two sequential calls matching the Promise.all
+  // order in the implementation (registrations, then logins).
+  function buildService(registrations: unknown[], logins: unknown[]) {
+    const queryRaw = jest.fn().mockResolvedValueOnce(registrations).mockResolvedValueOnce(logins);
+    const prisma = { $queryRaw: queryRaw };
+    const service = new AdminService(
+      prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never,
+    );
+    return { service };
+  }
+
+  it('aggregates registrations and logins by source, campaign, location, and device', async () => {
+    const { service } = buildService(
+      [
+        {
+          id: 'u1', createdAt: new Date('2026-08-15'), isVerified: true,
+          acquisitionSource: 'social_media', utmSource: 'facebook', utmMedium: 'paid_social',
+          utmCampaign: 'summer', registrationReferrer: null,
+        },
+        {
+          id: 'u2', createdAt: new Date('2026-08-16'), isVerified: false,
+          acquisitionSource: null, utmSource: null, utmMedium: null, utmCampaign: null, registrationReferrer: null,
+        },
+      ],
+      [
+        {
+          userId: 'u1', occurredAt: new Date('2026-08-16'),
+          countryCode: 'ng', region: 'Lagos', city: 'Lagos', timezone: 'Africa/Lagos',
+          userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS) Mobile/15E148',
+          referrer: 'https://facebook.com/x', utmSource: 'facebook', utmMedium: 'paid_social', utmCampaign: 'summer',
+        },
+      ],
+    );
+
+    const result = await service.getMarketingAnalytics('30d');
+
+    expect(result.data.totals).toEqual({
+      registrations: 2,
+      verifiedRegistrations: 1,
+      attributedRegistrations: 1,
+      logins: 1,
+      uniqueLoginUsers: 1,
+    });
+    expect(result.data.acquisitionSources).toEqual(
+      expect.arrayContaining([
+        { source: 'social_media', count: 1, percentage: 50 },
+        { source: 'unknown', count: 1, percentage: 50 },
+      ]),
+    );
+    expect(result.data.campaigns[0]).toEqual(
+      expect.objectContaining({
+        campaign: 'summer', source: 'facebook', medium: 'paid_social', registrations: 1, logins: 1,
+      }),
+    );
+    // Country code is normalised to uppercase regardless of header casing.
+    expect(result.data.loginLocations[0]).toEqual(
+      expect.objectContaining({ countryCode: 'NG', city: 'Lagos', logins: 1, uniqueUsers: 1 }),
+    );
+    expect(result.data.devices).toEqual([{ device: 'Mobile', count: 1 }]);
+    expect(result.data.referrers).toEqual([{ referrer: 'facebook.com', count: 1 }]);
+  });
+
+  it('returns zeroed totals without dividing by zero when there is no data', async () => {
+    const { service } = buildService([], []);
+
+    const result = await service.getMarketingAnalytics('7d');
+
+    expect(result.data.totals).toEqual({
+      registrations: 0, verifiedRegistrations: 0, attributedRegistrations: 0, logins: 0, uniqueLoginUsers: 0,
+    });
+    expect(result.data.acquisitionSources).toEqual([]);
+    expect(result.data.campaigns).toEqual([]);
+  });
+});

@@ -1312,33 +1312,35 @@ export class OpenemrProcessor {
   // This listing call has no incremental filter of its own (OpenEMR's AVS
   // module exposes no bulk "who has a pending summary" endpoint), so scanning
   // the full patient roster every 15min re-fetches years-old encounter lists
-  // for patients with nothing new. Bounded instead to patients with a visit
-  // recorded in the lookback window — an AVS is only ever published against
-  // an already-finished encounter, and pull-encounters (same cron) records
-  // that visit before or in the same cycle a summary could exist for it.
-  // ponytail: fixed 90-day window, not a per-patient "already checked"
-  // cursor — a patient re-enters the scan every cycle for 90 days after
-  // their last visit even once fully checked. Add a per-patient checkpoint
-  // (e.g. Patient.avsLastCheckedAt) if that residual churn ever matters.
+  // for patients with nothing new. Bounded instead by a per-patient "checked
+  // within the last hour" throttle (Redis, via OpenemrService) — unlike a
+  // recent-visit cutoff, this never permanently excludes a patient: it was
+  // tried and caused a real regression (an approved AVS for a visit older
+  // than the cutoff, or one whose Encounter FHIR sync had stalled, was never
+  // checked again). A patient with no throttle entry is always due, so new
+  // and never-yet-checked patients are never delayed by this.
 
-  private static readonly AVS_LOOKBACK_DAYS = 90;
+  private static readonly AVS_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 
   @Process({ name: 'pull-avs-summaries' })
   async handlePullAvsSummaries() {
-    const cutoff = new Date(Date.now() - OpenemrProcessor.AVS_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
     const patients = await this.prisma.patient.findMany({
-      where: {
-        openemrPatientUuid: { not: null },
-        clinicalRecords: { some: { recordType: RecordType.visit, recordedAt: { gte: cutoff } } },
-      },
+      where: { openemrPatientUuid: { not: null } },
       select: { id: true, openemrPatientUuid: true },
       take: 200,
+    });
+
+    const lastChecked = await this.openemrService.getAvsLastCheckedMap();
+    const now = Date.now();
+    const due = patients.filter((p) => {
+      const last = Number(lastChecked[p.id] ?? 0);
+      return now - last >= OpenemrProcessor.AVS_CHECK_INTERVAL_MS;
     });
 
     let checked = 0;
     let created = 0;
 
-    for (const patient of patients) {
+    for (const patient of due) {
       try {
         const token = await this.openemrService.getAccessToken();
         const res = await this.openemrService['callOpenemr'](
@@ -1358,10 +1360,12 @@ export class OpenemrProcessor {
         this.logger.error(
           `AVS pull failed for patient ${patient.id}: ${err instanceof Error ? err.message : String(err)}`,
         );
+      } finally {
+        await this.openemrService.markAvsChecked(patient.id, now);
       }
     }
 
-    this.logger.log(`AVS pull: scanned ${patients.length} patient(s) → checked ${checked} encounter(s) → created ${created} summary record(s)`);
+    this.logger.log(`AVS pull: ${due.length}/${patients.length} patient(s) due → checked ${checked} encounter(s) → created ${created} summary record(s)`);
   }
 
   private async upsertAvsSummary(
@@ -1384,9 +1388,20 @@ export class OpenemrProcessor {
     const openemrResourceId = `AVS-${encounterId}-v${version}`;
     const existing = await this.prisma.clinicalRecord.findUnique({
       where: { openemrResourceId },
-      select: { id: true },
+      select: { id: true, openemrAckedAt: true },
     });
-    if (existing) return 'skipped';
+
+    // Record already exists locally — the patient can already see it. All
+    // that's potentially still missing is telling OpenEMR so it can flip
+    // publication_status from "ready" to "published". Retry that alone
+    // rather than skipping outright, so a transient ack failure doesn't
+    // leave OpenEMR stuck showing "awaiting delivery" forever.
+    if (existing) {
+      if (!existing.openemrAckedAt) {
+        await this.acknowledgeAvsDelivery(encounterId, version, existing.id, patientId, token);
+      }
+      return 'skipped';
+    }
 
     const approvedAtRaw = status.approved_at as string | undefined;
     const approvedAt = approvedAtRaw ? new Date(approvedAtRaw) : new Date();
@@ -1403,23 +1418,40 @@ export class OpenemrProcessor {
       },
     });
 
-    // Delivery acknowledgement completes the release → delivered lifecycle:
-    // OpenEMR flips publication_status to 'published' and records an audit
-    // row. Best-effort — the ClinicalRecord above already committed, so a
-    // failed ack here just means OpenEMR's own status/audit trail lags;
-    // never worth rolling back a summary the patient can already see.
+    await this.acknowledgeAvsDelivery(encounterId, version, record.id, patientId, token);
+
+    return 'created';
+  }
+
+  // Delivery acknowledgement closes the release → delivered loop: OpenEMR
+  // flips publication_status from "ready" to "published" and records an
+  // audit row, letting it distinguish "awaiting delivery" from "delivered."
+  // Never blocks or rolls back the ClinicalRecord — the patient can already
+  // see it regardless of whether OpenEMR's own status catches up — but on
+  // success we record openemrAckedAt so a failed attempt gets retried on
+  // the next cycle instead of silently never trying again (see the
+  // `existing.openemrAckedAt` check in upsertAvsSummary above).
+  private async acknowledgeAvsDelivery(
+    encounterId: number,
+    version: number,
+    recordId: string,
+    patientId: string,
+    token: string,
+  ): Promise<void> {
     try {
       await this.openemrService['callOpenemr'](
         token, 'POST', `/api/hha/avs/published/encounter/${encounterId}/ack`,
-        { version, portal_record_id: record.id }, patientId,
+        { version, portal_record_id: recordId }, patientId,
       );
+      await this.prisma.clinicalRecord.update({
+        where: { id: recordId },
+        data: { openemrAckedAt: new Date() },
+      });
     } catch (err) {
       this.logger.warn(
-        `AVS delivery ack failed for encounter ${encounterId} v${version} (record ${record.id} was still created): ${err instanceof Error ? err.message : String(err)}`,
+        `AVS delivery ack failed for encounter ${encounterId} v${version} (record ${recordId} unaffected, will retry): ${err instanceof Error ? err.message : String(err)}`,
       );
     }
-
-    return 'created';
   }
 
   // ── Clinical history (pull) ───────────────────────────────────────────────
@@ -2229,11 +2261,15 @@ export class OpenemrProcessor {
     });
     if (existing) return 'skipped';
 
+    const patientInstruction = [
+      sr.patientInstruction,
+      ...(sr.note?.map(n => n.text) ?? []),
+    ].filter(Boolean).join(' | ') || undefined;
+
     const description = [
       destinationName ? `Referred to: ${destinationName}` : null,
       sr.priority ? `Priority: ${sr.priority}` : null,
-      sr.patientInstruction,
-      ...(sr.note?.map(n => n.text) ?? []),
+      patientInstruction,
     ].filter(Boolean).join(' | ') || undefined;
 
     await this.prisma.clinicalRecord.create({
@@ -2244,6 +2280,9 @@ export class OpenemrProcessor {
         recordType: RecordType.referral,
         title: procedureName,
         description,
+        orderStatus: sr.status ?? undefined,
+        destination: destinationName ?? undefined,
+        patientInstruction,
         recordedAt: orderedAt,
         openemrResourceId: sr.id,
       },
