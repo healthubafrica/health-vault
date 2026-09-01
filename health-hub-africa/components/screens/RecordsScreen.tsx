@@ -56,6 +56,17 @@ const LAB_STATUS_PILL: Record<'normal' | 'flagged', 'success' | 'warning'> = {
   flagged: 'warning',
 }
 
+// FHIR ServiceRequest.status vocabulary — order-lifecycle, not a clinical
+// result, so it's a separate map from LAB_STATUS_PILL/PILL_MAP.
+const ORDER_STATUS_PILL: Record<string, 'success' | 'info' | 'neutral' | 'warning' | 'emergency'> = {
+  active: 'info',
+  completed: 'success',
+  'on-hold': 'warning',
+  revoked: 'emergency',
+  'entered-in-error': 'emergency',
+  draft: 'neutral',
+}
+
 async function handleDownload(record: ClinicalRecord) {
   if (!record.fileUrl || !record.isDownloadable) return
   try {
@@ -275,6 +286,9 @@ export function RecordsScreen() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>{record.title}</p>
                       <Pill variant={PILL_MAP[recordType]}>{record.recordType}</Pill>
+                      {recordType === 'referral' && record.orderStatus && (
+                        <Pill variant={ORDER_STATUS_PILL[record.orderStatus] ?? 'neutral'}>{record.orderStatus}</Pill>
+                      )}
                     </div>
                     {providerName && (
                       <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
@@ -286,8 +300,23 @@ export function RecordsScreen() {
                         {formatDate(record.recordedAt)}
                       </p>
                     )}
-                    {record.description && (
-                      <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-faint)' }}>{record.description}</p>
+                    {recordType === 'referral' ? (
+                      <>
+                        {record.destination && (
+                          <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-faint)' }}>
+                            Destination: {record.destination}
+                          </p>
+                        )}
+                        {record.patientInstruction && (
+                          <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-faint)' }}>
+                            {record.patientInstruction}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      record.description && (
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-faint)' }}>{record.description}</p>
+                      )
                     )}
                   </div>
                   {record.isDownloadable && record.fileUrl && (

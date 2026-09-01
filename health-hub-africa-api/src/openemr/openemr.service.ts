@@ -20,6 +20,7 @@ const OPENEMR_SECRET_NAME = 'hha/openemr-refresh-token';
 const REDIS_REFRESH_KEY = 'openemr:refresh_token';
 const REDIS_STATE_PREFIX = 'openemr:oauth_state:';
 const REDIS_PULL_CURSOR_PREFIX = 'openemr:pull-cursor:';
+const REDIS_AVS_CHECKED_KEY = 'openemr:avs-checked-at';
 const STATE_TTL_SECONDS = 1800; // 30 minutes — generous enough to cover a slow click-through of OpenEMR's own login/consent screens
 
 export type PullResourceType =
@@ -1137,6 +1138,28 @@ export class OpenemrService implements OnModuleInit {
       await this.redis.set(`${REDIS_PULL_CURSOR_PREFIX}${resource}`, iso);
     } catch (err) {
       this.logger.error(`Failed to persist pull cursor for ${resource}: ${err}`);
+    }
+  }
+
+  // AVS per-patient check throttle — replaces a hard recent-visit cutoff
+  // (which permanently excluded patients whose visit predates the window,
+  // silently dropping their approved summaries) with a rolling "checked
+  // within the last hour" gate that never permanently excludes anyone. A
+  // patient with no entry (new, or Redis was flushed) is always due.
+  async getAvsLastCheckedMap(): Promise<Record<string, string>> {
+    try {
+      return await this.redis.hgetall(REDIS_AVS_CHECKED_KEY);
+    } catch (err) {
+      this.logger.error(`Failed to read AVS check timestamps: ${err}`);
+      return {};
+    }
+  }
+
+  async markAvsChecked(patientId: string, epochMs: number): Promise<void> {
+    try {
+      await this.redis.hset(REDIS_AVS_CHECKED_KEY, patientId, String(epochMs));
+    } catch (err) {
+      this.logger.error(`Failed to record AVS check timestamp for patient ${patientId}: ${err}`);
     }
   }
 
