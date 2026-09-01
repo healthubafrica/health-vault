@@ -294,6 +294,35 @@ export interface UsageDataPoint {
   expertReviews: number
 }
 
+export interface MarketingAnalytics {
+  totals: {
+    registrations: number
+    verifiedRegistrations: number
+    attributedRegistrations: number
+    logins: number
+    uniqueLoginUsers: number
+  }
+  activity: Array<{ date: string; registrations: number; logins: number }>
+  acquisitionSources: Array<{ source: string; count: number; percentage: number }>
+  campaigns: Array<{
+    campaign: string
+    source: string
+    medium: string
+    registrations: number
+    logins: number
+  }>
+  loginLocations: Array<{
+    countryCode: string
+    region: string
+    city: string
+    timezone: string
+    logins: number
+    uniqueUsers: number
+  }>
+  devices: Array<{ device: string; count: number }>
+  referrers: Array<{ referrer: string; count: number }>
+}
+
 // ── Admin: Dispatch ───────────────────────────────────────────────────────
 
 export interface DispatchUnit {
@@ -730,6 +759,8 @@ export const adminApi = {
       request<{ data: RevenueDataPoint[] }>(`/admin/analytics/revenue?period=${period}`),
     usage: (period = '30d') =>
       request<{ data: UsageDataPoint[] }>(`/admin/analytics/usage?period=${period}`),
+    marketing: (period = '30d') =>
+      request<{ data: MarketingAnalytics }>(`/admin/analytics/marketing?period=${period}`),
   },
 
   auditLogs: {

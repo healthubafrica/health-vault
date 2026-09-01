@@ -24,7 +24,7 @@ import {
 import BotanicalBackground from '@/components/BotanicalBackground';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
-import { auth, patients, setAccessToken, ApiError } from '@/lib/api';
+import { auth, patients, setAccessToken, ApiError, type AcquisitionSource } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/authStore';
 
 
@@ -42,6 +42,7 @@ export default function SignUpScreen() {
   const [dob, setDob] = useState('');
   const [gender, setGender] = useState<'female' | 'male' | 'other'>('female');
   const [idNumber, setIdNumber] = useState('');
+  const [acquisitionSource, setAcquisitionSource] = useState<AcquisitionSource | ''>('');
 
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -63,6 +64,10 @@ export default function SignUpScreen() {
         Alert.alert('Required', 'Please enter your full name.');
         return;
       }
+      if (!acquisitionSource) {
+        Alert.alert('Required', 'Please tell us how you first heard about Health-Hub Africa.');
+        return;
+      }
       setCurrentStep(2);
     } else if (currentStep === 2) {
       if (!email.trim() || !password || !confirmPassword) {
@@ -79,7 +84,13 @@ export default function SignUpScreen() {
       }
       setIsLoading(true);
       try {
-        await auth.register(email.trim(), password, phone.trim() || undefined, fullName.trim());
+        await auth.register(
+          email.trim(),
+          password,
+          phone.trim() || undefined,
+          fullName.trim(),
+          acquisitionSource as AcquisitionSource,
+        );
         setCurrentStep(3);
       } catch (err) {
         const msg = err instanceof ApiError ? err.message : 'Registration failed. Please try again.';
@@ -292,6 +303,28 @@ export default function SignUpScreen() {
                       value={idNumber}
                       onChangeText={setIdNumber}
                     />
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>How did you first hear about us?</Text>
+                  <View style={styles.sourceGrid}>
+                    {([
+                      ['social_media', 'Social media'],
+                      ['friend', 'Friend'],
+                      ['referral', 'Referral'],
+                      ['family', 'Family'],
+                    ] as const).map(([value, label]) => (
+                      <TouchableOpacity
+                        key={value}
+                        onPress={() => setAcquisitionSource(value)}
+                        activeOpacity={0.8}
+                        style={[styles.sourceOption, acquisitionSource === value && styles.genderOptionSelected]}>
+                        <Text style={[styles.genderOptionText, acquisitionSource === value && styles.genderOptionTextSelected]}>
+                          {label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
                   </View>
                 </View>
               </View>
@@ -587,6 +620,20 @@ const styles = StyleSheet.create({
   genderRow: {
     flexDirection: 'row',
     gap: 8,
+  },
+  sourceGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  sourceOption: {
+    width: '48%',
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1.2,
+    borderColor: '#D0D5DD',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   genderOption: {
     flex: 1,
