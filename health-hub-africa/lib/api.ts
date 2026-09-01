@@ -12,6 +12,7 @@ import {
   friendlyNetworkError,
   friendlySessionExpired,
 } from './errorMessages'
+import type { AcquisitionSource, MarketingAttribution } from '@/lib/marketingAttribution'
 
 const BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000') + '/api/v1'
 
@@ -204,10 +205,18 @@ export interface NotificationPrefs {
 }
 
 export const auth = {
-  register: (email: string, password: string, phoneNumber?: string, fullName?: string, newsletterOptIn?: boolean) =>
+  register: (
+    email: string,
+    password: string,
+    phoneNumber: string | undefined,
+    fullName: string | undefined,
+    newsletterOptIn: boolean,
+    acquisitionSource: AcquisitionSource,
+    attribution: MarketingAttribution,
+  ) =>
     request<{ message: string }>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password, phoneNumber, fullName, newsletterOptIn }),
+      body: JSON.stringify({ email, password, phoneNumber, fullName, newsletterOptIn, acquisitionSource, ...attribution }),
     }),
 
   // Read-only pre-registration check — never assigns a partner, just powers
@@ -221,14 +230,14 @@ export const auth = {
 
   // login/verifyOtp go through the same-origin BFF so the HttpOnly refresh
   // cookie is set server-side and never touches JS.
-  login: (email: string, password: string) =>
+  login: (email: string, password: string, attribution: MarketingAttribution = {}) =>
     bffFetch<{ accessToken: string } | { requiresTwoFactor: true; userId: string }>(
       '/api/auth/login',
-      { email, password },
+      { email, password, ...attribution },
     ),
 
-  verifyOtp: (email: string, otp: string, type = 'email') =>
-    bffFetch<{ accessToken: string }>('/api/auth/verify-otp', { email, otp, type }),
+  verifyOtp: (email: string, otp: string, type = 'email', attribution: MarketingAttribution = {}) =>
+    bffFetch<{ accessToken: string }>('/api/auth/verify-otp', { email, otp, type, ...attribution }),
 
   requestSmsOtp: (email: string, phone?: string) =>
     request<{ message: string }>('/auth/request-sms-otp', {
@@ -546,6 +555,9 @@ export interface ClinicalRecord {
   recordType: string
   title: string
   description?: string
+  orderStatus?: string
+  destination?: string
+  patientInstruction?: string
   fileUrl?: string
   fileMimeType?: string
   isDownloadable: boolean

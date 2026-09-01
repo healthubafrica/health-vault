@@ -513,7 +513,12 @@ describe('OpenemrProcessor.handlePullServiceRequests', () => {
 
   it('routes an order to a referral ClinicalRecord when the performer is any other destination', async () => {
     const { prisma, openemr } = buildServiceRequestMocks({
-      serviceRequest: { ...baseServiceRequest, id: 'sr-order-6', code: { text: 'Echocardiogram', coding: [{ code: 'ECHO' }] } },
+      serviceRequest: {
+        ...baseServiceRequest,
+        id: 'sr-order-6',
+        code: { text: 'Echocardiogram', coding: [{ code: 'ECHO' }] },
+        patientInstruction: 'Arrive 15 minutes early; no caffeine for 24 hours.',
+      },
       organizationName: 'Cardiology Diagnostic Center',
     });
     const processor = buildProcessor(prisma, openemr);
@@ -529,6 +534,11 @@ describe('OpenemrProcessor.handlePullServiceRequests', () => {
           recordType: 'referral',
           title: 'Echocardiogram',
           openemrResourceId: 'sr-order-6',
+          // Structured fields the patient portal renders directly — the
+          // order's own lifecycle status, not a clinical result status.
+          orderStatus: 'active',
+          destination: 'Cardiology Diagnostic Center',
+          patientInstruction: 'Arrive 15 minutes early; no caffeine for 24 hours.',
         }),
       }),
     );
@@ -572,7 +582,8 @@ describe('OpenemrProcessor.handlePullAvsSummaries', () => {
   function buildAvsMocks(opts: {
     encounters: Array<Record<string, unknown>>;
     avsResponses: Record<number, Record<string, unknown>>;
-    existingRecord?: { id: string } | null;
+    existingRecord?: { id: string; openemrAckedAt?: Date | null } | null;
+    lastCheckedMap?: Record<string, string>;
   }) {
     const prisma = {
       patient: {
@@ -581,10 +592,13 @@ describe('OpenemrProcessor.handlePullAvsSummaries', () => {
       clinicalRecord: {
         findUnique: jest.fn().mockResolvedValue(opts.existingRecord ?? null),
         create: jest.fn().mockResolvedValue({ id: 'record-1' }),
+        update: jest.fn().mockResolvedValue({}),
       },
     };
     const openemr = {
       getAccessToken: jest.fn().mockResolvedValue('token'),
+      getAvsLastCheckedMap: jest.fn().mockResolvedValue(opts.lastCheckedMap ?? {}),
+      markAvsChecked: jest.fn().mockResolvedValue(undefined),
       callOpenemr: jest.fn().mockImplementation((_token: string, method: string, path: string) => {
         if (path.endsWith('/encounter')) {
           return Promise.resolve({ data: opts.encounters });
@@ -650,39 +664,84 @@ describe('OpenemrProcessor.handlePullAvsSummaries', () => {
     expect(prisma.clinicalRecord.create).not.toHaveBeenCalled();
   });
 
-  it('skips an already-imported summary (dedup by encounter+version)', async () => {
+  it('skips an already-imported and already-acked summary (dedup by encounter+version)', async () => {
     const { prisma, openemr } = buildAvsMocks({
       encounters: [{ encounter: 102 }],
       avsResponses: {
         102: { status: 'ok', encounter: 102, version: 1, approved_text: 'x', approved_at: '2026-08-20 10:00:00' },
       },
-      existingRecord: { id: 'already-there' },
+      existingRecord: { id: 'already-there', openemrAckedAt: new Date('2026-08-20') },
     });
     const processor = buildProcessor(prisma, openemr);
 
     await processor.handlePullAvsSummaries();
 
     expect(prisma.clinicalRecord.create).not.toHaveBeenCalled();
+    expect(openemr.callOpenemr).not.toHaveBeenCalledWith(
+      'token', 'POST', expect.stringContaining('/ack'), expect.anything(), expect.anything(),
+    );
   });
 
-  it('scopes the patient roster to those with a recent visit, not the full roster', async () => {
-    const { prisma, openemr } = buildAvsMocks({ encounters: [], avsResponses: {} });
+  it('retries the delivery ack for an existing record OpenEMR never got confirmation for', async () => {
+    const { prisma, openemr } = buildAvsMocks({
+      encounters: [{ encounter: 102 }],
+      avsResponses: {
+        102: { status: 'ok', encounter: 102, version: 1, approved_text: 'x', approved_at: '2026-08-20 10:00:00' },
+      },
+      existingRecord: { id: 'already-there', openemrAckedAt: null },
+    });
+    const processor = buildProcessor(prisma, openemr);
+
+    await processor.handlePullAvsSummaries();
+
+    // Record already exists — must not be recreated — but the ack that
+    // previously failed (or was never attempted) is retried this cycle.
+    expect(prisma.clinicalRecord.create).not.toHaveBeenCalled();
+    expect(openemr.callOpenemr).toHaveBeenCalledWith(
+      'token', 'POST', '/api/hha/avs/published/encounter/102/ack',
+      { version: 1, portal_record_id: 'already-there' }, 'patient-1',
+    );
+    expect(prisma.clinicalRecord.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'already-there' }, data: { openemrAckedAt: expect.any(Date) } }),
+    );
+  });
+
+  it('checks a patient with no prior throttle entry regardless of visit age', async () => {
+    // Regression test: an earlier fix scoped the roster to patients with a
+    // ClinicalRecord(visit) in the last 90 days, which permanently excluded
+    // anyone whose visit predated that window — including a released AVS
+    // for it. There is no such exclusion in the query at all any more.
+    const { prisma, openemr } = buildAvsMocks({
+      encounters: [{ encounter: 102 }],
+      avsResponses: {
+        102: { status: 'ok', encounter: 102, version: 1, approved_text: 'x', approved_at: '2026-08-20 10:00:00' },
+      },
+    });
     const processor = buildProcessor(prisma, openemr);
 
     await processor.handlePullAvsSummaries();
 
     expect(prisma.patient.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          clinicalRecords: {
-            some: expect.objectContaining({
-              recordType: 'visit',
-              recordedAt: { gte: expect.any(Date) },
-            }),
-          },
-        }),
-      }),
+      expect.objectContaining({ where: { openemrPatientUuid: { not: null } } }),
     );
+    expect(prisma.clinicalRecord.create).toHaveBeenCalled();
+    expect(openemr.markAvsChecked).toHaveBeenCalledWith('patient-1', expect.any(Number));
+  });
+
+  it('skips a patient checked within the last hour', async () => {
+    const { prisma, openemr } = buildAvsMocks({
+      encounters: [{ encounter: 102 }],
+      avsResponses: {
+        102: { status: 'ok', encounter: 102, version: 1, approved_text: 'x', approved_at: '2026-08-20 10:00:00' },
+      },
+      lastCheckedMap: { 'patient-1': String(Date.now() - 5 * 60 * 1000) }, // checked 5 min ago
+    });
+    const processor = buildProcessor(prisma, openemr);
+
+    await processor.handlePullAvsSummaries();
+
+    expect(openemr.getAccessToken).not.toHaveBeenCalled();
+    expect(prisma.clinicalRecord.create).not.toHaveBeenCalled();
   });
 });
 
