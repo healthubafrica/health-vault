@@ -66,38 +66,28 @@ export class AdminService {
 
   // ── Users ─────────────────────────────────────────────────────────────────
 
+  // Registration-status buckets that ARE reliably derivable from existing
+  // data today (see registrationStage() below for the 4th, partial one).
+  // "verification_pending" corresponds to the support team's stage 1/2
+  // combined — there's no separate phone-verification concept in this
+  // codebase (only email OTP), so a distinct "phone pending" bucket would
+  // be fictional; anyone unverified lands here regardless of which contact
+  // method they'd use to finish.
+  private static readonly REGISTRATION_STATUS_FILTERS = [
+    'verification_pending',
+    'profile_incomplete',
+    'plan_incomplete',
+  ] as const;
+
   async listUsers(
     page = 1,
     limit = 20,
     search?: string,
     status?: 'active' | 'inactive',
+    registrationStatus?: (typeof AdminService.REGISTRATION_STATUS_FILTERS)[number],
   ) {
     const skip = (page - 1) * limit;
-
-    // Each filter is its own AND clause so the search OR and the inactive
-    // OR don't overwrite each other when both are present (object spread
-    // would collapse two OR keys to one).
-    const conditions: any[] = [];
-    if (search) {
-      conditions.push({
-        OR: [
-          { email: { contains: search, mode: 'insensitive' } },
-          { phone: { contains: search, mode: 'insensitive' } },
-          { patient: { firstName: { contains: search, mode: 'insensitive' } } },
-          { patient: { lastName: { contains: search, mode: 'insensitive' } } },
-          { patient: { hhaPatientId: { contains: search, mode: 'insensitive' } } },
-          { patient: { openemrPatientUuid: { contains: search, mode: 'insensitive' } } },
-          { provider: { firstName: { contains: search, mode: 'insensitive' } } },
-          { provider: { lastName: { contains: search, mode: 'insensitive' } } },
-        ],
-      });
-    }
-    if (status === 'active') {
-      conditions.push({ isActive: true, deletedAt: null });
-    } else if (status === 'inactive') {
-      conditions.push({ OR: [{ isActive: false }, { deletedAt: { not: null } }] });
-    }
-    const where: any = conditions.length ? { AND: conditions } : {};
+    const where = this.buildUsersWhere(search, status, registrationStatus);
 
     const [rows, total] = await Promise.all([
       this.prisma.user.findMany({
@@ -109,12 +99,17 @@ export class AdminService {
           id: true,
           email: true,
           phone: true,
+          fullName: true,
           role: true,
           isActive: true,
           isVerified: true,
           lastLoginAt: true,
           createdAt: true,
+          updatedAt: true,
           profilePhotoUrl: true,
+          onboardingProgress: {
+            select: { currentStep: true, stepName: true, updatedAt: true },
+          },
           patient: {
             select: {
               id: true,
@@ -151,7 +146,7 @@ export class AdminService {
         ? `${u.patient.firstName} ${u.patient.lastName}`.trim()
         : u.provider
         ? `${u.provider.firstName} ${u.provider.lastName}`.trim()
-        : undefined;
+        : u.fullName ?? undefined;
       return {
         id: u.id,
         email: u.email,
@@ -162,6 +157,11 @@ export class AdminService {
         isVerified: u.isVerified,
         lastLoginAt: u.lastLoginAt ?? undefined,
         createdAt: u.createdAt,
+        registrationStage: this.registrationStage(u),
+        lastActivityAt: this.lastActivityAt(u),
+        onboardingStep: u.onboardingProgress
+          ? { step: u.onboardingProgress.currentStep, name: u.onboardingProgress.stepName }
+          : undefined,
         profilePhotoUrl: await this.s3.signStoredUrl(
           u.patient?.profilePhotoUrl ?? u.provider?.profilePhotoUrl ?? u.profilePhotoUrl,
         ),
@@ -194,6 +194,149 @@ export class AdminService {
     }));
 
     return { data, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
+  }
+
+  // Shared by listUsers and exportUsersCsv so the two never drift apart.
+  private buildUsersWhere(
+    search?: string,
+    status?: 'active' | 'inactive',
+    registrationStatus?: (typeof AdminService.REGISTRATION_STATUS_FILTERS)[number],
+  ): any {
+    // Each filter is its own AND clause so the search OR and the inactive
+    // OR don't overwrite each other when both are present (object spread
+    // would collapse two OR keys to one).
+    const conditions: any[] = [];
+    if (search) {
+      conditions.push({
+        OR: [
+          { email: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search, mode: 'insensitive' } },
+          { fullName: { contains: search, mode: 'insensitive' } },
+          { patient: { firstName: { contains: search, mode: 'insensitive' } } },
+          { patient: { lastName: { contains: search, mode: 'insensitive' } } },
+          { patient: { hhaPatientId: { contains: search, mode: 'insensitive' } } },
+          { patient: { openemrPatientUuid: { contains: search, mode: 'insensitive' } } },
+          { provider: { firstName: { contains: search, mode: 'insensitive' } } },
+          { provider: { lastName: { contains: search, mode: 'insensitive' } } },
+        ],
+      });
+    }
+    if (status === 'active') {
+      conditions.push({ isActive: true, deletedAt: null });
+    } else if (status === 'inactive') {
+      conditions.push({ OR: [{ isActive: false }, { deletedAt: { not: null } }] });
+    }
+    if (registrationStatus === 'verification_pending') {
+      conditions.push({ isVerified: false });
+    } else if (registrationStatus === 'profile_incomplete') {
+      conditions.push({ isVerified: true, patient: null });
+    } else if (registrationStatus === 'plan_incomplete') {
+      conditions.push({
+        isVerified: true,
+        patient: { is: { subscriptions: { none: { status: { in: ['active', 'trial'] } } } } },
+      });
+    }
+    return conditions.length ? { AND: conditions } : {};
+  }
+
+  // Streams the same shape as listUsers, unpaginated (capped for safety),
+  // as CSV for the support team to work from in Excel/Sheets. registrationStatus
+  // is the primary use case ("give me everyone incomplete right now"), but
+  // every listUsers filter is honoured so an export always matches what the
+  // admin was just looking at on screen.
+  private static readonly EXPORT_ROW_CAP = 10_000;
+
+  async exportUsersCsv(
+    search?: string,
+    status?: 'active' | 'inactive',
+    registrationStatus?: (typeof AdminService.REGISTRATION_STATUS_FILTERS)[number],
+  ): Promise<string> {
+    const where = this.buildUsersWhere(search, status, registrationStatus);
+
+    const rows = await this.prisma.user.findMany({
+      where,
+      take: AdminService.EXPORT_ROW_CAP,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        email: true,
+        phone: true,
+        fullName: true,
+        isVerified: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true,
+        onboardingProgress: { select: { currentStep: true, stepName: true, updatedAt: true } },
+        patient: {
+          select: {
+            firstName: true,
+            lastName: true,
+            subscriptions: { where: { status: { in: ['active', 'trial'] } }, take: 1, select: { id: true } },
+          },
+        },
+      },
+    });
+
+    const header = [
+      'Name', 'Email', 'Phone', 'Registration Status', 'Started At',
+      'Last Activity', 'Stopped At Step', 'Verified',
+    ];
+    const stageLabel: Record<string, string> = {
+      verification_pending: 'Registration started — verification pending',
+      profile_incomplete: 'Verified — profile setup incomplete',
+      plan_incomplete: 'Profile complete — no active plan',
+      complete: 'Complete',
+    };
+    const csvField = (value: string): string => `"${value.replace(/"/g, '""')}"`;
+
+    const lines = rows.map((u) => {
+      const fullName = u.patient ? `${u.patient.firstName} ${u.patient.lastName}`.trim() : u.fullName ?? '';
+      const stage = this.registrationStage(u);
+      const lastActivity = this.lastActivityAt(u);
+      const stoppedAt = u.onboardingProgress
+        ? `Step ${u.onboardingProgress.currentStep} (${u.onboardingProgress.stepName})`
+        : stage === 'verification_pending'
+          ? 'Not yet reached onboarding'
+          : '';
+      return [
+        fullName, u.email, u.phone ?? '', stageLabel[stage],
+        u.createdAt.toISOString(), lastActivity.toISOString(), stoppedAt,
+        u.isVerified ? 'Yes' : 'No',
+      ].map(csvField).join(',');
+    });
+
+    return [header.map(csvField).join(','), ...lines].join('\r\n');
+  }
+
+  // Coarse, evidence-based bucketing — see REGISTRATION_STATUS_FILTERS'
+  // comment for why there's no separate "phone verification pending" or
+  // per-onboarding-step bucket here; onboardingStep (surfaced separately)
+  // carries whatever finer detail is actually known.
+  private registrationStage(u: {
+    isVerified: boolean;
+    patient: { subscriptions: unknown[] } | null;
+  }): 'verification_pending' | 'profile_incomplete' | 'plan_incomplete' | 'complete' {
+    if (!u.isVerified) return 'verification_pending';
+    if (!u.patient) return 'profile_incomplete';
+    if (u.patient.subscriptions.length === 0) return 'plan_incomplete';
+    return 'complete';
+  }
+
+  // Best-effort "last activity" — lastLoginAt is only set by the plain
+  // email/password login path (never by OTP auto-login on verification), so
+  // it's frequently null for a brand-new user. updatedAt catches OTP
+  // verification and any profile writes; onboardingProgress.updatedAt
+  // catches onboarding-step navigation even before either of those.
+  // Whichever is most recent wins.
+  private lastActivityAt(u: {
+    lastLoginAt: Date | null;
+    updatedAt: Date;
+    onboardingProgress: { updatedAt: Date } | null;
+  }): Date {
+    const candidates = [u.lastLoginAt, u.updatedAt, u.onboardingProgress?.updatedAt].filter(
+      (d): d is Date => d != null,
+    );
+    return candidates.reduce((latest, d) => (d > latest ? d : latest));
   }
 
   async getUser(id: string) {

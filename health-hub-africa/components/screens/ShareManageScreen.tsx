@@ -254,7 +254,7 @@ function CreateShareWizard({ onDone }: { onDone: () => void }) {
             <input
               value={label}
               onChange={e => setLabel(e.target.value)}
-              placeholder="e.g. For Dr. Smith referral"
+              placeholder="Enter a label for this share, e.g. a referral or specialist visit"
               maxLength={80}
               className="w-full rounded-xl px-3 py-2 text-sm"
               style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
@@ -268,7 +268,7 @@ function CreateShareWizard({ onDone }: { onDone: () => void }) {
             <textarea
               value={allowedEmails}
               onChange={e => setAllowedEmails(e.target.value)}
-              placeholder="doctor@clinic.com, family@example.com"
+              placeholder="Enter one or more email addresses, separated by commas"
               rows={3}
               className="w-full rounded-xl px-3 py-2 text-sm resize-none"
               style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
@@ -353,7 +353,7 @@ function CreateShareWizard({ onDone }: { onDone: () => void }) {
                   <input
                     value={recipientPhones}
                     onChange={e => setRecipientPhones(e.target.value)}
-                    placeholder="+2348012345678, +2348098765432"
+                    placeholder="Enter one or more phone numbers, separated by commas"
                     className="w-full rounded-xl px-3 py-2 text-sm"
                     style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
                   />
