@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Manrope } from 'next/font/google'
+import VisitorBeacon from '@/components/VisitorBeacon'
 import './globals.css'
 
 const manrope = Manrope({
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={manrope.variable}
     >
       <body style={{ fontFamily: 'var(--font-manrope), sans-serif' }}>
+        <VisitorBeacon />
         {children}
       </body>
     </html>
