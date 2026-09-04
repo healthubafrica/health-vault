@@ -1610,6 +1610,33 @@ model PatientActivityEvent {
   @@map("patient_activity_events")
 }
 
+// Anonymous site visits on the public marketing site (myvaultplus-web), for
+// measuring paid-publicity reach — distinct from PatientActivityEvent (which
+// requires an authenticated Patient) and from login_events (which only fires
+// on successful auth). Most visitors here never register at all. Geo is
+// resolved server-side from trusted edge headers, same as login_events.
+model SiteVisit {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  path        String
+  referrer    String?
+  landingPage String?  @map("landing_page")
+  utmSource   String?  @map("utm_source")
+  utmMedium   String?  @map("utm_medium")
+  utmCampaign String?  @map("utm_campaign")
+  utmTerm     String?  @map("utm_term")
+  utmContent  String?  @map("utm_content")
+  countryCode String?  @map("country_code")
+  region      String?
+  city        String?
+  timezone    String?
+  userAgent   String?  @map("user_agent")
+  occurredAt  DateTime @default(now()) @map("occurred_at")
+
+  @@index([occurredAt(sort: Desc)])
+  @@index([utmCampaign, occurredAt(sort: Desc)])
+  @@map("site_visits")
+}
+
 model ServiceUsageDaily {
   id                   String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   reportDate           DateTime    @map("report_date") @db.Date

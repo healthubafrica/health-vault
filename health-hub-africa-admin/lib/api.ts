@@ -329,6 +329,18 @@ export interface MarketingAnalytics {
   referrers: Array<{ referrer: string; count: number }>
 }
 
+// Anonymous marketing-site traffic (myvaultplus-web pageviews) — distinct
+// from MarketingAnalytics above, which covers registrations/logins inside
+// the portal. Most site visitors here never register at all.
+export interface TrafficAnalytics {
+  totalVisits: number
+  activity: Array<{ date: string; visits: number }>
+  locations: Array<{ countryCode: string; region: string; city: string; visits: number }>
+  devices: Array<{ device: string; count: number }>
+  referrers: Array<{ referrer: string; count: number }>
+  campaigns: Array<{ campaign: string; source: string; medium: string; visits: number }>
+}
+
 // ── Admin: Dispatch ───────────────────────────────────────────────────────
 
 export interface DispatchUnit {
@@ -792,6 +804,8 @@ export const adminApi = {
       request<{ data: UsageDataPoint[] }>(`/admin/analytics/usage?period=${period}`),
     marketing: (period = '30d') =>
       request<{ data: MarketingAnalytics }>(`/admin/analytics/marketing?period=${period}`),
+    traffic: (period = '30d') =>
+      request<{ data: TrafficAnalytics }>(`/admin/analytics/traffic?period=${period}`),
   },
 
   auditLogs: {
