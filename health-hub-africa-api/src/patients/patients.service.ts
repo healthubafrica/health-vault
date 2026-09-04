@@ -21,6 +21,7 @@ import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { QueryPatientsDto } from './dto/query-patients.dto';
 import { RequestProfilePhotoUrlDto, ProcessProfilePhotoDto } from './dto/profile-photo-upload.dto';
+import { UpdateOnboardingProgressDto } from './dto/onboarding-progress.dto';
 import { OpenemrService } from '../openemr/openemr.service';
 import { StorageService } from '../storage/storage.service';
 import { PaymentRequiredException } from '../common/exceptions/payment-required.exception';
@@ -776,5 +777,19 @@ export class PatientsService {
     if (!allowed.includes(user.role)) {
       throw new ForbiddenException('Insufficient permissions');
     }
+  }
+
+  // Records how far the authenticated user has gotten through onboarding.
+  // Keyed by userId (not patientId) so steps 1-2 — before the Patient row
+  // exists — still leave a trace the admin Users list can surface, closing
+  // the gap where a user who abandoned onboarding early was previously
+  // indistinguishable from one who never started it at all.
+  async updateOnboardingProgress(dto: UpdateOnboardingProgressDto, user: JwtPayload) {
+    await this.prisma.onboardingProgress.upsert({
+      where: { userId: user.sub },
+      create: { userId: user.sub, currentStep: dto.step, stepName: dto.stepName },
+      update: { currentStep: dto.step, stepName: dto.stepName },
+    });
+    return { data: { ok: true } };
   }
 }

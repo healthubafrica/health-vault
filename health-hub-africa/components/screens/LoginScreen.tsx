@@ -73,7 +73,7 @@ function OtpStep({ email, initialPhone, onSuccess }: { email: string; initialPho
         <FormInput
           label="Verification code"
           type="text"
-          placeholder="123456"
+          placeholder="000000"
           value={otp}
           onChange={e => setOtp(e.target.value)}
           required
@@ -93,7 +93,7 @@ function OtpStep({ email, initialPhone, onSuccess }: { email: string; initialPho
             <FormInput
               label="Enter phone number for SMS OTP"
               type="tel"
-              placeholder="+2348012345678"
+              placeholder="Enter phone number with country code"
               value={phone}
               onChange={e => setPhone(e.target.value)}
               required
@@ -344,7 +344,7 @@ export function LoginScreen() {
                 <FormInput
                   label="Email address"
                   type="email"
-                  placeholder="b.okafor@email.com"
+                  placeholder="you@example.com"
                   autoComplete="email"
                   value={forgotEmail}
                   onChange={e => setForgotEmail(e.target.value)}
@@ -388,7 +388,7 @@ export function LoginScreen() {
                 <FormInput
                   label="Verification code (OTP)"
                   type="text"
-                  placeholder="123456"
+                  placeholder="000000"
                   value={resetOtp}
                   onChange={e => setResetOtp(e.target.value)}
                   required
@@ -510,7 +510,7 @@ export function LoginScreen() {
                   <FormInput
                     label="Full name"
                     type="text"
-                    placeholder="Bernard Okafor"
+                    placeholder="Enter your full name"
                     value={name}
                     onChange={e => setName(e.target.value)}
                     required
@@ -535,7 +535,7 @@ export function LoginScreen() {
                 <FormInput
                   label="Email address"
                   type="email"
-                  placeholder="b.okafor@email.com"
+                  placeholder="you@example.com"
                   autoComplete="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
@@ -546,7 +546,7 @@ export function LoginScreen() {
                   <FormInput
                     label="Phone number (optional)"
                     type="tel"
-                    placeholder="+2348012345678"
+                    placeholder="Enter your phone number with country code"
                     value={phone}
                     onChange={e => setPhone(e.target.value)}
                   />

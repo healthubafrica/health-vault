@@ -73,6 +73,17 @@ export function OnboardingScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Best-effort progress ping so admin support can see exactly where an
+  // abandoned onboarding stopped — steps 1-2 make no other API call at all,
+  // so without this a user who quits here is indistinguishable from one who
+  // never started onboarding. Never blocks or surfaces errors to the user.
+  useEffect(() => {
+    const stepNames: Record<number, string> = {
+      1: 'Profile', 2: 'Vitals', 3: 'History', 4: 'Security', 5: 'Plans', 6: 'Ready',
+    }
+    patients.updateOnboardingProgress(step, stepNames[step] ?? `Step ${step}`).catch(() => {})
+  }, [step])
+
   // Fetch plans when the user reaches Step 5
   useEffect(() => {
     if (step !== 5) return
@@ -287,7 +298,7 @@ export function OnboardingScreen() {
                     <FormInput
                       label="Confirm Preferred Name"
                       type="text"
-                      placeholder="e.g. Bernard"
+                      placeholder="Enter your preferred name"
                       value={name}
                       onChange={e => setName(e.target.value)}
                       required
@@ -468,7 +479,7 @@ export function OnboardingScreen() {
                     <FormInput
                       label="Emergency Contact Full Name"
                       type="text"
-                      placeholder="Chioma Okafor"
+                      placeholder="Enter contact's full name"
                       value={emergencyName}
                       onChange={e => setEmergencyName(e.target.value)}
                       required
@@ -477,7 +488,7 @@ export function OnboardingScreen() {
                     <FormInput
                       label="Emergency Contact Phone"
                       type="tel"
-                      placeholder="+234 803 123 4567"
+                      placeholder="Enter contact's phone number with country code"
                       value={emergencyPhone}
                       onChange={e => setEmergencyPhone(e.target.value)}
                       required
