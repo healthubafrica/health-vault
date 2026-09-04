@@ -174,6 +174,12 @@ export class AdminController {
     return this.adminService.getMarketingAnalytics(period);
   }
 
+  @Get('analytics/traffic')
+  @ApiOperation({ summary: 'Get anonymous site-visit traffic (volume, geography, referrers, campaigns)' })
+  getTrafficAnalytics(@Query('period') period?: string) {
+    return this.adminService.getTrafficAnalytics(period);
+  }
+
   // ── System ────────────────────────────────────────────────────────────────
 
   @Get('system/health')
