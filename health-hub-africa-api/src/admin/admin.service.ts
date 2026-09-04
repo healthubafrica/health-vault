@@ -16,6 +16,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService, NOTIFICATIONS_QUEUE, NotificationJobData, NotificationChannel } from '../notifications/notifications.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { AuthService } from '../auth/auth.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import {
   UpdateUserRoleDto,
   UpdateUserStatusDto,
@@ -62,6 +63,7 @@ export class AdminService {
     private readonly notifications: NotificationsService,
     private readonly s3: S3Service,
     private readonly authService: AuthService,
+    private readonly analyticsService: AnalyticsService,
   ) {}
 
   // ── Users ─────────────────────────────────────────────────────────────────
@@ -745,6 +747,14 @@ export class AdminService {
     return {
       data: Array.from(byDate.entries()).map(([date, counts]) => ({ date, ...counts })),
     };
+  }
+
+  // Thin delegate — SiteVisit and its aggregation live in AnalyticsModule
+  // (which also owns the public POST /analytics/visit write path); kept
+  // out of AdminService itself so the two concerns (recording a visit,
+  // reporting on visits) don't have to agree on anything beyond this call.
+  getTrafficAnalytics(period = '30d') {
+    return this.analyticsService.getTrafficAnalytics(period);
   }
 
   async getMarketingAnalytics(period = '30d') {
