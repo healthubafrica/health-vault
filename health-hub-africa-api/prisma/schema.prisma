@@ -217,6 +217,11 @@ model User {
   phone         String?   @unique
   passwordHash  String    @map("password_hash")
   role          UserRole  @default(patient)
+  // Captured at registration (RegisterDto.fullName) before any Patient row
+  // exists — the only place a name is known for someone who registered but
+  // never finished onboarding. Patient.firstName/lastName supersede this
+  // once onboarding creates that row; this field is never updated after.
+  fullName          String?   @map("full_name")
   isVerified        Boolean   @default(false) @map("is_verified")
   isActive          Boolean   @default(true) @map("is_active")
   twoFactorEnabled  Boolean   @default(false) @map("two_factor_enabled")
@@ -233,6 +238,7 @@ model User {
   patient               Patient?
   provider              Provider?
   notificationPrefs     NotificationPreference?
+  onboardingProgress    OnboardingProgress?
   auditLogsAsActor      AuditLog[]            @relation("AuditLogActor")
   supportTicketsSubmitted SupportTicket[]     @relation("TicketSubmitter")
   supportTicketsAssigned  SupportTicket[]     @relation("TicketAssignee")
@@ -245,6 +251,25 @@ model User {
   verifiedProviders     Provider[]            @relation("ProviderVerifier")
 
   @@map("users")
+}
+
+// Tracks how far a user has gotten through the post-verification onboarding
+// wizard (OnboardingScreen.tsx: Profile → Vitals → History → Security →
+// Plans → Ready). Keyed by userId rather than patientId because the Patient
+// row itself is only created partway through (at the History step) — steps
+// 1-2 would otherwise leave zero server-side trace of where someone stopped.
+// One row per user, upserted on every step change; never deleted.
+model OnboardingProgress {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String   @unique @map("user_id") @db.Uuid
+  currentStep Int      @map("current_step")
+  stepName    String   @map("step_name")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("onboarding_progress")
 }
 
 model UserSession {
@@ -1583,6 +1608,33 @@ model PatientActivityEvent {
   @@index([patientId, occurredAt(sort: Desc)])
   @@index([eventName, occurredAt(sort: Desc)])
   @@map("patient_activity_events")
+}
+
+// Anonymous site visits on the public marketing site (myvaultplus-web), for
+// measuring paid-publicity reach — distinct from PatientActivityEvent (which
+// requires an authenticated Patient) and from login_events (which only fires
+// on successful auth). Most visitors here never register at all. Geo is
+// resolved server-side from trusted edge headers, same as login_events.
+model SiteVisit {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  path        String
+  referrer    String?
+  landingPage String?  @map("landing_page")
+  utmSource   String?  @map("utm_source")
+  utmMedium   String?  @map("utm_medium")
+  utmCampaign String?  @map("utm_campaign")
+  utmTerm     String?  @map("utm_term")
+  utmContent  String?  @map("utm_content")
+  countryCode String?  @map("country_code")
+  region      String?
+  city        String?
+  timezone    String?
+  userAgent   String?  @map("user_agent")
+  occurredAt  DateTime @default(now()) @map("occurred_at")
+
+  @@index([occurredAt(sort: Desc)])
+  @@index([utmCampaign, occurredAt(sort: Desc)])
+  @@map("site_visits")
 }
 
 model ServiceUsageDaily {

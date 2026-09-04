@@ -38,6 +38,7 @@ describe('AdminService.updateUserEmail', () => {
       {} as never, // notifications
       {} as never, // s3
       authService as never,
+      {} as never, // analyticsService
     );
 
     return { service, prisma, authService };
@@ -115,7 +116,7 @@ describe('AdminService.getMarketingAnalytics', () => {
     const queryRaw = jest.fn().mockResolvedValueOnce(registrations).mockResolvedValueOnce(logins);
     const prisma = { $queryRaw: queryRaw };
     const service = new AdminService(
-      prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never,
+      prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never,
     );
     return { service };
   }
@@ -181,5 +182,87 @@ describe('AdminService.getMarketingAnalytics', () => {
     });
     expect(result.data.acquisitionSources).toEqual([]);
     expect(result.data.campaigns).toEqual([]);
+  });
+});
+
+describe('AdminService.listUsers (registration stage)', () => {
+  function buildService(users: unknown[]) {
+    const prisma = {
+      user: {
+        findMany: jest.fn().mockResolvedValue(users),
+        count: jest.fn().mockResolvedValue(users.length),
+      },
+    };
+    const s3 = { signStoredUrl: jest.fn().mockResolvedValue(null) };
+    const service = new AdminService(
+      prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, s3 as never, {} as never, {} as never,
+    );
+    return { service, prisma };
+  }
+
+  const baseUser = {
+    id: 'u1', email: 'a@b.com', phone: null, fullName: null, role: 'patient',
+    isActive: true, isVerified: false, lastLoginAt: null, createdAt: new Date('2026-08-01'),
+    updatedAt: new Date('2026-08-01'), profilePhotoUrl: null,
+    onboardingProgress: null, patient: null, provider: null,
+  };
+
+  it('buckets an unverified user as verification_pending', async () => {
+    const { service } = buildService([{ ...baseUser }]);
+    const result = await service.listUsers(1, 20);
+    expect(result.data[0].registrationStage).toBe('verification_pending');
+  });
+
+  it('buckets a verified user with no Patient row as profile_incomplete', async () => {
+    const { service } = buildService([{ ...baseUser, isVerified: true }]);
+    const result = await service.listUsers(1, 20);
+    expect(result.data[0].registrationStage).toBe('profile_incomplete');
+  });
+
+  it('buckets a Patient with no active/trial subscription as plan_incomplete', async () => {
+    const { service } = buildService([{
+      ...baseUser, isVerified: true,
+      patient: { id: 'p1', firstName: 'A', lastName: 'B', hhaPatientId: 'HHA-1', openemrPatientUuid: null, profilePhotoUrl: null, subscriptions: [] },
+    }]);
+    const result = await service.listUsers(1, 20);
+    expect(result.data[0].registrationStage).toBe('plan_incomplete');
+  });
+
+  it('buckets a fully onboarded user as complete', async () => {
+    const { service } = buildService([{
+      ...baseUser, isVerified: true,
+      patient: {
+        id: 'p1', firstName: 'A', lastName: 'B', hhaPatientId: 'HHA-1', openemrPatientUuid: null, profilePhotoUrl: null,
+        subscriptions: [{ status: 'active', expiresAt: null, plan: { name: 'Premium', tier: 'premium' } }],
+      },
+    }]);
+    const result = await service.listUsers(1, 20);
+    expect(result.data[0].registrationStage).toBe('complete');
+  });
+
+  it('surfaces onboardingStep and prefers it as the most recent activity', async () => {
+    const { service } = buildService([{
+      ...baseUser, isVerified: true,
+      onboardingProgress: { currentStep: 2, stepName: 'Vitals', updatedAt: new Date('2026-08-15') },
+    }]);
+    const result = await service.listUsers(1, 20);
+    expect(result.data[0].onboardingStep).toEqual({ step: 2, name: 'Vitals' });
+    expect(result.data[0].lastActivityAt).toEqual(new Date('2026-08-15'));
+  });
+
+  it('falls back to the registered fullName when no Patient/Provider name exists yet', async () => {
+    const { service } = buildService([{ ...baseUser, fullName: 'Pending Person' }]);
+    const result = await service.listUsers(1, 20);
+    expect(result.data[0].fullName).toBe('Pending Person');
+  });
+
+  it('applies the profile_incomplete filter as isVerified + no Patient', async () => {
+    const { service, prisma } = buildService([]);
+    await service.listUsers(1, 20, undefined, undefined, 'profile_incomplete');
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { AND: [{ isVerified: true, patient: null }] },
+      }),
+    );
   });
 });

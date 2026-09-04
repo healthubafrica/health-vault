@@ -117,7 +117,7 @@ export default function NotificationRecipientsPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="frontdesk@healthhubafrica.com"
+              placeholder="Enter the recipient's email address"
             />
           </div>
           <Button type="submit" loading={adding} disabled={!label.trim() || !email.trim()}>

@@ -163,7 +163,7 @@ export default function ShareRecordsScreen() {
             <Mail size={16} color={theme.textMuted} />
             <TextInput
               style={[styles.emailInput, { color: theme.text }]}
-              placeholder="recipient@email.com"
+              placeholder="Enter recipient's email address"
               placeholderTextColor={theme.textFaint}
               keyboardType="email-address"
               autoCapitalize="none"

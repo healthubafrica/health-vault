@@ -9,6 +9,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { NOTIFICATIONS_QUEUE } from '../notifications/notifications.service';
 import { StorageModule } from '../storage/storage.module';
 import { AuthModule } from '../auth/auth.module';
+import { AnalyticsModule } from '../analytics/analytics.module';
 import { createRedisClient } from '../common/redis/redis.factory';
 
 @Module({
@@ -19,6 +20,7 @@ import { createRedisClient } from '../common/redis/redis.factory';
     NotificationsModule,
     StorageModule,
     AuthModule,
+    AnalyticsModule,
   ],
   providers: [
     {
