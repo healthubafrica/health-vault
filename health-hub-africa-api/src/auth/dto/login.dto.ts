@@ -3,7 +3,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { MarketingAttributionDto } from './marketing-attribution.dto';
 
 export class LoginDto extends MarketingAttributionDto {
-  @ApiProperty({ example: 'jane.doe@example.com' })
+  @ApiProperty({ description: 'Registered email address.' })
   @IsEmail()
   email: string;
 

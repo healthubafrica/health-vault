@@ -268,7 +268,7 @@ export function ProfileScreen() {
             label="National Healthcare ID / Insurance No."
             value={nin}
             onChange={e => setNin(e.target.value)}
-            placeholder="e.g. NHIF-94827-X"
+            placeholder="Enter your national ID or insurance number"
           />
         </div>
       </Card>

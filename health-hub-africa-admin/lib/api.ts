@@ -240,6 +240,12 @@ export interface AdminUser {
   isVerified: boolean
   createdAt: string
   lastLoginAt?: string
+  // registrationStage/lastActivityAt/onboardingStep are always present on
+  // /admin/users responses (computed server-side); optional here only
+  // because this type predates them and older cached shapes may lack them.
+  registrationStage?: 'verification_pending' | 'profile_incomplete' | 'plan_incomplete' | 'complete'
+  lastActivityAt?: string
+  onboardingStep?: { step: number; name: string }
   profilePhotoUrl?: string | null
   subscription?: {
     plan: string
@@ -725,11 +731,36 @@ export interface Testimonial {
 
 export const adminApi = {
   users: {
-    list: (params?: { role?: string; status?: string; search?: string; page?: number; limit?: number }) => {
+    list: (params?: {
+      role?: string
+      status?: string
+      search?: string
+      page?: number
+      limit?: number
+      registrationStatus?: 'verification_pending' | 'profile_incomplete' | 'plan_incomplete'
+    }) => {
       const qs = params
         ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString()
         : ''
       return request<{ data: AdminUser[]; meta: { total: number; page: number; limit: number } }>(`/admin/users${qs}`)
+    },
+
+    // Not JSON — bypasses the request() helper entirely and returns the raw
+    // CSV body so the caller can trigger a browser download.
+    exportCsv: async (params?: {
+      status?: string
+      search?: string
+      registrationStatus?: 'verification_pending' | 'profile_incomplete' | 'plan_incomplete'
+    }): Promise<string> => {
+      const qs = params
+        ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString()
+        : ''
+      const token = getCookie(ACCESS_COOKIE)
+      const res = await fetch(`${BASE}/admin/users/export${qs}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) throw new ApiError(res.status, friendlyApiError(res.status, await res.text().catch(() => '')))
+      return res.text()
     },
     get: (id: string) => request<{ data: AdminUser }>(`/admin/users/${id}`),
     updateRole: (id: string, role: string) =>

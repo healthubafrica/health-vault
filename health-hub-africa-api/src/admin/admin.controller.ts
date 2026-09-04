@@ -9,7 +9,9 @@ import {
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ServiceType, UserRole } from '@prisma/client';
 import { AdminService } from './admin.service';
@@ -33,18 +35,49 @@ export class AdminController {
 
   @Get('users')
   @ApiOperation({ summary: 'List all users' })
+  @ApiQuery({
+    name: 'registrationStatus',
+    required: false,
+    enum: ['verification_pending', 'profile_incomplete', 'plan_incomplete'],
+    description: 'Filter to a specific incomplete-registration stage.',
+  })
   listUsers(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
     @Query('status') status?: 'active' | 'inactive',
+    @Query('registrationStatus') registrationStatus?: 'verification_pending' | 'profile_incomplete' | 'plan_incomplete',
   ) {
     return this.adminService.listUsers(
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
       search,
       status,
+      registrationStatus,
     );
+  }
+
+  // Placed before ':id' routes so Nest doesn't try to match "export" as an id.
+  @Get('users/export')
+  @ApiOperation({ summary: 'Export the filtered user list as CSV' })
+  @ApiQuery({
+    name: 'registrationStatus',
+    required: false,
+    enum: ['verification_pending', 'profile_incomplete', 'plan_incomplete'],
+  })
+  async exportUsers(
+    @Res() res: Response,
+    @Query('search') search?: string,
+    @Query('status') status?: 'active' | 'inactive',
+    @Query('registrationStatus') registrationStatus?: 'verification_pending' | 'profile_incomplete' | 'plan_incomplete',
+  ) {
+    const csv = await this.adminService.exportUsersCsv(search, status, registrationStatus);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="users-${new Date().toISOString().slice(0, 10)}.csv"`,
+    );
+    res.send(csv);
   }
 
   @Get('users/:id')

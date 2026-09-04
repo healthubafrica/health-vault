@@ -95,6 +95,7 @@ export class AuthService {
           data: {
             passwordHash,
             ...(phone ? { phone } : {}),
+            ...(dto.fullName ? { fullName: dto.fullName } : {}),
           },
         }),
         // Invalidate any outstanding OTP tokens so only the new one is valid.
@@ -135,6 +136,7 @@ export class AuthService {
           phone,
           passwordHash,
           role: UserRole.patient,
+          fullName: dto.fullName,
           notificationPrefs: {
             create: { marketingComms: dto.newsletterOptIn ?? false },
           },
