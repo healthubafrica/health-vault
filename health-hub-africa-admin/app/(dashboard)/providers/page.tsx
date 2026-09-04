@@ -796,7 +796,7 @@ function ManualImportDialog({
         </div>
 
         <form onSubmit={submit} className="flex flex-col gap-3">
-          <FormInput label="Email" type="email" placeholder="doctor@clinic.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <FormInput label="Email" type="email" placeholder="Enter the provider's email address" value={email} onChange={(e) => setEmail(e.target.value)} required />
           <div className="grid grid-cols-3 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>Title</label>

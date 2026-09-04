@@ -248,7 +248,7 @@ export default function SignUpScreen() {
                   <View style={styles.inputWrapper}>
                     <TextInput
                       style={styles.textInput}
-                      placeholder="e.g. Amara Osei"
+                      placeholder="Enter your full legal name"
                       placeholderTextColor="#98A2B3"
                       value={fullName}
                       onChangeText={setFullName}
@@ -298,7 +298,7 @@ export default function SignUpScreen() {
                   <View style={styles.inputWrapper}>
                     <TextInput
                       style={styles.textInput}
-                      placeholder="e.g. 9207145028087"
+                      placeholder="Enter your national ID or passport number"
                       placeholderTextColor="#98A2B3"
                       value={idNumber}
                       onChangeText={setIdNumber}
@@ -353,7 +353,7 @@ export default function SignUpScreen() {
                   <View style={styles.inputWrapper}>
                     <TextInput
                       style={styles.textInput}
-                      placeholder="+27 (0) 82 123 4567"
+                      placeholder="Enter your mobile number with country code"
                       placeholderTextColor="#98A2B3"
                       keyboardType="phone-pad"
                       value={phone}
@@ -423,7 +423,7 @@ export default function SignUpScreen() {
                   <View style={styles.inputWrapper}>
                     <TextInput
                       style={styles.textInput}
-                      placeholder="e.g. 981240182"
+                      placeholder="Enter your membership number"
                       placeholderTextColor="#98A2B3"
                       value={memberNumber}
                       onChangeText={setMemberNumber}

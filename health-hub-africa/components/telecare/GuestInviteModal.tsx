@@ -86,14 +86,14 @@ export function GuestInviteModal({ sessionId, onClose }: GuestInviteModalProps) 
             label="Guest name"
             value={guestName}
             onChange={(e) => setGuestName(e.target.value)}
-            placeholder="e.g. Aunty Ngozi"
+            placeholder="Enter guest's full name"
           />
           <FormInput
             label="Guest email"
             type="email"
             value={guestEmail}
             onChange={(e) => setGuestEmail(e.target.value)}
-            placeholder="aunty@example.com"
+            placeholder="Enter guest's email address"
           />
           {error && <p className="text-xs" style={{ color: 'var(--color-emergency)' }}>{error}</p>}
           <Button onClick={handleInvite} disabled={submitting} className="self-start mt-1">

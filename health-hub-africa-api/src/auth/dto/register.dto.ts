@@ -27,24 +27,24 @@ const PHONE_REGEX = /^\+[1-9]\d{1,14}$/;
 const PHONE_MESSAGE = 'Phone must be in E.164 format (e.g. +2348012345678)';
 
 export class RegisterDto extends MarketingAttributionDto {
-  @ApiProperty({ example: 'jane.doe@example.com' })
+  @ApiProperty({ description: 'Email address to register with.' })
   @IsEmail()
   @MaxLength(254)
   email: string;
 
-  @ApiPropertyOptional({ example: 'Bernard Okafor', description: 'Full name collected at registration for onboarding.' })
+  @ApiPropertyOptional({ description: 'Full name collected at registration for onboarding.' })
   @IsOptional()
   @IsString()
   @MaxLength(200)
   fullName?: string;
 
-  @ApiPropertyOptional({ example: '+2348012345678', description: 'E.164 phone number.' })
+  @ApiPropertyOptional({ description: 'E.164 phone number.' })
   @IsOptional()
   @IsString()
   @Matches(PHONE_REGEX, { message: PHONE_MESSAGE })
   phoneNumber?: string;
 
-  @ApiPropertyOptional({ example: '+2348012345678', description: 'Deprecated alias for phoneNumber.' })
+  @ApiPropertyOptional({ description: 'Deprecated alias for phoneNumber.' })
   @IsOptional()
   @IsString()
   @Matches(PHONE_REGEX, { message: PHONE_MESSAGE })

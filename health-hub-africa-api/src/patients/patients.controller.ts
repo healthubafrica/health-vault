@@ -19,6 +19,7 @@ import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { QueryPatientsDto } from './dto/query-patients.dto';
 import { RequestProfilePhotoUrlDto, ProcessProfilePhotoDto } from './dto/profile-photo-upload.dto';
+import { UpdateOnboardingProgressDto } from './dto/onboarding-progress.dto';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 
@@ -86,6 +87,20 @@ export class PatientsController {
   @ApiOperation({ summary: 'Request a full data export — emailed within 24 hours' })
   requestExport(@CurrentUser() user: JwtPayload) {
     return this.patientsService.requestExport(user);
+  }
+
+  // Fired by OnboardingScreen.tsx on every step change (steps 1-2 happen
+  // before any Patient row exists, so this is the only server-side trace
+  // of onboarding progress until the History step creates one).
+  @Patch('me/onboarding-progress')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  @ApiOperation({ summary: "Record the authenticated user's current onboarding step" })
+  updateOnboardingProgress(
+    @Body() dto: UpdateOnboardingProgressDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.patientsService.updateOnboardingProgress(dto, user);
   }
 
   @Post('me/deactivate')

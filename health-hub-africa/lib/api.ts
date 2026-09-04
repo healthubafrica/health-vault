@@ -344,6 +344,14 @@ export const patients = {
       body: JSON.stringify(data),
     }),
 
+  // Fire-and-forget from OnboardingScreen on every step change — lets admin
+  // support see exactly where an abandoned onboarding stopped.
+  updateOnboardingProgress: (step: number, stepName: string) =>
+    request<{ data: { ok: true } }>('/patients/me/onboarding-progress', {
+      method: 'PATCH',
+      body: JSON.stringify({ step, stepName }),
+    }),
+
   getProfilePhotoUploadUrl: (data: { contentType: string; sizeBytes: number }) =>
     request<{ uploadUrl: string; objectKey: string; publicUrl: string }>('/patients/me/profile-photo-upload-url', {
       method: 'POST',
