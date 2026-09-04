@@ -240,6 +240,12 @@ export interface AdminUser {
   isVerified: boolean
   createdAt: string
   lastLoginAt?: string
+  // registrationStage/lastActivityAt/onboardingStep are always present on
+  // /admin/users responses (computed server-side); optional here only
+  // because this type predates them and older cached shapes may lack them.
+  registrationStage?: 'verification_pending' | 'profile_incomplete' | 'plan_incomplete' | 'complete'
+  lastActivityAt?: string
+  onboardingStep?: { step: number; name: string }
   profilePhotoUrl?: string | null
   subscription?: {
     plan: string
@@ -321,6 +327,18 @@ export interface MarketingAnalytics {
   }>
   devices: Array<{ device: string; count: number }>
   referrers: Array<{ referrer: string; count: number }>
+}
+
+// Anonymous marketing-site traffic (myvaultplus-web pageviews) — distinct
+// from MarketingAnalytics above, which covers registrations/logins inside
+// the portal. Most site visitors here never register at all.
+export interface TrafficAnalytics {
+  totalVisits: number
+  activity: Array<{ date: string; visits: number }>
+  locations: Array<{ countryCode: string; region: string; city: string; visits: number }>
+  devices: Array<{ device: string; count: number }>
+  referrers: Array<{ referrer: string; count: number }>
+  campaigns: Array<{ campaign: string; source: string; medium: string; visits: number }>
 }
 
 // ── Admin: Dispatch ───────────────────────────────────────────────────────
@@ -725,11 +743,36 @@ export interface Testimonial {
 
 export const adminApi = {
   users: {
-    list: (params?: { role?: string; status?: string; search?: string; page?: number; limit?: number }) => {
+    list: (params?: {
+      role?: string
+      status?: string
+      search?: string
+      page?: number
+      limit?: number
+      registrationStatus?: 'verification_pending' | 'profile_incomplete' | 'plan_incomplete'
+    }) => {
       const qs = params
         ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString()
         : ''
       return request<{ data: AdminUser[]; meta: { total: number; page: number; limit: number } }>(`/admin/users${qs}`)
+    },
+
+    // Not JSON — bypasses the request() helper entirely and returns the raw
+    // CSV body so the caller can trigger a browser download.
+    exportCsv: async (params?: {
+      status?: string
+      search?: string
+      registrationStatus?: 'verification_pending' | 'profile_incomplete' | 'plan_incomplete'
+    }): Promise<string> => {
+      const qs = params
+        ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString()
+        : ''
+      const token = getCookie(ACCESS_COOKIE)
+      const res = await fetch(`${BASE}/admin/users/export${qs}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) throw new ApiError(res.status, friendlyApiError(res.status, await res.text().catch(() => '')))
+      return res.text()
     },
     get: (id: string) => request<{ data: AdminUser }>(`/admin/users/${id}`),
     updateRole: (id: string, role: string) =>
@@ -761,6 +804,8 @@ export const adminApi = {
       request<{ data: UsageDataPoint[] }>(`/admin/analytics/usage?period=${period}`),
     marketing: (period = '30d') =>
       request<{ data: MarketingAnalytics }>(`/admin/analytics/marketing?period=${period}`),
+    traffic: (period = '30d') =>
+      request<{ data: TrafficAnalytics }>(`/admin/analytics/traffic?period=${period}`),
   },
 
   auditLogs: {

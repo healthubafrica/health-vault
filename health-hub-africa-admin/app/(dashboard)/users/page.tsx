@@ -10,11 +10,30 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { FormInput } from '@/components/ui/FormInput'
-import { formatDate } from '@/lib/utils'
-import { Search, ChevronRight, RefreshCw, Mail, UserCheck } from 'lucide-react'
+import { formatDate, formatDateTime } from '@/lib/utils'
+import { Search, ChevronRight, RefreshCw, Mail, UserCheck, Download } from 'lucide-react'
 
 const ROLE_TABS = ['All', 'patient', 'provider', 'coordinator', 'admin', 'super_admin']
 const STATUS_TABS = ['All', 'Active', 'Inactive']
+const REGISTRATION_TABS = ['All', 'Verification Pending', 'Profile Incomplete', 'No Active Plan']
+const REGISTRATION_STATUS_MAP: Record<string, 'verification_pending' | 'profile_incomplete' | 'plan_incomplete' | undefined> = {
+  All: undefined,
+  'Verification Pending': 'verification_pending',
+  'Profile Incomplete': 'profile_incomplete',
+  'No Active Plan': 'plan_incomplete',
+}
+const REGISTRATION_STAGE_LABEL: Record<string, string> = {
+  verification_pending: 'Verification pending',
+  profile_incomplete: 'Profile incomplete',
+  plan_incomplete: 'No active plan',
+  complete: 'Complete',
+}
+const REGISTRATION_STAGE_PILL: Record<string, 'success' | 'warning' | 'neutral' | 'info'> = {
+  verification_pending: 'warning',
+  profile_incomplete: 'info',
+  plan_incomplete: 'neutral',
+  complete: 'success',
+}
 
 const PLAN_PILL: Record<string, 'success' | 'warning' | 'neutral' | 'info'> = {
   premium: 'success',
@@ -30,27 +49,55 @@ export default function UsersPage() {
   const [search, setSearch] = useState('')
   const [roleTab, setRoleTab] = useState('All')
   const [statusTab, setStatusTab] = useState('All')
+  const [registrationTab, setRegistrationTab] = useState('All')
   const [page, setPage] = useState(1)
   const [actioning, setActioning] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
   const [toast, setToast] = useState<{ id: string; msg: string; ok: boolean } | null>(null)
   const limit = 20
+
+  const buildFilterParams = useCallback(() => {
+    const params: Record<string, string> = {}
+    if (roleTab !== 'All') params.role = roleTab
+    if (statusTab === 'Active') params.status = 'active'
+    if (statusTab === 'Inactive') params.status = 'inactive'
+    const registrationStatus = REGISTRATION_STATUS_MAP[registrationTab]
+    if (registrationStatus) params.registrationStatus = registrationStatus
+    if (search.trim()) params.search = search.trim()
+    return params
+  }, [roleTab, statusTab, registrationTab, search])
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const params: Record<string, string | number> = { page, limit }
-      if (roleTab !== 'All') params.role = roleTab
-      if (statusTab === 'Active') params.status = 'active'
-      if (statusTab === 'Inactive') params.status = 'inactive'
-      if (search.trim()) params.search = search.trim()
-
-      const res = await adminApi.users.list(params as Parameters<typeof adminApi.users.list>[0])
+      const params = { ...buildFilterParams(), page, limit } as Parameters<typeof adminApi.users.list>[0]
+      const res = await adminApi.users.list(params)
       setUsers(res.data)
       setTotal(res.meta.total)
     } finally {
       setLoading(false)
     }
-  }, [page, roleTab, statusTab, search])
+  }, [page, limit, buildFilterParams])
+
+  const handleExport = useCallback(async () => {
+    setExporting(true)
+    try {
+      const csv = await adminApi.users.exportCsv(buildFilterParams())
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `users-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch {
+      showToast('export', 'Failed to export users', false)
+    } finally {
+      setExporting(false)
+    }
+  }, [buildFilterParams])
 
   useEffect(() => {
     const t = setTimeout(load, search ? 350 : 0)
@@ -101,10 +148,16 @@ export default function UsersPage() {
             {total.toLocaleString()} total accounts
           </p>
         </div>
-        <Button variant="secondary" size="sm" onClick={load}>
-          <RefreshCw className="w-3.5 h-3.5" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" size="sm" loading={exporting} onClick={handleExport}>
+            <Download className="w-3.5 h-3.5" />
+            Export CSV
+          </Button>
+          <Button variant="secondary" size="sm" onClick={load}>
+            <RefreshCw className="w-3.5 h-3.5" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Toast */}
@@ -145,6 +198,14 @@ export default function UsersPage() {
         tabs={ROLE_TABS}
         active={roleTab}
         onChange={(t) => { setRoleTab(t); setPage(1) }}
+        className="mb-3"
+      />
+
+      {/* Registration-stage filter — the primary way support finds people to follow up with */}
+      <FilterTabs
+        tabs={REGISTRATION_TABS}
+        active={registrationTab}
+        onChange={(t) => { setRegistrationTab(t); setPage(1) }}
         className="mb-4"
       />
 
@@ -157,7 +218,7 @@ export default function UsersPage() {
                 className="border-b"
                 style={{ borderColor: 'var(--color-border)' }}
               >
-                {['User', 'Role', 'Status', 'Plan', 'Joined', 'Actions', ''].map((h) => (
+                {['User', 'Role', 'Status', 'Registration', 'Plan', 'Last Activity', 'Joined', 'Actions', ''].map((h) => (
                   <th
                     key={h}
                     className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider"
@@ -172,7 +233,7 @@ export default function UsersPage() {
               {loading ? (
                 Array.from({ length: 8 }).map((_, i) => (
                   <tr key={i} className="border-b" style={{ borderColor: 'var(--color-border)' }}>
-                    {Array.from({ length: 7 }).map((__, j) => (
+                    {Array.from({ length: 9 }).map((__, j) => (
                       <td key={j} className="px-4 py-3">
                         <SkeletonBox height={14} className="rounded" style={{ width: j === 0 ? 160 : 80 }} />
                       </td>
@@ -181,7 +242,7 @@ export default function UsersPage() {
                 ))
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                  <td colSpan={9} className="px-4 py-10 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>
                     No users found
                   </td>
                 </tr>
@@ -237,6 +298,22 @@ export default function UsersPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
+                        {u.registrationStage && u.registrationStage !== 'complete' ? (
+                          <div className="flex flex-col gap-0.5">
+                            <Pill variant={REGISTRATION_STAGE_PILL[u.registrationStage]}>
+                              {REGISTRATION_STAGE_LABEL[u.registrationStage]}
+                            </Pill>
+                            {u.onboardingStep && (
+                              <span className="text-[11px]" style={{ color: 'var(--color-text-faint)' }}>
+                                Stopped at step {u.onboardingStep.step}: {u.onboardingStep.name}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--color-text-faint)' }}>—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
                         {u.subscription ? (
                           <Pill variant={PLAN_PILL[u.subscription.tier] ?? 'neutral'}>
                             {u.subscription.plan}
@@ -244,6 +321,9 @@ export default function UsersPage() {
                         ) : (
                           <span style={{ color: 'var(--color-text-faint)' }}>—</span>
                         )}
+                      </td>
+                      <td className="px-4 py-3" style={{ color: 'var(--color-text-muted)' }}>
+                        {u.lastActivityAt ? formatDateTime(u.lastActivityAt) : '—'}
                       </td>
                       <td className="px-4 py-3" style={{ color: 'var(--color-text-muted)' }}>
                         {formatDate(u.createdAt)}
