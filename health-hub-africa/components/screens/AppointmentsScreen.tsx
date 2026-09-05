@@ -15,6 +15,7 @@ import { Tooltip } from '@/components/ui/Tooltip'
 import { toast } from 'sonner'
 import {
   appointments as apptApi,
+  analytics,
   ApiError,
   generateIdempotencyKey,
   type Appointment,
@@ -185,16 +186,19 @@ export function AppointmentsScreen() {
 
   async function handleBook() {
     if (!scheduledAt) {
+      analytics.track('booking_validation_error', { reason: 'missing_time', serviceType })
       toast.error('Please select a date and time')
       return
     }
     setIsBooking(true)
     try {
       if (isInPerson && !facilityId) {
+        analytics.track('booking_validation_error', { reason: 'missing_facility', serviceType })
         toast.error('Please choose a facility for this in-person appointment')
         return
       }
 
+      analytics.track('booking_started', { serviceType, hasProvider: !!selectedProviderId })
       const res = await apptApi.create({
         appointmentType: selectedService.appointmentType,
         serviceType,
@@ -204,6 +208,7 @@ export function AppointmentsScreen() {
         ...(selectedProviderId && { providerId: selectedProviderId }),
         ...(isInPerson && facilityId && { facilityId }),
       }, bookingIdempotencyKey)
+      analytics.track('booking_confirmed', { serviceType, hasProvider: !!selectedProviderId })
       setBookingSuccess({ refId: res.data.hhaRef, service: selectedService.label, scheduledAt })
       toast.success('Appointment requested', {
         description: 'Your care team will confirm shortly.',
@@ -214,6 +219,7 @@ export function AppointmentsScreen() {
       refetch()
     } catch (e: unknown) {
       const message = e instanceof ApiError ? e.message : 'Failed to request appointment'
+      analytics.track('booking_error', { serviceType, status: e instanceof ApiError ? e.status : undefined })
       toast.error(message)
     } finally {
       setIsBooking(false)
@@ -377,7 +383,7 @@ export function AppointmentsScreen() {
           <FormSelect
             label="Service Type"
             value={serviceType}
-            onChange={e => setServiceType(e.target.value)}
+            onChange={e => { setServiceType(e.target.value); analytics.track('service_selected', { serviceType: e.target.value }) }}
           >
             {SERVICE_TYPES.map(s => (
               <option key={s.value} value={s.value}>{s.label}</option>

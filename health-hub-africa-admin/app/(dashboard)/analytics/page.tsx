@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAutoRefresh } from '@/lib/hooks/useLiveData'
-import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
+import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { FilterTabs } from '@/components/ui/FilterTabs'
 import { SkeletonBox } from '@/components/ui/Skeleton'
@@ -78,20 +78,23 @@ export default function AnalyticsPage() {
   const [usage, setUsage] = useState<UsageDataPoint[]>([])
   const [marketing, setMarketing] = useState<MarketingAnalytics | null>(null)
   const [traffic, setTraffic] = useState<TrafficAnalytics | null>(null)
+  const [funnel, setFunnel] = useState<FunnelAnalytics | null>(null)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     try {
-      const [rRes, uRes, mRes, tRes] = await Promise.all([
+      const [rRes, uRes, mRes, tRes, fRes] = await Promise.all([
         adminApi.analytics.revenue(period),
         adminApi.analytics.usage(period),
         adminApi.analytics.marketing(period),
         adminApi.analytics.traffic(period),
+        adminApi.analytics.funnel(period),
       ])
       setRevenue(rRes.data)
       setUsage(uRes.data)
       setMarketing(mRes.data)
       setTraffic(tRes.data)
+      setFunnel(fRes.data)
     } finally {
       setLoading(false)
     }
@@ -429,6 +432,32 @@ export default function AnalyticsPage() {
                     <td className="px-5 py-3 font-medium" style={{ color: 'var(--color-text)' }}>{row.campaign}</td>
                     <td className="px-4 py-3" style={{ color: 'var(--color-text-muted)' }}>{row.source} / {row.medium}</td>
                     <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.visits}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      <Card className="mb-6" padding={false}>
+        <div className="px-5 pt-5"><CardTitle>Funnel events</CardTitle></div>
+        {!loading && !funnel?.steps.length ? (
+          <Empty>No instrumented events yet.</Empty>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-y text-left text-[11px] uppercase tracking-wider" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                  <th className="px-5 py-2.5 font-semibold">Event</th>
+                  <th className="px-5 py-2.5 font-semibold text-right">Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(funnel?.steps ?? []).map((row) => (
+                  <tr key={row.eventName} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                    <td className="px-5 py-3 font-medium" style={{ color: 'var(--color-text)' }}>{row.eventName}</td>
+                    <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.count}</td>
                   </tr>
                 ))}
               </tbody>

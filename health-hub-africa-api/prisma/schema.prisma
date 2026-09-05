@@ -1593,17 +1593,18 @@ model RecordShareAccess {
 // ─── Analytics ────────────────────────────────────────────────────────────────
 
 model PatientActivityEvent {
-  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  patientId   String      @map("patient_id") @db.Uuid
-  sessionId   String?     @map("session_id") @db.Uuid
-  eventName   String      @map("event_name")
-  serviceType ServiceType? @map("service_type")
-  properties  Json?
-  ipAddress   String?     @map("ip_address")
-  userAgent   String?     @map("user_agent")
-  occurredAt  DateTime    @default(now()) @map("occurred_at")
+  id                  String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patientId           String?     @map("patient_id") @db.Uuid
+  anonymousVisitorId  String?     @map("anonymous_visitor_id")
+  sessionId           String?     @map("session_id") @db.Uuid
+  eventName           String      @map("event_name")
+  serviceType         ServiceType? @map("service_type")
+  properties          Json?
+  ipAddress           String?     @map("ip_address")
+  userAgent           String?     @map("user_agent")
+  occurredAt          DateTime    @default(now()) @map("occurred_at")
 
-  patient Patient      @relation(fields: [patientId], references: [id])
+  patient Patient?     @relation(fields: [patientId], references: [id])
   session UserSession? @relation(fields: [sessionId], references: [id])
 
   @@index([patientId, occurredAt(sort: Desc)])

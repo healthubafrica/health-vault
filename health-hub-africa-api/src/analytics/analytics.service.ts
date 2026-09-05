@@ -9,6 +9,7 @@ export interface ActivityEventDto {
   entityType?: string;
   entityId?: string;
   metadata?: Record<string, unknown>;
+  anonymousVisitorId?: string;
 }
 
 export interface VisitGeoContext {
@@ -33,19 +34,23 @@ export class AnalyticsService {
 
   // ── Event Ingestion ────────────────────────────────────────────────────────
 
-  async trackEvent(dto: ActivityEventDto, currentUser: JwtPayload) {
+  // Public endpoint — currentUser is present only when a valid access token
+  // was attached. Anonymous (pre-login) events are identified instead by the
+  // client-persisted anonymousVisitorId, so the same table now covers both
+  // halves of the identity model instead of authenticated patients only.
+  async trackEvent(dto: ActivityEventDto, currentUser?: JwtPayload) {
     try {
-      const patient = await this.prisma.patient.findUnique({
-        where: { userId: currentUser.sub },
-        select: { id: true },
-      });
+      const patientId = currentUser
+        ? (await this.prisma.patient.findUnique({ where: { userId: currentUser.sub }, select: { id: true } }))?.id
+        : undefined;
 
-      // Events are patient-scoped in the schema — skip for non-patient users
-      if (!patient) return;
+      // Nothing to key the row on — drop rather than write an orphan event.
+      if (!patientId && !dto.anonymousVisitorId) return;
 
       await this.prisma.patientActivityEvent.create({
         data: {
-          patientId: patient.id,
+          patientId,
+          anonymousVisitorId: patientId ? undefined : dto.anonymousVisitorId,
           eventName: dto.eventType,
           properties: {
             entityType: dto.entityType,
@@ -259,6 +264,30 @@ export class AnalyticsService {
           .sort((a, b) => b.count - a.count)
           .slice(0, 10),
         campaigns: Array.from(campaignMap.values()).sort((a, b) => b.visits - a.visits).slice(0, 20),
+      },
+    };
+  }
+
+  // Raw step counts for every ui_click/funnel event name emitted via
+  // analytics.track() (registration, OTP, booking, payment, etc.) — not
+  // hardcoded per funnel so new event names show up automatically as
+  // screens are instrumented; the dashboard groups them into named steps.
+  async getFunnelAnalytics(period = '30d') {
+    const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const rows = await this.prisma.patientActivityEvent.groupBy({
+      by: ['eventName'],
+      where: { occurredAt: { gte: since } },
+      _count: { _all: true },
+    });
+
+    return {
+      data: {
+        steps: rows
+          .map((r) => ({ eventName: r.eventName, count: r._count._all }))
+          .sort((a, b) => b.count - a.count),
       },
     };
   }
