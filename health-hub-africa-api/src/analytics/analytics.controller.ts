@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { UserRole } from '@prisma/client';
 import { Request } from 'express';
 import { AnalyticsService, ActivityEventDto, VisitGeoContext } from './analytics.service';
@@ -59,10 +60,16 @@ class RevenueQuery {
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
+  // Public so pre-login clickstream (registration/OTP funnel, landing pages)
+  // can be captured too — trackEvent() keys anonymous rows off
+  // dto.anonymousVisitorId instead when no access token is attached.
+  @Public()
+  @Roles()
   @Post('events')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Track a patient activity event' })
-  trackEvent(@Body() dto: ActivityEventDto, @CurrentUser() user: JwtPayload) {
+  @Throttle({ default: { ttl: 60_000, limit: 60 } })
+  @ApiOperation({ summary: 'Track a patient or anonymous-visitor activity event' })
+  trackEvent(@Body() dto: ActivityEventDto, @CurrentUser() user?: JwtPayload) {
     return this.analyticsService.trackEvent(dto, user);
   }
 

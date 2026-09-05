@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { auth, clearTokens, type User } from '@/lib/api'
+import { auth, analytics, clearTokens, type User } from '@/lib/api'
 import type { AcquisitionSource, MarketingAttribution } from '@/lib/marketingAttribution'
 
 interface AuthState {
@@ -48,8 +48,11 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null })
         try {
           await auth.register(email, password, phoneNumber, fullName, newsletterOptIn, acquisitionSource, attribution)
+          analytics.track('registration_complete', { acquisitionSource })
+          analytics.track('otp_requested', { channel: 'email' })
           set({ isLoading: false })
         } catch (e: unknown) {
+          analytics.track('registration_error')
           set({ error: e instanceof Error ? e.message : "We couldn't create your account. Please try again.", isLoading: false })
           throw e
         }
@@ -60,9 +63,11 @@ export const useAuthStore = create<AuthState>()(
         try {
           // verify-otp auto-logs in; the BFF sets the session cookies.
           await auth.verifyOtp(email, otp, 'email', attribution)
+          analytics.track('otp_verify_success')
           const meRes = await auth.me()
           set({ user: meRes.data, isAuthenticated: true, isLoading: false })
         } catch (e: unknown) {
+          analytics.track('otp_verify_failure')
           set({ error: e instanceof Error ? e.message : "We couldn't verify your code. Please try again.", isLoading: false })
           throw e
         }
@@ -114,6 +119,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null })
         try {
           await auth.requestSmsOtp(email, phone)
+          analytics.track('otp_requested', { channel: 'sms' })
           set({ isLoading: false })
         } catch (e: unknown) {
           set({ error: e instanceof Error ? e.message : "We couldn't send your code. Please try again.", isLoading: false })
