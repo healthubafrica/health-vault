@@ -628,6 +628,7 @@ model Appointment {
   previousScheduledAt  DateTime?         @map("previous_scheduled_at")
   rescheduleCount      Int               @default(0) @map("reschedule_count")
   openemrAppointmentId String?       @map("openemr_appointment_id")
+  idempotencyKey   String?           @unique @map("idempotency_key")
   createdAt        DateTime          @default(now()) @map("created_at")
   updatedAt        DateTime          @updatedAt @map("updated_at")
 

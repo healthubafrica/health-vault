@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -36,8 +37,12 @@ export class AppointmentsController {
 
   @Post()
   @ApiOperation({ summary: 'Book a new appointment' })
-  create(@Body() dto: CreateAppointmentDto, @CurrentUser() user: JwtPayload) {
-    return this.appointmentsService.create(dto, user);
+  create(
+    @Body() dto: CreateAppointmentDto,
+    @CurrentUser() user: JwtPayload,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.appointmentsService.create(dto, user, idempotencyKey);
   }
 
   @Get()
