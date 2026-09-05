@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { FilterTabs } from '@/components/ui/FilterTabs'
@@ -16,6 +16,7 @@ import { toast } from 'sonner'
 import {
   appointments as apptApi,
   ApiError,
+  generateIdempotencyKey,
   type Appointment,
   type BookableFacility,
   type ServiceProvider,
@@ -146,6 +147,16 @@ export function AppointmentsScreen() {
     if (pid) setSelectedProviderId(pid)
   }, [searchParams])
 
+  // Stays the same across repeated submits of the same booking (so retrying
+  // after a confusing error or a dropped response replays the original
+  // appointment instead of creating a duplicate), and changes the moment any
+  // of the fields that define the booking change — see PaymentsScreen.tsx
+  // for the same pattern.
+  const bookingIdempotencyKey = useMemo(
+    () => generateIdempotencyKey(),
+    [serviceType, scheduledAt, selectedProviderId, facilityId],
+  )
+
   // Cancel/reschedule modal targets
   const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null)
   const [rescheduleTarget, setRescheduleTarget] = useState<Appointment | null>(null)
@@ -192,7 +203,7 @@ export function AppointmentsScreen() {
         chiefComplaint: reason.trim() || undefined,
         ...(selectedProviderId && { providerId: selectedProviderId }),
         ...(isInPerson && facilityId && { facilityId }),
-      })
+      }, bookingIdempotencyKey)
       setBookingSuccess({ refId: res.data.hhaRef, service: selectedService.label, scheduledAt })
       toast.success('Appointment requested', {
         description: 'Your care team will confirm shortly.',

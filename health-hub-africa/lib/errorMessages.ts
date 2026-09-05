@@ -27,6 +27,20 @@ const RULES: Rule[] = [
     message: 'That already exists. Kindly try a different one.',
   },
 
+  // ── Appointments ────────────────────────────────────────────────────────
+  // Both are 409s from appointments.service.ts — must sit above the generic
+  // `s === 409` registration rule below, or that rule swallows them into a
+  // "That already exists" message that means nothing in a booking context
+  // and doesn't tell the patient an appointment may already be in place.
+  {
+    test: (s, m) => s === 409 && /already have an appointment/i.test(m),
+    message: 'You already have an appointment at that time. Kindly check your appointments list before booking another.',
+  },
+  {
+    test: (s, m) => s === 409 && /already booked for the selected time/i.test(m),
+    message: 'That time slot was just booked by someone else. Kindly pick another time.',
+  },
+
   // ── Login ───────────────────────────────────────────────────────────────
   {
     test: (s, m) => s === 401 && /invalid credentials/i.test(m),
