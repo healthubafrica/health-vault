@@ -5,7 +5,7 @@ import { X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { FormInput } from '@/components/ui/FormInput'
-import { appointments as apptApi, type Appointment } from '@/lib/api'
+import { appointments as apptApi, analytics, type Appointment } from '@/lib/api'
 
 interface RescheduleAppointmentModalProps {
   appointment: Appointment | null
@@ -91,6 +91,7 @@ export function RescheduleAppointmentModal({
         scheduledAt,
         reason: reason.trim() || undefined,
       })
+      analytics.track('booking_rescheduled', { serviceType: appointment.serviceType })
       toast.success('Appointment rescheduled')
       onRescheduled(updated)
       onClose()
