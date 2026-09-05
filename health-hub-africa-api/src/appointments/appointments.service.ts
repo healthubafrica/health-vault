@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
-import { AppointmentStatus, ServiceType, UserRole } from '@prisma/client';
+import { AppointmentStatus, Prisma, ServiceType, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
@@ -93,7 +93,7 @@ export class AppointmentsService {
 
   // ── Create ─────────────────────────────────────────────────────────────────
 
-  async create(dto: CreateAppointmentDto, currentUser: JwtPayload) {
+  async create(dto: CreateAppointmentDto, currentUser: JwtPayload, idempotencyKeyHeader?: string) {
     let patientId = dto.patientId;
 
     if (!patientId) {
@@ -105,6 +105,41 @@ export class AppointmentsService {
       patientId = patient.id;
     } else {
       this.requireAdminOrCoordinator(currentUser);
+    }
+
+    // Idempotency: a client-supplied key lets a retried or double-submitted
+    // request (a confusing error message prompting a manual retry, a client
+    // timeout, an app resume after a dropped response) replay the original
+    // appointment instead of creating a second booking. Same key always
+    // returns the same stored appointment; a genuine new attempt is the
+    // client's responsibility to key freshly. Unlike payments, no key is
+    // fabricated when the client doesn't send one — older clients keep
+    // working exactly as before, just without dedup.
+    const clientIdempotencyKey = idempotencyKeyHeader?.trim() || undefined;
+    if (clientIdempotencyKey && !/^[A-Za-z0-9_-]{1,128}$/.test(clientIdempotencyKey)) {
+      throw new BadRequestException('Idempotency-Key must be 1-128 characters: letters, numbers, "-", or "_".');
+    }
+    if (clientIdempotencyKey) {
+      const existing = await this.prisma.appointment.findUnique({
+        where: { idempotencyKey: clientIdempotencyKey },
+        select: this.safeSelect(),
+      });
+      if (existing) {
+        // A key reused for a genuinely different request (different patient,
+        // provider, or time) is either a client bug or a stale key left over
+        // from an edited form — replaying it would silently return the wrong
+        // appointment. Reject rather than guess.
+        const sameRequest =
+          existing.patientId === patientId &&
+          existing.providerId === (dto.providerId ?? null) &&
+          existing.scheduledAt.getTime() === new Date(dto.scheduledAt).getTime();
+        if (!sameRequest) {
+          throw new BadRequestException(
+            'This idempotency key was already used for a different request. Please retry with a fresh key.',
+          );
+        }
+        return existing;
+      }
     }
 
     if (dto.providerId) {
@@ -124,6 +159,14 @@ export class AppointmentsService {
       await this.assertSlotAvailable(dto.providerId, new Date(dto.scheduledAt), dto.durationMinutes);
     }
 
+    // Independent of the provider-slot check above (which only fires when a
+    // specific provider is chosen) — this catches the common unassigned-
+    // provider path too: the same patient submitting a second overlapping
+    // request for a time they already have pending/confirmed/upcoming, most
+    // often a confused retry after a slot conflict or a dropped response
+    // with no idempotency key attached.
+    await this.assertPatientNotDoubleBooked(patientId, new Date(dto.scheduledAt), dto.durationMinutes);
+
     const { serviceType, isTelecare } = toServiceFields(dto.appointmentType, dto.serviceType);
 
     // Validate the chosen facility exists when one is supplied. We don't
@@ -137,8 +180,8 @@ export class AppointmentsService {
       if (!facility) throw new NotFoundException('Facility not found');
     }
 
-    const appointment = await this.prisma.appointment.create({
-      data: {
+    const { appointment, conflicted } = await this.createAppointmentGuarded(
+      {
         hhaRef: await this.generateAppointmentRef(),
         patientId,
         providerId: dto.providerId ?? null,
@@ -150,17 +193,57 @@ export class AppointmentsService {
         durationMinutes: dto.durationMinutes,
         reason: dto.chiefComplaint,
         patientNotes: dto.notes,
+        idempotencyKey: clientIdempotencyKey ?? null,
       },
-      select: this.safeSelect(),
-    });
-
-    await this.openemrService.enqueueEncounterSync(appointment.patientId, appointment.id).catch(err =>
-      this.logger.error(`Failed to enqueue OpenEMR encounter sync: ${err.message}`),
+      clientIdempotencyKey,
     );
 
-    void this.notifyAppointmentEvent(appointment.id, 'requested');
+    // Lost a create-time race to a concurrent identical request (both passed
+    // the earlier existence check before either had committed) — the winner
+    // already ran the side effects below, so skip them for the replay.
+    if (!conflicted) {
+      await this.openemrService.enqueueEncounterSync(appointment.patientId, appointment.id).catch(err =>
+        this.logger.error(`Failed to enqueue OpenEMR encounter sync: ${err.message}`),
+      );
+
+      void this.notifyAppointmentEvent(appointment.id, 'requested');
+    }
 
     return appointment;
+  }
+
+  // The existence check above and this create() are not atomic — two
+  // concurrent requests carrying the same fresh idempotency key can both
+  // pass the check before either commits. The DB's unique constraint on
+  // idempotencyKey stops a duplicate row from ever existing, but the loser's
+  // create() throws P2002 rather than succeeding; this turns that into a
+  // clean replay of the winner instead of an uncaught 500. A P2002 on a
+  // different constraint (e.g. the hhaRef sequence) is not this race and is
+  // rethrown unchanged.
+  private async createAppointmentGuarded(
+    data: Prisma.AppointmentUncheckedCreateInput,
+    clientIdempotencyKey: string | undefined,
+  ) {
+    try {
+      const appointment = await this.prisma.appointment.create({ data, select: this.safeSelect() });
+      return { appointment, conflicted: false as const };
+    } catch (err) {
+      const target = (err as { meta?: { target?: unknown } })?.meta?.target;
+      const isIdempotencyKeyConflict =
+        clientIdempotencyKey &&
+        (err as { code?: string })?.code === 'P2002' &&
+        Array.isArray(target) &&
+        target.some((t) => String(t).toLowerCase().includes('idempotency'));
+
+      if (isIdempotencyKeyConflict) {
+        const winner = await this.prisma.appointment.findUniqueOrThrow({
+          where: { idempotencyKey: clientIdempotencyKey },
+          select: this.safeSelect(),
+        });
+        return { appointment: winner, conflicted: true as const };
+      }
+      throw err;
+    }
   }
 
   // APT-YYYY-000001 sequential appointment reference
@@ -704,6 +787,44 @@ export class AppointmentsService {
     const conflict = existing.some((a) => a.start < newEnd && a.end > newStart);
     if (conflict) {
       throw new ConflictException('This provider is already booked for the selected time.');
+    }
+  }
+
+  // Throws if the patient already has a non-cancelled appointment overlapping
+  // the requested [scheduledAt, scheduledAt+duration) range, regardless of
+  // provider. assertSlotAvailable above only runs when a specific provider
+  // is chosen — this is the equivalent guard for the (common) unassigned-
+  // provider booking path, and the main defence against a confused retry
+  // creating a duplicate appointment.
+  private async assertPatientNotDoubleBooked(
+    patientId: string,
+    scheduledAt: Date,
+    durationMinutes: number,
+    excludeAppointmentId?: string,
+  ): Promise<void> {
+    const dateStr = scheduledAt.toISOString().slice(0, 10);
+    const dayStart = new Date(`${dateStr}T00:00:00.000Z`);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+    const existing = await this.prisma.appointment.findMany({
+      where: {
+        patientId,
+        scheduledAt: { gte: dayStart, lt: dayEnd },
+        status: { notIn: [AppointmentStatus.cancelled, AppointmentStatus.no_show] },
+        ...(excludeAppointmentId ? { id: { not: excludeAppointmentId } } : {}),
+      },
+      select: { scheduledAt: true, durationMinutes: true },
+    });
+
+    const newStart = scheduledAt.getTime();
+    const newEnd = newStart + durationMinutes * 60_000;
+
+    const conflict = existing.some((a) => {
+      const start = a.scheduledAt.getTime();
+      return start < newEnd && start + a.durationMinutes * 60_000 > newStart;
+    });
+    if (conflict) {
+      throw new ConflictException('You already have an appointment scheduled for that time.');
     }
   }
 

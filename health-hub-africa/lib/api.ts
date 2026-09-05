@@ -509,10 +509,16 @@ export const appointments = {
     return request<ServiceProvider[]>(`/appointments/providers?${params}`)
   },
 
-  create: (data: CreateAppointmentPayload) =>
+  // Pass idempotencyKey (generateIdempotencyKey(), kept stable across
+  // retries of the same booking attempt) so a confusing error prompting a
+  // manual retry — or a client timeout / dropped response — replays the
+  // original appointment instead of creating a duplicate. See payments.initiate()
+  // for the same pattern.
+  create: (data: CreateAppointmentPayload, idempotencyKey?: string) =>
     request<{ data: Appointment }>('/appointments', {
       method: 'POST',
       body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
     }),
 
   // Cancels via the dedicated cancel endpoint — body takes {reason}, not {cancellationNote}.
