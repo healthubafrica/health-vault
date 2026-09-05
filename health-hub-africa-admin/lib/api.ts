@@ -341,6 +341,12 @@ export interface TrafficAnalytics {
   campaigns: Array<{ campaign: string; source: string; medium: string; visits: number }>
 }
 
+// Raw counts per instrumented funnel event name (registration, OTP, booking,
+// payment) — not pre-grouped into named funnels; the dashboard buckets them.
+export interface FunnelAnalytics {
+  steps: Array<{ eventName: string; count: number }>
+}
+
 // ── Admin: Dispatch ───────────────────────────────────────────────────────
 
 export interface DispatchUnit {
@@ -806,6 +812,8 @@ export const adminApi = {
       request<{ data: MarketingAnalytics }>(`/admin/analytics/marketing?period=${period}`),
     traffic: (period = '30d') =>
       request<{ data: TrafficAnalytics }>(`/admin/analytics/traffic?period=${period}`),
+    funnel: (period = '30d') =>
+      request<{ data: FunnelAnalytics }>(`/admin/analytics/funnel?period=${period}`),
   },
 
   auditLogs: {

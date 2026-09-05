@@ -180,6 +180,12 @@ export class AdminController {
     return this.adminService.getTrafficAnalytics(period);
   }
 
+  @Get('analytics/funnel')
+  @ApiOperation({ summary: 'Get raw event counts for every instrumented funnel step (registration, OTP, booking, payment)' })
+  getFunnelAnalytics(@Query('period') period?: string) {
+    return this.adminService.getFunnelAnalytics(period);
+  }
+
   // ── System ────────────────────────────────────────────────────────────────
 
   @Get('system/health')
