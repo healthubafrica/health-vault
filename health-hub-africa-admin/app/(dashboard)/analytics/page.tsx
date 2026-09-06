@@ -88,6 +88,8 @@ export default function AnalyticsPage() {
   const [marketing, setMarketing] = useState<MarketingAnalytics | null>(null)
   const [traffic, setTraffic] = useState<TrafficAnalytics | null>(null)
   const [funnel, setFunnel] = useState<FunnelAnalytics | null>(null)
+  const [funnelCountry, setFunnelCountry] = useState('')
+  const [funnelDevice, setFunnelDevice] = useState('')
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
@@ -97,7 +99,7 @@ export default function AnalyticsPage() {
         adminApi.analytics.usage(period),
         adminApi.analytics.marketing(period),
         adminApi.analytics.traffic(period),
-        adminApi.analytics.funnel(period),
+        adminApi.analytics.funnel(period, { country: funnelCountry || undefined, device: funnelDevice || undefined }),
       ])
       setRevenue(rRes.data)
       setUsage(uRes.data)
@@ -107,7 +109,7 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false)
     }
-  }, [period])
+  }, [period, funnelCountry, funnelDevice])
 
   useEffect(() => {
     setLoading(true)
@@ -455,10 +457,51 @@ export default function AnalyticsPage() {
         )}
       </Card>
 
-      <div className="mb-3">
-        <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Funnels</h2>
-        <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Step counts for the selected period, in funnel order</p>
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Funnels</h2>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Step counts for the selected period, in funnel order</p>
+        </div>
+        <div className="flex gap-2">
+          <select
+            value={funnelCountry}
+            onChange={(e) => setFunnelCountry(e.target.value)}
+            className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+            style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+            aria-label="Filter funnels by country"
+          >
+            <option value="">All countries</option>
+            {Array.from(new Set((traffic?.locations ?? []).map((l) => l.countryCode))).map((code) => (
+              <option key={code} value={code}>{countryName(code)}</option>
+            ))}
+          </select>
+          <select
+            value={funnelDevice}
+            onChange={(e) => setFunnelDevice(e.target.value)}
+            className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+            style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+            aria-label="Filter funnels by device"
+          >
+            <option value="">All devices</option>
+            {Array.from(new Set((traffic?.devices ?? []).map((d) => d.device))).map((device) => (
+              <option key={device} value={device}>{device}</option>
+            ))}
+          </select>
+        </div>
       </div>
+
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {(funnel?.kpis ?? []).map((kpi) => (
+          <Card key={kpi.key}>
+            <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>{kpi.label}</p>
+            <p className="text-2xl font-bold mt-1" style={{ color: 'var(--color-text)' }}>{kpi.value === null ? '—' : `${kpi.value}%`}</p>
+            <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-faint)' }}>
+              {kpi.denominator === 0 ? 'No data yet' : `${kpi.numerator} of ${kpi.denominator}`}
+            </p>
+          </Card>
+        ))}
+      </div>
+
       <div className="grid lg:grid-cols-3 gap-4 mb-6">
         {Object.entries(FUNNEL_GROUPS).map(([groupName, eventNames]) => {
           const firstStepCount = funnelCounts.get(eventNames[0]) ?? 0

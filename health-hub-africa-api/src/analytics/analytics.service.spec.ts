@@ -36,3 +36,49 @@ describe('AnalyticsService.trackEvent (anonymous + authenticated identity)', () 
     expect(prisma.patientActivityEvent.create).not.toHaveBeenCalled();
   });
 });
+
+describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {
+  function buildService(rows: Array<{ eventName: string; patientId: string | null; anonymousVisitorId: string | null }>) {
+    const prisma = { patientActivityEvent: { findMany: jest.fn().mockResolvedValue(rows) } };
+    const service = new AnalyticsService(prisma as any);
+    return { service, prisma };
+  }
+
+  it('counts unique users per step, not raw events, and derives KPI percentages', async () => {
+    const { service } = buildService([
+      // 2 unique otp_requested (p1 twice, p2 once) -> 2 unique users
+      { eventName: 'otp_requested', patientId: null, anonymousVisitorId: 'p1' },
+      { eventName: 'otp_requested', patientId: null, anonymousVisitorId: 'p1' },
+      { eventName: 'otp_requested', patientId: null, anonymousVisitorId: 'p2' },
+      // only p1 verifies
+      { eventName: 'otp_verify_success', patientId: null, anonymousVisitorId: 'p1' },
+    ]);
+
+    const result = await service.getFunnelAnalytics('30d');
+
+    const otpRequested = result.data.steps.find((s) => s.eventName === 'otp_requested');
+    expect(otpRequested).toEqual({ eventName: 'otp_requested', count: 3, uniqueUsers: 2 });
+
+    const kpi = result.data.kpis.find((k) => k.key === 'otpVerificationRate');
+    expect(kpi).toEqual({ key: 'otpVerificationRate', label: 'OTP Verification Rate', numerator: 1, denominator: 2, value: 50 });
+  });
+
+  it('reports a null KPI value instead of dividing by zero when the denominator step never fired', async () => {
+    const { service } = buildService([]);
+    const result = await service.getFunnelAnalytics('30d');
+
+    expect(result.data.steps).toEqual([]);
+    expect(result.data.kpis.every((k) => k.value === null)).toBe(true);
+  });
+
+  it('passes country/device filters through to the query', async () => {
+    const { service, prisma } = buildService([]);
+    await service.getFunnelAnalytics('7d', { country: 'NG', device: 'Mobile' });
+
+    expect(prisma.patientActivityEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ countryCode: 'NG', deviceCategory: 'Mobile' }),
+      }),
+    );
+  });
+});
