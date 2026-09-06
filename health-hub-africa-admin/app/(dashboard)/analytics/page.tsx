@@ -68,6 +68,15 @@ function Metric({ label, value, detail }: { label: string; value: string; detail
   )
 }
 
+// Display-only grouping — the API returns raw counts per event name (see
+// analytics.service.ts) so newly instrumented events never need a backend
+// change; only this ordering needs updating when a new step is added.
+const FUNNEL_GROUPS: Record<string, string[]> = {
+  'Registration & OTP': ['registration_complete', 'registration_error', 'otp_requested', 'otp_verify_success', 'otp_verify_failure'],
+  'Booking': ['service_selected', 'booking_started', 'booking_confirmed', 'booking_error', 'booking_validation_error', 'booking_cancelled', 'booking_rescheduled'],
+  'Payments': ['checkout_started', 'payment_pending', 'payment_success', 'payment_failure'],
+}
+
 function Empty({ children }: { children: React.ReactNode }) {
   return <div className="h-40 flex items-center justify-center text-sm" style={{ color: 'var(--color-text-muted)' }}>{children}</div>
 }
@@ -133,6 +142,12 @@ export default function AnalyticsPage() {
   const trafficActivityLabels = trafficActivityWindow.map((row) =>
     new Date(row.date).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' }),
   )
+  const funnelCounts = useMemo(
+    () => new Map((funnel?.steps ?? []).map((s) => [s.eventName, s.count])),
+    [funnel],
+  )
+  const groupedEventNames = new Set(Object.values(FUNNEL_GROUPS).flat())
+  const otherEvents = (funnel?.steps ?? []).filter((s) => !groupedEventNames.has(s.eventName))
   const topTrafficLocation = traffic?.locations[0]
   const maxTrafficDeviceCount = useMemo(
     () => Math.max(1, ...(traffic?.devices.map((row) => row.count) ?? [1])),
@@ -440,11 +455,42 @@ export default function AnalyticsPage() {
         )}
       </Card>
 
-      <Card className="mb-6" padding={false}>
-        <div className="px-5 pt-5"><CardTitle>Funnel events</CardTitle></div>
-        {!loading && !funnel?.steps.length ? (
-          <Empty>No instrumented events yet.</Empty>
-        ) : (
+      <div className="mb-3">
+        <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Funnels</h2>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Step counts for the selected period, in funnel order</p>
+      </div>
+      <div className="grid lg:grid-cols-3 gap-4 mb-6">
+        {Object.entries(FUNNEL_GROUPS).map(([groupName, eventNames]) => {
+          const firstStepCount = funnelCounts.get(eventNames[0]) ?? 0
+          return (
+            <Card key={groupName} padding={false}>
+              <div className="px-5 pt-5"><CardTitle>{groupName}</CardTitle></div>
+              {!loading && firstStepCount === 0 && eventNames.every((n) => !funnelCounts.get(n)) ? (
+                <Empty>No events yet.</Empty>
+              ) : (
+                <div className="px-5 pb-5 pt-2 flex flex-col gap-2">
+                  {eventNames.map((eventName) => {
+                    const count = funnelCounts.get(eventName) ?? 0
+                    const pct = firstStepCount > 0 ? Math.round((count / firstStepCount) * 100) : 0
+                    return (
+                      <div key={eventName} className="flex items-center justify-between text-sm">
+                        <span style={{ color: 'var(--color-text-muted)' }}>{eventName}</span>
+                        <span className="tabular-nums font-medium" style={{ color: 'var(--color-text)' }}>
+                          {count}{firstStepCount > 0 && eventName !== eventNames[0] ? ` (${pct}%)` : ''}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </Card>
+          )
+        })}
+      </div>
+
+      {otherEvents.length > 0 && (
+        <Card className="mb-6" padding={false}>
+          <div className="px-5 pt-5"><CardTitle>Other events</CardTitle></div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -454,7 +500,7 @@ export default function AnalyticsPage() {
                 </tr>
               </thead>
               <tbody>
-                {(funnel?.steps ?? []).map((row) => (
+                {otherEvents.map((row) => (
                   <tr key={row.eventName} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
                     <td className="px-5 py-3 font-medium" style={{ color: 'var(--color-text)' }}>{row.eventName}</td>
                     <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.count}</td>
@@ -463,8 +509,8 @@ export default function AnalyticsPage() {
               </tbody>
             </table>
           </div>
-        )}
-      </Card>
+        </Card>
+      )}
 
       <div className="mb-3">
         <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Operational analytics</h2>
