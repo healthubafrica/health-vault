@@ -23,7 +23,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
-import { appointments, Appointment, ApiError } from '@/lib/api';
+import { appointments, analytics, Appointment, ApiError } from '@/lib/api';
 
 
 interface AppointmentItem {
@@ -115,6 +115,7 @@ export default function AppointmentsScreen() {
     mutationFn: ({ id, reason }: { id: string; reason: string }) =>
       appointments.cancel(id, reason),
     onSuccess: () => {
+      analytics.track('booking_cancelled');
       qc.invalidateQueries({ queryKey: ['appointments'] });
       Alert.alert('Cancelled', 'Your appointment has been cancelled.');
     },

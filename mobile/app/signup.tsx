@@ -24,7 +24,7 @@ import {
 import BotanicalBackground from '@/components/BotanicalBackground';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
-import { auth, patients, setAccessToken, ApiError, type AcquisitionSource } from '@/lib/api';
+import { auth, patients, analytics, setAccessToken, ApiError, type AcquisitionSource } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/authStore';
 
 
@@ -91,8 +91,11 @@ export default function SignUpScreen() {
           fullName.trim(),
           acquisitionSource as AcquisitionSource,
         );
+        analytics.track('registration_complete', { acquisitionSource });
+        analytics.track('otp_requested', { channel: 'email' });
         setCurrentStep(3);
       } catch (err) {
+        analytics.track('registration_error');
         const msg = err instanceof ApiError ? err.message : 'Registration failed. Please try again.';
         Alert.alert('Registration Error', msg);
       } finally {
@@ -111,6 +114,7 @@ export default function SignUpScreen() {
       try {
         // Verify OTP — backend returns new tokens on success
         const tokens = await auth.verifyOtp(email.trim(), otpCode);
+        analytics.track('otp_verify_success');
         const { accessToken, refreshToken } = tokens;
 
         // Same reason as login.tsx: must be set before any authenticated
@@ -146,6 +150,7 @@ export default function SignUpScreen() {
 
         router.replace('/(tabs)');
       } catch (err) {
+        analytics.track('otp_verify_failure');
         const msg = err instanceof ApiError ? err.message : 'Verification failed. Please try again.';
         Alert.alert('Verification Error', msg);
       } finally {
