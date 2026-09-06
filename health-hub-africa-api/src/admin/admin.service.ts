@@ -757,8 +757,8 @@ export class AdminService {
     return this.analyticsService.getTrafficAnalytics(period);
   }
 
-  getFunnelAnalytics(period = '30d') {
-    return this.analyticsService.getFunnelAnalytics(period);
+  getFunnelAnalytics(period = '30d', filters?: { country?: string; device?: string }) {
+    return this.analyticsService.getFunnelAnalytics(period, filters);
   }
 
   async getMarketingAnalytics(period = '30d') {

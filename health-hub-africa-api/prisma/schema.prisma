@@ -1602,6 +1602,8 @@ model PatientActivityEvent {
   properties          Json?
   ipAddress           String?     @map("ip_address")
   userAgent           String?     @map("user_agent")
+  countryCode         String?     @map("country_code")
+  deviceCategory      String?     @map("device_category")
   occurredAt          DateTime    @default(now()) @map("occurred_at")
 
   patient Patient?     @relation(fields: [patientId], references: [id])
