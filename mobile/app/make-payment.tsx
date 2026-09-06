@@ -17,7 +17,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ShieldCheck, CreditCard, Building2, BadgeCheck } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
-import { payments, generateIdempotencyKey, ApiError } from '@/lib/api';
+import { payments, analytics, generateIdempotencyKey, ApiError } from '@/lib/api';
 import { SuccessState } from '@/components/states';
 
 const BANK_DETAILS = {
@@ -53,6 +53,7 @@ export default function MakePaymentScreen() {
   const initiateMutation = useMutation({
     mutationFn: () => {
       const parsed = parseFloat(amountNaira);
+      analytics.track('checkout_started', { gateway });
       return payments.initiate(
         {
           gateway,
@@ -67,12 +68,14 @@ export default function MakePaymentScreen() {
     },
     onSuccess: async (result) => {
       if (result.authorizationUrl) {
+        // payment_success/failure isn't observable here — the gateway confirms
+        // via webhook, no in-app verify screen to hook (unlike the web portal's
+        // PaymentVerifyScreen).
         await WebBrowser.openBrowserAsync(result.authorizationUrl);
-        // The gateway confirms via webhook — refresh so a completed charge
-        // (and any newly tokenized card) shows up as soon as it lands.
         qc.invalidateQueries({ queryKey: ['payments'] });
         qc.invalidateQueries({ queryKey: ['payment-methods'] });
       } else {
+        analytics.track('payment_pending', { gateway });
         setTransferConfirm({
           ref: result.paymentId,
           amount: `₦${parseFloat(amountNaira).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`,
@@ -80,8 +83,10 @@ export default function MakePaymentScreen() {
         qc.invalidateQueries({ queryKey: ['payments'] });
       }
     },
-    onError: (err: unknown) =>
-      Alert.alert('Could not start payment', err instanceof ApiError ? err.message : 'Please try again.'),
+    onError: (err: unknown) => {
+      analytics.track('payment_failure', { gateway, reason: 'initiate_error' });
+      Alert.alert('Could not start payment', err instanceof ApiError ? err.message : 'Please try again.');
+    },
   });
 
   const handleSubmit = () => {

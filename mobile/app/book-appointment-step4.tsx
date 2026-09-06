@@ -28,7 +28,7 @@ import {
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
-import { appointments, ApiError } from '@/lib/api';
+import { appointments, analytics, ApiError } from '@/lib/api';
 import { queryClient } from '@/lib/queryClient';
 
 export default function BookAppointmentStep4Screen() {
@@ -67,6 +67,7 @@ export default function BookAppointmentStep4Screen() {
     setIsProcessing(true);
     try {
       const isTelecare = params.consultationFormat === 'virtual' || (params.serviceName || '').includes('TeleCare');
+      analytics.track('booking_started', { serviceType: params.serviceType, hasProvider: !!params.providerId });
       const res = await appointments.create({
         appointmentType: isTelecare ? 'virtual' : 'in_person',
         serviceType: params.serviceType || 'TeleCare',
@@ -76,10 +77,12 @@ export default function BookAppointmentStep4Screen() {
         notes: `Payment method: ${selectedPaymentMethod}`,
         ...(params.providerId && { providerId: params.providerId }),
       });
+      analytics.track('booking_confirmed', { serviceType: params.serviceType });
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       setBookingRef(res.data.hhaRef);
       setIsConfirmed(true);
     } catch (err: unknown) {
+      analytics.track('booking_error', { serviceType: params.serviceType });
       // Booking payment/creation genuinely failed — tell the patient rather
       // than silently showing a fake confirmation for a non-existent booking.
       Alert.alert(
