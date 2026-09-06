@@ -181,9 +181,15 @@ export class AdminController {
   }
 
   @Get('analytics/funnel')
-  @ApiOperation({ summary: 'Get raw event counts for every instrumented funnel step (registration, OTP, booking, payment)' })
-  getFunnelAnalytics(@Query('period') period?: string) {
-    return this.adminService.getFunnelAnalytics(period);
+  @ApiOperation({ summary: 'Get step counts, unique users, and KPIs for every instrumented funnel (registration, OTP, booking, payment)' })
+  @ApiQuery({ name: 'country', required: false, description: 'Filter to a single ISO country code' })
+  @ApiQuery({ name: 'device', required: false, description: 'Filter to a single device category (Desktop/Mobile/Tablet)' })
+  getFunnelAnalytics(
+    @Query('period') period?: string,
+    @Query('country') country?: string,
+    @Query('device') device?: string,
+  ) {
+    return this.adminService.getFunnelAnalytics(period, { country, device });
   }
 
   // ── System ────────────────────────────────────────────────────────────────

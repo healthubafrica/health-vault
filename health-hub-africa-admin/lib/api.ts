@@ -341,10 +341,14 @@ export interface TrafficAnalytics {
   campaigns: Array<{ campaign: string; source: string; medium: string; visits: number }>
 }
 
-// Raw counts per instrumented funnel event name (registration, OTP, booking,
-// payment) — not pre-grouped into named funnels; the dashboard buckets them.
+// Raw counts + unique users per instrumented funnel event name (registration,
+// OTP, booking, payment) — not pre-grouped into named funnels; the dashboard
+// buckets them. kpis are computed server-side from unique-user counts (see
+// AnalyticsService.KPI_DEFINITIONS) so numerator/denominator/value stay
+// consistent with the step table above.
 export interface FunnelAnalytics {
-  steps: Array<{ eventName: string; count: number }>
+  steps: Array<{ eventName: string; count: number; uniqueUsers: number }>
+  kpis: Array<{ key: string; label: string; numerator: number; denominator: number; value: number | null }>
 }
 
 // ── Admin: Dispatch ───────────────────────────────────────────────────────
@@ -812,8 +816,12 @@ export const adminApi = {
       request<{ data: MarketingAnalytics }>(`/admin/analytics/marketing?period=${period}`),
     traffic: (period = '30d') =>
       request<{ data: TrafficAnalytics }>(`/admin/analytics/traffic?period=${period}`),
-    funnel: (period = '30d') =>
-      request<{ data: FunnelAnalytics }>(`/admin/analytics/funnel?period=${period}`),
+    funnel: (period = '30d', filters?: { country?: string; device?: string }) => {
+      const qs = new URLSearchParams({ period })
+      if (filters?.country) qs.set('country', filters.country)
+      if (filters?.device) qs.set('device', filters.device)
+      return request<{ data: FunnelAnalytics }>(`/admin/analytics/funnel?${qs}`)
+    },
   },
 
   auditLogs: {

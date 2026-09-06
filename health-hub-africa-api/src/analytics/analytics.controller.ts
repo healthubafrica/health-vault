@@ -69,8 +69,8 @@ export class AnalyticsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @Throttle({ default: { ttl: 60_000, limit: 60 } })
   @ApiOperation({ summary: 'Track a patient or anonymous-visitor activity event' })
-  trackEvent(@Body() dto: ActivityEventDto, @CurrentUser() user?: JwtPayload) {
-    return this.analyticsService.trackEvent(dto, user);
+  trackEvent(@Body() dto: ActivityEventDto, @Req() req: Request, @CurrentUser() user?: JwtPayload) {
+    return this.analyticsService.trackEvent(dto, user, visitGeoContext(req));
   }
 
   @Get('kpis')
