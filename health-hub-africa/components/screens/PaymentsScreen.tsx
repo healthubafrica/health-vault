@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Receipt, CreditCard, X, Building2, Copy } from 'lucide-react'
-import { payments as paymentsApi, generateIdempotencyKey, ApiError, type GatewayStatus } from '@/lib/api'
+import { payments as paymentsApi, analytics, generateIdempotencyKey, ApiError, type GatewayStatus } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
@@ -75,11 +75,12 @@ export function PaymentsScreen() {
       toast.error('Please fill in all fields with valid values.')
       return
     }
+    // Backend PaymentGateway enum values are PascalCase ('Flutterwave', 'manual')
+    // — the local Gateway type stays lowercase for UI/select convenience.
+    const apiGateway = gateway === 'bank_transfer' ? 'manual' : 'Flutterwave'
     setSubmitting(true)
     try {
-      // Backend PaymentGateway enum values are PascalCase ('Flutterwave', 'manual')
-      // — the local Gateway type stays lowercase for UI/select convenience.
-      const apiGateway = gateway === 'bank_transfer' ? 'manual' : 'Flutterwave'
+      analytics.track('checkout_started', { gateway: apiGateway })
       const result = await paymentsApi.initiate(
         {
           gateway: apiGateway,
@@ -94,7 +95,9 @@ export function PaymentsScreen() {
       if (result.authorizationUrl) {
         window.location.href = result.authorizationUrl
       } else {
-        // Bank transfer — show confirmation with reference
+        // Bank transfer — pending until manually confirmed; not a payment_success
+        // (no gateway redirect means it never reaches PaymentVerifyScreen).
+        analytics.track('payment_pending', { gateway: apiGateway })
         setTransferConfirm({
           ref: result.paymentId,
           amount: formatNaira(Math.round(parsed * 100)),
@@ -103,6 +106,7 @@ export function PaymentsScreen() {
       }
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Failed to initiate payment. Please try again.'
+      analytics.track('payment_failure', { gateway: apiGateway, reason: 'initiate_error' })
       toast.error(message)
     } finally {
       setSubmitting(false)

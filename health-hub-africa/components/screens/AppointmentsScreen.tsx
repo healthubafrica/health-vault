@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { FilterTabs } from '@/components/ui/FilterTabs'
@@ -15,7 +15,9 @@ import { Tooltip } from '@/components/ui/Tooltip'
 import { toast } from 'sonner'
 import {
   appointments as apptApi,
+  analytics,
   ApiError,
+  generateIdempotencyKey,
   type Appointment,
   type BookableFacility,
   type ServiceProvider,
@@ -146,6 +148,16 @@ export function AppointmentsScreen() {
     if (pid) setSelectedProviderId(pid)
   }, [searchParams])
 
+  // Stays the same across repeated submits of the same booking (so retrying
+  // after a confusing error or a dropped response replays the original
+  // appointment instead of creating a duplicate), and changes the moment any
+  // of the fields that define the booking change — see PaymentsScreen.tsx
+  // for the same pattern.
+  const bookingIdempotencyKey = useMemo(
+    () => generateIdempotencyKey(),
+    [serviceType, scheduledAt, selectedProviderId, facilityId],
+  )
+
   // Cancel/reschedule modal targets
   const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null)
   const [rescheduleTarget, setRescheduleTarget] = useState<Appointment | null>(null)
@@ -174,16 +186,19 @@ export function AppointmentsScreen() {
 
   async function handleBook() {
     if (!scheduledAt) {
+      analytics.track('booking_validation_error', { reason: 'missing_time', serviceType })
       toast.error('Please select a date and time')
       return
     }
     setIsBooking(true)
     try {
       if (isInPerson && !facilityId) {
+        analytics.track('booking_validation_error', { reason: 'missing_facility', serviceType })
         toast.error('Please choose a facility for this in-person appointment')
         return
       }
 
+      analytics.track('booking_started', { serviceType, hasProvider: !!selectedProviderId })
       const res = await apptApi.create({
         appointmentType: selectedService.appointmentType,
         serviceType,
@@ -192,7 +207,8 @@ export function AppointmentsScreen() {
         chiefComplaint: reason.trim() || undefined,
         ...(selectedProviderId && { providerId: selectedProviderId }),
         ...(isInPerson && facilityId && { facilityId }),
-      })
+      }, bookingIdempotencyKey)
+      analytics.track('booking_confirmed', { serviceType, hasProvider: !!selectedProviderId })
       setBookingSuccess({ refId: res.data.hhaRef, service: selectedService.label, scheduledAt })
       toast.success('Appointment requested', {
         description: 'Your care team will confirm shortly.',
@@ -203,6 +219,7 @@ export function AppointmentsScreen() {
       refetch()
     } catch (e: unknown) {
       const message = e instanceof ApiError ? e.message : 'Failed to request appointment'
+      analytics.track('booking_error', { serviceType, status: e instanceof ApiError ? e.status : undefined })
       toast.error(message)
     } finally {
       setIsBooking(false)
@@ -366,7 +383,7 @@ export function AppointmentsScreen() {
           <FormSelect
             label="Service Type"
             value={serviceType}
-            onChange={e => setServiceType(e.target.value)}
+            onChange={e => { setServiceType(e.target.value); analytics.track('service_selected', { serviceType: e.target.value }) }}
           >
             {SERVICE_TYPES.map(s => (
               <option key={s.value} value={s.value}>{s.label}</option>

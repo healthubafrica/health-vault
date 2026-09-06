@@ -5,7 +5,7 @@ import { X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { FormTextarea } from '@/components/ui/FormInput'
-import { appointments as apptApi, type Appointment } from '@/lib/api'
+import { appointments as apptApi, analytics, type Appointment } from '@/lib/api'
 
 interface CancelAppointmentModalProps {
   appointment: Appointment | null
@@ -29,6 +29,7 @@ export function CancelAppointmentModal({ appointment, onClose, onCancelled }: Ca
     setSaving(true)
     try {
       const updated = await apptApi.cancel(appointment.id, reason.trim())
+      analytics.track('booking_cancelled', { serviceType: appointment.serviceType })
       toast.success('Appointment cancelled')
       onCancelled(updated)
       onClose()

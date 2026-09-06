@@ -509,10 +509,16 @@ export const appointments = {
     return request<ServiceProvider[]>(`/appointments/providers?${params}`)
   },
 
-  create: (data: CreateAppointmentPayload) =>
+  // Pass idempotencyKey (generateIdempotencyKey(), kept stable across
+  // retries of the same booking attempt) so a confusing error prompting a
+  // manual retry — or a client timeout / dropped response — replays the
+  // original appointment instead of creating a duplicate. See payments.initiate()
+  // for the same pattern.
+  create: (data: CreateAppointmentPayload, idempotencyKey?: string) =>
     request<{ data: Appointment }>('/appointments', {
       method: 'POST',
       body: JSON.stringify(data),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
     }),
 
   // Cancels via the dedicated cancel endpoint — body takes {reason}, not {cancellationNote}.
@@ -1306,13 +1312,33 @@ export const expertReview = {
 
 // ── Analytics (fire-and-forget) ───────────────────────────────────────────
 
+const VISITOR_ID_KEY = 'hha-anonymous-visitor-id'
+
+// Persists across sessions (localStorage, not sessionStorage) so the same
+// pre-login visitor can be correlated across repeat visits before they ever
+// register. Ignored server-side once a real patient is resolved from the
+// access token.
+function getAnonymousVisitorId(): string | undefined {
+  if (typeof window === 'undefined') return undefined
+  try {
+    let id = localStorage.getItem(VISITOR_ID_KEY)
+    if (!id) {
+      id = generateIdempotencyKey()
+      localStorage.setItem(VISITOR_ID_KEY, id)
+    }
+    return id
+  } catch {
+    return undefined
+  }
+}
+
 export const analytics = {
   // Never awaited by callers and never surfaces errors — product telemetry
   // must not affect the user experience.
   track: (eventType: string, metadata?: Record<string, unknown>) => {
     request<void>('/analytics/events', {
       method: 'POST',
-      body: JSON.stringify({ eventType, metadata }),
+      body: JSON.stringify({ eventType, metadata, anonymousVisitorId: getAnonymousVisitorId() }),
     }).catch(() => undefined)
   },
 }

@@ -757,6 +757,10 @@ export class AdminService {
     return this.analyticsService.getTrafficAnalytics(period);
   }
 
+  getFunnelAnalytics(period = '30d') {
+    return this.analyticsService.getFunnelAnalytics(period);
+  }
+
   async getMarketingAnalytics(period = '30d') {
     const since = this.periodToDate(period);
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { payments as paymentsApi } from '@/lib/api'
+import { payments as paymentsApi, analytics } from '@/lib/api'
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { SuccessState, ErrorState } from '@/components/ui/states'
@@ -28,14 +28,19 @@ export function PaymentVerifyScreen() {
         const res = await paymentsApi.verify(reference!)
         if (cancelled) return
         if (res.status === 'paid') {
+          analytics.track('payment_success', { gateway: res.gateway })
           setGateway(res.gateway)
           setPaymentId(res.paymentId)
           setState('success')
         } else {
+          analytics.track('payment_failure', { gateway: res.gateway, status: res.status })
           setState('failed')
         }
       } catch {
-        if (!cancelled) setState('failed')
+        if (!cancelled) {
+          analytics.track('payment_failure', { reason: 'verify_error' })
+          setState('failed')
+        }
       }
     }
 
