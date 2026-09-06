@@ -453,6 +453,43 @@ export const appointments = {
     ),
 };
 
+// ── Analytics (fire-and-forget) ───────────────────────────────────────────
+// Mirrors health-hub-africa/lib/api.ts's analytics.track() — same backend
+// endpoint (POST /analytics/events, public + throttled), same identity
+// model. SecureStore instead of localStorage for the persisted anonymous
+// id since that's what's already available here (no encryption need, just reuse).
+
+const VISITOR_ID_KEY = 'hha_mobile_anon_visitor_id';
+let cachedVisitorId: string | null = null;
+
+async function getAnonymousVisitorId(): Promise<string | undefined> {
+  if (cachedVisitorId) return cachedVisitorId;
+  try {
+    let id = await SecureStore.getItemAsync(VISITOR_ID_KEY);
+    if (!id) {
+      id = generateIdempotencyKey();
+      await SecureStore.setItemAsync(VISITOR_ID_KEY, id);
+    }
+    cachedVisitorId = id;
+    return id;
+  } catch {
+    return undefined;
+  }
+}
+
+export const analytics = {
+  track: (eventType: string, metadata?: Record<string, unknown>) => {
+    getAnonymousVisitorId()
+      .then((anonymousVisitorId) =>
+        apiRequest<void>('/analytics/events', {
+          method: 'POST',
+          body: JSON.stringify({ eventType, metadata, anonymousVisitorId }),
+        })
+      )
+      .catch(() => undefined);
+  },
+};
+
 export const records = {
   list: (type?: string) => {
     const qs = type ? `?type=${encodeURIComponent(type)}` : '';
