@@ -26,6 +26,15 @@ export interface VisitGeoContext {
 // "how many people visited" without adding a dependency for it.
 const BOT_USER_AGENT = /bot|crawler|spider|slurp|bingpreview|facebookexternalhit|pingdom|uptimerobot|headlesschrome/i;
 
+// Shared by getTrafficAnalytics (site visits) and trackEvent (funnel events)
+// so both dashboards categorize devices identically.
+function deviceCategoryFromUserAgent(userAgent: string | undefined): string {
+  const ua = userAgent?.toLowerCase() ?? '';
+  if (/ipad|tablet|kindle/.test(ua)) return 'Tablet';
+  if (/mobile|iphone|android/.test(ua)) return 'Mobile';
+  return ua ? 'Desktop' : 'Unknown';
+}
+
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
@@ -38,7 +47,7 @@ export class AnalyticsService {
   // was attached. Anonymous (pre-login) events are identified instead by the
   // client-persisted anonymousVisitorId, so the same table now covers both
   // halves of the identity model instead of authenticated patients only.
-  async trackEvent(dto: ActivityEventDto, currentUser?: JwtPayload) {
+  async trackEvent(dto: ActivityEventDto, currentUser?: JwtPayload, geo?: VisitGeoContext) {
     try {
       const patientId = currentUser
         ? (await this.prisma.patient.findUnique({ where: { userId: currentUser.sub }, select: { id: true } }))?.id
@@ -52,6 +61,8 @@ export class AnalyticsService {
           patientId,
           anonymousVisitorId: patientId ? undefined : dto.anonymousVisitorId,
           eventName: dto.eventType,
+          countryCode: geo?.countryCode,
+          deviceCategory: deviceCategoryFromUserAgent(geo?.userAgent),
           properties: {
             entityType: dto.entityType,
             entityId: dto.entityId,
@@ -220,14 +231,7 @@ export class AnalyticsService {
       location.visits++;
       locationMap.set(locationKey, location);
 
-      const ua = v.userAgent?.toLowerCase() ?? '';
-      const device = /ipad|tablet|kindle/.test(ua)
-        ? 'Tablet'
-        : /mobile|iphone|android/.test(ua)
-          ? 'Mobile'
-          : ua
-            ? 'Desktop'
-            : 'Unknown';
+      const device = deviceCategoryFromUserAgent(v.userAgent ?? undefined);
       deviceMap.set(device, (deviceMap.get(device) ?? 0) + 1);
 
       if (v.referrer) {
@@ -268,26 +272,70 @@ export class AnalyticsService {
     };
   }
 
-  // Raw step counts for every ui_click/funnel event name emitted via
-  // analytics.track() (registration, OTP, booking, payment, etc.) — not
-  // hardcoded per funnel so new event names show up automatically as
-  // screens are instrumented; the dashboard groups them into named steps.
-  async getFunnelAnalytics(period = '30d') {
+  // KPI formulas per the analytics spec (§26), adapted to this app's actual
+  // event order rather than the spec's idealized one — e.g. registration_complete
+  // fires when the account is created (pre-verification), not after OTP, so
+  // "registration conversion" here means completed accounts that go on to
+  // verify, not landing-to-signup (no registration_start event exists; see
+  // FUNNEL_GROUPS in the admin dashboard for why that was skipped).
+  private static readonly KPI_DEFINITIONS: Array<{
+    key: string;
+    label: string;
+    numerator: string;
+    denominator: string;
+  }> = [
+    { key: 'otpVerificationRate', label: 'OTP Verification Rate', numerator: 'otp_verify_success', denominator: 'otp_requested' },
+    { key: 'registrationToVerifiedRate', label: 'Registered → Verified', numerator: 'otp_verify_success', denominator: 'registration_complete' },
+    { key: 'bookingConversionRate', label: 'Booking Conversion', numerator: 'booking_confirmed', denominator: 'booking_started' },
+    { key: 'paymentSuccessRate', label: 'Payment Success Rate', numerator: 'payment_success', denominator: 'checkout_started' },
+  ];
+
+  // Step counts (raw + unique users) for every funnel event name emitted via
+  // analytics.track() — not hardcoded per funnel so new event names show up
+  // automatically as screens are instrumented; the dashboard groups them
+  // into named steps. Optional country/device filters narrow both the steps
+  // and the KPIs computed from them.
+  async getFunnelAnalytics(period = '30d', filters?: { country?: string; device?: string }) {
     const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
     const since = new Date();
     since.setDate(since.getDate() - days);
 
-    const rows = await this.prisma.patientActivityEvent.groupBy({
-      by: ['eventName'],
-      where: { occurredAt: { gte: since } },
-      _count: { _all: true },
+    const rows = await this.prisma.patientActivityEvent.findMany({
+      where: {
+        occurredAt: { gte: since },
+        ...(filters?.country && { countryCode: filters.country }),
+        ...(filters?.device && { deviceCategory: filters.device }),
+      },
+      select: { eventName: true, patientId: true, anonymousVisitorId: true },
     });
+
+    const byEvent = new Map<string, { count: number; users: Set<string> }>();
+    for (const r of rows) {
+      const bucket = byEvent.get(r.eventName) ?? { count: 0, users: new Set() };
+      bucket.count++;
+      const userKey = r.patientId ?? (r.anonymousVisitorId ? `anon:${r.anonymousVisitorId}` : undefined);
+      if (userKey) bucket.users.add(userKey);
+      byEvent.set(r.eventName, bucket);
+    }
+
+    const uniqueUsers = (eventName: string) => byEvent.get(eventName)?.users.size ?? 0;
 
     return {
       data: {
-        steps: rows
-          .map((r) => ({ eventName: r.eventName, count: r._count._all }))
+        steps: Array.from(byEvent.entries())
+          .map(([eventName, b]) => ({ eventName, count: b.count, uniqueUsers: b.users.size }))
           .sort((a, b) => b.count - a.count),
+        kpis: AnalyticsService.KPI_DEFINITIONS.map((def) => {
+          const denominator = uniqueUsers(def.denominator);
+          const numerator = uniqueUsers(def.numerator);
+          return {
+            key: def.key,
+            label: def.label,
+            numerator,
+            denominator,
+            value: denominator > 0 ? Math.round((numerator / denominator) * 1000) / 10 : null,
+          };
+        }),
       },
     };
   }
