@@ -82,6 +82,22 @@ describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {
     );
   });
 
+  it('computes activation rate as registered users who also did a qualifying action', async () => {
+    const { service } = buildService([
+      { eventName: 'registration_complete', patientId: 'p1', anonymousVisitorId: null } as any,
+      { eventName: 'registration_complete', patientId: 'p2', anonymousVisitorId: null } as any,
+      // only p1 goes on to do a qualifying action
+      { eventName: 'booking_confirmed', patientId: 'p1', anonymousVisitorId: null } as any,
+      // an unregistered user doing a qualifying action doesn't count as activated
+      { eventName: 'payment_success', patientId: 'p3', anonymousVisitorId: null } as any,
+    ]);
+
+    const result = await service.getFunnelAnalytics('30d');
+
+    const activation = result.data.kpis.find((k) => k.key === 'activationRate');
+    expect(activation).toEqual({ key: 'activationRate', label: 'Activation Rate', numerator: 1, denominator: 2, value: 50 });
+  });
+
   it('narrows by continent client-side after fetching (continent has no DB column)', async () => {
     const { service } = buildService([
       { eventName: 'page_view', patientId: null, anonymousVisitorId: 'ng-visitor', countryCode: 'NG' } as any,
