@@ -1332,13 +1332,38 @@ function getAnonymousVisitorId(): string | undefined {
   }
 }
 
+const SESSION_ID_KEY = 'hha-analytics-session-id'
+
+// sessionStorage (not localStorage): resets on tab close, groups events into
+// one visit. Deliberately separate from both the anonymous visitor id above
+// (that one persists across visits) and the auth session (spec Appendix B —
+// never reuse a raw auth session identifier for analytics correlation).
+function getAnalyticsSessionId(): string | undefined {
+  if (typeof window === 'undefined') return undefined
+  try {
+    let id = sessionStorage.getItem(SESSION_ID_KEY)
+    if (!id) {
+      id = generateIdempotencyKey()
+      sessionStorage.setItem(SESSION_ID_KEY, id)
+    }
+    return id
+  } catch {
+    return undefined
+  }
+}
+
 export const analytics = {
   // Never awaited by callers and never surfaces errors — product telemetry
   // must not affect the user experience.
   track: (eventType: string, metadata?: Record<string, unknown>) => {
     request<void>('/analytics/events', {
       method: 'POST',
-      body: JSON.stringify({ eventType, metadata, anonymousVisitorId: getAnonymousVisitorId() }),
+      body: JSON.stringify({
+        eventType,
+        metadata,
+        anonymousVisitorId: getAnonymousVisitorId(),
+        analyticsSessionId: getAnalyticsSessionId(),
+      }),
     }).catch(() => undefined)
   },
 }

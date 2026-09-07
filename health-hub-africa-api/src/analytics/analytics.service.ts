@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { RecordVisitDto } from './dto/record-visit.dto';
+import { continentForCountry } from './continent-map';
 
 export interface ActivityEventDto {
   eventType: string;
@@ -10,6 +11,9 @@ export interface ActivityEventDto {
   entityId?: string;
   metadata?: Record<string, unknown>;
   anonymousVisitorId?: string;
+  // Client-generated, persisted per browser-tab-session (sessionStorage) —
+  // groups events into a visit without reusing the auth session identifier.
+  analyticsSessionId?: string;
 }
 
 export interface VisitGeoContext {
@@ -60,6 +64,8 @@ export class AnalyticsService {
         data: {
           patientId,
           anonymousVisitorId: patientId ? undefined : dto.anonymousVisitorId,
+          analyticsSessionId: dto.analyticsSessionId,
+          environment: process.env.NODE_ENV ?? 'development',
           eventName: dto.eventType,
           countryCode: geo?.countryCode,
           deviceCategory: deviceCategoryFromUserAgent(geo?.userAgent),
@@ -217,7 +223,7 @@ export class AnalyticsService {
       if (row !== undefined) dayMap.set(day, row + 1);
     }
 
-    const locationMap = new Map<string, { countryCode: string; region: string; city: string; visits: number }>();
+    const locationMap = new Map<string, { countryCode: string; continent: string; region: string; city: string; visits: number }>();
     const deviceMap = new Map<string, number>();
     const referrerMap = new Map<string, number>();
     const campaignMap = new Map<string, { campaign: string; source: string; medium: string; visits: number }>();
@@ -227,7 +233,7 @@ export class AnalyticsService {
       const region = v.region ?? 'Unknown';
       const city = v.city ?? 'Unknown';
       const locationKey = `${countryCode} ${region} ${city}`;
-      const location = locationMap.get(locationKey) ?? { countryCode, region, city, visits: 0 };
+      const location = locationMap.get(locationKey) ?? { countryCode, continent: continentForCountry(countryCode), region, city, visits: 0 };
       location.visits++;
       locationMap.set(locationKey, location);
 
@@ -290,12 +296,12 @@ export class AnalyticsService {
     { key: 'paymentSuccessRate', label: 'Payment Success Rate', numerator: 'payment_success', denominator: 'checkout_started' },
   ];
 
-  // Step counts (raw + unique users) for every funnel event name emitted via
-  // analytics.track() — not hardcoded per funnel so new event names show up
-  // automatically as screens are instrumented; the dashboard groups them
-  // into named steps. Optional country/device filters narrow both the steps
-  // and the KPIs computed from them.
-  async getFunnelAnalytics(period = '30d', filters?: { country?: string; device?: string }) {
+  // Step counts (raw + unique users/sessions) for every funnel event name
+  // emitted via analytics.track() — not hardcoded per funnel so new event
+  // names show up automatically as screens are instrumented; the dashboard
+  // groups them into named steps. Optional country/continent/device filters
+  // narrow both the steps and the KPIs computed from them.
+  async getFunnelAnalytics(period = '30d', filters?: { country?: string; continent?: string; device?: string }) {
     const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
     const since = new Date();
     since.setDate(since.getDate() - days);
@@ -306,15 +312,19 @@ export class AnalyticsService {
         ...(filters?.country && { countryCode: filters.country }),
         ...(filters?.device && { deviceCategory: filters.device }),
       },
-      select: { eventName: true, patientId: true, anonymousVisitorId: true },
+      select: { eventName: true, patientId: true, anonymousVisitorId: true, analyticsSessionId: true, countryCode: true },
     });
+    const filtered = filters?.continent
+      ? rows.filter((r) => continentForCountry(r.countryCode) === filters.continent)
+      : rows;
 
-    const byEvent = new Map<string, { count: number; users: Set<string> }>();
-    for (const r of rows) {
-      const bucket = byEvent.get(r.eventName) ?? { count: 0, users: new Set() };
+    const byEvent = new Map<string, { count: number; users: Set<string>; sessions: Set<string> }>();
+    for (const r of filtered) {
+      const bucket = byEvent.get(r.eventName) ?? { count: 0, users: new Set(), sessions: new Set() };
       bucket.count++;
       const userKey = r.patientId ?? (r.anonymousVisitorId ? `anon:${r.anonymousVisitorId}` : undefined);
       if (userKey) bucket.users.add(userKey);
+      if (r.analyticsSessionId) bucket.sessions.add(r.analyticsSessionId);
       byEvent.set(r.eventName, bucket);
     }
 
@@ -323,7 +333,7 @@ export class AnalyticsService {
     return {
       data: {
         steps: Array.from(byEvent.entries())
-          .map(([eventName, b]) => ({ eventName, count: b.count, uniqueUsers: b.users.size }))
+          .map(([eventName, b]) => ({ eventName, count: b.count, uniqueUsers: b.users.size, uniqueSessions: b.sessions.size }))
           .sort((a, b) => b.count - a.count),
         kpis: AnalyticsService.KPI_DEFINITIONS.map((def) => {
           const denominator = uniqueUsers(def.denominator);
@@ -336,6 +346,63 @@ export class AnalyticsService {
             value: denominator > 0 ? Math.round((numerator / denominator) * 1000) / 10 : null,
           };
         }),
+      },
+    };
+  }
+
+  // Compares where a patient SAYS they live (Patient.country, entered at
+  // onboarding) against where their sessions actually originate (IP-derived
+  // countryCode on their events) — spec §4.4/§D. Only covers authenticated
+  // events (anonymous visitors have no declared location to compare against).
+  // Declared values never get overwritten by this — it's a read-only report.
+  async getGeoComparison(period = '30d') {
+    const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const rows = await this.prisma.patientActivityEvent.findMany({
+      where: { occurredAt: { gte: since }, patientId: { not: null }, countryCode: { not: null } },
+      select: { patientId: true, countryCode: true },
+      distinct: ['patientId', 'countryCode'],
+    });
+
+    const patientIds = Array.from(new Set(rows.map((r) => r.patientId as string)));
+    const patients = await this.prisma.patient.findMany({
+      where: { id: { in: patientIds } },
+      select: { id: true, country: true },
+    });
+    const declaredByPatient = new Map(patients.map((p) => [p.id, p.country]));
+
+    // Patient.country is a free-text country NAME ("Nigeria"); the access
+    // side is an ISO alpha-2 code ("NG") off the geo headers. Intl.DisplayNames
+    // converts the code to its English name so the two sides compare
+    // meaningfully instead of "Nigeria" !== "NG" always mismatching.
+    const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+    const comparisonMap = new Map<string, { declaredCountry: string; accessCountry: string; patients: number; matches: boolean }>();
+    for (const r of rows) {
+      const declaredCountry = declaredByPatient.get(r.patientId as string) ?? 'Unknown';
+      const accessCode = (r.countryCode as string).toUpperCase();
+      let accessCountry = accessCode;
+      try {
+        accessCountry = regionNames.of(accessCode) ?? accessCode;
+      } catch {
+        // Unrecognized/reserved code (e.g. private IP range) — keep the raw code.
+      }
+      const matches = declaredCountry.toLowerCase() === accessCountry.toLowerCase();
+      const key = `${declaredCountry}|${accessCountry}`;
+      const row = comparisonMap.get(key) ?? { declaredCountry, accessCountry, patients: 0, matches };
+      row.patients++;
+      comparisonMap.set(key, row);
+    }
+
+    const comparisons = Array.from(comparisonMap.values()).sort((a, b) => b.patients - a.patients);
+    const diasporaPatients = comparisons.filter((c) => !c.matches).reduce((sum, c) => sum + c.patients, 0);
+
+    return {
+      data: {
+        comparisons,
+        totalPatients: patientIds.length,
+        diasporaPatients,
       },
     };
   }
