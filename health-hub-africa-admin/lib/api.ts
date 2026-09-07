@@ -350,6 +350,13 @@ export interface GeoComparison {
   diasporaPatients: number
 }
 
+// D1/D7/D30 retention — "returned at least once N+ days after registering",
+// not a strict single-day cohort curve (see AnalyticsService.getRetentionAnalytics).
+export interface RetentionAnalytics {
+  windows: Array<{ days: number; eligibleCohortSize: number; retainedUsers: number; rate: number | null }>
+  cohortSize: number
+}
+
 // Raw counts + unique users per instrumented funnel event name (registration,
 // OTP, booking, payment) — not pre-grouped into named funnels; the dashboard
 // buckets them. kpis are computed server-side from unique-user counts (see
@@ -834,6 +841,8 @@ export const adminApi = {
     },
     geoComparison: (period = '30d') =>
       request<{ data: GeoComparison }>(`/admin/analytics/geo-comparison?period=${period}`),
+    retention: (lookbackDays = 90) =>
+      request<{ data: RetentionAnalytics }>(`/admin/analytics/retention?lookbackDays=${lookbackDays}`),
   },
 
   auditLogs: {

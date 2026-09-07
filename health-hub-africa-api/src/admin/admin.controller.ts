@@ -200,6 +200,13 @@ export class AdminController {
     return this.adminService.getGeoComparison(period);
   }
 
+  @Get('analytics/retention')
+  @ApiOperation({ summary: 'Get D1/D7/D30 patient retention (spec §16)' })
+  @ApiQuery({ name: 'lookbackDays', required: false, description: 'How far back to search for eligible cohort members (default 90)' })
+  getRetentionAnalytics(@Query('lookbackDays') lookbackDays?: string) {
+    return this.adminService.getRetentionAnalytics(lookbackDays ? parseInt(lookbackDays, 10) : undefined);
+  }
+
   // ── System ────────────────────────────────────────────────────────────────
 
   @Get('system/health')

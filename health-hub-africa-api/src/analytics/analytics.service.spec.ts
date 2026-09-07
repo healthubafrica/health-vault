@@ -110,6 +110,65 @@ describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {
   });
 });
 
+describe('AnalyticsService.getRetentionAnalytics (D1/D7/D30)', () => {
+  function buildService(registrations: unknown[], activity: unknown[]) {
+    const prisma = {
+      patientActivityEvent: {
+        findMany: jest.fn().mockResolvedValueOnce(registrations).mockResolvedValueOnce(activity),
+      },
+    };
+    const service = new AnalyticsService(prisma as any);
+    return { service };
+  }
+
+  it('counts a patient as D7-retained only if they returned 7+ days after registering', async () => {
+    const registeredAt = new Date();
+    registeredAt.setDate(registeredAt.getDate() - 20); // registered 20 days ago -> eligible for D1/D7 windows
+
+    const returnedD7 = new Date(registeredAt);
+    returnedD7.setDate(returnedD7.getDate() + 8); // returned on day 8 -> counts for D1 and D7, not D30
+
+    const { service } = await Promise.resolve(
+      buildService(
+        [{ patientId: 'p1', occurredAt: registeredAt }],
+        [
+          { patientId: 'p1', occurredAt: registeredAt }, // the registration event itself
+          { patientId: 'p1', occurredAt: returnedD7 },
+        ],
+      ),
+    );
+
+    const result = await service.getRetentionAnalytics(90);
+
+    const d1 = result.data.windows.find((w) => w.days === 1);
+    const d7 = result.data.windows.find((w) => w.days === 7);
+    const d30 = result.data.windows.find((w) => w.days === 30);
+
+    expect(d1).toMatchObject({ eligibleCohortSize: 1, retainedUsers: 1, rate: 100 });
+    expect(d7).toMatchObject({ eligibleCohortSize: 1, retainedUsers: 1, rate: 100 });
+    // Registered only 20 days ago -> not yet eligible for the D30 window at all.
+    expect(d30).toMatchObject({ eligibleCohortSize: 0, retainedUsers: 0, rate: null });
+  });
+
+  it('does not double-count a patient who fired registration_complete more than once', async () => {
+    const first = new Date();
+    first.setDate(first.getDate() - 40);
+    const duplicate = new Date();
+    duplicate.setDate(duplicate.getDate() - 39);
+
+    const { service } = buildService(
+      [
+        { patientId: 'p1', occurredAt: duplicate },
+        { patientId: 'p1', occurredAt: first }, // earlier row arrives second — must still win
+      ],
+      [],
+    );
+
+    const result = await service.getRetentionAnalytics(90);
+    expect(result.data.cohortSize).toBe(1);
+  });
+});
+
 describe('AnalyticsService.getGeoComparison (declared vs access geography)', () => {
   function buildService(events: Array<{ patientId: string; countryCode: string }>, patients: Array<{ id: string; country: string }>) {
     const prisma = {
