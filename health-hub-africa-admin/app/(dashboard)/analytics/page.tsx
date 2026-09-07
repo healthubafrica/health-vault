@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAutoRefresh } from '@/lib/hooks/useLiveData'
-import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
+import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type GeoComparison, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { FilterTabs } from '@/components/ui/FilterTabs'
 import { SkeletonBox } from '@/components/ui/Skeleton'
@@ -88,28 +88,36 @@ export default function AnalyticsPage() {
   const [marketing, setMarketing] = useState<MarketingAnalytics | null>(null)
   const [traffic, setTraffic] = useState<TrafficAnalytics | null>(null)
   const [funnel, setFunnel] = useState<FunnelAnalytics | null>(null)
+  const [geoComparison, setGeoComparison] = useState<GeoComparison | null>(null)
   const [funnelCountry, setFunnelCountry] = useState('')
+  const [funnelContinent, setFunnelContinent] = useState('')
   const [funnelDevice, setFunnelDevice] = useState('')
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     try {
-      const [rRes, uRes, mRes, tRes, fRes] = await Promise.all([
+      const [rRes, uRes, mRes, tRes, fRes, gRes] = await Promise.all([
         adminApi.analytics.revenue(period),
         adminApi.analytics.usage(period),
         adminApi.analytics.marketing(period),
         adminApi.analytics.traffic(period),
-        adminApi.analytics.funnel(period, { country: funnelCountry || undefined, device: funnelDevice || undefined }),
+        adminApi.analytics.funnel(period, {
+          country: funnelCountry || undefined,
+          continent: funnelContinent || undefined,
+          device: funnelDevice || undefined,
+        }),
+        adminApi.analytics.geoComparison(period),
       ])
       setRevenue(rRes.data)
       setUsage(uRes.data)
       setMarketing(mRes.data)
       setTraffic(tRes.data)
       setFunnel(fRes.data)
+      setGeoComparison(gRes.data)
     } finally {
       setLoading(false)
     }
-  }, [period, funnelCountry, funnelDevice])
+  }, [period, funnelCountry, funnelContinent, funnelDevice])
 
   useEffect(() => {
     setLoading(true)
@@ -289,19 +297,23 @@ export default function AnalyticsPage() {
 
         <Card>
           <CardTitle>Login devices</CardTitle>
-          <div className="space-y-4">
-            {(marketing?.devices ?? []).map((row) => (
-              <div key={row.device}>
-                <div className="flex justify-between text-xs mb-1.5">
-                  <span className="font-medium" style={{ color: 'var(--color-text)' }}>{row.device}</span>
-                  <span className="tabular-nums" style={{ color: 'var(--color-text-muted)' }}>{row.count}</span>
+          {loading ? <SkeletonBox height={140} className="rounded-xl" /> : !marketing?.devices.length ? (
+            <Empty>No login-device data yet.</Empty>
+          ) : (
+            <div className="space-y-4">
+              {marketing.devices.map((row) => (
+                <div key={row.device}>
+                  <div className="flex justify-between text-xs mb-1.5">
+                    <span className="font-medium" style={{ color: 'var(--color-text)' }}>{row.device}</span>
+                    <span className="tabular-nums" style={{ color: 'var(--color-text-muted)' }}>{row.count}</span>
+                  </div>
+                  <div className="h-1.5 rounded-full" style={{ background: 'var(--color-border)' }}>
+                    <div className="h-full rounded-full bg-[#3B82F6] transition-[width] duration-300" style={{ width: `${(row.count / maxDeviceCount) * 100}%` }} />
+                  </div>
                 </div>
-                <div className="h-1.5 rounded-full" style={{ background: 'var(--color-border)' }}>
-                  <div className="h-full rounded-full bg-[#3B82F6] transition-[width] duration-300" style={{ width: `${(row.count / maxDeviceCount) * 100}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
           {!!marketing?.referrers.length && (
             <div className="mt-6 pt-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
               <h4 className="text-xs font-semibold mb-3" style={{ color: 'var(--color-text)' }}>Top login referrers</h4>
@@ -464,6 +476,18 @@ export default function AnalyticsPage() {
         </div>
         <div className="flex gap-2">
           <select
+            value={funnelContinent}
+            onChange={(e) => setFunnelContinent(e.target.value)}
+            className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+            style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+            aria-label="Filter funnels by continent"
+          >
+            <option value="">All continents</option>
+            {Array.from(new Set((traffic?.locations ?? []).map((l) => l.continent))).map((continent) => (
+              <option key={continent} value={continent}>{continent}</option>
+            ))}
+          </select>
+          <select
             value={funnelCountry}
             onChange={(e) => setFunnelCountry(e.target.value)}
             className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
@@ -555,6 +579,42 @@ export default function AnalyticsPage() {
         </Card>
       )}
 
+      <Card className="mb-6" padding={false}>
+        <div className="px-5 pt-5">
+          <CardTitle>Declared vs. access geography</CardTitle>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+            Where patients say they live vs. where their sessions actually originate
+            {geoComparison ? ` — ${geoComparison.diasporaPatients} of ${geoComparison.totalPatients} patients access from a different country than declared` : ''}
+          </p>
+        </div>
+        {!loading && !geoComparison?.comparisons.length ? (
+          <Empty>No authenticated sessions with geo data yet.</Empty>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-y text-left text-[11px] uppercase tracking-wider" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                  <th className="px-5 py-2.5 font-semibold">Declared</th>
+                  <th className="px-4 py-2.5 font-semibold">Accessing from</th>
+                  <th className="px-5 py-2.5 font-semibold text-right">Patients</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(geoComparison?.comparisons ?? []).slice(0, 20).map((row) => (
+                  <tr key={`${row.declaredCountry}-${row.accessCountry}`} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                    <td className="px-5 py-3 font-medium" style={{ color: 'var(--color-text)' }}>{row.declaredCountry}</td>
+                    <td className="px-4 py-3" style={{ color: row.matches ? 'var(--color-text-muted)' : 'var(--color-warning, #E8930A)' }}>
+                      {row.accessCountry}{!row.matches && ' (diaspora)'}
+                    </td>
+                    <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.patients}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
       <div className="mb-3">
         <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Operational analytics</h2>
         <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Revenue and service use for the selected period</p>
@@ -562,7 +622,9 @@ export default function AnalyticsPage() {
       <div className="grid lg:grid-cols-2 gap-4">
         <Card>
           <CardTitle>Revenue (₦)</CardTitle>
-          {loading ? <SkeletonBox height={240} className="rounded-xl" /> : (
+          {loading ? <SkeletonBox height={240} className="rounded-xl" /> : revenue.length === 0 ? (
+            <Empty>No payments in this period.</Empty>
+          ) : (
             <div style={{ height: 240 }}>
               <Line data={{ labels: revenueLabels, datasets: [{ label: 'Revenue', data: revenueValues, borderColor: '#6DC43F', backgroundColor: 'rgba(109,196,63,0.08)', tension: 0.4, fill: true, pointRadius: 3 }] }} options={CHART_OPTIONS} />
             </div>
@@ -570,7 +632,9 @@ export default function AnalyticsPage() {
         </Card>
         <Card>
           <CardTitle>Service usage</CardTitle>
-          {loading ? <SkeletonBox height={240} className="rounded-xl" /> : (
+          {loading ? <SkeletonBox height={240} className="rounded-xl" /> : usage.length === 0 ? (
+            <Empty>No service activity in this period.</Empty>
+          ) : (
             <div style={{ height: 240 }}>
               <Bar
                 data={{
