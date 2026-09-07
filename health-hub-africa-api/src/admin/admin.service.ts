@@ -765,6 +765,10 @@ export class AdminService {
     return this.analyticsService.getGeoComparison(period);
   }
 
+  getRetentionAnalytics(lookbackDays = 90) {
+    return this.analyticsService.getRetentionAnalytics(lookbackDays);
+  }
+
   async getMarketingAnalytics(period = '30d') {
     const since = this.periodToDate(period);
 
