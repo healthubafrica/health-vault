@@ -296,6 +296,16 @@ export class AnalyticsService {
     { key: 'paymentSuccessRate', label: 'Payment Success Rate', numerator: 'payment_success', denominator: 'checkout_started' },
   ];
 
+  // Spec §13: activation = a completed registration followed by at least one
+  // approved meaningful health action. ponytail: scoped to "within the same
+  // reporting period" rather than an unbounded lookback from each patient's
+  // actual registration date — a correct unbounded version needs per-user
+  // registration timestamps carried forward across periods, which nothing
+  // here tracks yet. Extend if the business needs the stricter definition.
+  private static readonly ACTIVATION_QUALIFYING_EVENTS = [
+    'booking_confirmed', 'payment_success', 'upload_success', 'manual_entry_success', 'ticket_created',
+  ];
+
   // Step counts (raw + unique users/sessions) for every funnel event name
   // emitted via analytics.track() — not hardcoded per funnel so new event
   // names show up automatically as screens are instrumented; the dashboard
@@ -330,22 +340,40 @@ export class AnalyticsService {
 
     const uniqueUsers = (eventName: string) => byEvent.get(eventName)?.users.size ?? 0;
 
+    const registeredUsers = byEvent.get('registration_complete')?.users ?? new Set<string>();
+    const activatedUsers = new Set<string>();
+    for (const eventName of AnalyticsService.ACTIVATION_QUALIFYING_EVENTS) {
+      for (const user of byEvent.get(eventName)?.users ?? []) {
+        if (registeredUsers.has(user)) activatedUsers.add(user);
+      }
+    }
+    const activationKpi = {
+      key: 'activationRate',
+      label: 'Activation Rate',
+      numerator: activatedUsers.size,
+      denominator: registeredUsers.size,
+      value: registeredUsers.size > 0 ? Math.round((activatedUsers.size / registeredUsers.size) * 1000) / 10 : null,
+    };
+
     return {
       data: {
         steps: Array.from(byEvent.entries())
           .map(([eventName, b]) => ({ eventName, count: b.count, uniqueUsers: b.users.size, uniqueSessions: b.sessions.size }))
           .sort((a, b) => b.count - a.count),
-        kpis: AnalyticsService.KPI_DEFINITIONS.map((def) => {
-          const denominator = uniqueUsers(def.denominator);
-          const numerator = uniqueUsers(def.numerator);
-          return {
-            key: def.key,
-            label: def.label,
-            numerator,
-            denominator,
-            value: denominator > 0 ? Math.round((numerator / denominator) * 1000) / 10 : null,
-          };
-        }),
+        kpis: [
+          ...AnalyticsService.KPI_DEFINITIONS.map((def) => {
+            const denominator = uniqueUsers(def.denominator);
+            const numerator = uniqueUsers(def.numerator);
+            return {
+              key: def.key,
+              label: def.label,
+              numerator,
+              denominator,
+              value: denominator > 0 ? Math.round((numerator / denominator) * 1000) / 10 : null,
+            };
+          }),
+          activationKpi,
+        ],
       },
     };
   }
