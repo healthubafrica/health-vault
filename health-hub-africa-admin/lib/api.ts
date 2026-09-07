@@ -335,10 +335,19 @@ export interface MarketingAnalytics {
 export interface TrafficAnalytics {
   totalVisits: number
   activity: Array<{ date: string; visits: number }>
-  locations: Array<{ countryCode: string; region: string; city: string; visits: number }>
+  locations: Array<{ countryCode: string; continent: string; region: string; city: string; visits: number }>
   devices: Array<{ device: string; count: number }>
   referrers: Array<{ referrer: string; count: number }>
   campaigns: Array<{ campaign: string; source: string; medium: string; visits: number }>
+}
+
+// Patient-declared country (Patient.country, entered at onboarding) vs where
+// their sessions actually originate (IP-derived) — spec §4.4. Read-only:
+// declared values are never overwritten by this comparison.
+export interface GeoComparison {
+  comparisons: Array<{ declaredCountry: string; accessCountry: string; patients: number; matches: boolean }>
+  totalPatients: number
+  diasporaPatients: number
 }
 
 // Raw counts + unique users per instrumented funnel event name (registration,
@@ -347,7 +356,7 @@ export interface TrafficAnalytics {
 // AnalyticsService.KPI_DEFINITIONS) so numerator/denominator/value stay
 // consistent with the step table above.
 export interface FunnelAnalytics {
-  steps: Array<{ eventName: string; count: number; uniqueUsers: number }>
+  steps: Array<{ eventName: string; count: number; uniqueUsers: number; uniqueSessions: number }>
   kpis: Array<{ key: string; label: string; numerator: number; denominator: number; value: number | null }>
 }
 
@@ -816,12 +825,15 @@ export const adminApi = {
       request<{ data: MarketingAnalytics }>(`/admin/analytics/marketing?period=${period}`),
     traffic: (period = '30d') =>
       request<{ data: TrafficAnalytics }>(`/admin/analytics/traffic?period=${period}`),
-    funnel: (period = '30d', filters?: { country?: string; device?: string }) => {
+    funnel: (period = '30d', filters?: { country?: string; continent?: string; device?: string }) => {
       const qs = new URLSearchParams({ period })
       if (filters?.country) qs.set('country', filters.country)
+      if (filters?.continent) qs.set('continent', filters.continent)
       if (filters?.device) qs.set('device', filters.device)
       return request<{ data: FunnelAnalytics }>(`/admin/analytics/funnel?${qs}`)
     },
+    geoComparison: (period = '30d') =>
+      request<{ data: GeoComparison }>(`/admin/analytics/geo-comparison?period=${period}`),
   },
 
   auditLogs: {

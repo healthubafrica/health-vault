@@ -57,7 +57,7 @@ describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {
     const result = await service.getFunnelAnalytics('30d');
 
     const otpRequested = result.data.steps.find((s) => s.eventName === 'otp_requested');
-    expect(otpRequested).toEqual({ eventName: 'otp_requested', count: 3, uniqueUsers: 2 });
+    expect(otpRequested).toEqual({ eventName: 'otp_requested', count: 3, uniqueUsers: 2, uniqueSessions: 0 });
 
     const kpi = result.data.kpis.find((k) => k.key === 'otpVerificationRate');
     expect(kpi).toEqual({ key: 'otpVerificationRate', label: 'OTP Verification Rate', numerator: 1, denominator: 2, value: 50 });
@@ -80,5 +80,53 @@ describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {
         where: expect.objectContaining({ countryCode: 'NG', deviceCategory: 'Mobile' }),
       }),
     );
+  });
+
+  it('narrows by continent client-side after fetching (continent has no DB column)', async () => {
+    const { service } = buildService([
+      { eventName: 'page_view', patientId: null, anonymousVisitorId: 'ng-visitor', countryCode: 'NG' } as any,
+      { eventName: 'page_view', patientId: null, anonymousVisitorId: 'us-visitor', countryCode: 'US' } as any,
+    ]);
+
+    const result = await service.getFunnelAnalytics('30d', { continent: 'Africa' });
+
+    expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
+  });
+});
+
+describe('AnalyticsService.getGeoComparison (declared vs access geography)', () => {
+  function buildService(events: Array<{ patientId: string; countryCode: string }>, patients: Array<{ id: string; country: string }>) {
+    const prisma = {
+      patientActivityEvent: { findMany: jest.fn().mockResolvedValue(events) },
+      patient: { findMany: jest.fn().mockResolvedValue(patients) },
+    };
+    const service = new AnalyticsService(prisma as any);
+    return { service, prisma };
+  }
+
+  it('matches declared country name against the access country code via Intl.DisplayNames', async () => {
+    const { service } = buildService(
+      [{ patientId: 'p1', countryCode: 'NG' }],
+      [{ id: 'p1', country: 'Nigeria' }],
+    );
+
+    const result = await service.getGeoComparison('30d');
+
+    expect(result.data.comparisons).toEqual([
+      { declaredCountry: 'Nigeria', accessCountry: 'Nigeria', patients: 1, matches: true },
+    ]);
+    expect(result.data.diasporaPatients).toBe(0);
+  });
+
+  it('flags a diaspora patient when declared and access countries differ', async () => {
+    const { service } = buildService(
+      [{ patientId: 'p1', countryCode: 'US' }],
+      [{ id: 'p1', country: 'Nigeria' }],
+    );
+
+    const result = await service.getGeoComparison('30d');
+
+    expect(result.data.comparisons[0]).toMatchObject({ declaredCountry: 'Nigeria', accessCountry: 'United States', matches: false });
+    expect(result.data.diasporaPatients).toBe(1);
   });
 });
