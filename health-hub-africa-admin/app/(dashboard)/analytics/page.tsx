@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAutoRefresh } from '@/lib/hooks/useLiveData'
-import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type GeoComparison, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
+import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type GeoComparison, type RetentionAnalytics, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { FilterTabs } from '@/components/ui/FilterTabs'
 import { SkeletonBox } from '@/components/ui/Skeleton'
@@ -90,6 +90,7 @@ export default function AnalyticsPage() {
   const [traffic, setTraffic] = useState<TrafficAnalytics | null>(null)
   const [funnel, setFunnel] = useState<FunnelAnalytics | null>(null)
   const [geoComparison, setGeoComparison] = useState<GeoComparison | null>(null)
+  const [retention, setRetention] = useState<RetentionAnalytics | null>(null)
   const [funnelCountry, setFunnelCountry] = useState('')
   const [funnelContinent, setFunnelContinent] = useState('')
   const [funnelDevice, setFunnelDevice] = useState('')
@@ -97,7 +98,7 @@ export default function AnalyticsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [rRes, uRes, mRes, tRes, fRes, gRes] = await Promise.all([
+      const [rRes, uRes, mRes, tRes, fRes, gRes, retRes] = await Promise.all([
         adminApi.analytics.revenue(period),
         adminApi.analytics.usage(period),
         adminApi.analytics.marketing(period),
@@ -108,6 +109,7 @@ export default function AnalyticsPage() {
           device: funnelDevice || undefined,
         }),
         adminApi.analytics.geoComparison(period),
+        adminApi.analytics.retention(),
       ])
       setRevenue(rRes.data)
       setUsage(uRes.data)
@@ -115,6 +117,7 @@ export default function AnalyticsPage() {
       setTraffic(tRes.data)
       setFunnel(fRes.data)
       setGeoComparison(gRes.data)
+      setRetention(retRes.data)
     } finally {
       setLoading(false)
     }
@@ -579,6 +582,30 @@ export default function AnalyticsPage() {
           </div>
         </Card>
       )}
+
+      <Card className="mb-6" padding={false}>
+        <div className="px-5 pt-5">
+          <CardTitle>Retention</CardTitle>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+            Registered patients who returned N+ days later, out of {retention?.cohortSize ?? 0} registered in the last 90 days
+          </p>
+        </div>
+        {!loading && !retention?.windows.some((w) => w.eligibleCohortSize > 0) ? (
+          <Empty>No cohort has reached a retention window yet.</Empty>
+        ) : (
+          <div className="grid grid-cols-3 divide-x" style={{ borderColor: 'var(--color-border)' }}>
+            {(retention?.windows ?? []).map((w) => (
+              <div key={w.days} className="px-5 py-4">
+                <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>D{w.days}</p>
+                <p className="text-2xl font-bold mt-1" style={{ color: 'var(--color-text)' }}>{w.rate === null ? '—' : `${w.rate}%`}</p>
+                <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-faint)' }}>
+                  {w.eligibleCohortSize === 0 ? 'No eligible cohort yet' : `${w.retainedUsers} of ${w.eligibleCohortSize}`}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
 
       <Card className="mb-6" padding={false}>
         <div className="px-5 pt-5">
