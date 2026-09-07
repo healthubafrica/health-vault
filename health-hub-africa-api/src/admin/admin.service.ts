@@ -757,8 +757,12 @@ export class AdminService {
     return this.analyticsService.getTrafficAnalytics(period);
   }
 
-  getFunnelAnalytics(period = '30d', filters?: { country?: string; device?: string }) {
+  getFunnelAnalytics(period = '30d', filters?: { country?: string; continent?: string; device?: string }) {
     return this.analyticsService.getFunnelAnalytics(period, filters);
+  }
+
+  getGeoComparison(period = '30d') {
+    return this.analyticsService.getGeoComparison(period);
   }
 
   async getMarketingAnalytics(period = '30d') {

@@ -183,13 +183,21 @@ export class AdminController {
   @Get('analytics/funnel')
   @ApiOperation({ summary: 'Get step counts, unique users, and KPIs for every instrumented funnel (registration, OTP, booking, payment)' })
   @ApiQuery({ name: 'country', required: false, description: 'Filter to a single ISO country code' })
+  @ApiQuery({ name: 'continent', required: false, description: 'Filter to a single continent' })
   @ApiQuery({ name: 'device', required: false, description: 'Filter to a single device category (Desktop/Mobile/Tablet)' })
   getFunnelAnalytics(
     @Query('period') period?: string,
     @Query('country') country?: string,
+    @Query('continent') continent?: string,
     @Query('device') device?: string,
   ) {
-    return this.adminService.getFunnelAnalytics(period, { country, device });
+    return this.adminService.getFunnelAnalytics(period, { country, continent, device });
+  }
+
+  @Get('analytics/geo-comparison')
+  @ApiOperation({ summary: 'Compare patient-declared country against IP-derived access country (spec §4.4)' })
+  getGeoComparison(@Query('period') period?: string) {
+    return this.adminService.getGeoComparison(period);
   }
 
   // ── System ────────────────────────────────────────────────────────────────
