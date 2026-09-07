@@ -6,7 +6,7 @@
 // connection or trip the presign throttle.
 
 import { useCallback, useRef, useState } from 'react'
-import { documents, type DocumentCategory, type VaultDocument } from '../api'
+import { documents, analytics, type DocumentCategory, type VaultDocument } from '../api'
 import { isVaultMimeSupported } from '../vault'
 import { formatBytes } from '../utils'
 
@@ -83,6 +83,7 @@ export function useDocumentUpload(options?: {
     async (entry: UploadEntry) => {
       try {
         patch(entry.id, { status: 'uploading', progress: 0, error: undefined })
+        analytics.track('upload_start', { category: entry.category })
 
         const ticketRes = await documents.getUploadUrl({
           fileName: entry.file.name,
@@ -108,8 +109,10 @@ export function useDocumentUpload(options?: {
         })
 
         patch(entry.id, { status: 'done', document: created.data })
+        analytics.track('upload_success', { category: entry.category })
         optionsRef.current?.onEntryDone?.(created.data)
       } catch (err) {
+        analytics.track('upload_failure', { category: entry.category })
         patch(entry.id, {
           status: 'error',
           error: err instanceof Error ? err.message : 'Upload failed',

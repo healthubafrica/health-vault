@@ -35,6 +35,7 @@ import {
   records,
   labs,
   documents,
+  analytics,
   ApiError,
   ClinicalRecord,
   PrescriptionItem,
@@ -182,10 +183,12 @@ export default function RecordsHubScreen() {
         title: file.name,
         category: categoryFilter ?? 'miscellaneous',
       });
+      analytics.track('upload_success', { category: categoryFilter ?? 'miscellaneous' });
 
       qc.invalidateQueries({ queryKey: ['documents'] });
       qc.invalidateQueries({ queryKey: ['storage-usage'] });
     } catch (err) {
+      analytics.track('upload_failure', { category: categoryFilter ?? 'miscellaneous' });
       Alert.alert('Upload failed', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setIsUploading(false);

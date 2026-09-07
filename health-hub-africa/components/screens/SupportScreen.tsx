@@ -11,7 +11,7 @@ import { ErrorState } from '@/components/ui/ErrorState'
 import { EmptyState } from '@/components/ui/states'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { formatDate } from '@/lib/utils'
-import { support, type SupportTicket } from '@/lib/api'
+import { support, analytics, type SupportTicket } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 
 const STATUS_PILL: Record<string, 'success' | 'warning' | 'neutral' | 'emergency'> = {
@@ -43,6 +43,7 @@ export function SupportScreen() {
     setCreating(true)
     try {
       await support.create({ subject: subject.trim(), description: description.trim(), category })
+      analytics.track('ticket_created', { category })
       toast.success('Ticket opened — our team will get back to you')
       setSubject('')
       setDescription('')

@@ -75,6 +75,7 @@ const FUNNEL_GROUPS: Record<string, string[]> = {
   'Registration & OTP': ['registration_complete', 'registration_error', 'otp_requested', 'otp_verify_success', 'otp_verify_failure'],
   'Booking': ['service_selected', 'booking_started', 'booking_confirmed', 'booking_error', 'booking_validation_error', 'booking_cancelled', 'booking_rescheduled'],
   'Payments': ['checkout_started', 'payment_pending', 'payment_success', 'payment_failure'],
+  'Document Uploads': ['upload_start', 'upload_success', 'upload_failure'],
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
