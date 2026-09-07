@@ -1,9 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Download } from 'lucide-react'
 import { useAutoRefresh } from '@/lib/hooks/useLiveData'
 import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type GeoComparison, type RetentionAnalytics, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
 import { Card, CardTitle } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
 import { FilterTabs } from '@/components/ui/FilterTabs'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { formatKoboToNaira } from '@/lib/utils'
@@ -23,6 +25,9 @@ import { Bar, Line } from 'react-chartjs-2'
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Tooltip, Legend, Filler)
 
 const PERIODS = ['7d', '30d', '90d']
+const SECTIONS = ['Overview', 'Funnels', 'Acquisition', 'Geography'] as const
+type Section = (typeof SECTIONS)[number]
+
 const CHART_OPTIONS = {
   responsive: true,
   maintainAspectRatio: false,
@@ -79,10 +84,53 @@ const FUNNEL_GROUPS: Record<string, string[]> = {
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <div className="h-40 flex items-center justify-center text-sm" style={{ color: 'var(--color-text-muted)' }}>{children}</div>
+  return <div className="h-40 flex items-center justify-center text-sm text-center px-4" style={{ color: 'var(--color-text-muted)' }}>{children}</div>
+}
+
+// ── CSV export ────────────────────────────────────────────────────────────
+// Client-side only — every exportable table here is data the page already
+// has in memory after fetching, so there's no need for a dedicated backend
+// export endpoint (unlike, say, the Users page's export, which streams a
+// filtered DB query the client never fully loads).
+
+function csvField(value: string | number): string {
+  return `"${String(value).replace(/"/g, '""')}"`
+}
+
+function downloadCsv(filename: string, headers: string[], rows: Array<Array<string | number>>) {
+  const csv = [headers, ...rows].map((row) => row.map(csvField).join(',')).join('\r\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function ExportButton({ onExport, label = 'Export CSV' }: { onExport: () => void; label?: string }) {
+  return (
+    <Button variant="secondary" size="sm" onClick={onExport}>
+      <Download className="w-3.5 h-3.5" />
+      {label}
+    </Button>
+  )
+}
+
+function CardHeader({ title, subtitle, onExport }: { title: string; subtitle?: string; onExport?: () => void }) {
+  return (
+    <div className="px-5 pt-5 flex items-start justify-between gap-3">
+      <div>
+        <CardTitle>{title}</CardTitle>
+        {subtitle && <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{subtitle}</p>}
+      </div>
+      {onExport && <ExportButton onExport={onExport} />}
+    </div>
+  )
 }
 
 export default function AnalyticsPage() {
+  const [section, setSection] = useState<Section>('Overview')
   const [period, setPeriod] = useState('30d')
   const [revenue, setRevenue] = useState<RevenueDataPoint[]>([])
   const [usage, setUsage] = useState<UsageDataPoint[]>([])
@@ -147,6 +195,7 @@ export default function AnalyticsPage() {
   const attributedRate = marketing?.totals.registrations
     ? Math.round((marketing.totals.attributedRegistrations / marketing.totals.registrations) * 100)
     : 0
+  const activationRate = funnel?.kpis.find((k) => k.key === 'activationRate')?.value ?? null
   const maxDeviceCount = useMemo(
     () => Math.max(1, ...(marketing?.devices.map((row) => row.count) ?? [1])),
     [marketing],
@@ -168,518 +217,570 @@ export default function AnalyticsPage() {
     [traffic],
   )
 
+  const exportFunnelSteps = () =>
+    downloadCsv(
+      `funnel-steps-${period}.csv`,
+      ['Event', 'Count', 'Unique users', 'Unique sessions'],
+      (funnel?.steps ?? []).map((s) => [s.eventName, s.count, s.uniqueUsers, s.uniqueSessions]),
+    )
+  const exportGeoComparison = () =>
+    downloadCsv(
+      `declared-vs-access-geography-${period}.csv`,
+      ['Declared country', 'Access country', 'Patients', 'Diaspora'],
+      (geoComparison?.comparisons ?? []).map((c) => [c.declaredCountry, c.accessCountry, c.patients, c.matches ? 'No' : 'Yes']),
+    )
+  const exportCampaigns = () =>
+    downloadCsv(
+      `campaign-performance-${period}.csv`,
+      ['Campaign', 'Source', 'Medium', 'Registrations', 'Logins'],
+      (marketing?.campaigns ?? []).map((c) => [c.campaign, c.source, c.medium, c.registrations, c.logins]),
+    )
+  const exportVisitorLocations = () =>
+    downloadCsv(
+      `visitor-locations-${period}.csv`,
+      ['Country', 'Region', 'City', 'Visits'],
+      (traffic?.locations ?? []).map((l) => [countryName(l.countryCode), l.region, l.city, l.visits]),
+    )
+
   return (
     <div className="max-w-[1200px] pb-8">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
           <h1 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>Analytics</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-            Acquisition, campaign attribution, login geography, revenue, and service usage
+            Acquisition, funnels, geography, revenue, and service usage
           </p>
         </div>
         <FilterTabs tabs={PERIODS} active={period} onChange={setPeriod} />
       </div>
 
-      {loading && !marketing ? (
-        <SkeletonBox height={88} className="rounded-xl mb-4" />
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-5 mb-4 border-y" style={{ borderColor: 'var(--color-border)' }}>
-          <Metric label="Registrations" value={String(marketing?.totals.registrations ?? 0)} detail={`${verifiedRate}% verified`} />
-          <Metric label="Campaign-attributed" value={String(marketing?.totals.attributedRegistrations ?? 0)} detail={`${attributedRate}% of registrations`} />
-          <Metric label="Login events" value={String(marketing?.totals.logins ?? 0)} detail="Successful sign-ins only" />
-          <Metric label="Unique users" value={String(marketing?.totals.uniqueLoginUsers ?? 0)} detail="Users who signed in" />
-          <Metric label="Revenue" value={formatKoboToNaira(revenue.reduce((sum, row) => sum + row.amount, 0))} detail={`Across the last ${period}`} />
-        </div>
-      )}
+      <FilterTabs tabs={[...SECTIONS]} active={section} onChange={(s) => setSection(s as Section)} className="mb-5 w-fit" />
 
-      <div className="grid lg:grid-cols-[1.6fr_1fr] gap-4 mb-4">
-        <Card>
-          <CardTitle>Registrations and logins</CardTitle>
-          {loading ? <SkeletonBox height={250} className="rounded-xl" /> : activityWindow.length === 0 ? (
-            <Empty>No acquisition activity in this period.</Empty>
+      {section === 'Overview' && (
+        <>
+          {loading && !marketing ? (
+            <SkeletonBox height={88} className="rounded-xl mb-4" />
           ) : (
-            <div style={{ height: 250 }}>
-              <Line
-                data={{
-                  labels: activityLabels,
-                  datasets: [
-                    { label: 'Registrations', data: activityWindow.map((row) => row.registrations), borderColor: '#6DC43F', backgroundColor: 'rgba(109,196,63,0.08)', tension: 0.35, fill: true, pointRadius: 2 },
-                    { label: 'Logins', data: activityWindow.map((row) => row.logins), borderColor: '#3B82F6', backgroundColor: 'transparent', tension: 0.35, pointRadius: 2 },
-                  ],
-                }}
-                options={CHART_OPTIONS}
-              />
+            <div className="grid grid-cols-2 md:grid-cols-5 mb-4 border-y" style={{ borderColor: 'var(--color-border)' }}>
+              <Metric label="Registrations" value={String(marketing?.totals.registrations ?? 0)} detail={`${verifiedRate}% verified`} />
+              <Metric label="Activation rate" value={activationRate === null ? '—' : `${activationRate}%`} detail="Registered → took a meaningful action" />
+              <Metric label="Site visits" value={String(traffic?.totalVisits ?? 0)} detail="Anonymous marketing-site pageviews" />
+              <Metric label="Unique login users" value={String(marketing?.totals.uniqueLoginUsers ?? 0)} detail={`${marketing?.totals.logins ?? 0} sign-ins`} />
+              <Metric label="Revenue" value={formatKoboToNaira(revenue.reduce((sum, row) => sum + row.amount, 0))} detail={`Across the last ${period}`} />
             </div>
           )}
-        </Card>
 
-        <Card>
-          <CardTitle>How users heard about us</CardTitle>
-          {loading ? <SkeletonBox height={250} className="rounded-xl" /> : !marketing?.acquisitionSources.length ? (
-            <Empty>No registration-source data yet.</Empty>
-          ) : (
-            <div className="space-y-4 pt-1">
-              {marketing.acquisitionSources.map((row) => (
-                <div key={row.source}>
-                  <div className="flex items-center justify-between text-xs mb-1.5">
-                    <span className="font-medium" style={{ color: 'var(--color-text)' }}>{SOURCE_LABELS[row.source] ?? row.source}</span>
-                    <span style={{ color: 'var(--color-text-muted)' }}>{row.count} · {row.percentage}%</span>
-                  </div>
-                  <div className="h-1.5 rounded-full" style={{ background: 'var(--color-border)' }}>
-                    <div className="h-full rounded-full bg-[#6DC43F] transition-[width] duration-300" style={{ width: `${row.percentage}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
+          <Card className="mb-4">
+            <CardTitle>Registrations and logins</CardTitle>
+            {loading ? <SkeletonBox height={250} className="rounded-xl" /> : activityWindow.length === 0 ? (
+              <Empty>No acquisition activity in this period. Numbers will appear once patients start registering.</Empty>
+            ) : (
+              <div style={{ height: 250 }}>
+                <Line
+                  data={{
+                    labels: activityLabels,
+                    datasets: [
+                      { label: 'Registrations', data: activityWindow.map((row) => row.registrations), borderColor: '#6DC43F', backgroundColor: 'rgba(109,196,63,0.08)', tension: 0.35, fill: true, pointRadius: 2 },
+                      { label: 'Logins', data: activityWindow.map((row) => row.logins), borderColor: '#3B82F6', backgroundColor: 'transparent', tension: 0.35, pointRadius: 2 },
+                    ],
+                  }}
+                  options={CHART_OPTIONS}
+                />
+              </div>
+            )}
+          </Card>
 
-      <Card className="mb-4" padding={false}>
-        <div className="px-5 pt-5"><CardTitle>Campaign performance</CardTitle></div>
-        {!loading && !marketing?.campaigns.length ? (
-          <Empty>No UTM-tagged campaign activity yet.</Empty>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-y text-left text-[11px] uppercase tracking-wider" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
-                  <th className="px-5 py-2.5 font-semibold">Campaign</th>
-                  <th className="px-4 py-2.5 font-semibold">Source / medium</th>
-                  <th className="px-4 py-2.5 font-semibold text-right">Registrations</th>
-                  <th className="px-5 py-2.5 font-semibold text-right">Logins</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(marketing?.campaigns ?? []).map((row) => (
-                  <tr key={`${row.campaign}-${row.source}-${row.medium}`} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
-                    <td className="px-5 py-3 font-medium" style={{ color: 'var(--color-text)' }}>{row.campaign}</td>
-                    <td className="px-4 py-3" style={{ color: 'var(--color-text-muted)' }}>{row.source} / {row.medium}</td>
-                    <td className="px-4 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.registrations}</td>
-                    <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.logins}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
-
-      <div className="grid lg:grid-cols-[1.4fr_1fr] gap-4 mb-6">
-        <Card padding={false}>
-          <div className="px-5 pt-5"><CardTitle>Login locations</CardTitle></div>
-          {!loading && !marketing?.loginLocations.length ? (
-            <Empty>Location data will appear after tracked sign-ins.</Empty>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-y text-left text-[11px] uppercase tracking-wider" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
-                    <th className="px-5 py-2.5 font-semibold">Location</th>
-                    <th className="px-4 py-2.5 font-semibold">Timezone</th>
-                    <th className="px-4 py-2.5 font-semibold text-right">Users</th>
-                    <th className="px-5 py-2.5 font-semibold text-right">Logins</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(marketing?.loginLocations ?? []).map((row, index) => (
-                    <tr key={`${row.countryCode}-${row.region}-${row.city}-${index}`} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
-                      <td className="px-5 py-3">
-                        <p className="font-medium" style={{ color: 'var(--color-text)' }}>{row.city !== 'Unknown' ? row.city : countryName(row.countryCode)}</p>
-                        <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>{row.region !== 'Unknown' ? `${row.region}, ` : ''}{countryName(row.countryCode)}</p>
-                      </td>
-                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--color-text-muted)' }}>{row.timezone}</td>
-                      <td className="px-4 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.uniqueUsers}</td>
-                      <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.logins}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
-
-        <Card>
-          <CardTitle>Login devices</CardTitle>
-          {loading ? <SkeletonBox height={140} className="rounded-xl" /> : !marketing?.devices.length ? (
-            <Empty>No login-device data yet.</Empty>
-          ) : (
-            <div className="space-y-4">
-              {marketing.devices.map((row) => (
-                <div key={row.device}>
-                  <div className="flex justify-between text-xs mb-1.5">
-                    <span className="font-medium" style={{ color: 'var(--color-text)' }}>{row.device}</span>
-                    <span className="tabular-nums" style={{ color: 'var(--color-text-muted)' }}>{row.count}</span>
-                  </div>
-                  <div className="h-1.5 rounded-full" style={{ background: 'var(--color-border)' }}>
-                    <div className="h-full rounded-full bg-[#3B82F6] transition-[width] duration-300" style={{ width: `${(row.count / maxDeviceCount) * 100}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {!!marketing?.referrers.length && (
-            <div className="mt-6 pt-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
-              <h4 className="text-xs font-semibold mb-3" style={{ color: 'var(--color-text)' }}>Top login referrers</h4>
-              <div className="space-y-2">
-                {marketing.referrers.slice(0, 5).map((row) => (
-                  <div key={row.referrer} className="flex justify-between gap-3 text-xs">
-                    <span className="truncate" style={{ color: 'var(--color-text-muted)' }}>{row.referrer}</span>
-                    <span className="tabular-nums" style={{ color: 'var(--color-text)' }}>{row.count}</span>
+          <Card className="mb-6" padding={false}>
+            <CardHeader title="Retention" subtitle={`Registered patients who returned N+ days later, out of ${retention?.cohortSize ?? 0} registered in the last 90 days`} />
+            {!loading && !retention?.windows.some((w) => w.eligibleCohortSize > 0) ? (
+              <Empty>No cohort has reached a retention window yet — check back once patients have been registered for a few days.</Empty>
+            ) : (
+              <div className="grid grid-cols-3 divide-x" style={{ borderColor: 'var(--color-border)' }}>
+                {(retention?.windows ?? []).map((w) => (
+                  <div key={w.days} className="px-5 py-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>D{w.days}</p>
+                    <p className="text-2xl font-bold mt-1" style={{ color: 'var(--color-text)' }}>{w.rate === null ? '—' : `${w.rate}%`}</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-faint)' }}>
+                      {w.eligibleCohortSize === 0 ? 'No eligible cohort yet' : `${w.retainedUsers} of ${w.eligibleCohortSize}`}
+                    </p>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-        </Card>
-      </div>
-
-      <div className="mb-3">
-        <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Site traffic</h2>
-        <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-          Anonymous pageviews on the marketing site (myvaultplus.com) — most visitors here never register
-        </p>
-      </div>
-
-      {loading && !traffic ? (
-        <SkeletonBox height={88} className="rounded-xl mb-4" />
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 mb-4 border-y" style={{ borderColor: 'var(--color-border)' }}>
-          <Metric label="Total visits" value={String(traffic?.totalVisits ?? 0)} detail={`Across the last ${period}`} />
-          <Metric
-            label="Top location"
-            value={topTrafficLocation ? (topTrafficLocation.city !== 'Unknown' ? topTrafficLocation.city : countryName(topTrafficLocation.countryCode)) : '—'}
-            detail={topTrafficLocation ? `${topTrafficLocation.visits} visits` : 'No visits yet'}
-          />
-          <Metric label="Top device" value={traffic?.devices[0]?.device ?? '—'} detail={traffic?.devices[0] ? `${traffic.devices[0].count} visits` : 'No visits yet'} />
-          <Metric label="Top referrer" value={traffic?.referrers[0]?.referrer ?? 'Direct'} detail={traffic?.referrers[0] ? `${traffic.referrers[0].count} visits` : 'No referrer data yet'} />
-        </div>
-      )}
-
-      <div className="grid lg:grid-cols-[1.6fr_1fr] gap-4 mb-4">
-        <Card>
-          <CardTitle>Visits over time</CardTitle>
-          {loading ? <SkeletonBox height={220} className="rounded-xl" /> : trafficActivityWindow.length === 0 ? (
-            <Empty>No site visits recorded in this period.</Empty>
-          ) : (
-            <div style={{ height: 220 }}>
-              <Line
-                data={{
-                  labels: trafficActivityLabels,
-                  datasets: [
-                    { label: 'Visits', data: trafficActivityWindow.map((row) => row.visits), borderColor: '#E8930A', backgroundColor: 'rgba(232,147,10,0.08)', tension: 0.35, fill: true, pointRadius: 2 },
-                  ],
-                }}
-                options={CHART_OPTIONS}
-              />
-            </div>
-          )}
-        </Card>
-
-        <Card>
-          <CardTitle>Visitor devices</CardTitle>
-          {!loading && !traffic?.devices.length ? (
-            <Empty>No device data yet.</Empty>
-          ) : (
-            <div className="space-y-4 pt-1">
-              {(traffic?.devices ?? []).map((row) => (
-                <div key={row.device}>
-                  <div className="flex items-center justify-between text-xs mb-1.5">
-                    <span className="font-medium" style={{ color: 'var(--color-text)' }}>{row.device}</span>
-                    <span style={{ color: 'var(--color-text-muted)' }}>{row.count}</span>
-                  </div>
-                  <div className="h-1.5 rounded-full" style={{ background: 'var(--color-border)' }}>
-                    <div className="h-full rounded-full bg-[#E8930A] transition-[width] duration-300" style={{ width: `${(row.count / maxTrafficDeviceCount) * 100}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
-
-      <div className="grid lg:grid-cols-[1.4fr_1fr] gap-4 mb-6">
-        <Card padding={false}>
-          <div className="px-5 pt-5"><CardTitle>Visitor locations</CardTitle></div>
-          {!loading && !traffic?.locations.length ? (
-            <Empty>Location data will appear after tracked pageviews.</Empty>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-y text-left text-[11px] uppercase tracking-wider" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
-                    <th className="px-5 py-2.5 font-semibold">Location</th>
-                    <th className="px-5 py-2.5 font-semibold text-right">Visits</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(traffic?.locations ?? []).map((row, index) => (
-                    <tr key={`${row.countryCode}-${row.region}-${row.city}-${index}`} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
-                      <td className="px-5 py-3">
-                        <p className="font-medium" style={{ color: 'var(--color-text)' }}>{row.city !== 'Unknown' ? row.city : countryName(row.countryCode)}</p>
-                        <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>{row.region !== 'Unknown' ? `${row.region}, ` : ''}{countryName(row.countryCode)}</p>
-                      </td>
-                      <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.visits}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
-
-        <Card>
-          <CardTitle>Top referrers</CardTitle>
-          {!loading && !traffic?.referrers.length ? (
-            <Empty>No referrer data yet.</Empty>
-          ) : (
-            <div className="space-y-2 pt-1">
-              {(traffic?.referrers ?? []).map((row) => (
-                <div key={row.referrer} className="flex justify-between gap-3 text-xs">
-                  <span className="truncate" style={{ color: 'var(--color-text-muted)' }}>{row.referrer}</span>
-                  <span className="tabular-nums" style={{ color: 'var(--color-text)' }}>{row.count}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
-
-      <Card className="mb-6" padding={false}>
-        <div className="px-5 pt-5"><CardTitle>Ad campaign performance (site visits)</CardTitle></div>
-        {!loading && !traffic?.campaigns.length ? (
-          <Empty>No UTM-tagged campaign traffic yet.</Empty>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-y text-left text-[11px] uppercase tracking-wider" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
-                  <th className="px-5 py-2.5 font-semibold">Campaign</th>
-                  <th className="px-4 py-2.5 font-semibold">Source / medium</th>
-                  <th className="px-5 py-2.5 font-semibold text-right">Visits</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(traffic?.campaigns ?? []).map((row) => (
-                  <tr key={`${row.campaign}-${row.source}-${row.medium}`} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
-                    <td className="px-5 py-3 font-medium" style={{ color: 'var(--color-text)' }}>{row.campaign}</td>
-                    <td className="px-4 py-3" style={{ color: 'var(--color-text-muted)' }}>{row.source} / {row.medium}</td>
-                    <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.visits}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
-
-      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Funnels</h2>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Step counts for the selected period, in funnel order</p>
-        </div>
-        <div className="flex gap-2">
-          <select
-            value={funnelContinent}
-            onChange={(e) => setFunnelContinent(e.target.value)}
-            className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
-            style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-            aria-label="Filter funnels by continent"
-          >
-            <option value="">All continents</option>
-            {Array.from(new Set((traffic?.locations ?? []).map((l) => l.continent))).map((continent) => (
-              <option key={continent} value={continent}>{continent}</option>
-            ))}
-          </select>
-          <select
-            value={funnelCountry}
-            onChange={(e) => setFunnelCountry(e.target.value)}
-            className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
-            style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-            aria-label="Filter funnels by country"
-          >
-            <option value="">All countries</option>
-            {Array.from(new Set((traffic?.locations ?? []).map((l) => l.countryCode))).map((code) => (
-              <option key={code} value={code}>{countryName(code)}</option>
-            ))}
-          </select>
-          <select
-            value={funnelDevice}
-            onChange={(e) => setFunnelDevice(e.target.value)}
-            className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
-            style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-            aria-label="Filter funnels by device"
-          >
-            <option value="">All devices</option>
-            {Array.from(new Set((traffic?.devices ?? []).map((d) => d.device))).map((device) => (
-              <option key={device} value={device}>{device}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {(funnel?.kpis ?? []).map((kpi) => (
-          <Card key={kpi.key}>
-            <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>{kpi.label}</p>
-            <p className="text-2xl font-bold mt-1" style={{ color: 'var(--color-text)' }}>{kpi.value === null ? '—' : `${kpi.value}%`}</p>
-            <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-faint)' }}>
-              {kpi.denominator === 0 ? 'No data yet' : `${kpi.numerator} of ${kpi.denominator}`}
-            </p>
+            )}
           </Card>
-        ))}
-      </div>
 
-      <div className="grid lg:grid-cols-3 gap-4 mb-6">
-        {Object.entries(FUNNEL_GROUPS).map(([groupName, eventNames]) => {
-          const firstStepCount = funnelCounts.get(eventNames[0]) ?? 0
-          return (
-            <Card key={groupName} padding={false}>
-              <div className="px-5 pt-5"><CardTitle>{groupName}</CardTitle></div>
-              {!loading && firstStepCount === 0 && eventNames.every((n) => !funnelCounts.get(n)) ? (
-                <Empty>No events yet.</Empty>
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Revenue and service usage</h2>
+          </div>
+          <div className="grid lg:grid-cols-2 gap-4">
+            <Card>
+              <CardTitle>Revenue (₦)</CardTitle>
+              {loading ? <SkeletonBox height={240} className="rounded-xl" /> : revenue.length === 0 ? (
+                <Empty>No payments in this period.</Empty>
               ) : (
-                <div className="px-5 pb-5 pt-2 flex flex-col gap-2">
-                  {eventNames.map((eventName) => {
-                    const count = funnelCounts.get(eventName) ?? 0
-                    const pct = firstStepCount > 0 ? Math.round((count / firstStepCount) * 100) : 0
-                    return (
-                      <div key={eventName} className="flex items-center justify-between text-sm">
-                        <span style={{ color: 'var(--color-text-muted)' }}>{eventName}</span>
-                        <span className="tabular-nums font-medium" style={{ color: 'var(--color-text)' }}>
-                          {count}{firstStepCount > 0 && eventName !== eventNames[0] ? ` (${pct}%)` : ''}
-                        </span>
-                      </div>
-                    )
-                  })}
+                <div style={{ height: 240 }}>
+                  <Line data={{ labels: revenueLabels, datasets: [{ label: 'Revenue', data: revenueValues, borderColor: '#6DC43F', backgroundColor: 'rgba(109,196,63,0.08)', tension: 0.4, fill: true, pointRadius: 3 }] }} options={CHART_OPTIONS} />
                 </div>
               )}
             </Card>
-          )
-        })}
-      </div>
-
-      {otherEvents.length > 0 && (
-        <Card className="mb-6" padding={false}>
-          <div className="px-5 pt-5"><CardTitle>Other events</CardTitle></div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-y text-left text-[11px] uppercase tracking-wider" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
-                  <th className="px-5 py-2.5 font-semibold">Event</th>
-                  <th className="px-5 py-2.5 font-semibold text-right">Count</th>
-                </tr>
-              </thead>
-              <tbody>
-                {otherEvents.map((row) => (
-                  <tr key={row.eventName} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
-                    <td className="px-5 py-3 font-medium" style={{ color: 'var(--color-text)' }}>{row.eventName}</td>
-                    <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <Card>
+              <CardTitle>Service usage</CardTitle>
+              {loading ? <SkeletonBox height={240} className="rounded-xl" /> : usage.length === 0 ? (
+                <Empty>No service activity in this period.</Empty>
+              ) : (
+                <div style={{ height: 240 }}>
+                  <Bar
+                    data={{
+                      labels: usageLabels,
+                      datasets: [
+                        { label: 'Appointments', data: usage.slice(-14).map((row) => row.appointments), backgroundColor: '#6DC43F' },
+                        { label: 'TeleCare', data: usage.slice(-14).map((row) => row.telecare), backgroundColor: '#3B82F6' },
+                        { label: 'Dispatch', data: usage.slice(-14).map((row) => row.dispatch), backgroundColor: '#C0392B' },
+                        { label: 'Labs', data: usage.slice(-14).map((row) => row.labOrders), backgroundColor: '#E8930A' },
+                      ],
+                    }}
+                    options={CHART_OPTIONS}
+                  />
+                </div>
+              )}
+            </Card>
           </div>
-        </Card>
+        </>
       )}
 
-      <Card className="mb-6" padding={false}>
-        <div className="px-5 pt-5">
-          <CardTitle>Retention</CardTitle>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-            Registered patients who returned N+ days later, out of {retention?.cohortSize ?? 0} registered in the last 90 days
-          </p>
-        </div>
-        {!loading && !retention?.windows.some((w) => w.eligibleCohortSize > 0) ? (
-          <Empty>No cohort has reached a retention window yet.</Empty>
-        ) : (
-          <div className="grid grid-cols-3 divide-x" style={{ borderColor: 'var(--color-border)' }}>
-            {(retention?.windows ?? []).map((w) => (
-              <div key={w.days} className="px-5 py-4">
-                <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>D{w.days}</p>
-                <p className="text-2xl font-bold mt-1" style={{ color: 'var(--color-text)' }}>{w.rate === null ? '—' : `${w.rate}%`}</p>
-                <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-faint)' }}>
-                  {w.eligibleCohortSize === 0 ? 'No eligible cohort yet' : `${w.retainedUsers} of ${w.eligibleCohortSize}`}
+      {section === 'Funnels' && (
+        <>
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Funnels</h2>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Step counts for the selected period, in funnel order</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <select
+                value={funnelContinent}
+                onChange={(e) => setFunnelContinent(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by continent"
+              >
+                <option value="">All continents</option>
+                {Array.from(new Set((traffic?.locations ?? []).map((l) => l.continent))).map((continent) => (
+                  <option key={continent} value={continent}>{continent}</option>
+                ))}
+              </select>
+              <select
+                value={funnelCountry}
+                onChange={(e) => setFunnelCountry(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by country"
+              >
+                <option value="">All countries</option>
+                {Array.from(new Set((traffic?.locations ?? []).map((l) => l.countryCode))).map((code) => (
+                  <option key={code} value={code}>{countryName(code)}</option>
+                ))}
+              </select>
+              <select
+                value={funnelDevice}
+                onChange={(e) => setFunnelDevice(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by device"
+              >
+                <option value="">All devices</option>
+                {Array.from(new Set((traffic?.devices ?? []).map((d) => d.device))).map((device) => (
+                  <option key={device} value={device}>{device}</option>
+                ))}
+              </select>
+              <ExportButton onExport={exportFunnelSteps} />
+            </div>
+          </div>
+
+          {!loading && !funnel?.steps.length ? (
+            <Card className="mb-6"><Empty>No instrumented events yet for this filter combination.</Empty></Card>
+          ) : (
+            <>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                {(funnel?.kpis ?? []).map((kpi) => (
+                  <Card key={kpi.key}>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>{kpi.label}</p>
+                    <p className="text-2xl font-bold mt-1" style={{ color: 'var(--color-text)' }}>{kpi.value === null ? '—' : `${kpi.value}%`}</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-faint)' }}>
+                      {kpi.denominator === 0 ? 'No data yet' : `${kpi.numerator} of ${kpi.denominator}`}
+                    </p>
+                  </Card>
+                ))}
+              </div>
+
+              <div className="grid lg:grid-cols-3 gap-4 mb-6">
+                {Object.entries(FUNNEL_GROUPS).map(([groupName, eventNames]) => {
+                  const firstStepCount = funnelCounts.get(eventNames[0]) ?? 0
+                  return (
+                    <Card key={groupName} padding={false}>
+                      <div className="px-5 pt-5"><CardTitle>{groupName}</CardTitle></div>
+                      {!loading && firstStepCount === 0 && eventNames.every((n) => !funnelCounts.get(n)) ? (
+                        <Empty>No events yet.</Empty>
+                      ) : (
+                        <div className="px-5 pb-5 pt-2 flex flex-col gap-2">
+                          {eventNames.map((eventName) => {
+                            const count = funnelCounts.get(eventName) ?? 0
+                            const pct = firstStepCount > 0 ? Math.round((count / firstStepCount) * 100) : 0
+                            return (
+                              <div key={eventName} className="flex items-center justify-between text-sm">
+                                <span style={{ color: 'var(--color-text-muted)' }}>{eventName}</span>
+                                <span className="tabular-nums font-medium" style={{ color: 'var(--color-text)' }}>
+                                  {count}{firstStepCount > 0 && eventName !== eventNames[0] ? ` (${pct}%)` : ''}
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </Card>
+                  )
+                })}
+              </div>
+
+              {otherEvents.length > 0 && (
+                <Card className="mb-6" padding={false}>
+                  <div className="px-5 pt-5"><CardTitle>Other events</CardTitle></div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-y text-left text-[11px] uppercase tracking-wider" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                          <th className="px-5 py-2.5 font-semibold">Event</th>
+                          <th className="px-5 py-2.5 font-semibold text-right">Count</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {otherEvents.map((row) => (
+                          <tr key={row.eventName} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                            <td className="px-5 py-3 font-medium" style={{ color: 'var(--color-text)' }}>{row.eventName}</td>
+                            <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.count}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {section === 'Acquisition' && (
+        <>
+          <div className="grid lg:grid-cols-[1.6fr_1fr] gap-4 mb-4">
+            <Card>
+              <CardTitle>How users heard about us</CardTitle>
+              {loading ? <SkeletonBox height={250} className="rounded-xl" /> : !marketing?.acquisitionSources.length ? (
+                <Empty>No registration-source data yet.</Empty>
+              ) : (
+                <div className="space-y-4 pt-1">
+                  {marketing.acquisitionSources.map((row) => (
+                    <div key={row.source}>
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="font-medium" style={{ color: 'var(--color-text)' }}>{SOURCE_LABELS[row.source] ?? row.source}</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>{row.count} · {row.percentage}%</span>
+                      </div>
+                      <div className="h-1.5 rounded-full" style={{ background: 'var(--color-border)' }}>
+                        <div className="h-full rounded-full bg-[#6DC43F] transition-[width] duration-300" style={{ width: `${row.percentage}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <Card>
+              <CardTitle>Attribution rate</CardTitle>
+              <div className="pt-2">
+                <p className="text-3xl font-bold" style={{ color: 'var(--color-text)' }}>{attributedRate}%</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                  {marketing?.totals.attributedRegistrations ?? 0} of {marketing?.totals.registrations ?? 0} registrations carry a UTM-tagged campaign
                 </p>
               </div>
-            ))}
+            </Card>
           </div>
-        )}
-      </Card>
 
-      <Card className="mb-6" padding={false}>
-        <div className="px-5 pt-5">
-          <CardTitle>Declared vs. access geography</CardTitle>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-            Where patients say they live vs. where their sessions actually originate
-            {geoComparison ? ` — ${geoComparison.diasporaPatients} of ${geoComparison.totalPatients} patients access from a different country than declared` : ''}
-          </p>
-        </div>
-        {!loading && !geoComparison?.comparisons.length ? (
-          <Empty>No authenticated sessions with geo data yet.</Empty>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-y text-left text-[11px] uppercase tracking-wider" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
-                  <th className="px-5 py-2.5 font-semibold">Declared</th>
-                  <th className="px-4 py-2.5 font-semibold">Accessing from</th>
-                  <th className="px-5 py-2.5 font-semibold text-right">Patients</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(geoComparison?.comparisons ?? []).slice(0, 20).map((row) => (
-                  <tr key={`${row.declaredCountry}-${row.accessCountry}`} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
-                    <td className="px-5 py-3 font-medium" style={{ color: 'var(--color-text)' }}>{row.declaredCountry}</td>
-                    <td className="px-4 py-3" style={{ color: row.matches ? 'var(--color-text-muted)' : 'var(--color-warning, #E8930A)' }}>
-                      {row.accessCountry}{!row.matches && ' (diaspora)'}
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.patients}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <Card className="mb-4" padding={false}>
+            <CardHeader title="Campaign performance" onExport={marketing?.campaigns.length ? exportCampaigns : undefined} />
+            {!loading && !marketing?.campaigns.length ? (
+              <Empty>No UTM-tagged campaign activity yet. Add utm_source/utm_campaign to your links to see them here.</Empty>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-y text-left text-[11px] uppercase tracking-wider" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                      <th className="px-5 py-2.5 font-semibold">Campaign</th>
+                      <th className="px-4 py-2.5 font-semibold">Source / medium</th>
+                      <th className="px-4 py-2.5 font-semibold text-right">Registrations</th>
+                      <th className="px-5 py-2.5 font-semibold text-right">Logins</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(marketing?.campaigns ?? []).map((row) => (
+                      <tr key={`${row.campaign}-${row.source}-${row.medium}`} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                        <td className="px-5 py-3 font-medium" style={{ color: 'var(--color-text)' }}>{row.campaign}</td>
+                        <td className="px-4 py-3" style={{ color: 'var(--color-text-muted)' }}>{row.source} / {row.medium}</td>
+                        <td className="px-4 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.registrations}</td>
+                        <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.logins}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+
+          <div className="grid lg:grid-cols-[1.4fr_1fr] gap-4">
+            <Card padding={false}>
+              <div className="px-5 pt-5"><CardTitle>Login locations</CardTitle></div>
+              {!loading && !marketing?.loginLocations.length ? (
+                <Empty>Location data will appear after tracked sign-ins.</Empty>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-y text-left text-[11px] uppercase tracking-wider" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                        <th className="px-5 py-2.5 font-semibold">Location</th>
+                        <th className="px-4 py-2.5 font-semibold">Timezone</th>
+                        <th className="px-4 py-2.5 font-semibold text-right">Users</th>
+                        <th className="px-5 py-2.5 font-semibold text-right">Logins</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(marketing?.loginLocations ?? []).map((row, index) => (
+                        <tr key={`${row.countryCode}-${row.region}-${row.city}-${index}`} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                          <td className="px-5 py-3">
+                            <p className="font-medium" style={{ color: 'var(--color-text)' }}>{row.city !== 'Unknown' ? row.city : countryName(row.countryCode)}</p>
+                            <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>{row.region !== 'Unknown' ? `${row.region}, ` : ''}{countryName(row.countryCode)}</p>
+                          </td>
+                          <td className="px-4 py-3 text-xs" style={{ color: 'var(--color-text-muted)' }}>{row.timezone}</td>
+                          <td className="px-4 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.uniqueUsers}</td>
+                          <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.logins}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+
+            <Card>
+              <CardTitle>Login devices</CardTitle>
+              {loading ? <SkeletonBox height={140} className="rounded-xl" /> : !marketing?.devices.length ? (
+                <Empty>No login-device data yet.</Empty>
+              ) : (
+                <div className="space-y-4">
+                  {marketing.devices.map((row) => (
+                    <div key={row.device}>
+                      <div className="flex justify-between text-xs mb-1.5">
+                        <span className="font-medium" style={{ color: 'var(--color-text)' }}>{row.device}</span>
+                        <span className="tabular-nums" style={{ color: 'var(--color-text-muted)' }}>{row.count}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full" style={{ background: 'var(--color-border)' }}>
+                        <div className="h-full rounded-full bg-[#3B82F6] transition-[width] duration-300" style={{ width: `${(row.count / maxDeviceCount) * 100}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!!marketing?.referrers.length && (
+                <div className="mt-6 pt-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
+                  <h4 className="text-xs font-semibold mb-3" style={{ color: 'var(--color-text)' }}>Top login referrers</h4>
+                  <div className="space-y-2">
+                    {marketing.referrers.slice(0, 5).map((row) => (
+                      <div key={row.referrer} className="flex justify-between gap-3 text-xs">
+                        <span className="truncate" style={{ color: 'var(--color-text-muted)' }}>{row.referrer}</span>
+                        <span className="tabular-nums" style={{ color: 'var(--color-text)' }}>{row.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </Card>
           </div>
-        )}
-      </Card>
+        </>
+      )}
 
-      <div className="mb-3">
-        <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Operational analytics</h2>
-        <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Revenue and service use for the selected period</p>
-      </div>
-      <div className="grid lg:grid-cols-2 gap-4">
-        <Card>
-          <CardTitle>Revenue (₦)</CardTitle>
-          {loading ? <SkeletonBox height={240} className="rounded-xl" /> : revenue.length === 0 ? (
-            <Empty>No payments in this period.</Empty>
+      {section === 'Geography' && (
+        <>
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Site traffic</h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+              Anonymous pageviews on the marketing site (myvaultplus.com) — most visitors here never register
+            </p>
+          </div>
+
+          {loading && !traffic ? (
+            <SkeletonBox height={88} className="rounded-xl mb-4" />
           ) : (
-            <div style={{ height: 240 }}>
-              <Line data={{ labels: revenueLabels, datasets: [{ label: 'Revenue', data: revenueValues, borderColor: '#6DC43F', backgroundColor: 'rgba(109,196,63,0.08)', tension: 0.4, fill: true, pointRadius: 3 }] }} options={CHART_OPTIONS} />
-            </div>
-          )}
-        </Card>
-        <Card>
-          <CardTitle>Service usage</CardTitle>
-          {loading ? <SkeletonBox height={240} className="rounded-xl" /> : usage.length === 0 ? (
-            <Empty>No service activity in this period.</Empty>
-          ) : (
-            <div style={{ height: 240 }}>
-              <Bar
-                data={{
-                  labels: usageLabels,
-                  datasets: [
-                    { label: 'Appointments', data: usage.slice(-14).map((row) => row.appointments), backgroundColor: '#6DC43F' },
-                    { label: 'TeleCare', data: usage.slice(-14).map((row) => row.telecare), backgroundColor: '#3B82F6' },
-                    { label: 'Dispatch', data: usage.slice(-14).map((row) => row.dispatch), backgroundColor: '#C0392B' },
-                    { label: 'Labs', data: usage.slice(-14).map((row) => row.labOrders), backgroundColor: '#E8930A' },
-                  ],
-                }}
-                options={CHART_OPTIONS}
+            <div className="grid grid-cols-2 md:grid-cols-4 mb-4 border-y" style={{ borderColor: 'var(--color-border)' }}>
+              <Metric label="Total visits" value={String(traffic?.totalVisits ?? 0)} detail={`Across the last ${period}`} />
+              <Metric
+                label="Top location"
+                value={topTrafficLocation ? (topTrafficLocation.city !== 'Unknown' ? topTrafficLocation.city : countryName(topTrafficLocation.countryCode)) : '—'}
+                detail={topTrafficLocation ? `${topTrafficLocation.visits} visits` : 'No visits yet'}
               />
+              <Metric label="Top device" value={traffic?.devices[0]?.device ?? '—'} detail={traffic?.devices[0] ? `${traffic.devices[0].count} visits` : 'No visits yet'} />
+              <Metric label="Top referrer" value={traffic?.referrers[0]?.referrer ?? 'Direct'} detail={traffic?.referrers[0] ? `${traffic.referrers[0].count} visits` : 'No referrer data yet'} />
             </div>
           )}
-        </Card>
-      </div>
+
+          <div className="grid lg:grid-cols-[1.6fr_1fr] gap-4 mb-4">
+            <Card>
+              <CardTitle>Visits over time</CardTitle>
+              {loading ? <SkeletonBox height={220} className="rounded-xl" /> : trafficActivityWindow.length === 0 ? (
+                <Empty>No site visits recorded in this period.</Empty>
+              ) : (
+                <div style={{ height: 220 }}>
+                  <Line
+                    data={{
+                      labels: trafficActivityLabels,
+                      datasets: [
+                        { label: 'Visits', data: trafficActivityWindow.map((row) => row.visits), borderColor: '#E8930A', backgroundColor: 'rgba(232,147,10,0.08)', tension: 0.35, fill: true, pointRadius: 2 },
+                      ],
+                    }}
+                    options={CHART_OPTIONS}
+                  />
+                </div>
+              )}
+            </Card>
+
+            <Card>
+              <CardTitle>Visitor devices</CardTitle>
+              {!loading && !traffic?.devices.length ? (
+                <Empty>No device data yet.</Empty>
+              ) : (
+                <div className="space-y-4 pt-1">
+                  {(traffic?.devices ?? []).map((row) => (
+                    <div key={row.device}>
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="font-medium" style={{ color: 'var(--color-text)' }}>{row.device}</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>{row.count}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full" style={{ background: 'var(--color-border)' }}>
+                        <div className="h-full rounded-full bg-[#E8930A] transition-[width] duration-300" style={{ width: `${(row.count / maxTrafficDeviceCount) * 100}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+
+          <div className="grid lg:grid-cols-[1.4fr_1fr] gap-4 mb-4">
+            <Card padding={false}>
+              <CardHeader title="Visitor locations" onExport={traffic?.locations.length ? exportVisitorLocations : undefined} />
+              {!loading && !traffic?.locations.length ? (
+                <Empty>Location data will appear after tracked pageviews.</Empty>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-y text-left text-[11px] uppercase tracking-wider" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                        <th className="px-5 py-2.5 font-semibold">Location</th>
+                        <th className="px-5 py-2.5 font-semibold text-right">Visits</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(traffic?.locations ?? []).map((row, index) => (
+                        <tr key={`${row.countryCode}-${row.region}-${row.city}-${index}`} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                          <td className="px-5 py-3">
+                            <p className="font-medium" style={{ color: 'var(--color-text)' }}>{row.city !== 'Unknown' ? row.city : countryName(row.countryCode)}</p>
+                            <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>{row.region !== 'Unknown' ? `${row.region}, ` : ''}{countryName(row.countryCode)}</p>
+                          </td>
+                          <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.visits}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+
+            <Card>
+              <CardTitle>Top referrers</CardTitle>
+              {!loading && !traffic?.referrers.length ? (
+                <Empty>No referrer data yet.</Empty>
+              ) : (
+                <div className="space-y-2 pt-1">
+                  {(traffic?.referrers ?? []).map((row) => (
+                    <div key={row.referrer} className="flex justify-between gap-3 text-xs">
+                      <span className="truncate" style={{ color: 'var(--color-text-muted)' }}>{row.referrer}</span>
+                      <span className="tabular-nums" style={{ color: 'var(--color-text)' }}>{row.count}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+
+          <Card className="mb-4" padding={false}>
+            <div className="px-5 pt-5"><CardTitle>Ad campaign performance (site visits)</CardTitle></div>
+            {!loading && !traffic?.campaigns.length ? (
+              <Empty>No UTM-tagged campaign traffic yet.</Empty>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-y text-left text-[11px] uppercase tracking-wider" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                      <th className="px-5 py-2.5 font-semibold">Campaign</th>
+                      <th className="px-4 py-2.5 font-semibold">Source / medium</th>
+                      <th className="px-5 py-2.5 font-semibold text-right">Visits</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(traffic?.campaigns ?? []).map((row) => (
+                      <tr key={`${row.campaign}-${row.source}-${row.medium}`} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                        <td className="px-5 py-3 font-medium" style={{ color: 'var(--color-text)' }}>{row.campaign}</td>
+                        <td className="px-4 py-3" style={{ color: 'var(--color-text-muted)' }}>{row.source} / {row.medium}</td>
+                        <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.visits}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+
+          <Card padding={false}>
+            <CardHeader
+              title="Declared vs. access geography"
+              subtitle={`Where patients say they live vs. where their sessions actually originate${geoComparison ? ` — ${geoComparison.diasporaPatients} of ${geoComparison.totalPatients} patients access from a different country than declared` : ''}`}
+              onExport={geoComparison?.comparisons.length ? exportGeoComparison : undefined}
+            />
+            {!loading && !geoComparison?.comparisons.length ? (
+              <Empty>No authenticated sessions with geo data yet.</Empty>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-y text-left text-[11px] uppercase tracking-wider" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                      <th className="px-5 py-2.5 font-semibold">Declared</th>
+                      <th className="px-4 py-2.5 font-semibold">Accessing from</th>
+                      <th className="px-5 py-2.5 font-semibold text-right">Patients</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(geoComparison?.comparisons ?? []).slice(0, 20).map((row) => (
+                      <tr key={`${row.declaredCountry}-${row.accessCountry}`} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                        <td className="px-5 py-3 font-medium" style={{ color: 'var(--color-text)' }}>{row.declaredCountry}</td>
+                        <td className="px-4 py-3" style={{ color: row.matches ? 'var(--color-text-muted)' : 'var(--color-warning, #E8930A)' }}>
+                          {row.accessCountry}{!row.matches && ' (diaspora)'}
+                        </td>
+                        <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.patients}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </>
+      )}
     </div>
   )
 }
