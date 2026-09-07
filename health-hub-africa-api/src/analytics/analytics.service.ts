@@ -434,4 +434,72 @@ export class AnalyticsService {
       },
     };
   }
+
+  // Spec §16: N-day retention. ponytail: this is the common product-analytics
+  // simplification ("returned at least once N+ days after registering"), not
+  // a strict single-day cohort curve (active on exactly day N) — the latter
+  // needs a much larger sample to be statistically meaningful and isn't worth
+  // the extra complexity until there's real registration volume to look at.
+  // lookbackDays controls how far back to search for eligible cohort members
+  // (must be >= the largest window, 30, or D30 has no eligible cohort at all).
+  private static readonly RETENTION_WINDOWS = [1, 7, 30];
+
+  async getRetentionAnalytics(lookbackDays = 90) {
+    const since = new Date();
+    since.setDate(since.getDate() - lookbackDays);
+    const now = new Date();
+
+    const [registrations, activity] = await Promise.all([
+      this.prisma.patientActivityEvent.findMany({
+        where: { eventName: 'registration_complete', patientId: { not: null }, occurredAt: { gte: since } },
+        select: { patientId: true, occurredAt: true },
+      }),
+      this.prisma.patientActivityEvent.findMany({
+        where: { patientId: { not: null }, occurredAt: { gte: since } },
+        select: { patientId: true, occurredAt: true },
+      }),
+    ]);
+
+    // First registration_complete per patient — a re-fired event (retry,
+    // duplicate tab) shouldn't reset their cohort start date.
+    const registeredAt = new Map<string, Date>();
+    for (const r of registrations) {
+      const patientId = r.patientId as string;
+      const existing = registeredAt.get(patientId);
+      if (!existing || r.occurredAt < existing) registeredAt.set(patientId, r.occurredAt);
+    }
+
+    const activityByPatient = new Map<string, Date[]>();
+    for (const a of activity) {
+      const patientId = a.patientId as string;
+      const list = activityByPatient.get(patientId) ?? [];
+      list.push(a.occurredAt);
+      activityByPatient.set(patientId, list);
+    }
+
+    const windows = AnalyticsService.RETENTION_WINDOWS.map((days) => {
+      const cutoff = new Date(now);
+      cutoff.setDate(cutoff.getDate() - days);
+
+      let eligible = 0;
+      let retained = 0;
+      for (const [patientId, regDate] of registeredAt) {
+        if (regDate > cutoff) continue; // hasn't had a chance to reach day N yet
+        eligible++;
+        const activityCutoff = new Date(regDate);
+        activityCutoff.setDate(activityCutoff.getDate() + days);
+        const returned = (activityByPatient.get(patientId) ?? []).some((t) => t >= activityCutoff);
+        if (returned) retained++;
+      }
+
+      return {
+        days,
+        eligibleCohortSize: eligible,
+        retainedUsers: retained,
+        rate: eligible > 0 ? Math.round((retained / eligible) * 1000) / 10 : null,
+      };
+    });
+
+    return { data: { windows, cohortSize: registeredAt.size } };
+  }
 }
