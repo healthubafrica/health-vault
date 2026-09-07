@@ -8,7 +8,7 @@ import { type RecordType } from '@/lib/data/records'
 import { formatDate, formatBytes } from '@/lib/utils'
 import { FileText, FlaskConical, Pill as PillIcon, File, Download, Link2, Upload, Stethoscope, ClipboardCheck, ScanLine, UserCheck } from 'lucide-react'
 import Link from 'next/link'
-import { records as recordsApi, labs as labsApi, type ClinicalRecord } from '@/lib/api'
+import { records as recordsApi, labs as labsApi, analytics, type ClinicalRecord } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
@@ -72,6 +72,7 @@ async function handleDownload(record: ClinicalRecord) {
   try {
     const objectKey = new URL(record.fileUrl).pathname.slice(1)
     const res = await recordsApi.getDownloadUrl(objectKey)
+    analytics.track('download', { recordType: record.recordType })
     window.open(res.data.downloadUrl, '_blank')
   } catch (err) {
     toast.error(err instanceof Error ? err.message : 'Download failed')
