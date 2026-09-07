@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useApi } from '@/lib/hooks/useApi'
-import { shares, type RecordShare, type CreateShareParams, type ShareAccessMode } from '@/lib/api'
+import { shares, analytics, type RecordShare, type CreateShareParams, type ShareAccessMode } from '@/lib/api'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { SuccessState } from '@/components/ui/states'
@@ -185,11 +185,14 @@ function CreateShareWizard({ onDone }: { onDone: () => void }) {
     }
 
     setSubmitting(true)
+    analytics.track('share_start', { accessMode: params.accessMode })
     try {
       const res = await shares.create(params)
+      analytics.track('share_success', { accessMode: params.accessMode })
       setCreatedToken(res.token)
       setNotified(res.notified ?? null)
     } catch (err) {
+      analytics.track('share_failure', { accessMode: params.accessMode })
       toast.error(err instanceof Error ? err.message : 'Failed to create share')
     } finally {
       setSubmitting(false)
