@@ -14,7 +14,7 @@ import { DocumentRow } from '@/components/vault/DocumentRow'
 import { VaultToolbar } from '@/components/vault/VaultToolbar'
 import { useApi } from '@/lib/hooks/useApi'
 import { useDocumentUpload } from '@/lib/hooks/useDocumentUpload'
-import { documents as documentsApi, records as recordsApi, type VaultDocument, type DocumentListParams } from '@/lib/api'
+import { documents as documentsApi, records as recordsApi, analytics, type VaultDocument, type DocumentListParams } from '@/lib/api'
 import { formatBytes } from '@/lib/utils'
 
 export function VaultScreen() {
@@ -70,6 +70,7 @@ export function VaultScreen() {
     if (!doc.fileUrl) return
     try {
       const res = await recordsApi.getDownloadUrl(doc.fileUrl)
+      analytics.track('download', { category: doc.category })
       window.open(res.data.downloadUrl, '_blank')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Download failed')
