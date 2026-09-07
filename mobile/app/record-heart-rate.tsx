@@ -17,7 +17,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
 import EmergencyFAB from '@/components/EmergencyFAB';
-import { vitals, ApiError } from '@/lib/api';
+import { vitals, analytics, ApiError } from '@/lib/api';
 import { queryClient } from '@/lib/queryClient';
 
 const METRIC_CONFIG = {
@@ -72,6 +72,7 @@ export default function RecordHeartRateInputScreen() {
         notes: note.trim() || undefined,
         recordedAt: new Date().toISOString(),
       });
+      analytics.track('manual_entry_success', { metric: 'Heart Rate' });
       queryClient.invalidateQueries({ queryKey: ['vitals'] });
 
       router.replace({
