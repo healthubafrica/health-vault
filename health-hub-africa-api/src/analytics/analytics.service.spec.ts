@@ -246,6 +246,53 @@ describe('AnalyticsService.getEngagementScore (transparent, versioned)', () => {
   });
 });
 
+describe('AnalyticsService.getDigitalExperienceAnalytics (device/browser + client errors)', () => {
+  function buildService(events: Array<{ eventName: string; deviceCategory: string | null; userAgent: string | null; properties?: unknown }>) {
+    const prisma = { patientActivityEvent: { findMany: jest.fn().mockResolvedValue(events) } };
+    const service = new AnalyticsService(prisma as any);
+    return { service };
+  }
+
+  it('breaks down devices and browsers from stored deviceCategory/userAgent', async () => {
+    const { service } = buildService([
+      { eventName: 'page_view', deviceCategory: 'Mobile', userAgent: 'Mozilla/5.0 (iPhone) CriOS/1.0 Safari/1.0' },
+      { eventName: 'page_view', deviceCategory: 'Desktop', userAgent: 'Mozilla/5.0 (Windows) Chrome/1.0 Safari/1.0' },
+      { eventName: 'page_view', deviceCategory: 'Desktop', userAgent: 'Mozilla/5.0 (Macintosh) Version/1.0 Safari/1.0' },
+    ]);
+
+    const result = await service.getDigitalExperienceAnalytics('30d');
+
+    expect(result.data.totalEvents).toBe(3);
+    expect(result.data.devices).toEqual([{ device: 'Desktop', count: 2 }, { device: 'Mobile', count: 1 }]);
+    expect(result.data.browsers).toEqual(
+      expect.arrayContaining([{ browser: 'Chrome', count: 2 }, { browser: 'Safari', count: 1 }]),
+    );
+  });
+
+  it('counts client_error events and ranks their top messages', async () => {
+    const { service } = buildService([
+      { eventName: 'page_view', deviceCategory: 'Desktop', userAgent: 'Chrome/1.0' },
+      { eventName: 'client_error', deviceCategory: 'Desktop', userAgent: 'Chrome/1.0', properties: { message: 'TypeError: x is undefined' } },
+      { eventName: 'client_error', deviceCategory: 'Mobile', userAgent: 'CriOS/1.0', properties: { message: 'TypeError: x is undefined' } },
+      { eventName: 'client_error', deviceCategory: 'Desktop', userAgent: 'Chrome/1.0', properties: { message: 'NetworkError' } },
+    ]);
+
+    const result = await service.getDigitalExperienceAnalytics('30d');
+
+    expect(result.data.errorCount).toBe(3);
+    expect(result.data.errorRate).toBe(75); // 3 of 4 total events
+    expect(result.data.topErrors[0]).toEqual({ message: 'TypeError: x is undefined', count: 2 });
+  });
+
+  it('reports a null error rate instead of dividing by zero when there is no traffic', async () => {
+    const { service } = buildService([]);
+    const result = await service.getDigitalExperienceAnalytics('30d');
+
+    expect(result.data.errorRate).toBeNull();
+    expect(result.data.errorCount).toBe(0);
+  });
+});
+
 describe('AnalyticsService.getGeoComparison (declared vs access geography)', () => {
   function buildService(events: Array<{ patientId: string; countryCode: string }>, patients: Array<{ id: string; country: string }>) {
     const prisma = {

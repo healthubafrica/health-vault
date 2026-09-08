@@ -207,6 +207,13 @@ export class AdminController {
     return this.adminService.getRetentionAnalytics(lookbackDays ? parseInt(lookbackDays, 10) : undefined);
   }
 
+  @Get('analytics/digital-experience')
+  @ApiOperation({ summary: 'Get device/browser breakdown and client-error visibility for the patient portal' })
+  @ApiQuery({ name: 'period', required: false, description: "e.g. '7d', '30d', '90d' (default 30d)" })
+  getDigitalExperienceAnalytics(@Query('period') period?: string) {
+    return this.adminService.getDigitalExperienceAnalytics(period);
+  }
+
   // ── Alerts ────────────────────────────────────────────────────────────────
   // System-detected conditions (OTP failure spikes, booking abandonment —
   // spec §29/§2) — a background job in AlertsModule raises these on a 15-min
