@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { travelsafe, ApiError, type TravelSafeTrip, type TravelSafeSummary } from '@/lib/api'
+import { travelsafe, analytics, ApiError, type TravelSafeTrip, type TravelSafeSummary } from '@/lib/api'
 
 const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }> = {
   preparing: { label: 'Preparing',  color: '#B45309', bg: '#FEF3C7' },
@@ -91,6 +91,7 @@ export function TravelSafeScreen() {
         partnerCode: form.partnerCode.trim() || undefined,
         notes: form.notes.trim() || undefined,
       })
+      analytics.track('travelsafe_trip_created', { destinationCountry: form.destinationCountry.trim() })
       setTrips((prev) => [res.data, ...prev])
       toast.success('TravelSafe trip created!')
       setForm({ destinationCountry: '', departureDate: '', returnDate: '', purpose: '', partnerCode: '', notes: '' })
