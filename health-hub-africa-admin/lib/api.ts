@@ -268,6 +268,14 @@ export interface AdminUser {
     lastName: string
     isAvailable: boolean
   }
+  // Present only when the user has a patient record — transparent, versioned
+  // score (spec §17: "not a hidden AI score"), computed on-demand.
+  engagement?: {
+    score: number
+    category: string
+    version: number
+    components: Record<string, number>
+  }
 }
 
 // ── Admin: Analytics ──────────────────────────────────────────────────────
