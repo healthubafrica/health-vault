@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download } from 'lucide-react'
 import { useAutoRefresh } from '@/lib/hooks/useLiveData'
-import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type GeoComparison, type RetentionAnalytics, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
+import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type GeoComparison, type RetentionAnalytics, type DigitalExperienceAnalytics, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { FilterTabs } from '@/components/ui/FilterTabs'
@@ -25,7 +25,7 @@ import { Bar, Line } from 'react-chartjs-2'
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Tooltip, Legend, Filler)
 
 const PERIODS = ['7d', '30d', '90d']
-const SECTIONS = ['Overview', 'Funnels', 'Acquisition', 'Geography'] as const
+const SECTIONS = ['Overview', 'Funnels', 'Acquisition', 'Geography', 'Digital Experience'] as const
 type Section = (typeof SECTIONS)[number]
 
 const CHART_OPTIONS = {
@@ -139,6 +139,7 @@ export default function AnalyticsPage() {
   const [funnel, setFunnel] = useState<FunnelAnalytics | null>(null)
   const [geoComparison, setGeoComparison] = useState<GeoComparison | null>(null)
   const [retention, setRetention] = useState<RetentionAnalytics | null>(null)
+  const [digitalExperience, setDigitalExperience] = useState<DigitalExperienceAnalytics | null>(null)
   const [funnelCountry, setFunnelCountry] = useState('')
   const [funnelContinent, setFunnelContinent] = useState('')
   const [funnelDevice, setFunnelDevice] = useState('')
@@ -146,7 +147,7 @@ export default function AnalyticsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [rRes, uRes, mRes, tRes, fRes, gRes, retRes] = await Promise.all([
+      const [rRes, uRes, mRes, tRes, fRes, gRes, retRes, deRes] = await Promise.all([
         adminApi.analytics.revenue(period),
         adminApi.analytics.usage(period),
         adminApi.analytics.marketing(period),
@@ -158,6 +159,7 @@ export default function AnalyticsPage() {
         }),
         adminApi.analytics.geoComparison(period),
         adminApi.analytics.retention(),
+        adminApi.analytics.digitalExperience(period),
       ])
       setRevenue(rRes.data)
       setUsage(uRes.data)
@@ -166,6 +168,7 @@ export default function AnalyticsPage() {
       setFunnel(fRes.data)
       setGeoComparison(gRes.data)
       setRetention(retRes.data)
+      setDigitalExperience(deRes.data)
     } finally {
       setLoading(false)
     }
@@ -216,6 +219,14 @@ export default function AnalyticsPage() {
     () => Math.max(1, ...(traffic?.devices.map((row) => row.count) ?? [1])),
     [traffic],
   )
+  const maxPortalDeviceCount = useMemo(
+    () => Math.max(1, ...(digitalExperience?.devices.map((row) => row.count) ?? [1])),
+    [digitalExperience],
+  )
+  const maxBrowserCount = useMemo(
+    () => Math.max(1, ...(digitalExperience?.browsers.map((row) => row.count) ?? [1])),
+    [digitalExperience],
+  )
 
   const exportFunnelSteps = () =>
     downloadCsv(
@@ -240,6 +251,12 @@ export default function AnalyticsPage() {
       `visitor-locations-${period}.csv`,
       ['Country', 'Region', 'City', 'Visits'],
       (traffic?.locations ?? []).map((l) => [countryName(l.countryCode), l.region, l.city, l.visits]),
+    )
+  const exportTopErrors = () =>
+    downloadCsv(
+      `client-errors-${period}.csv`,
+      ['Message', 'Occurrences'],
+      (digitalExperience?.topErrors ?? []).map((e) => [e.message, e.count]),
     )
 
   return (
@@ -772,6 +789,98 @@ export default function AnalyticsPage() {
                           {row.accessCountry}{!row.matches && ' (diaspora)'}
                         </td>
                         <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.patients}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </>
+      )}
+
+      {section === 'Digital Experience' && (
+        <>
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Digital Experience</h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+              Device/browser mix and client-side errors on the patient portal itself — distinct from the anonymous marketing-site traffic under Geography
+            </p>
+          </div>
+
+          {loading && !digitalExperience ? (
+            <SkeletonBox height={88} className="rounded-xl mb-4" />
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 mb-4 border-y" style={{ borderColor: 'var(--color-border)' }}>
+              <Metric label="Portal events" value={String(digitalExperience?.totalEvents ?? 0)} detail={`Across the last ${period}`} />
+              <Metric label="Top device" value={digitalExperience?.devices[0]?.device ?? '—'} detail={digitalExperience?.devices[0] ? `${digitalExperience.devices[0].count} events` : 'No data yet'} />
+              <Metric label="Top browser" value={digitalExperience?.browsers[0]?.browser ?? '—'} detail={digitalExperience?.browsers[0] ? `${digitalExperience.browsers[0].count} events` : 'No data yet'} />
+              <Metric label="Client error rate" value={digitalExperience?.errorRate === null || digitalExperience?.errorRate === undefined ? '—' : `${digitalExperience.errorRate}%`} detail={`${digitalExperience?.errorCount ?? 0} errors captured`} />
+            </div>
+          )}
+
+          <div className="grid lg:grid-cols-2 gap-4 mb-4">
+            <Card>
+              <CardTitle>Portal devices</CardTitle>
+              {!loading && !digitalExperience?.devices.length ? (
+                <Empty>No device data yet.</Empty>
+              ) : (
+                <div className="space-y-4 pt-1">
+                  {(digitalExperience?.devices ?? []).map((row) => (
+                    <div key={row.device}>
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="font-medium" style={{ color: 'var(--color-text)' }}>{row.device}</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>{row.count}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full" style={{ background: 'var(--color-border)' }}>
+                        <div className="h-full rounded-full bg-[#6DC43F] transition-[width] duration-300" style={{ width: `${(row.count / maxPortalDeviceCount) * 100}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <Card>
+              <CardTitle>Portal browsers</CardTitle>
+              {!loading && !digitalExperience?.browsers.length ? (
+                <Empty>No browser data yet.</Empty>
+              ) : (
+                <div className="space-y-4 pt-1">
+                  {(digitalExperience?.browsers ?? []).map((row) => (
+                    <div key={row.browser}>
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="font-medium" style={{ color: 'var(--color-text)' }}>{row.browser}</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>{row.count}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full" style={{ background: 'var(--color-border)' }}>
+                        <div className="h-full rounded-full bg-[#3B82F6] transition-[width] duration-300" style={{ width: `${(row.count / maxBrowserCount) * 100}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+
+          <Card padding={false}>
+            <CardHeader title="Top client errors" subtitle="Captured via window error and unhandled-rejection listeners on the portal" onExport={digitalExperience?.topErrors.length ? exportTopErrors : undefined} />
+            {!loading && !digitalExperience?.topErrors.length ? (
+              <Empty>No client-side errors captured in this period. 🎉</Empty>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-y text-left text-[11px] uppercase tracking-wider" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                      <th className="px-5 py-2.5 font-semibold">Message</th>
+                      <th className="px-5 py-2.5 font-semibold text-right">Occurrences</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(digitalExperience?.topErrors ?? []).map((row) => (
+                      <tr key={row.message} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                        <td className="px-5 py-3 font-mono text-xs" style={{ color: 'var(--color-text)' }}>{row.message}</td>
+                        <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.count}</td>
                       </tr>
                     ))}
                   </tbody>

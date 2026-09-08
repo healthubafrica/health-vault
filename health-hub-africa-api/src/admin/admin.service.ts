@@ -778,6 +778,10 @@ export class AdminService {
     return this.analyticsService.getRetentionAnalytics(lookbackDays);
   }
 
+  getDigitalExperienceAnalytics(period = '30d') {
+    return this.analyticsService.getDigitalExperienceAnalytics(period);
+  }
+
   // Thin delegates — detection, dedup, and email delivery live in
   // AlertsModule (which also owns the cron that runs the checks); kept out
   // of AdminService so the two concerns (raising an alert, reading the
