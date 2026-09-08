@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Download } from 'lucide-react'
+import { Download, ChevronRight, ChevronDown } from 'lucide-react'
 import { useAutoRefresh } from '@/lib/hooks/useLiveData'
 import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type GeoComparison, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
 import { Card, CardTitle } from '@/components/ui/Card'
@@ -125,6 +125,84 @@ function CardHeader({ title, subtitle, onExport }: { title: string; subtitle?: s
         {subtitle && <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{subtitle}</p>}
       </div>
       {onExport && <ExportButton onExport={onExport} />}
+    </div>
+  )
+}
+
+// Country -> admin-1 region -> city drill-down (TrafficAnalytics.hierarchy).
+// Two-level expand state (country, and "country|region" for its city list)
+// rather than a generic recursive tree — the hierarchy is exactly 3 levels
+// deep, always, so a generic tree component would be more code for the same
+// result.
+function GeoHierarchyTree({ hierarchy }: { hierarchy: TrafficAnalytics['hierarchy'] }) {
+  const [openCountries, setOpenCountries] = useState<Set<string>>(new Set())
+  const [openRegions, setOpenRegions] = useState<Set<string>>(new Set())
+
+  const toggleCountry = (code: string) =>
+    setOpenCountries((prev) => {
+      const next = new Set(prev)
+      next.has(code) ? next.delete(code) : next.add(code)
+      return next
+    })
+  const toggleRegion = (key: string) =>
+    setOpenRegions((prev) => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+
+  return (
+    <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
+      {hierarchy.map((country) => {
+        const isOpen = openCountries.has(country.countryCode)
+        return (
+          <div key={country.countryCode}>
+            <button
+              onClick={() => toggleCountry(country.countryCode)}
+              className="w-full flex items-center justify-between gap-3 px-5 py-3 text-left hover:opacity-80 transition-opacity"
+            >
+              <span className="flex items-center gap-2 min-w-0">
+                {isOpen ? <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />}
+                <span className="font-medium truncate" style={{ color: 'var(--color-text)' }}>{countryName(country.countryCode)}</span>
+                <span className="text-[11px] flex-shrink-0" style={{ color: 'var(--color-text-faint)' }}>{country.continent} · {country.regions.length} region{country.regions.length === 1 ? '' : 's'}</span>
+              </span>
+              <span className="tabular-nums text-sm flex-shrink-0" style={{ color: 'var(--color-text)' }}>{country.visits}</span>
+            </button>
+            {isOpen && (
+              <div className="pb-2">
+                {country.regions.map((region) => {
+                  const regionKey = `${country.countryCode}|${region.region}`
+                  const regionOpen = openRegions.has(regionKey)
+                  return (
+                    <div key={regionKey}>
+                      <button
+                        onClick={() => toggleRegion(regionKey)}
+                        className="w-full flex items-center justify-between gap-3 pl-10 pr-5 py-2 text-left hover:opacity-80 transition-opacity"
+                      >
+                        <span className="flex items-center gap-2 min-w-0">
+                          {regionOpen ? <ChevronDown className="w-3 h-3 flex-shrink-0" /> : <ChevronRight className="w-3 h-3 flex-shrink-0" />}
+                          <span className="text-sm truncate" style={{ color: 'var(--color-text-muted)' }}>{region.region}</span>
+                        </span>
+                        <span className="tabular-nums text-xs flex-shrink-0" style={{ color: 'var(--color-text-muted)' }}>{region.visits}</span>
+                      </button>
+                      {regionOpen && (
+                        <div className="pl-16 pr-5 pb-1 flex flex-col gap-1">
+                          {region.cities.map((c) => (
+                            <div key={c.city} className="flex items-center justify-between gap-3 py-0.5">
+                              <span className="text-xs truncate" style={{ color: 'var(--color-text-faint)' }}>{c.city}</span>
+                              <span className="tabular-nums text-xs flex-shrink-0" style={{ color: 'var(--color-text-faint)' }}>{c.visits}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -768,6 +846,22 @@ export default function AnalyticsPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </Card>
+
+          <Card className="mb-4" padding={false}>
+            <div className="px-5 pt-5">
+              <CardTitle>Geo hierarchy</CardTitle>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                Country → region → city, drilled from the same visitor locations above. City is the finest level without a paid GeoIP vendor.
+              </p>
+            </div>
+            {!loading && !traffic?.hierarchy.length ? (
+              <Empty>No site visits recorded in this period.</Empty>
+            ) : (
+              <div className="pt-2">
+                <GeoHierarchyTree hierarchy={traffic?.hierarchy ?? []} />
               </div>
             )}
           </Card>

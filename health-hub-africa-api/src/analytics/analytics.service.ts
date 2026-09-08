@@ -244,6 +244,19 @@ export class AnalyticsService {
     const referrerMap = new Map<string, number>();
     const campaignMap = new Map<string, { campaign: string; source: string; medium: string; visits: number }>();
 
+    // Country -> admin-1 (region, from x-vercel-ip-country-region /
+    // cloudfront-viewer-country-region — free edge-header geo, an ISO 3166-2
+    // subdivision code/name depending on provider) -> city. All from data
+    // already collected for the flat `locations` list below; this just
+    // nests it instead of a second query.
+    // ponytail: admin-2 (LGA/county — finer than city) has no free source;
+    // city is the practical ceiling without a paid GeoIP vendor. Stop here
+    // until that's decided, rather than approximating city->LGA mapping for
+    // one country while leaving every other country flat.
+    type CountryNode = { countryCode: string; continent: string; visits: number; regions: Map<string, RegionNode> };
+    type RegionNode = { region: string; visits: number; cities: Map<string, number> };
+    const hierarchyMap = new Map<string, CountryNode>();
+
     for (const v of visits) {
       const countryCode = v.countryCode?.toUpperCase() ?? 'Unknown';
       const region = v.region ?? 'Unknown';
@@ -252,6 +265,14 @@ export class AnalyticsService {
       const location = locationMap.get(locationKey) ?? { countryCode, continent: continentForCountry(countryCode), region, city, visits: 0 };
       location.visits++;
       locationMap.set(locationKey, location);
+
+      const countryNode = hierarchyMap.get(countryCode) ?? { countryCode, continent: continentForCountry(countryCode), visits: 0, regions: new Map<string, RegionNode>() };
+      countryNode.visits++;
+      const regionNode = countryNode.regions.get(region) ?? { region, visits: 0, cities: new Map<string, number>() };
+      regionNode.visits++;
+      regionNode.cities.set(city, (regionNode.cities.get(city) ?? 0) + 1);
+      countryNode.regions.set(region, regionNode);
+      hierarchyMap.set(countryCode, countryNode);
 
       const device = deviceCategoryFromUserAgent(v.userAgent ?? undefined);
       deviceMap.set(device, (deviceMap.get(device) ?? 0) + 1);
@@ -290,6 +311,22 @@ export class AnalyticsService {
           .sort((a, b) => b.count - a.count)
           .slice(0, 10),
         campaigns: Array.from(campaignMap.values()).sort((a, b) => b.visits - a.visits).slice(0, 20),
+        hierarchy: Array.from(hierarchyMap.values())
+          .map((c) => ({
+            countryCode: c.countryCode,
+            continent: c.continent,
+            visits: c.visits,
+            regions: Array.from(c.regions.values())
+              .map((r) => ({
+                region: r.region,
+                visits: r.visits,
+                cities: Array.from(r.cities.entries())
+                  .map(([city, visits]) => ({ city, visits }))
+                  .sort((a, b) => b.visits - a.visits),
+              }))
+              .sort((a, b) => b.visits - a.visits),
+          }))
+          .sort((a, b) => b.visits - a.visits),
       },
     };
   }
