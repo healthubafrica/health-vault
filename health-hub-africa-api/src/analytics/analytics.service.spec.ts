@@ -329,3 +329,46 @@ describe('AnalyticsService.getGeoComparison (declared vs access geography)', () 
     expect(result.data.diasporaPatients).toBe(1);
   });
 });
+
+describe('AnalyticsService.getTrafficAnalytics (country -> region -> city hierarchy)', () => {
+  function buildService(visits: Array<{ occurredAt: Date; countryCode: string | null; region: string | null; city: string | null; userAgent?: string | null; referrer?: string | null; utmSource?: string | null; utmMedium?: string | null; utmCampaign?: string | null }>) {
+    const prisma = { siteVisit: { findMany: jest.fn().mockResolvedValue(visits) } };
+    const service = new AnalyticsService(prisma as any);
+    return { service };
+  }
+
+  it('nests visits by country, then region, then city, sorted by visit count', async () => {
+    const { service } = buildService([
+      { occurredAt: new Date(), countryCode: 'ng', region: 'LA', city: 'Lagos' },
+      { occurredAt: new Date(), countryCode: 'ng', region: 'LA', city: 'Lagos' },
+      { occurredAt: new Date(), countryCode: 'ng', region: 'FC', city: 'Abuja' },
+      { occurredAt: new Date(), countryCode: 'us', region: 'CA', city: 'San Francisco' },
+    ]);
+
+    const result = await service.getTrafficAnalytics('30d');
+
+    expect(result.data.hierarchy).toEqual([
+      {
+        countryCode: 'NG', continent: 'Africa', visits: 3,
+        regions: [
+          { region: 'LA', visits: 2, cities: [{ city: 'Lagos', visits: 2 }] },
+          { region: 'FC', visits: 1, cities: [{ city: 'Abuja', visits: 1 }] },
+        ],
+      },
+      {
+        countryCode: 'US', continent: 'North America', visits: 1,
+        regions: [{ region: 'CA', visits: 1, cities: [{ city: 'San Francisco', visits: 1 }] }],
+      },
+    ]);
+  });
+
+  it('buckets missing geo data under "Unknown" instead of dropping it', async () => {
+    const { service } = buildService([{ occurredAt: new Date(), countryCode: null, region: null, city: null }]);
+
+    const result = await service.getTrafficAnalytics('30d');
+
+    expect(result.data.hierarchy).toEqual([
+      { countryCode: 'Unknown', continent: 'Unknown', visits: 1, regions: [{ region: 'Unknown', visits: 1, cities: [{ city: 'Unknown', visits: 1 }] }] },
+    ]);
+  });
+});
