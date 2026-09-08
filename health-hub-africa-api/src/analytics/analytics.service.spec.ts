@@ -169,6 +169,83 @@ describe('AnalyticsService.getRetentionAnalytics (D1/D7/D30)', () => {
   });
 });
 
+describe('AnalyticsService.getEngagementScore (transparent, versioned)', () => {
+  function buildService(overrides: {
+    lastLoginAt?: Date | null;
+    patientExists?: boolean;
+    subscriptionTier?: string | null;
+    eventCounts?: Record<string, number>;
+  } = {}) {
+    const eventCounts = overrides.eventCounts ?? {};
+    const prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue({ lastLoginAt: overrides.lastLoginAt ?? null }) },
+      patient: { findUnique: jest.fn().mockResolvedValue(overrides.patientExists === false ? null : { id: 'p1' }) },
+      patientSubscription: {
+        findFirst: jest.fn().mockResolvedValue(
+          overrides.subscriptionTier ? { plan: { tier: overrides.subscriptionTier } } : null,
+        ),
+      },
+      patientActivityEvent: {
+        groupBy: jest.fn().mockResolvedValue(
+          Object.entries(eventCounts).map(([eventName, count]) => ({ eventName, _count: { _all: count } })),
+        ),
+      },
+    };
+    const service = new AnalyticsService(prisma as any);
+    return { service };
+  }
+
+  it('scores a fully inactive patient as 0 / Dormant', async () => {
+    const { service } = buildService({ patientExists: true });
+
+    const result = await service.getEngagementScore('u1', 'p1');
+
+    expect(result.data).toEqual({
+      score: 15, // profileComplete only — a Patient row always exists once someone reaches this call
+      category: 'At Risk',
+      version: 1,
+      components: {
+        recentLogin: 0, profileComplete: 15, hasBooking: 0, repeatBooking: 0,
+        hasUpload: 0, hasVitals: 0, paidSubscription: 0,
+      },
+    });
+  });
+
+  it('scores full engagement across every signal as Highly Engaged', async () => {
+    const recentLogin = new Date();
+    const { service } = buildService({
+      lastLoginAt: recentLogin,
+      patientExists: true,
+      subscriptionTier: 'Gold',
+      eventCounts: { booking_confirmed: 3, upload_success: 1, manual_entry_success: 1 },
+    });
+
+    const result = await service.getEngagementScore('u1', 'p1');
+
+    expect(result.data.score).toBe(100);
+    expect(result.data.category).toBe('Highly Engaged');
+  });
+
+  it('does not award the paid-subscription component for the Free tier', async () => {
+    const { service } = buildService({ patientExists: true, subscriptionTier: 'Free' });
+
+    const result = await service.getEngagementScore('u1', 'p1');
+
+    expect(result.data.components.paidSubscription).toBe(0);
+  });
+
+  it('awards repeatBooking only on the second confirmed booking, not the first', async () => {
+    const { service: single } = buildService({ patientExists: true, eventCounts: { booking_confirmed: 1 } });
+    const { service: repeat } = buildService({ patientExists: true, eventCounts: { booking_confirmed: 2 } });
+
+    const singleResult = await single.getEngagementScore('u1', 'p1');
+    const repeatResult = await repeat.getEngagementScore('u1', 'p1');
+
+    expect(singleResult.data.components).toMatchObject({ hasBooking: 20, repeatBooking: 0 });
+    expect(repeatResult.data.components).toMatchObject({ hasBooking: 20, repeatBooking: 10 });
+  });
+});
+
 describe('AnalyticsService.getGeoComparison (declared vs access geography)', () => {
   function buildService(events: Array<{ patientId: string; countryCode: string }>, patients: Array<{ id: string; country: string }>) {
     const prisma = {
