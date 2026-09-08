@@ -214,6 +214,13 @@ export class AdminController {
     return this.adminService.getDigitalExperienceAnalytics(period);
   }
 
+  @Get('analytics/security')
+  @ApiOperation({ summary: 'Get login failure rate, failure locations, and cross-country login anomalies' })
+  @ApiQuery({ name: 'period', required: false, description: "e.g. '7d', '30d', '90d' (default 30d)" })
+  getSecurityAnalytics(@Query('period') period?: string) {
+    return this.adminService.getSecurityAnalytics(period);
+  }
+
   // ── Alerts ────────────────────────────────────────────────────────────────
   // System-detected conditions (OTP failure spikes, booking abandonment —
   // spec §29/§2) — a background job in AlertsModule raises these on a 15-min
