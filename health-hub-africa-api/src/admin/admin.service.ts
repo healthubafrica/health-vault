@@ -408,12 +408,19 @@ export class AdminService {
       ? `${provider.firstName} ${provider.lastName}`.trim()
       : undefined;
 
+    // Only meaningful for a patient — computed here (not a separate
+    // endpoint) so the detail page gets it in the same call.
+    const engagement = patient
+      ? (await this.analyticsService.getEngagementScore(id, patient.id)).data
+      : undefined;
+
     return {
       data: {
         ...rest,
         phoneNumber: phone ?? undefined,
         fullName,
         subscription,
+        engagement,
         patient: patient
           ? {
               id: patient.id,

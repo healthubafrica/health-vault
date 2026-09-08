@@ -502,4 +502,82 @@ export class AnalyticsService {
 
     return { data: { windows, cohortSize: registeredAt.size } };
   }
+
+  // Spec §17: Engagement Score must be transparent and configurable, not a
+  // hidden AI score — weights live in one named constant, version bumps
+  // whenever a weight/signal changes (so a report referencing an old score
+  // can be told apart from a new one), and every response carries the raw
+  // component contributions so Customer Success can see exactly why a
+  // patient landed where they did without re-deriving it.
+  //
+  // ponytail: computed on demand for one patient (called from the admin user
+  // detail page), not precomputed/stored for the whole patient base — there's
+  // no established need yet for a sortable "all patients by engagement"
+  // leaderboard, and building the batch/storage machinery for that before
+  // anyone's asked for it is the kind of thing this spec itself warns
+  // against (§13: "qualifying-event list and window must be configurable
+  // and versioned", not "must run nightly for everyone").
+  private static readonly ENGAGEMENT_SCORE_VERSION = 1;
+  private static readonly ENGAGEMENT_WEIGHTS = {
+    recentLogin: 20, // signed in within the last 30 days
+    profileComplete: 15, // registration reached a Patient row
+    hasBooking: 20, // booking_confirmed at least once, ever
+    repeatBooking: 10, // booking_confirmed 2+ times
+    hasUpload: 10, // upload_success at least once
+    hasVitals: 10, // manual_entry_success at least once
+    paidSubscription: 15, // active/trial subscription above the Free tier
+  } as const; // sums to 100
+  private static readonly ENGAGEMENT_CATEGORIES: Array<{ min: number; label: string }> = [
+    { min: 80, label: 'Highly Engaged' },
+    { min: 55, label: 'Engaged' },
+    { min: 30, label: 'Low Engagement' },
+    { min: 10, label: 'At Risk' },
+    { min: 0, label: 'Dormant' },
+  ];
+
+  async getEngagementScore(userId: string, patientId: string) {
+    const RECENT_LOGIN_DAYS = 30;
+    const since = new Date();
+    since.setDate(since.getDate() - RECENT_LOGIN_DAYS);
+
+    const [user, patient, subscription, events] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: userId }, select: { lastLoginAt: true } }),
+      this.prisma.patient.findUnique({ where: { id: patientId }, select: { id: true } }),
+      this.prisma.patientSubscription.findFirst({
+        where: { patientId, status: { in: ['active', 'trial'] } },
+        select: { plan: { select: { tier: true } } },
+      }),
+      this.prisma.patientActivityEvent.groupBy({
+        by: ['eventName'],
+        where: { patientId, eventName: { in: ['booking_confirmed', 'upload_success', 'manual_entry_success'] } },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const countOf = (eventName: string) => events.find((e) => e.eventName === eventName)?._count._all ?? 0;
+    const bookingCount = countOf('booking_confirmed');
+    const w = AnalyticsService.ENGAGEMENT_WEIGHTS;
+
+    const components = {
+      recentLogin: user?.lastLoginAt && user.lastLoginAt >= since ? w.recentLogin : 0,
+      profileComplete: patient ? w.profileComplete : 0,
+      hasBooking: bookingCount > 0 ? w.hasBooking : 0,
+      repeatBooking: bookingCount > 1 ? w.repeatBooking : 0,
+      hasUpload: countOf('upload_success') > 0 ? w.hasUpload : 0,
+      hasVitals: countOf('manual_entry_success') > 0 ? w.hasVitals : 0,
+      paidSubscription: subscription && subscription.plan.tier !== 'Free' ? w.paidSubscription : 0,
+    };
+
+    const score = Object.values(components).reduce((sum, v) => sum + v, 0);
+    const category = AnalyticsService.ENGAGEMENT_CATEGORIES.find((c) => score >= c.min)?.label ?? 'Dormant';
+
+    return {
+      data: {
+        score,
+        category,
+        version: AnalyticsService.ENGAGEMENT_SCORE_VERSION,
+        components,
+      },
+    };
+  }
 }
