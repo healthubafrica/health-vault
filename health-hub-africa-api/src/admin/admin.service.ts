@@ -17,6 +17,7 @@ import { NotificationsService, NOTIFICATIONS_QUEUE, NotificationJobData, Notific
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { AuthService } from '../auth/auth.service';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { AlertsService } from '../alerts/alerts.service';
 import {
   UpdateUserRoleDto,
   UpdateUserStatusDto,
@@ -64,6 +65,7 @@ export class AdminService {
     private readonly s3: S3Service,
     private readonly authService: AuthService,
     private readonly analyticsService: AnalyticsService,
+    private readonly alertsService: AlertsService,
   ) {}
 
   // ── Users ─────────────────────────────────────────────────────────────────
@@ -767,6 +769,18 @@ export class AdminService {
 
   getRetentionAnalytics(lookbackDays = 90) {
     return this.analyticsService.getRetentionAnalytics(lookbackDays);
+  }
+
+  // Thin delegates — detection, dedup, and email delivery live in
+  // AlertsModule (which also owns the cron that runs the checks); kept out
+  // of AdminService so the two concerns (raising an alert, reading the
+  // alert inbox) don't have to agree on anything beyond this call.
+  getAlerts(page = 1, limit = 20) {
+    return this.alertsService.list(page, limit);
+  }
+
+  markAlertRead(id: string) {
+    return this.alertsService.markRead(id);
   }
 
   async getMarketingAnalytics(period = '30d') {
@@ -2424,7 +2438,7 @@ export class AdminService {
     await this.notificationsQueue.add(
       jobName,
       {
-        userId: delivery.userId,
+        userId: delivery.userId ?? undefined,
         channel: delivery.channel as NotificationJobData['channel'],
         to: delivery.recipient,
         subject: delivery.subject ?? undefined,
