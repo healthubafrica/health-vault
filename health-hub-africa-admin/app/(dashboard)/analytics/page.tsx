@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download } from 'lucide-react'
 import { useAutoRefresh } from '@/lib/hooks/useLiveData'
-import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type GeoComparison, type RetentionAnalytics, type DigitalExperienceAnalytics, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
+import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type GeoComparison, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { FilterTabs } from '@/components/ui/FilterTabs'
 import { SkeletonBox } from '@/components/ui/Skeleton'
-import { formatKoboToNaira } from '@/lib/utils'
+import { formatKoboToNaira, formatDateTime } from '@/lib/utils'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -25,7 +25,7 @@ import { Bar, Line } from 'react-chartjs-2'
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Tooltip, Legend, Filler)
 
 const PERIODS = ['7d', '30d', '90d']
-const SECTIONS = ['Overview', 'Funnels', 'Acquisition', 'Geography', 'Digital Experience'] as const
+const SECTIONS = ['Overview', 'Funnels', 'Acquisition', 'Geography', 'Digital Experience', 'Security'] as const
 type Section = (typeof SECTIONS)[number]
 
 const CHART_OPTIONS = {
@@ -140,6 +140,7 @@ export default function AnalyticsPage() {
   const [geoComparison, setGeoComparison] = useState<GeoComparison | null>(null)
   const [retention, setRetention] = useState<RetentionAnalytics | null>(null)
   const [digitalExperience, setDigitalExperience] = useState<DigitalExperienceAnalytics | null>(null)
+  const [security, setSecurity] = useState<SecurityAnalytics | null>(null)
   const [funnelCountry, setFunnelCountry] = useState('')
   const [funnelContinent, setFunnelContinent] = useState('')
   const [funnelDevice, setFunnelDevice] = useState('')
@@ -147,7 +148,7 @@ export default function AnalyticsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [rRes, uRes, mRes, tRes, fRes, gRes, retRes, deRes] = await Promise.all([
+      const [rRes, uRes, mRes, tRes, fRes, gRes, retRes, deRes, secRes] = await Promise.all([
         adminApi.analytics.revenue(period),
         adminApi.analytics.usage(period),
         adminApi.analytics.marketing(period),
@@ -160,6 +161,7 @@ export default function AnalyticsPage() {
         adminApi.analytics.geoComparison(period),
         adminApi.analytics.retention(),
         adminApi.analytics.digitalExperience(period),
+        adminApi.analytics.security(period),
       ])
       setRevenue(rRes.data)
       setUsage(uRes.data)
@@ -169,6 +171,7 @@ export default function AnalyticsPage() {
       setGeoComparison(gRes.data)
       setRetention(retRes.data)
       setDigitalExperience(deRes.data)
+      setSecurity(secRes.data)
     } finally {
       setLoading(false)
     }
@@ -257,6 +260,12 @@ export default function AnalyticsPage() {
       `client-errors-${period}.csv`,
       ['Message', 'Occurrences'],
       (digitalExperience?.topErrors ?? []).map((e) => [e.message, e.count]),
+    )
+  const exportLocationAnomalies = () =>
+    downloadCsv(
+      `login-location-anomalies-${period}.csv`,
+      ['Email', 'From country', 'To country', 'Occurred at'],
+      (security?.locationAnomalies ?? []).map((a) => [a.email, a.fromCountry, a.toCountry, formatDateTime(a.occurredAt)]),
     )
 
   return (
@@ -888,6 +897,105 @@ export default function AnalyticsPage() {
               </div>
             )}
           </Card>
+        </>
+      )}
+
+      {section === 'Security' && (
+        <>
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Security</h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+              Login failure trends and cross-country login anomalies, across every role — not just patients
+            </p>
+          </div>
+
+          {loading && !security ? (
+            <SkeletonBox height={88} className="rounded-xl mb-4" />
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 mb-4 border-y" style={{ borderColor: 'var(--color-border)' }}>
+              <Metric label="Login attempts" value={String(security?.totalAttempts ?? 0)} detail={`Across the last ${period}`} />
+              <Metric label="Failure rate" value={security?.failureRate === null || security?.failureRate === undefined ? '—' : `${security.failureRate}%`} detail={`${security?.failureCount ?? 0} failed attempts`} />
+              <Metric label="Top failure location" value={security?.failedLoginLocations[0]?.countryCode ?? '—'} detail={security?.failedLoginLocations[0] ? `${security.failedLoginLocations[0].count} failures` : 'No failures yet'} />
+              <Metric label="Location anomalies" value={String(security?.locationAnomalies.length ?? 0)} detail="Same account, different country back-to-back" />
+            </div>
+          )}
+
+          <Card className="mb-4">
+            <CardTitle>Failed login attempts over time</CardTitle>
+            {loading ? <SkeletonBox height={220} className="rounded-xl" /> : !security?.failedAttemptsByDay.some((d) => d.count > 0) ? (
+              <Empty>No failed login attempts in this period. 🎉</Empty>
+            ) : (
+              <div style={{ height: 220 }}>
+                <Line
+                  data={{
+                    labels: (period === '90d' ? security.failedAttemptsByDay : security.failedAttemptsByDay.slice(-30)).map((row) =>
+                      new Date(row.date).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' }),
+                    ),
+                    datasets: [
+                      { label: 'Failed attempts', data: (period === '90d' ? security.failedAttemptsByDay : security.failedAttemptsByDay.slice(-30)).map((row) => row.count), borderColor: '#C0392B', backgroundColor: 'rgba(192,57,43,0.08)', tension: 0.35, fill: true, pointRadius: 2 },
+                    ],
+                  }}
+                  options={CHART_OPTIONS}
+                />
+              </div>
+            )}
+          </Card>
+
+          <div className="grid lg:grid-cols-[1fr_1.4fr] gap-4">
+            <Card padding={false}>
+              <div className="px-5 pt-5"><CardTitle>Failed-login locations</CardTitle></div>
+              {!loading && !security?.failedLoginLocations.length ? (
+                <Empty>No failed login attempts in this period.</Empty>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-y text-left text-[11px] uppercase tracking-wider" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                        <th className="px-5 py-2.5 font-semibold">Country</th>
+                        <th className="px-5 py-2.5 font-semibold text-right">Failures</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(security?.failedLoginLocations ?? []).map((row) => (
+                        <tr key={row.countryCode} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                          <td className="px-5 py-3 font-medium" style={{ color: 'var(--color-text)' }}>{countryName(row.countryCode)}</td>
+                          <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+
+            <Card padding={false}>
+              <CardHeader title="Location anomalies" subtitle="Same account's successive successful logins from different countries" onExport={security?.locationAnomalies.length ? exportLocationAnomalies : undefined} />
+              {!loading && !security?.locationAnomalies.length ? (
+                <Empty>No cross-country login anomalies in this period.</Empty>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-y text-left text-[11px] uppercase tracking-wider" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                        <th className="px-5 py-2.5 font-semibold">Account</th>
+                        <th className="px-4 py-2.5 font-semibold">Country change</th>
+                        <th className="px-5 py-2.5 font-semibold text-right">When</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(security?.locationAnomalies ?? []).map((row) => (
+                        <tr key={`${row.userId}-${row.occurredAt}`} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                          <td className="px-5 py-3 font-medium truncate max-w-[180px]" style={{ color: 'var(--color-text)' }}>{row.email}</td>
+                          <td className="px-4 py-3" style={{ color: 'var(--color-warning, #E8930A)' }}>{countryName(row.fromCountry)} → {countryName(row.toCountry)}</td>
+                          <td className="px-5 py-3 text-right text-xs whitespace-nowrap" style={{ color: 'var(--color-text-muted)' }}>{formatDateTime(row.occurredAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+          </div>
         </>
       )}
     </div>
