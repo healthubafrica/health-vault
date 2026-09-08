@@ -673,6 +673,15 @@ export interface NotificationDelivery {
   shareId?: string; createdAt: string
 }
 
+// System-detected conditions (OTP failure spikes, booking abandonment —
+// spec §29/§2), raised by a background job. Distinct from NotificationDelivery
+// above, which is the per-message send log.
+export interface AdminAlert {
+  id: string; type: string; severity: 'info' | 'warning' | 'critical'
+  title: string; body?: string | null; metadata?: Record<string, unknown> | null
+  isRead: boolean; readAt?: string | null; createdAt: string
+}
+
 // ── Admin: Share Activity ────────────────────────────────────────────────
 // Secure-share link delivery/access audit, backed by RecordShare +
 // RecordShareAccess (see NotificationDelivery.shareId for how a sent/delivered
@@ -1171,6 +1180,16 @@ export const adminApi = {
       return request<{ data: NotificationDelivery[]; meta: { total: number } }>(`/admin/notifications${qs}`)
     },
     resend: (id: string) => request<{ message: string }>(`/admin/notifications/${id}/resend`, { method: 'POST' }),
+  },
+
+  alerts: {
+    list: (params?: { page?: number; limit?: number }) => {
+      const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : ''
+      return request<{ data: AdminAlert[]; meta: { total: number; page: number; limit: number; unreadCount: number } }>(`/admin/alerts${qs}`)
+    },
+    // Backend returns the updated row unwrapped (no {data: ...} envelope) — matches
+    // how AlertsService.markRead() passes prisma.adminAlert.update()'s result straight through.
+    markRead: (id: string) => request<AdminAlert>(`/admin/alerts/${id}/read`, { method: 'PATCH' }),
   },
 
   shares: {

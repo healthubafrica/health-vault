@@ -207,6 +207,25 @@ export class AdminController {
     return this.adminService.getRetentionAnalytics(lookbackDays ? parseInt(lookbackDays, 10) : undefined);
   }
 
+  // ── Alerts ────────────────────────────────────────────────────────────────
+  // System-detected conditions (OTP failure spikes, booking abandonment —
+  // spec §29/§2) — a background job in AlertsModule raises these on a 15-min
+  // cron; these two routes are just the admin-facing read/acknowledge side.
+
+  @Get('alerts')
+  @ApiOperation({ summary: 'List system alerts (OTP failure spikes, booking abandonment, etc.)' })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  getAlerts(@Query('page') page?: string, @Query('limit') limit?: string) {
+    return this.adminService.getAlerts(page ? parseInt(page, 10) : undefined, limit ? parseInt(limit, 10) : undefined);
+  }
+
+  @Patch('alerts/:id/read')
+  @ApiOperation({ summary: 'Mark a system alert as read' })
+  markAlertRead(@Param('id') id: string) {
+    return this.adminService.markAlertRead(id);
+  }
+
   // ── System ────────────────────────────────────────────────────────────────
 
   @Get('system/health')
