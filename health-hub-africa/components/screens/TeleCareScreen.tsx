@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
 import { Avatar } from '@/components/ui/Avatar'
 import { Video, PhoneOff, Clock, Loader2, AlertCircle, CalendarPlus, ChevronDown, ChevronUp, UserPlus } from 'lucide-react'
-import { telecare, TelecareSession } from '@/lib/api'
+import { telecare, analytics, TelecareSession } from '@/lib/api'
 import { LiveKitRoom, VideoConference } from '@livekit/components-react'
 import '@livekit/components-styles'
 import { useCallStore } from '@/lib/stores/callStore'
@@ -150,6 +150,7 @@ export function TeleCareScreen() {
     try {
       const res = await telecare.getToken(sessionId)
       if (res && res.token) {
+        analytics.track('telecare_session_join_success')
         setActiveToken(res.token)
         setActiveRoom(res.roomName)
         // The API returns the LiveKit server URL alongside the token — use it
@@ -159,9 +160,11 @@ export function TeleCareScreen() {
         setActiveSessionId(sessionId)
         setInCall(true)
       } else {
+        analytics.track('telecare_session_join_failure')
         setError("We couldn't set up your call. Kindly try again in a moment.")
       }
     } catch (err: any) {
+      analytics.track('telecare_session_join_failure')
       console.error('Error joining session:', err)
       setError(err.message || "We had trouble connecting you to the session. Kindly try again.")
     } finally {
