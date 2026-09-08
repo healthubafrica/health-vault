@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { adminApi, type NotificationDelivery } from '@/lib/api'
+import { adminApi, type NotificationDelivery, type AdminAlert } from '@/lib/api'
 import { useAutoRefresh } from '@/lib/hooks/useLiveData'
 import { Card } from '@/components/ui/Card'
 import { FilterTabs } from '@/components/ui/FilterTabs'
@@ -9,7 +9,7 @@ import { Pill } from '@/components/ui/Pill'
 import { Button } from '@/components/ui/Button'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { formatDateTime } from '@/lib/utils'
-import { RefreshCw, RotateCcw, CheckCircle } from 'lucide-react'
+import { RefreshCw, RotateCcw, CheckCircle, AlertTriangle, Check } from 'lucide-react'
 
 const CHANNEL_TABS = ['all', 'email', 'sms', 'push']
 
@@ -23,6 +23,85 @@ function channelVariant(channel: string): 'info' | 'success' | 'neutral' {
   if (channel === 'email') return 'info'
   if (channel === 'sms') return 'success'
   return 'neutral'
+}
+
+function severityVariant(severity: string): 'success' | 'warning' | 'emergency' | 'neutral' {
+  if (severity === 'critical') return 'emergency'
+  if (severity === 'warning') return 'warning'
+  return 'neutral'
+}
+
+// System-detected alerts (OTP failure spikes, booking abandonment) — a
+// background job raises these; this card is just the read/acknowledge side.
+function AlertsCard() {
+  const [alerts, setAlerts] = useState<AdminAlert[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [markingRead, setMarkingRead] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      const res = await adminApi.alerts.list({ limit: 10 })
+      setAlerts(res.data)
+      setUnreadCount(res.meta.unreadCount)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+  useAutoRefresh(load, 30_000)
+
+  const handleMarkRead = useCallback(async (id: string) => {
+    setMarkingRead(id)
+    try {
+      await adminApi.alerts.markRead(id)
+      await load()
+    } finally {
+      setMarkingRead(null)
+    }
+  }, [load])
+
+  if (loading) return <Card className="mb-6"><SkeletonBox height={80} className="rounded-xl" /></Card>
+  if (alerts.length === 0) return null
+
+  return (
+    <Card className="mb-6" padding={false}>
+      <div className="px-5 pt-5 flex items-center gap-2">
+        <AlertTriangle className="w-4 h-4" style={{ color: 'var(--color-warning, #E8930A)' }} />
+        <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>System Alerts</h2>
+        {unreadCount > 0 && (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'var(--color-emergency)', color: 'white' }}>
+            {unreadCount} unread
+          </span>
+        )}
+      </div>
+      <div className="px-5 pb-5 pt-3 flex flex-col gap-2">
+        {alerts.map((alert) => (
+          <div
+            key={alert.id}
+            className="flex items-start justify-between gap-3 p-3 rounded-xl border"
+            style={{ borderColor: 'var(--color-border)', background: alert.isRead ? 'transparent' : 'var(--color-bg)' }}
+          >
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <Pill variant={severityVariant(alert.severity)}>{alert.severity}</Pill>
+                <span className="text-[11px]" style={{ color: 'var(--color-text-faint)' }}>{formatDateTime(alert.createdAt)}</span>
+              </div>
+              <p className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>{alert.title}</p>
+              {alert.body && <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{alert.body}</p>}
+            </div>
+            {!alert.isRead && (
+              <Button variant="secondary" size="sm" loading={markingRead === alert.id} onClick={() => handleMarkRead(alert.id)}>
+                <Check className="w-3.5 h-3.5" />
+                Mark read
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
+    </Card>
+  )
 }
 
 export default function NotificationsPage() {
@@ -87,6 +166,8 @@ export default function NotificationsPage() {
           Refresh
         </Button>
       </div>
+
+      <AlertsCard />
 
       {successBanner && (
         <div

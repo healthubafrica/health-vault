@@ -1176,9 +1176,32 @@ model PatientAlert {
   @@map("patient_alerts")
 }
 
+// Ops-facing (not patient-facing) — system-detected conditions like an OTP
+// failure spike or high booking abandonment. Distinct from PatientAlert
+// above, which is scoped to one patient; this has no patient at all.
+// Delivered via email (NotificationsService, same as everything else) and
+// shown in-app on the admin Notifications page.
+model AdminAlert {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type      String
+  severity  AlertSeverity @default(warning)
+  title     String
+  body      String?
+  metadata  Json?
+  isRead    Boolean       @default(false) @map("is_read")
+  readAt    DateTime?     @map("read_at")
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  @@index([createdAt(sort: Desc)])
+  @@index([isRead])
+  @@map("admin_alerts")
+}
+
 model NotificationDelivery {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId      String    @map("user_id") @db.Uuid
+  // Nullable: ops alert emails (AdminAlert) have no single patient/user to
+  // attribute the delivery to.
+  userId      String?   @map("user_id") @db.Uuid
   alertId     String?   @map("alert_id") @db.Uuid
   // Set when this delivery was sent on behalf of a RecordShare (e.g. the
   // share-link email/SMS) so the Resend delivery webhook can mirror
