@@ -9,7 +9,7 @@ import { Tooltip } from '@/components/ui/Tooltip'
 import { MapPin, Phone, Siren, Heart, Bone, Brain, Activity, AlertTriangle, Wind, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { dispatch, ApiError, type DispatchCase } from '@/lib/api'
+import { dispatch, analytics, ApiError, type DispatchCase } from '@/lib/api'
 import { CONTACT } from '@/lib/contact'
 
 // EmergencyType enum values from backend Prisma schema
@@ -109,6 +109,7 @@ export function DispatchScreen() {
       return
     }
 
+    analytics.track('dispatch_request_started', { emergencyType: selectedType })
     try {
       setDispatching(true)
       const result = await dispatch.create({
@@ -118,6 +119,7 @@ export function DispatchScreen() {
         latitude:  coords?.latitude,
         longitude: coords?.longitude,
       })
+      analytics.track('dispatch_request_success', { emergencyType: selectedType })
       setActiveCase(result.data)
       // Prepend to history list
       setHistory((prev) => [result.data, ...prev.filter((c) => c.id !== result.data.id)])
@@ -126,6 +128,7 @@ export function DispatchScreen() {
       setSelectedType(null)
       setDescription('')
     } catch (err) {
+      analytics.track('dispatch_request_failure', { emergencyType: selectedType })
       toast.error(err instanceof ApiError ? err.message : 'Dispatch failed — please try again')
     } finally {
       setDispatching(false)
