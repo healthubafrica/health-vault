@@ -39,6 +39,7 @@ describe('AdminService.updateUserEmail', () => {
       {} as never, // s3
       authService as never,
       {} as never, // analyticsService
+      {} as never, // alertsService
     );
 
     return { service, prisma, authService };
@@ -116,7 +117,7 @@ describe('AdminService.getMarketingAnalytics', () => {
     const queryRaw = jest.fn().mockResolvedValueOnce(registrations).mockResolvedValueOnce(logins);
     const prisma = { $queryRaw: queryRaw };
     const service = new AdminService(
-      prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never,
+      prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never,
     );
     return { service };
   }
@@ -195,7 +196,7 @@ describe('AdminService.listUsers (registration stage)', () => {
     };
     const s3 = { signStoredUrl: jest.fn().mockResolvedValue(null) };
     const service = new AdminService(
-      prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, s3 as never, {} as never, {} as never,
+      prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, s3 as never, {} as never, {} as never, {} as never,
     );
     return { service, prisma };
   }
