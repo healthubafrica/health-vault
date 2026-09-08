@@ -9,7 +9,7 @@ import { Tooltip } from '@/components/ui/Tooltip'
 import { Button } from '@/components/ui/Button'
 import { formatDate } from '@/lib/utils'
 import { FlaskConical } from 'lucide-react'
-import { labs } from '@/lib/api'
+import { labs, analytics } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
@@ -74,6 +74,7 @@ export function LabsScreen() {
         <Button
           size="sm"
           onClick={() => {
+            analytics.track('ui_click', { element_id: 'book_caretest_cta', feature_area: 'labs', destination: '/appointments' })
             toast.info('Visit Appointments to book a CareTest™')
             router.push('/appointments')
           }}

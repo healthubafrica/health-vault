@@ -9,7 +9,7 @@ import { IdChip } from '@/components/ui/IdChip'
 import { Avatar } from '@/components/ui/Avatar'
 import { Camera } from 'lucide-react'
 import { toast } from 'sonner'
-import { patients, ApiError } from '@/lib/api'
+import { patients, analytics, ApiError } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { ProfileSkeleton } from '@/components/skeletons/ProfileSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
@@ -185,6 +185,7 @@ export function ProfileScreen() {
         ...(nin.trim() ? { nin: nin.trim() } : {}),
       })
 
+      analytics.track('profile_completed')
       toast.success('Profile saved', { description: 'Your health profile has been updated.' })
       refetch()
     } catch (err: unknown) {
