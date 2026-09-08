@@ -186,6 +186,68 @@ describe('AdminService.getMarketingAnalytics', () => {
   });
 });
 
+describe('AdminService.getSecurityAnalytics (login_events success + failure)', () => {
+  function buildService(attempts: unknown[]) {
+    const queryRaw = jest.fn().mockResolvedValue(attempts);
+    const prisma = { $queryRaw: queryRaw };
+    const service = new AdminService(
+      prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never,
+    );
+    return { service };
+  }
+
+  it('computes failure rate and ranks failed-login locations', async () => {
+    const { service } = buildService([
+      { userId: 'u1', email: 'a@x.com', occurredAt: new Date('2026-08-16T10:00:00Z'), countryCode: 'ng', success: true },
+      { userId: 'u1', email: 'a@x.com', occurredAt: new Date('2026-08-16T11:00:00Z'), countryCode: 'ng', success: false },
+      { userId: 'u2', email: 'b@x.com', occurredAt: new Date('2026-08-16T12:00:00Z'), countryCode: 'us', success: false },
+    ]);
+
+    const result = await service.getSecurityAnalytics('30d');
+
+    expect(result.data.totalAttempts).toBe(3);
+    expect(result.data.successCount).toBe(1);
+    expect(result.data.failureCount).toBe(2);
+    expect(result.data.failureRate).toBeCloseTo(66.7, 1);
+    expect(result.data.failedLoginLocations).toEqual(
+      expect.arrayContaining([{ countryCode: 'NG', count: 1 }, { countryCode: 'US', count: 1 }]),
+    );
+  });
+
+  it('flags a location anomaly when the same user\'s consecutive successful logins cross countries', async () => {
+    const { service } = buildService([
+      { userId: 'u1', email: 'a@x.com', occurredAt: new Date('2026-08-16T10:00:00Z'), countryCode: 'ng', success: true },
+      { userId: 'u1', email: 'a@x.com', occurredAt: new Date('2026-08-16T11:00:00Z'), countryCode: 'us', success: true },
+    ]);
+
+    const result = await service.getSecurityAnalytics('30d');
+
+    expect(result.data.locationAnomalies).toEqual([
+      { userId: 'u1', email: 'a@x.com', fromCountry: 'NG', toCountry: 'US', occurredAt: new Date('2026-08-16T11:00:00Z') },
+    ]);
+  });
+
+  it('does not flag an anomaly when a failed attempt sits between two same-country successful logins', async () => {
+    const { service } = buildService([
+      { userId: 'u1', email: 'a@x.com', occurredAt: new Date('2026-08-16T10:00:00Z'), countryCode: 'ng', success: true },
+      { userId: 'u1', email: 'a@x.com', occurredAt: new Date('2026-08-16T10:30:00Z'), countryCode: 'us', success: false },
+      { userId: 'u1', email: 'a@x.com', occurredAt: new Date('2026-08-16T11:00:00Z'), countryCode: 'ng', success: true },
+    ]);
+
+    const result = await service.getSecurityAnalytics('30d');
+
+    expect(result.data.locationAnomalies).toEqual([]);
+  });
+
+  it('reports a null failure rate instead of dividing by zero when there are no attempts', async () => {
+    const { service } = buildService([]);
+    const result = await service.getSecurityAnalytics('30d');
+
+    expect(result.data.failureRate).toBeNull();
+    expect(result.data.totalAttempts).toBe(0);
+  });
+});
+
 describe('AdminService.listUsers (registration stage)', () => {
   function buildService(users: unknown[]) {
     const prisma = {

@@ -190,6 +190,10 @@ export class AuthService {
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) {
       await this.registerFailedLogin(user.id, user.failedLoginAttempts);
+      // Wrong-password only — "user not found" above never reaches here (no
+      // userId to attach the row to, and login_events.user_id is NOT NULL by
+      // design so a random/enumerated email can't get written at all).
+      await this.recordLoginEvent(user.id, context, false);
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -649,17 +653,17 @@ export class AuthService {
     return tokens;
   }
 
-  private async recordLoginEvent(userId: string, context: LoginContext) {
+  private async recordLoginEvent(userId: string, context: LoginContext, success = true) {
     try {
       await this.prisma.$executeRaw`
         INSERT INTO "login_events" (
           "user_id", "ip_address", "country_code", "region", "city", "timezone",
-          "user_agent", "referrer", "landing_page", "utm_source", "utm_medium", "utm_campaign"
+          "user_agent", "referrer", "landing_page", "utm_source", "utm_medium", "utm_campaign", "success"
         ) VALUES (
           ${userId}::uuid, ${context.ipAddress ?? null}, ${context.countryCode ?? null},
           ${context.region ?? null}, ${context.city ?? null}, ${context.timezone ?? null},
           ${context.userAgent ?? null}, ${context.referrer ?? null}, ${context.landingPage ?? null},
-          ${context.utmSource ?? null}, ${context.utmMedium ?? null}, ${context.utmCampaign ?? null}
+          ${context.utmSource ?? null}, ${context.utmMedium ?? null}, ${context.utmCampaign ?? null}, ${success}
         )
       `;
     } catch (error) {

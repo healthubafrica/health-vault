@@ -377,6 +377,20 @@ export interface DigitalExperienceAnalytics {
   topErrors: Array<{ message: string; count: number }>
 }
 
+// Login failure/anomaly telemetry, sourced from the same login_events table
+// as MarketingAnalytics.loginLocations (see AdminService.getSecurityAnalytics)
+// — NOT scoped to patients only, since a credential-stuffing run against
+// admin/provider accounts is exactly what this dashboard exists to surface.
+export interface SecurityAnalytics {
+  totalAttempts: number
+  successCount: number
+  failureCount: number
+  failureRate: number | null
+  failedAttemptsByDay: Array<{ date: string; count: number }>
+  failedLoginLocations: Array<{ countryCode: string; count: number }>
+  locationAnomalies: Array<{ userId: string; email: string; fromCountry: string; toCountry: string; occurredAt: string }>
+}
+
 // Raw counts + unique users per instrumented funnel event name (registration,
 // OTP, booking, payment) — not pre-grouped into named funnels; the dashboard
 // buckets them. kpis are computed server-side from unique-user counts (see
@@ -874,6 +888,8 @@ export const adminApi = {
       request<{ data: RetentionAnalytics }>(`/admin/analytics/retention?lookbackDays=${lookbackDays}`),
     digitalExperience: (period = '30d') =>
       request<{ data: DigitalExperienceAnalytics }>(`/admin/analytics/digital-experience?period=${period}`),
+    security: (period = '30d') =>
+      request<{ data: SecurityAnalytics }>(`/admin/analytics/security?period=${period}`),
   },
 
   auditLogs: {
