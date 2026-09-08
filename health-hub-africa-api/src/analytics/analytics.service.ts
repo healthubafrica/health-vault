@@ -39,6 +39,21 @@ function deviceCategoryFromUserAgent(userAgent: string | undefined): string {
   return ua ? 'Desktop' : 'Unknown';
 }
 
+// Order matters: Edge and Opera UAs both contain "Chrome"/"Safari" tokens,
+// so the more specific browsers must be checked first. Good enough for a
+// breakdown chart — not trying to replace a real UA-parsing library.
+function browserFromUserAgent(userAgent: string | undefined): string {
+  const ua = userAgent?.toLowerCase() ?? '';
+  if (!ua) return 'Unknown';
+  if (/edg\//.test(ua)) return 'Edge';
+  if (/opr\/|opera/.test(ua)) return 'Opera';
+  if (/samsungbrowser/.test(ua)) return 'Samsung Internet';
+  if (/firefox\//.test(ua)) return 'Firefox';
+  if (/crios\/|chrome\//.test(ua)) return 'Chrome';
+  if (/fxios\/|safari\//.test(ua)) return 'Safari';
+  return 'Other';
+}
+
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
@@ -69,6 +84,7 @@ export class AnalyticsService {
           eventName: dto.eventType,
           countryCode: geo?.countryCode,
           deviceCategory: deviceCategoryFromUserAgent(geo?.userAgent),
+          userAgent: geo?.userAgent?.slice(0, 1000),
           properties: {
             entityType: dto.entityType,
             entityId: dto.entityId,
@@ -577,6 +593,62 @@ export class AnalyticsService {
         category,
         version: AnalyticsService.ENGAGEMENT_SCORE_VERSION,
         components,
+      },
+    };
+  }
+
+  // Digital Experience dashboard — device/browser breakdown for the patient
+  // portal itself (distinct from getTrafficAnalytics, which covers the
+  // anonymous public marketing site) plus client-side error visibility.
+  // client_error events are emitted by ErrorTracker (health-hub-africa
+  // portal) via the same trackEvent()/PatientActivityEvent pipeline as every
+  // other funnel event — no new table, no new ingestion endpoint.
+  async getDigitalExperienceAnalytics(period = '30d') {
+    const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const events = await this.prisma.patientActivityEvent.findMany({
+      where: { occurredAt: { gte: since } },
+      select: { eventName: true, deviceCategory: true, userAgent: true, properties: true, occurredAt: true },
+    });
+
+    const deviceMap = new Map<string, number>();
+    const browserMap = new Map<string, number>();
+    const errorMessageMap = new Map<string, number>();
+    let errorCount = 0;
+
+    for (const e of events) {
+      const device = e.deviceCategory ?? 'Unknown';
+      deviceMap.set(device, (deviceMap.get(device) ?? 0) + 1);
+
+      const browser = browserFromUserAgent(e.userAgent ?? undefined);
+      browserMap.set(browser, (browserMap.get(browser) ?? 0) + 1);
+
+      if (e.eventName === 'client_error') {
+        errorCount++;
+        const message = (e.properties as { message?: string } | null)?.message ?? '(no message)';
+        errorMessageMap.set(message, (errorMessageMap.get(message) ?? 0) + 1);
+      }
+    }
+
+    return {
+      data: {
+        totalEvents: events.length,
+        devices: Array.from(deviceMap.entries())
+          .map(([device, count]) => ({ device, count }))
+          .sort((a, b) => b.count - a.count),
+        browsers: Array.from(browserMap.entries())
+          .map(([browser, count]) => ({ browser, count }))
+          .sort((a, b) => b.count - a.count),
+        errorCount,
+        // null (not 0) when there's simply no traffic to divide by — same
+        // convention as every other KPI in this file.
+        errorRate: events.length > 0 ? Math.round((errorCount / events.length) * 1000) / 10 : null,
+        topErrors: Array.from(errorMessageMap.entries())
+          .map(([message, count]) => ({ message, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 20),
       },
     };
   }

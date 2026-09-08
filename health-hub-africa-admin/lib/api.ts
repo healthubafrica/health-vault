@@ -365,6 +365,18 @@ export interface RetentionAnalytics {
   cohortSize: number
 }
 
+// Device/browser breakdown for the patient portal itself, plus client-error
+// visibility (see AnalyticsService.getDigitalExperienceAnalytics). Distinct
+// from TrafficAnalytics.devices, which covers the anonymous marketing site.
+export interface DigitalExperienceAnalytics {
+  totalEvents: number
+  devices: Array<{ device: string; count: number }>
+  browsers: Array<{ browser: string; count: number }>
+  errorCount: number
+  errorRate: number | null
+  topErrors: Array<{ message: string; count: number }>
+}
+
 // Raw counts + unique users per instrumented funnel event name (registration,
 // OTP, booking, payment) — not pre-grouped into named funnels; the dashboard
 // buckets them. kpis are computed server-side from unique-user counts (see
@@ -860,6 +872,8 @@ export const adminApi = {
       request<{ data: GeoComparison }>(`/admin/analytics/geo-comparison?period=${period}`),
     retention: (lookbackDays = 90) =>
       request<{ data: RetentionAnalytics }>(`/admin/analytics/retention?lookbackDays=${lookbackDays}`),
+    digitalExperience: (period = '30d') =>
+      request<{ data: DigitalExperienceAnalytics }>(`/admin/analytics/digital-experience?period=${period}`),
   },
 
   auditLogs: {
