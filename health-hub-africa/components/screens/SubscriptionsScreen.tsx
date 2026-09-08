@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Check } from 'lucide-react'
-import { subscriptions, type SubscriptionPlan } from '@/lib/api'
+import { subscriptions, analytics, type SubscriptionPlan } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
@@ -56,15 +56,18 @@ export function SubscriptionsScreen() {
     const confirmMsg = isSwitch
       ? `Switch to ${label}? You'll be taken to a secure payment page.`
       : `Subscribe to ${label}? You'll be taken to a secure payment page.`
+    analytics.track('plan_select', { plan: plan.tier, billing, isSwitch })
     if (!window.confirm(confirmMsg)) return
     try {
       setSaving(plan.id)
       const res = await subscriptions.upgrade(plan.id, billing)
+      analytics.track('checkout_start', { plan: plan.tier, billing, gateway: res.gateway })
       // Redirect to the gateway's hosted checkout. The subscription is
       // activated by the payment webhook once the charge succeeds.
       toast.success(`Redirecting to ${res.gateway} to complete payment…`)
       window.location.href = res.authorizationUrl
     } catch (err) {
+      analytics.track('subscription_checkout_error', { plan: plan.tier })
       toast.error(err instanceof Error ? err.message : 'Could not start payment')
       setSaving(null)
     }
@@ -75,6 +78,7 @@ export function SubscriptionsScreen() {
     if (!window.confirm(`Cancel ${activeSub.plan.name}? You'll revert to the Free Plan.`)) return
     try {
       await subscriptions.cancel(activeSub.id)
+      analytics.track('subscription_cancelled', { plan: activeSub.plan.tier })
       toast.success('Plan cancelled — you\'re now on the Free Plan')
       refetch()
     } catch (err) {

@@ -25,7 +25,7 @@ import { Button } from '@/components/ui/Button'
 import { IdChip } from '@/components/ui/IdChip'
 import { Tooltip } from '@/components/ui/Tooltip'
 import { formatDate, formatRelativeTime } from '@/lib/utils'
-import { patients, vitals as vitalsApi, appointments, subscriptions } from '@/lib/api'
+import { patients, vitals as vitalsApi, appointments, subscriptions, analytics } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { DashboardSkeleton } from '@/components/skeletons/DashboardSkeleton'
 import { LogVitalsModal } from '@/components/vitals/LogVitalsModal'
@@ -142,11 +142,21 @@ export function DashboardScreen() {
     .filter((v): v is number => v != null)
   const lastRbcReading = [...chronological].reverse().find((v) => v.rbc != null)
 
+  // Quick Actions are the highest-traffic CTAs on the app — the ones the
+  // clickstream spec calls out by name (§8.2). element_id/feature_area/
+  // destination live in the properties JSON (see trackEvent()); no first-
+  // class columns for them yet, same tradeoff as every other event here.
+  function trackQuickAction(elementId: string, destination: string) {
+    analytics.track('ui_click', { element_id: `quick_action_${elementId}`, feature_area: 'dashboard', destination })
+    router.push(destination)
+  }
+
   function handleExportVitals() {
     if (vitalsHistory.length === 0) {
       toast.error('No vitals data to export yet')
       return
     }
+    analytics.track('ui_click', { element_id: 'export_vitals', feature_area: 'dashboard' })
     const headers = ['Recorded At', 'Heart Rate (bpm)', 'SpO2 (%)', 'Systolic BP', 'Diastolic BP', 'Blood Glucose', 'Weight (kg)', 'Sleep (hrs)', 'RBC']
     const rows = vitalsHistory.map((v) => [
       new Date(v.recordedAt).toISOString(),
@@ -424,11 +434,11 @@ export function DashboardScreen() {
       <Card className="rounded-[24px]">
         <CardTitle className="text-xs font-extrabold text-[var(--color-text-muted)] uppercase tracking-wider mb-4">Quick Actions</CardTitle>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <ActionChip icon={Video} name="TeleCare™" description="Virtual consult" onClick={() => router.push('/telecare')} />
-          <ActionChip icon={FlaskConical} name="CareTest™" description="Book a lab test" onClick={() => router.push('/labs')} />
-          <ActionChip icon={CalendarPlus} name="Appointment" description="Schedule a visit" onClick={() => router.push('/appointments')} />
-          <ActionChip icon={HeartPulse} name="Log Vitals" description="Record readings" onClick={() => setShowLogVitals(true)} />
-          <ActionChip icon={Truck} name="DispatchCare™" description="Emergency" emergency onClick={() => router.push('/dispatch')} />
+          <ActionChip icon={Video} name="TeleCare™" description="Virtual consult" onClick={() => trackQuickAction('telecare', '/telecare')} />
+          <ActionChip icon={FlaskConical} name="CareTest™" description="Book a lab test" onClick={() => trackQuickAction('caretest', '/labs')} />
+          <ActionChip icon={CalendarPlus} name="Appointment" description="Schedule a visit" onClick={() => trackQuickAction('appointment', '/appointments')} />
+          <ActionChip icon={HeartPulse} name="Log Vitals" description="Record readings" onClick={() => { analytics.track('ui_click', { element_id: 'quick_action_log_vitals', feature_area: 'dashboard' }); setShowLogVitals(true) }} />
+          <ActionChip icon={Truck} name="DispatchCare™" description="Emergency" emergency onClick={() => trackQuickAction('dispatch', '/dispatch')} />
         </div>
       </Card>
 
@@ -463,6 +473,7 @@ export function DashboardScreen() {
                 variant="secondary"
                 className="self-start mt-1"
                 onClick={() => {
+                  analytics.track('ui_click', { element_id: 'reschedule_cta', feature_area: 'dashboard', destination: '/appointments' })
                   toast.info('Visit Appointments to reschedule')
                   router.push('/appointments')
                 }}
@@ -478,7 +489,7 @@ export function DashboardScreen() {
               <Button
                 size="sm"
                 className="self-start mt-1"
-                onClick={() => router.push('/appointments')}
+                onClick={() => trackQuickAction('book_appointment_cta', '/appointments')}
               >
                 Book an appointment
               </Button>
@@ -504,14 +515,14 @@ export function DashboardScreen() {
                   <p className="text-xs text-[var(--color-text-muted)] font-medium">{nextAppt.provider.specialty}</p>
                 </div>
               </div>
-              <Button size="sm" fullWidth className="mt-4" onClick={() => router.push('/appointments')}>Book Consultation</Button>
+              <Button size="sm" fullWidth className="mt-4" onClick={() => trackQuickAction('book_consultation_cta', '/appointments')}>Book Consultation</Button>
             </>
           ) : (
             <div className="flex flex-col gap-3">
               <p className="text-sm font-medium text-[var(--color-text-muted)]">
                 You don't have an assigned provider yet. Book a consultation to get matched with one.
               </p>
-              <Button size="sm" fullWidth className="mt-1" onClick={() => router.push('/appointments')}>Book Consultation</Button>
+              <Button size="sm" fullWidth className="mt-1" onClick={() => trackQuickAction('book_consultation_cta', '/appointments')}>Book Consultation</Button>
             </div>
           )}
         </Card>

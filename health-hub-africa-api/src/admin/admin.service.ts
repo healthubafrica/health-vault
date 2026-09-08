@@ -17,6 +17,7 @@ import { NotificationsService, NOTIFICATIONS_QUEUE, NotificationJobData, Notific
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { AuthService } from '../auth/auth.service';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { AlertsService } from '../alerts/alerts.service';
 import {
   UpdateUserRoleDto,
   UpdateUserStatusDto,
@@ -64,6 +65,7 @@ export class AdminService {
     private readonly s3: S3Service,
     private readonly authService: AuthService,
     private readonly analyticsService: AnalyticsService,
+    private readonly alertsService: AlertsService,
   ) {}
 
   // ── Users ─────────────────────────────────────────────────────────────────
@@ -406,12 +408,19 @@ export class AdminService {
       ? `${provider.firstName} ${provider.lastName}`.trim()
       : undefined;
 
+    // Only meaningful for a patient — computed here (not a separate
+    // endpoint) so the detail page gets it in the same call.
+    const engagement = patient
+      ? (await this.analyticsService.getEngagementScore(id, patient.id)).data
+      : undefined;
+
     return {
       data: {
         ...rest,
         phoneNumber: phone ?? undefined,
         fullName,
         subscription,
+        engagement,
         patient: patient
           ? {
               id: patient.id,
@@ -757,8 +766,32 @@ export class AdminService {
     return this.analyticsService.getTrafficAnalytics(period);
   }
 
-  getFunnelAnalytics(period = '30d', filters?: { country?: string; device?: string }) {
+  getFunnelAnalytics(period = '30d', filters?: { country?: string; continent?: string; device?: string }) {
     return this.analyticsService.getFunnelAnalytics(period, filters);
+  }
+
+  getGeoComparison(period = '30d') {
+    return this.analyticsService.getGeoComparison(period);
+  }
+
+  getRetentionAnalytics(lookbackDays = 90) {
+    return this.analyticsService.getRetentionAnalytics(lookbackDays);
+  }
+
+  getDigitalExperienceAnalytics(period = '30d') {
+    return this.analyticsService.getDigitalExperienceAnalytics(period);
+  }
+
+  // Thin delegates — detection, dedup, and email delivery live in
+  // AlertsModule (which also owns the cron that runs the checks); kept out
+  // of AdminService so the two concerns (raising an alert, reading the
+  // alert inbox) don't have to agree on anything beyond this call.
+  getAlerts(page = 1, limit = 20) {
+    return this.alertsService.list(page, limit);
+  }
+
+  markAlertRead(id: string) {
+    return this.alertsService.markRead(id);
   }
 
   async getMarketingAnalytics(period = '30d') {
@@ -809,6 +842,7 @@ export class AdminService {
         FROM "login_events" le
         INNER JOIN "users" u ON u."id" = le."user_id"
         WHERE le."occurred_at" >= ${since}
+          AND le."success" = true
           AND u."role"::text = 'patient'
           AND u."deleted_at" IS NULL
       `,
@@ -956,6 +990,99 @@ export class AdminService {
           .map(([referrer, count]) => ({ referrer, count }))
           .sort((a, b) => b.count - a.count)
           .slice(0, 10),
+      },
+    };
+  }
+
+  // Security/Telemetry dashboard — login_events already carries both
+  // success and failure rows (see 20260908130000_login_events_success) once
+  // AuthService.login() started recording the wrong-password branch too, so
+  // this needs no new table. Deliberately NOT filtered to role='patient'
+  // (unlike getMarketingAnalytics above) — a credential-stuffing run against
+  // admin/provider accounts is exactly the kind of thing this dashboard
+  // exists to surface.
+  async getSecurityAnalytics(period = '30d') {
+    const since = this.periodToDate(period);
+
+    type LoginAttemptRow = {
+      userId: string;
+      email: string;
+      occurredAt: Date;
+      countryCode: string | null;
+      success: boolean;
+    };
+
+    const attempts = await this.prisma.$queryRaw<LoginAttemptRow[]>`
+      SELECT le."user_id" AS "userId", u."email", le."occurred_at" AS "occurredAt",
+        le."country_code" AS "countryCode", le."success"
+      FROM "login_events" le
+      INNER JOIN "users" u ON u."id" = le."user_id"
+      WHERE le."occurred_at" >= ${since}
+        AND u."deleted_at" IS NULL
+      ORDER BY le."user_id", le."occurred_at" ASC
+    `;
+
+    const dayMap = new Map<string, number>();
+    const cursor = new Date(since);
+    cursor.setUTCHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    while (cursor <= today) {
+      dayMap.set(cursor.toISOString().slice(0, 10), 0);
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+
+    const failedLocationMap = new Map<string, number>();
+    type Anomaly = { userId: string; email: string; fromCountry: string; toCountry: string; occurredAt: Date };
+    const anomalies: Anomaly[] = [];
+    // Rows arrive user-then-time ordered (see ORDER BY above), so the
+    // previous row is the previous chronological login for the same user
+    // exactly when userId is unchanged — no grouping pass needed.
+    let prevUserId: string | null = null;
+    let prevCountry: string | null = null;
+
+    for (const a of attempts) {
+      if (!a.success) {
+        const day = a.occurredAt.toISOString().slice(0, 10);
+        const row = dayMap.get(day);
+        if (row !== undefined) dayMap.set(day, row + 1);
+
+        const country = a.countryCode?.toUpperCase() ?? 'Unknown';
+        failedLocationMap.set(country, (failedLocationMap.get(country) ?? 0) + 1);
+      }
+
+      // Anomaly = a successful login from a different country than this
+      // same user's immediately preceding successful login. Failed attempts
+      // don't update prevCountry — a wrong password from a new country
+      // isn't "the account's new normal location," and would otherwise mask
+      // the very next successful login's anomaly.
+      if (a.success) {
+        const country = a.countryCode?.toUpperCase() ?? null;
+        if (a.userId === prevUserId && prevCountry && country && country !== prevCountry) {
+          anomalies.push({ userId: a.userId, email: a.email, fromCountry: prevCountry, toCountry: country, occurredAt: a.occurredAt });
+        }
+        prevUserId = a.userId;
+        if (country) prevCountry = country;
+      }
+    }
+
+    const successCount = attempts.filter((a) => a.success).length;
+    const failureCount = attempts.length - successCount;
+
+    return {
+      data: {
+        totalAttempts: attempts.length,
+        successCount,
+        failureCount,
+        failureRate: attempts.length > 0 ? Math.round((failureCount / attempts.length) * 1000) / 10 : null,
+        failedAttemptsByDay: Array.from(dayMap.entries()).map(([date, count]) => ({ date, count })),
+        failedLoginLocations: Array.from(failedLocationMap.entries())
+          .map(([countryCode, count]) => ({ countryCode, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 20),
+        locationAnomalies: anomalies
+          .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())
+          .slice(0, 20),
       },
     };
   }
@@ -2416,7 +2543,7 @@ export class AdminService {
     await this.notificationsQueue.add(
       jobName,
       {
-        userId: delivery.userId,
+        userId: delivery.userId ?? undefined,
         channel: delivery.channel as NotificationJobData['channel'],
         to: delivery.recipient,
         subject: delivery.subject ?? undefined,

@@ -268,6 +268,14 @@ export interface AdminUser {
     lastName: string
     isAvailable: boolean
   }
+  // Present only when the user has a patient record — transparent, versioned
+  // score (spec §17: "not a hidden AI score"), computed on-demand.
+  engagement?: {
+    score: number
+    category: string
+    version: number
+    components: Record<string, number>
+  }
 }
 
 // ── Admin: Analytics ──────────────────────────────────────────────────────
@@ -335,10 +343,52 @@ export interface MarketingAnalytics {
 export interface TrafficAnalytics {
   totalVisits: number
   activity: Array<{ date: string; visits: number }>
-  locations: Array<{ countryCode: string; region: string; city: string; visits: number }>
+  locations: Array<{ countryCode: string; continent: string; region: string; city: string; visits: number }>
   devices: Array<{ device: string; count: number }>
   referrers: Array<{ referrer: string; count: number }>
   campaigns: Array<{ campaign: string; source: string; medium: string; visits: number }>
+}
+
+// Patient-declared country (Patient.country, entered at onboarding) vs where
+// their sessions actually originate (IP-derived) — spec §4.4. Read-only:
+// declared values are never overwritten by this comparison.
+export interface GeoComparison {
+  comparisons: Array<{ declaredCountry: string; accessCountry: string; patients: number; matches: boolean }>
+  totalPatients: number
+  diasporaPatients: number
+}
+
+// D1/D7/D30 retention — "returned at least once N+ days after registering",
+// not a strict single-day cohort curve (see AnalyticsService.getRetentionAnalytics).
+export interface RetentionAnalytics {
+  windows: Array<{ days: number; eligibleCohortSize: number; retainedUsers: number; rate: number | null }>
+  cohortSize: number
+}
+
+// Device/browser breakdown for the patient portal itself, plus client-error
+// visibility (see AnalyticsService.getDigitalExperienceAnalytics). Distinct
+// from TrafficAnalytics.devices, which covers the anonymous marketing site.
+export interface DigitalExperienceAnalytics {
+  totalEvents: number
+  devices: Array<{ device: string; count: number }>
+  browsers: Array<{ browser: string; count: number }>
+  errorCount: number
+  errorRate: number | null
+  topErrors: Array<{ message: string; count: number }>
+}
+
+// Login failure/anomaly telemetry, sourced from the same login_events table
+// as MarketingAnalytics.loginLocations (see AdminService.getSecurityAnalytics)
+// — NOT scoped to patients only, since a credential-stuffing run against
+// admin/provider accounts is exactly what this dashboard exists to surface.
+export interface SecurityAnalytics {
+  totalAttempts: number
+  successCount: number
+  failureCount: number
+  failureRate: number | null
+  failedAttemptsByDay: Array<{ date: string; count: number }>
+  failedLoginLocations: Array<{ countryCode: string; count: number }>
+  locationAnomalies: Array<{ userId: string; email: string; fromCountry: string; toCountry: string; occurredAt: string }>
 }
 
 // Raw counts + unique users per instrumented funnel event name (registration,
@@ -347,7 +397,7 @@ export interface TrafficAnalytics {
 // AnalyticsService.KPI_DEFINITIONS) so numerator/denominator/value stay
 // consistent with the step table above.
 export interface FunnelAnalytics {
-  steps: Array<{ eventName: string; count: number; uniqueUsers: number }>
+  steps: Array<{ eventName: string; count: number; uniqueUsers: number; uniqueSessions: number }>
   kpis: Array<{ key: string; label: string; numerator: number; denominator: number; value: number | null }>
 }
 
@@ -657,6 +707,15 @@ export interface NotificationDelivery {
   shareId?: string; createdAt: string
 }
 
+// System-detected conditions (OTP failure spikes, booking abandonment —
+// spec §29/§2), raised by a background job. Distinct from NotificationDelivery
+// above, which is the per-message send log.
+export interface AdminAlert {
+  id: string; type: string; severity: 'info' | 'warning' | 'critical'
+  title: string; body?: string | null; metadata?: Record<string, unknown> | null
+  isRead: boolean; readAt?: string | null; createdAt: string
+}
+
 // ── Admin: Share Activity ────────────────────────────────────────────────
 // Secure-share link delivery/access audit, backed by RecordShare +
 // RecordShareAccess (see NotificationDelivery.shareId for how a sent/delivered
@@ -816,12 +875,21 @@ export const adminApi = {
       request<{ data: MarketingAnalytics }>(`/admin/analytics/marketing?period=${period}`),
     traffic: (period = '30d') =>
       request<{ data: TrafficAnalytics }>(`/admin/analytics/traffic?period=${period}`),
-    funnel: (period = '30d', filters?: { country?: string; device?: string }) => {
+    funnel: (period = '30d', filters?: { country?: string; continent?: string; device?: string }) => {
       const qs = new URLSearchParams({ period })
       if (filters?.country) qs.set('country', filters.country)
+      if (filters?.continent) qs.set('continent', filters.continent)
       if (filters?.device) qs.set('device', filters.device)
       return request<{ data: FunnelAnalytics }>(`/admin/analytics/funnel?${qs}`)
     },
+    geoComparison: (period = '30d') =>
+      request<{ data: GeoComparison }>(`/admin/analytics/geo-comparison?period=${period}`),
+    retention: (lookbackDays = 90) =>
+      request<{ data: RetentionAnalytics }>(`/admin/analytics/retention?lookbackDays=${lookbackDays}`),
+    digitalExperience: (period = '30d') =>
+      request<{ data: DigitalExperienceAnalytics }>(`/admin/analytics/digital-experience?period=${period}`),
+    security: (period = '30d') =>
+      request<{ data: SecurityAnalytics }>(`/admin/analytics/security?period=${period}`),
   },
 
   auditLogs: {
@@ -1150,6 +1218,16 @@ export const adminApi = {
       return request<{ data: NotificationDelivery[]; meta: { total: number } }>(`/admin/notifications${qs}`)
     },
     resend: (id: string) => request<{ message: string }>(`/admin/notifications/${id}/resend`, { method: 'POST' }),
+  },
+
+  alerts: {
+    list: (params?: { page?: number; limit?: number }) => {
+      const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : ''
+      return request<{ data: AdminAlert[]; meta: { total: number; page: number; limit: number; unreadCount: number } }>(`/admin/alerts${qs}`)
+    },
+    // Backend returns the updated row unwrapped (no {data: ...} envelope) — matches
+    // how AlertsService.markRead() passes prisma.adminAlert.update()'s result straight through.
+    markRead: (id: string) => request<AdminAlert>(`/admin/alerts/${id}/read`, { method: 'PATCH' }),
   },
 
   shares: {

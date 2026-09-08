@@ -183,13 +183,61 @@ export class AdminController {
   @Get('analytics/funnel')
   @ApiOperation({ summary: 'Get step counts, unique users, and KPIs for every instrumented funnel (registration, OTP, booking, payment)' })
   @ApiQuery({ name: 'country', required: false, description: 'Filter to a single ISO country code' })
+  @ApiQuery({ name: 'continent', required: false, description: 'Filter to a single continent' })
   @ApiQuery({ name: 'device', required: false, description: 'Filter to a single device category (Desktop/Mobile/Tablet)' })
   getFunnelAnalytics(
     @Query('period') period?: string,
     @Query('country') country?: string,
+    @Query('continent') continent?: string,
     @Query('device') device?: string,
   ) {
-    return this.adminService.getFunnelAnalytics(period, { country, device });
+    return this.adminService.getFunnelAnalytics(period, { country, continent, device });
+  }
+
+  @Get('analytics/geo-comparison')
+  @ApiOperation({ summary: 'Compare patient-declared country against IP-derived access country (spec §4.4)' })
+  getGeoComparison(@Query('period') period?: string) {
+    return this.adminService.getGeoComparison(period);
+  }
+
+  @Get('analytics/retention')
+  @ApiOperation({ summary: 'Get D1/D7/D30 patient retention (spec §16)' })
+  @ApiQuery({ name: 'lookbackDays', required: false, description: 'How far back to search for eligible cohort members (default 90)' })
+  getRetentionAnalytics(@Query('lookbackDays') lookbackDays?: string) {
+    return this.adminService.getRetentionAnalytics(lookbackDays ? parseInt(lookbackDays, 10) : undefined);
+  }
+
+  @Get('analytics/digital-experience')
+  @ApiOperation({ summary: 'Get device/browser breakdown and client-error visibility for the patient portal' })
+  @ApiQuery({ name: 'period', required: false, description: "e.g. '7d', '30d', '90d' (default 30d)" })
+  getDigitalExperienceAnalytics(@Query('period') period?: string) {
+    return this.adminService.getDigitalExperienceAnalytics(period);
+  }
+
+  @Get('analytics/security')
+  @ApiOperation({ summary: 'Get login failure rate, failure locations, and cross-country login anomalies' })
+  @ApiQuery({ name: 'period', required: false, description: "e.g. '7d', '30d', '90d' (default 30d)" })
+  getSecurityAnalytics(@Query('period') period?: string) {
+    return this.adminService.getSecurityAnalytics(period);
+  }
+
+  // ── Alerts ────────────────────────────────────────────────────────────────
+  // System-detected conditions (OTP failure spikes, booking abandonment —
+  // spec §29/§2) — a background job in AlertsModule raises these on a 15-min
+  // cron; these two routes are just the admin-facing read/acknowledge side.
+
+  @Get('alerts')
+  @ApiOperation({ summary: 'List system alerts (OTP failure spikes, booking abandonment, etc.)' })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  getAlerts(@Query('page') page?: string, @Query('limit') limit?: string) {
+    return this.adminService.getAlerts(page ? parseInt(page, 10) : undefined, limit ? parseInt(limit, 10) : undefined);
+  }
+
+  @Patch('alerts/:id/read')
+  @ApiOperation({ summary: 'Mark a system alert as read' })
+  markAlertRead(@Param('id') id: string) {
+    return this.adminService.markAlertRead(id);
   }
 
   // ── System ────────────────────────────────────────────────────────────────

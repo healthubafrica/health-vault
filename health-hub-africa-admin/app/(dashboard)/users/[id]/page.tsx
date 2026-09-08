@@ -10,7 +10,7 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { formatDate, formatDateTime } from '@/lib/utils'
-import { ArrowLeft, Shield, ToggleLeft, ToggleRight, RotateCcw, Pencil } from 'lucide-react'
+import { ArrowLeft, Shield, ToggleLeft, ToggleRight, RotateCcw, Pencil, Check, X } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ReactNode } from 'react'
 
@@ -28,6 +28,57 @@ const SYNC_PILL: Record<string, 'success' | 'warning' | 'emergency' | 'neutral'>
   synced: 'success',
   pending: 'warning',
   failed: 'emergency',
+}
+
+const ENGAGEMENT_CATEGORY_PILL: Record<string, 'success' | 'info' | 'warning' | 'emergency' | 'neutral'> = {
+  'Highly Engaged': 'success',
+  'Engaged': 'info',
+  'Low Engagement': 'warning',
+  'At Risk': 'warning',
+  'Dormant': 'emergency',
+}
+
+const ENGAGEMENT_COMPONENT_LABELS: Record<string, string> = {
+  recentLogin: 'Logged in within 30 days',
+  profileComplete: 'Profile complete',
+  hasBooking: 'Booked an appointment',
+  repeatBooking: 'Repeat booking',
+  hasUpload: 'Uploaded a document',
+  hasVitals: 'Logged vitals',
+  paidSubscription: 'Paid subscription',
+}
+
+// Transparent, versioned score (spec §17) — every component is shown so
+// the breakdown, not a black-box number, is what's on screen.
+function EngagementCard({ engagement }: { engagement: NonNullable<AdminUser['engagement']> }) {
+  return (
+    <Card className="mb-4">
+      <div className="flex items-center justify-between mb-3">
+        <CardTitle className="mb-0">Engagement Score</CardTitle>
+        <span className="text-[10px]" style={{ color: 'var(--color-text-faint)' }}>v{engagement.version}</span>
+      </div>
+      <div className="flex items-center gap-3 mb-4">
+        <span className="text-2xl font-bold" style={{ color: 'var(--color-text)' }}>{engagement.score}</span>
+        <span className="text-sm" style={{ color: 'var(--color-text-faint)' }}>/ 100</span>
+        <Pill variant={ENGAGEMENT_CATEGORY_PILL[engagement.category] ?? 'neutral'}>{engagement.category}</Pill>
+      </div>
+      <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+        {Object.entries(engagement.components).map(([key, value]) => (
+          <div key={key} className="flex items-center gap-2 text-sm">
+            {value > 0 ? (
+              <Check className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--color-success, #6DC43F)' }} />
+            ) : (
+              <X className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--color-text-faint)' }} />
+            )}
+            <span style={{ color: value > 0 ? 'var(--color-text)' : 'var(--color-text-faint)' }}>
+              {ENGAGEMENT_COMPONENT_LABELS[key] ?? key}
+            </span>
+            <span className="ml-auto text-xs" style={{ color: 'var(--color-text-faint)' }}>+{value}</span>
+          </div>
+        ))}
+      </dl>
+    </Card>
+  )
 }
 
 export default function UserDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -360,6 +411,9 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
           </dl>
         </Card>
       )}
+
+      {/* Engagement score — patients only */}
+      {user.engagement && <EngagementCard engagement={user.engagement} />}
 
       {/* Recent audit trail */}
       <Card padding={false}>

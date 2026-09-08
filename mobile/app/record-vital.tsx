@@ -17,7 +17,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
 import EmergencyFAB from '@/components/EmergencyFAB';
-import { vitals, CreateVitalsPayload, ApiError } from '@/lib/api';
+import { vitals, analytics, CreateVitalsPayload, ApiError } from '@/lib/api';
 import { queryClient } from '@/lib/queryClient';
 
 interface MetricOption {
@@ -115,6 +115,7 @@ export default function RecordVitalsEntryScreen() {
       }
 
       await vitals.create(payload);
+      analytics.track('manual_entry_success', { metric: selectedMetric.label });
       queryClient.invalidateQueries({ queryKey: ['vitals'] });
 
       router.replace({

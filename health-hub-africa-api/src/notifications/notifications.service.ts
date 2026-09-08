@@ -17,7 +17,9 @@ export const OPS_NOTIFICATION_USER_ID = '00000000-0000-0000-0000-000000000099';
 export type NotificationChannel = 'email' | 'sms' | 'push' | 'whatsapp';
 
 export interface NotificationJobData {
-  userId: string;
+  // Absent for ops/system alert emails (AdminAlert) — there's no single
+  // patient/user to attribute the delivery to.
+  userId?: string;
   channel: NotificationChannel;
   subject?: string;
   body: string;
@@ -125,7 +127,7 @@ export class NotificationsService {
   // works. Called after the rate-limit check so throttled messages never
   // get a delivery row (matches the existing "silently drop" behavior).
   private async createDelivery(
-    userId: string,
+    userId: string | undefined,
     channel: NotificationChannel,
     recipient: string,
     subject: string | undefined,
@@ -144,7 +146,7 @@ export class NotificationsService {
   // — UX-facing callers (e.g. "resend OTP") get the same response they always
   // do, so an attacker who triggers the throttle can't tell their target's
   // inbox is being protected.
-  async sendEmail(to: string, subject: string, body: string, userId: string) {
+  async sendEmail(to: string, subject: string, body: string, userId?: string) {
     if (!(await this.rateLimiter.allow('email', to))) return;
     const deliveryId = await this.createDelivery(userId, 'email', to, subject, body);
     await this.queue.add(

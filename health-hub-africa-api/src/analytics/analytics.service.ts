@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { RecordVisitDto } from './dto/record-visit.dto';
+import { continentForCountry } from './continent-map';
 
 export interface ActivityEventDto {
   eventType: string;
@@ -10,6 +11,9 @@ export interface ActivityEventDto {
   entityId?: string;
   metadata?: Record<string, unknown>;
   anonymousVisitorId?: string;
+  // Client-generated, persisted per browser-tab-session (sessionStorage) —
+  // groups events into a visit without reusing the auth session identifier.
+  analyticsSessionId?: string;
 }
 
 export interface VisitGeoContext {
@@ -33,6 +37,21 @@ function deviceCategoryFromUserAgent(userAgent: string | undefined): string {
   if (/ipad|tablet|kindle/.test(ua)) return 'Tablet';
   if (/mobile|iphone|android/.test(ua)) return 'Mobile';
   return ua ? 'Desktop' : 'Unknown';
+}
+
+// Order matters: Edge and Opera UAs both contain "Chrome"/"Safari" tokens,
+// so the more specific browsers must be checked first. Good enough for a
+// breakdown chart — not trying to replace a real UA-parsing library.
+function browserFromUserAgent(userAgent: string | undefined): string {
+  const ua = userAgent?.toLowerCase() ?? '';
+  if (!ua) return 'Unknown';
+  if (/edg\//.test(ua)) return 'Edge';
+  if (/opr\/|opera/.test(ua)) return 'Opera';
+  if (/samsungbrowser/.test(ua)) return 'Samsung Internet';
+  if (/firefox\//.test(ua)) return 'Firefox';
+  if (/crios\/|chrome\//.test(ua)) return 'Chrome';
+  if (/fxios\/|safari\//.test(ua)) return 'Safari';
+  return 'Other';
 }
 
 @Injectable()
@@ -60,9 +79,12 @@ export class AnalyticsService {
         data: {
           patientId,
           anonymousVisitorId: patientId ? undefined : dto.anonymousVisitorId,
+          analyticsSessionId: dto.analyticsSessionId,
+          environment: process.env.NODE_ENV ?? 'development',
           eventName: dto.eventType,
           countryCode: geo?.countryCode,
           deviceCategory: deviceCategoryFromUserAgent(geo?.userAgent),
+          userAgent: geo?.userAgent?.slice(0, 1000),
           properties: {
             entityType: dto.entityType,
             entityId: dto.entityId,
@@ -217,7 +239,7 @@ export class AnalyticsService {
       if (row !== undefined) dayMap.set(day, row + 1);
     }
 
-    const locationMap = new Map<string, { countryCode: string; region: string; city: string; visits: number }>();
+    const locationMap = new Map<string, { countryCode: string; continent: string; region: string; city: string; visits: number }>();
     const deviceMap = new Map<string, number>();
     const referrerMap = new Map<string, number>();
     const campaignMap = new Map<string, { campaign: string; source: string; medium: string; visits: number }>();
@@ -227,7 +249,7 @@ export class AnalyticsService {
       const region = v.region ?? 'Unknown';
       const city = v.city ?? 'Unknown';
       const locationKey = `${countryCode} ${region} ${city}`;
-      const location = locationMap.get(locationKey) ?? { countryCode, region, city, visits: 0 };
+      const location = locationMap.get(locationKey) ?? { countryCode, continent: continentForCountry(countryCode), region, city, visits: 0 };
       location.visits++;
       locationMap.set(locationKey, location);
 
@@ -290,12 +312,22 @@ export class AnalyticsService {
     { key: 'paymentSuccessRate', label: 'Payment Success Rate', numerator: 'payment_success', denominator: 'checkout_started' },
   ];
 
-  // Step counts (raw + unique users) for every funnel event name emitted via
-  // analytics.track() — not hardcoded per funnel so new event names show up
-  // automatically as screens are instrumented; the dashboard groups them
-  // into named steps. Optional country/device filters narrow both the steps
-  // and the KPIs computed from them.
-  async getFunnelAnalytics(period = '30d', filters?: { country?: string; device?: string }) {
+  // Spec §13: activation = a completed registration followed by at least one
+  // approved meaningful health action. ponytail: scoped to "within the same
+  // reporting period" rather than an unbounded lookback from each patient's
+  // actual registration date — a correct unbounded version needs per-user
+  // registration timestamps carried forward across periods, which nothing
+  // here tracks yet. Extend if the business needs the stricter definition.
+  private static readonly ACTIVATION_QUALIFYING_EVENTS = [
+    'booking_confirmed', 'payment_success', 'upload_success', 'manual_entry_success', 'ticket_created',
+  ];
+
+  // Step counts (raw + unique users/sessions) for every funnel event name
+  // emitted via analytics.track() — not hardcoded per funnel so new event
+  // names show up automatically as screens are instrumented; the dashboard
+  // groups them into named steps. Optional country/continent/device filters
+  // narrow both the steps and the KPIs computed from them.
+  async getFunnelAnalytics(period = '30d', filters?: { country?: string; continent?: string; device?: string }) {
     const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
     const since = new Date();
     since.setDate(since.getDate() - days);
@@ -306,36 +338,317 @@ export class AnalyticsService {
         ...(filters?.country && { countryCode: filters.country }),
         ...(filters?.device && { deviceCategory: filters.device }),
       },
-      select: { eventName: true, patientId: true, anonymousVisitorId: true },
+      select: { eventName: true, patientId: true, anonymousVisitorId: true, analyticsSessionId: true, countryCode: true },
     });
+    const filtered = filters?.continent
+      ? rows.filter((r) => continentForCountry(r.countryCode) === filters.continent)
+      : rows;
 
-    const byEvent = new Map<string, { count: number; users: Set<string> }>();
-    for (const r of rows) {
-      const bucket = byEvent.get(r.eventName) ?? { count: 0, users: new Set() };
+    const byEvent = new Map<string, { count: number; users: Set<string>; sessions: Set<string> }>();
+    for (const r of filtered) {
+      const bucket = byEvent.get(r.eventName) ?? { count: 0, users: new Set(), sessions: new Set() };
       bucket.count++;
       const userKey = r.patientId ?? (r.anonymousVisitorId ? `anon:${r.anonymousVisitorId}` : undefined);
       if (userKey) bucket.users.add(userKey);
+      if (r.analyticsSessionId) bucket.sessions.add(r.analyticsSessionId);
       byEvent.set(r.eventName, bucket);
     }
 
     const uniqueUsers = (eventName: string) => byEvent.get(eventName)?.users.size ?? 0;
 
+    const registeredUsers = byEvent.get('registration_complete')?.users ?? new Set<string>();
+    const activatedUsers = new Set<string>();
+    for (const eventName of AnalyticsService.ACTIVATION_QUALIFYING_EVENTS) {
+      for (const user of byEvent.get(eventName)?.users ?? []) {
+        if (registeredUsers.has(user)) activatedUsers.add(user);
+      }
+    }
+    const activationKpi = {
+      key: 'activationRate',
+      label: 'Activation Rate',
+      numerator: activatedUsers.size,
+      denominator: registeredUsers.size,
+      value: registeredUsers.size > 0 ? Math.round((activatedUsers.size / registeredUsers.size) * 1000) / 10 : null,
+    };
+
     return {
       data: {
         steps: Array.from(byEvent.entries())
-          .map(([eventName, b]) => ({ eventName, count: b.count, uniqueUsers: b.users.size }))
+          .map(([eventName, b]) => ({ eventName, count: b.count, uniqueUsers: b.users.size, uniqueSessions: b.sessions.size }))
           .sort((a, b) => b.count - a.count),
-        kpis: AnalyticsService.KPI_DEFINITIONS.map((def) => {
-          const denominator = uniqueUsers(def.denominator);
-          const numerator = uniqueUsers(def.numerator);
-          return {
-            key: def.key,
-            label: def.label,
-            numerator,
-            denominator,
-            value: denominator > 0 ? Math.round((numerator / denominator) * 1000) / 10 : null,
-          };
-        }),
+        kpis: [
+          ...AnalyticsService.KPI_DEFINITIONS.map((def) => {
+            const denominator = uniqueUsers(def.denominator);
+            const numerator = uniqueUsers(def.numerator);
+            return {
+              key: def.key,
+              label: def.label,
+              numerator,
+              denominator,
+              value: denominator > 0 ? Math.round((numerator / denominator) * 1000) / 10 : null,
+            };
+          }),
+          activationKpi,
+        ],
+      },
+    };
+  }
+
+  // Compares where a patient SAYS they live (Patient.country, entered at
+  // onboarding) against where their sessions actually originate (IP-derived
+  // countryCode on their events) — spec §4.4/§D. Only covers authenticated
+  // events (anonymous visitors have no declared location to compare against).
+  // Declared values never get overwritten by this — it's a read-only report.
+  async getGeoComparison(period = '30d') {
+    const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const rows = await this.prisma.patientActivityEvent.findMany({
+      where: { occurredAt: { gte: since }, patientId: { not: null }, countryCode: { not: null } },
+      select: { patientId: true, countryCode: true },
+      distinct: ['patientId', 'countryCode'],
+    });
+
+    const patientIds = Array.from(new Set(rows.map((r) => r.patientId as string)));
+    const patients = await this.prisma.patient.findMany({
+      where: { id: { in: patientIds } },
+      select: { id: true, country: true },
+    });
+    const declaredByPatient = new Map(patients.map((p) => [p.id, p.country]));
+
+    // Patient.country is a free-text country NAME ("Nigeria"); the access
+    // side is an ISO alpha-2 code ("NG") off the geo headers. Intl.DisplayNames
+    // converts the code to its English name so the two sides compare
+    // meaningfully instead of "Nigeria" !== "NG" always mismatching.
+    const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+    const comparisonMap = new Map<string, { declaredCountry: string; accessCountry: string; patients: number; matches: boolean }>();
+    for (const r of rows) {
+      const declaredCountry = declaredByPatient.get(r.patientId as string) ?? 'Unknown';
+      const accessCode = (r.countryCode as string).toUpperCase();
+      let accessCountry = accessCode;
+      try {
+        accessCountry = regionNames.of(accessCode) ?? accessCode;
+      } catch {
+        // Unrecognized/reserved code (e.g. private IP range) — keep the raw code.
+      }
+      const matches = declaredCountry.toLowerCase() === accessCountry.toLowerCase();
+      const key = `${declaredCountry}|${accessCountry}`;
+      const row = comparisonMap.get(key) ?? { declaredCountry, accessCountry, patients: 0, matches };
+      row.patients++;
+      comparisonMap.set(key, row);
+    }
+
+    const comparisons = Array.from(comparisonMap.values()).sort((a, b) => b.patients - a.patients);
+    const diasporaPatients = comparisons.filter((c) => !c.matches).reduce((sum, c) => sum + c.patients, 0);
+
+    return {
+      data: {
+        comparisons,
+        totalPatients: patientIds.length,
+        diasporaPatients,
+      },
+    };
+  }
+
+  // Spec §16: N-day retention. ponytail: this is the common product-analytics
+  // simplification ("returned at least once N+ days after registering"), not
+  // a strict single-day cohort curve (active on exactly day N) — the latter
+  // needs a much larger sample to be statistically meaningful and isn't worth
+  // the extra complexity until there's real registration volume to look at.
+  // lookbackDays controls how far back to search for eligible cohort members
+  // (must be >= the largest window, 30, or D30 has no eligible cohort at all).
+  private static readonly RETENTION_WINDOWS = [1, 7, 30];
+
+  async getRetentionAnalytics(lookbackDays = 90) {
+    const since = new Date();
+    since.setDate(since.getDate() - lookbackDays);
+    const now = new Date();
+
+    const [registrations, activity] = await Promise.all([
+      this.prisma.patientActivityEvent.findMany({
+        where: { eventName: 'registration_complete', patientId: { not: null }, occurredAt: { gte: since } },
+        select: { patientId: true, occurredAt: true },
+      }),
+      this.prisma.patientActivityEvent.findMany({
+        where: { patientId: { not: null }, occurredAt: { gte: since } },
+        select: { patientId: true, occurredAt: true },
+      }),
+    ]);
+
+    // First registration_complete per patient — a re-fired event (retry,
+    // duplicate tab) shouldn't reset their cohort start date.
+    const registeredAt = new Map<string, Date>();
+    for (const r of registrations) {
+      const patientId = r.patientId as string;
+      const existing = registeredAt.get(patientId);
+      if (!existing || r.occurredAt < existing) registeredAt.set(patientId, r.occurredAt);
+    }
+
+    const activityByPatient = new Map<string, Date[]>();
+    for (const a of activity) {
+      const patientId = a.patientId as string;
+      const list = activityByPatient.get(patientId) ?? [];
+      list.push(a.occurredAt);
+      activityByPatient.set(patientId, list);
+    }
+
+    const windows = AnalyticsService.RETENTION_WINDOWS.map((days) => {
+      const cutoff = new Date(now);
+      cutoff.setDate(cutoff.getDate() - days);
+
+      let eligible = 0;
+      let retained = 0;
+      for (const [patientId, regDate] of registeredAt) {
+        if (regDate > cutoff) continue; // hasn't had a chance to reach day N yet
+        eligible++;
+        const activityCutoff = new Date(regDate);
+        activityCutoff.setDate(activityCutoff.getDate() + days);
+        const returned = (activityByPatient.get(patientId) ?? []).some((t) => t >= activityCutoff);
+        if (returned) retained++;
+      }
+
+      return {
+        days,
+        eligibleCohortSize: eligible,
+        retainedUsers: retained,
+        rate: eligible > 0 ? Math.round((retained / eligible) * 1000) / 10 : null,
+      };
+    });
+
+    return { data: { windows, cohortSize: registeredAt.size } };
+  }
+
+  // Spec §17: Engagement Score must be transparent and configurable, not a
+  // hidden AI score — weights live in one named constant, version bumps
+  // whenever a weight/signal changes (so a report referencing an old score
+  // can be told apart from a new one), and every response carries the raw
+  // component contributions so Customer Success can see exactly why a
+  // patient landed where they did without re-deriving it.
+  //
+  // ponytail: computed on demand for one patient (called from the admin user
+  // detail page), not precomputed/stored for the whole patient base — there's
+  // no established need yet for a sortable "all patients by engagement"
+  // leaderboard, and building the batch/storage machinery for that before
+  // anyone's asked for it is the kind of thing this spec itself warns
+  // against (§13: "qualifying-event list and window must be configurable
+  // and versioned", not "must run nightly for everyone").
+  private static readonly ENGAGEMENT_SCORE_VERSION = 1;
+  private static readonly ENGAGEMENT_WEIGHTS = {
+    recentLogin: 20, // signed in within the last 30 days
+    profileComplete: 15, // registration reached a Patient row
+    hasBooking: 20, // booking_confirmed at least once, ever
+    repeatBooking: 10, // booking_confirmed 2+ times
+    hasUpload: 10, // upload_success at least once
+    hasVitals: 10, // manual_entry_success at least once
+    paidSubscription: 15, // active/trial subscription above the Free tier
+  } as const; // sums to 100
+  private static readonly ENGAGEMENT_CATEGORIES: Array<{ min: number; label: string }> = [
+    { min: 80, label: 'Highly Engaged' },
+    { min: 55, label: 'Engaged' },
+    { min: 30, label: 'Low Engagement' },
+    { min: 10, label: 'At Risk' },
+    { min: 0, label: 'Dormant' },
+  ];
+
+  async getEngagementScore(userId: string, patientId: string) {
+    const RECENT_LOGIN_DAYS = 30;
+    const since = new Date();
+    since.setDate(since.getDate() - RECENT_LOGIN_DAYS);
+
+    const [user, patient, subscription, events] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: userId }, select: { lastLoginAt: true } }),
+      this.prisma.patient.findUnique({ where: { id: patientId }, select: { id: true } }),
+      this.prisma.patientSubscription.findFirst({
+        where: { patientId, status: { in: ['active', 'trial'] } },
+        select: { plan: { select: { tier: true } } },
+      }),
+      this.prisma.patientActivityEvent.groupBy({
+        by: ['eventName'],
+        where: { patientId, eventName: { in: ['booking_confirmed', 'upload_success', 'manual_entry_success'] } },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const countOf = (eventName: string) => events.find((e) => e.eventName === eventName)?._count._all ?? 0;
+    const bookingCount = countOf('booking_confirmed');
+    const w = AnalyticsService.ENGAGEMENT_WEIGHTS;
+
+    const components = {
+      recentLogin: user?.lastLoginAt && user.lastLoginAt >= since ? w.recentLogin : 0,
+      profileComplete: patient ? w.profileComplete : 0,
+      hasBooking: bookingCount > 0 ? w.hasBooking : 0,
+      repeatBooking: bookingCount > 1 ? w.repeatBooking : 0,
+      hasUpload: countOf('upload_success') > 0 ? w.hasUpload : 0,
+      hasVitals: countOf('manual_entry_success') > 0 ? w.hasVitals : 0,
+      paidSubscription: subscription && subscription.plan.tier !== 'Free' ? w.paidSubscription : 0,
+    };
+
+    const score = Object.values(components).reduce((sum, v) => sum + v, 0);
+    const category = AnalyticsService.ENGAGEMENT_CATEGORIES.find((c) => score >= c.min)?.label ?? 'Dormant';
+
+    return {
+      data: {
+        score,
+        category,
+        version: AnalyticsService.ENGAGEMENT_SCORE_VERSION,
+        components,
+      },
+    };
+  }
+
+  // Digital Experience dashboard — device/browser breakdown for the patient
+  // portal itself (distinct from getTrafficAnalytics, which covers the
+  // anonymous public marketing site) plus client-side error visibility.
+  // client_error events are emitted by ErrorTracker (health-hub-africa
+  // portal) via the same trackEvent()/PatientActivityEvent pipeline as every
+  // other funnel event — no new table, no new ingestion endpoint.
+  async getDigitalExperienceAnalytics(period = '30d') {
+    const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const events = await this.prisma.patientActivityEvent.findMany({
+      where: { occurredAt: { gte: since } },
+      select: { eventName: true, deviceCategory: true, userAgent: true, properties: true, occurredAt: true },
+    });
+
+    const deviceMap = new Map<string, number>();
+    const browserMap = new Map<string, number>();
+    const errorMessageMap = new Map<string, number>();
+    let errorCount = 0;
+
+    for (const e of events) {
+      const device = e.deviceCategory ?? 'Unknown';
+      deviceMap.set(device, (deviceMap.get(device) ?? 0) + 1);
+
+      const browser = browserFromUserAgent(e.userAgent ?? undefined);
+      browserMap.set(browser, (browserMap.get(browser) ?? 0) + 1);
+
+      if (e.eventName === 'client_error') {
+        errorCount++;
+        const message = (e.properties as { message?: string } | null)?.message ?? '(no message)';
+        errorMessageMap.set(message, (errorMessageMap.get(message) ?? 0) + 1);
+      }
+    }
+
+    return {
+      data: {
+        totalEvents: events.length,
+        devices: Array.from(deviceMap.entries())
+          .map(([device, count]) => ({ device, count }))
+          .sort((a, b) => b.count - a.count),
+        browsers: Array.from(browserMap.entries())
+          .map(([browser, count]) => ({ browser, count }))
+          .sort((a, b) => b.count - a.count),
+        errorCount,
+        // null (not 0) when there's simply no traffic to divide by — same
+        // convention as every other KPI in this file.
+        errorRate: events.length > 0 ? Math.round((errorCount / events.length) * 1000) / 10 : null,
+        topErrors: Array.from(errorMessageMap.entries())
+          .map(([message, count]) => ({ message, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 20),
       },
     };
   }
