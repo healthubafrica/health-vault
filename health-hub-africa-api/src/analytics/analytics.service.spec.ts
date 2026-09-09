@@ -4,9 +4,14 @@ describe('AnalyticsService.trackEvent (anonymous + authenticated identity)', () 
   function buildService(patient: { id: string } | null = { id: 'patient-1' }) {
     const prisma = {
       patient: { findUnique: jest.fn().mockResolvedValue(patient) },
-      patientActivityEvent: { create: jest.fn().mockResolvedValue({}) },
+      patientActivityEvent: {
+        create: jest.fn().mockResolvedValue({}),
+        upsert: jest.fn().mockResolvedValue({}),
+      },
     };
     const service = new AnalyticsService(prisma as any);
+    jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
+    jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
     return { service, prisma };
   }
 
@@ -34,6 +39,90 @@ describe('AnalyticsService.trackEvent (anonymous + authenticated identity)', () 
     await service.trackEvent({ eventType: 'page_view' }, { sub: 'user-1' } as any);
 
     expect(prisma.patientActivityEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('persists the structured spec §20 fields, derived geo, and a server receivedAt', async () => {
+    const { service, prisma } = buildService();
+    await service.trackEvent(
+      {
+        eventType: 'ui_click',
+        eventId: '11111111-1111-4111-8111-111111111111',
+        featureArea: 'dashboard',
+        elementId: 'book_telecare_btn',
+        elementType: 'button',
+        action: 'click',
+        pagePath: '/portal/dashboard',
+        analyticsSessionId: 'sess-1',
+      },
+      { sub: 'user-1' } as any,
+      { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Chrome/120', countryCode: 'ng', region: 'Lagos', city: 'Lagos', timezone: 'Africa/Lagos' },
+    );
+
+    expect(prisma.patientActivityEvent.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { eventId: '11111111-1111-4111-8111-111111111111' },
+        create: expect.objectContaining({
+          eventName: 'ui_click',
+          eventVersion: 1,
+          featureArea: 'dashboard',
+          elementId: 'book_telecare_btn',
+          elementType: 'button',
+          pagePath: '/portal/dashboard',
+          ingestionSource: 'web',
+          countryCode: 'NG',
+          regionName: 'Lagos',
+          city: 'Lagos',
+          continentCode: 'Africa',
+          geoAccuracy: 'city',
+          geoSource: 'geoip',
+          browser: 'Chrome',
+          os: 'iOS',
+          receivedAt: expect.any(Date),
+        }),
+        update: {},
+      }),
+    );
+  });
+
+  it('is idempotent on eventId — a replayed beacon upserts, never a second create', async () => {
+    const { service, prisma } = buildService();
+    const dto = { eventType: 'booking_confirmed', eventId: '22222222-2222-4222-8222-222222222222', anonymousVisitorId: 'anon-9' };
+    await service.trackEvent(dto, undefined);
+    await service.trackEvent(dto, undefined);
+
+    expect(prisma.patientActivityEvent.upsert).toHaveBeenCalledTimes(2);
+    expect(prisma.patientActivityEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('drops an event whose name is malformed (not lowercase snake_case)', async () => {
+    const { service, prisma } = buildService();
+    await service.trackEvent({ eventType: 'UI Click!' } as any, { sub: 'user-1' } as any);
+
+    expect(prisma.patientActivityEvent.create).not.toHaveBeenCalled();
+    expect(prisma.patientActivityEvent.upsert).not.toHaveBeenCalled();
+    expect((service as any).logger.warn).toHaveBeenCalledWith(expect.stringContaining('malformed name'));
+  });
+
+  it('still records a well-formed but uncatalogued event, logging the drift', async () => {
+    const { service, prisma } = buildService();
+    await service.trackEvent({ eventType: 'brand_new_feature_used', anonymousVisitorId: 'anon-1' }, undefined);
+
+    expect(prisma.patientActivityEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ eventName: 'brand_new_feature_used', eventVersion: 1 }) }),
+    );
+    expect((service as any).logger.warn).toHaveBeenCalledWith(expect.stringContaining('Uncatalogued'));
+  });
+
+  it('collapses a client-claimed ingestionSource of "server" down to "web"', async () => {
+    const { service, prisma } = buildService();
+    await service.trackEvent(
+      { eventType: 'page_view', ingestionSource: 'server', anonymousVisitorId: 'anon-1' } as any,
+      undefined,
+    );
+
+    expect(prisma.patientActivityEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ ingestionSource: 'web' }) }),
+    );
   });
 });
 

@@ -1617,6 +1617,11 @@ model RecordShareAccess {
 
 model PatientActivityEvent {
   id                  String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Client-generated idempotency/dedup key (spec §20). Nullable so legacy
+  // rows and any emitter that doesn't supply one still insert; when present,
+  // trackEvent upserts on it so a retried beacon can't double-count.
+  eventId             String?     @unique @map("event_id")
+  eventVersion        Int         @default(1) @map("event_version")
   patientId           String?     @map("patient_id") @db.Uuid
   anonymousVisitorId  String?     @map("anonymous_visitor_id")
   sessionId           String?     @map("session_id") @db.Uuid
@@ -1625,21 +1630,59 @@ model PatientActivityEvent {
   properties          Json?
   ipAddress           String?     @map("ip_address")
   userAgent           String?     @map("user_agent")
-  countryCode         String?     @map("country_code")
   deviceCategory      String?     @map("device_category")
+  browser             String?
+  os                  String?
+  // Structured interaction context (spec §8.1 / §20) — first-class columns
+  // instead of being buried in `properties` so dashboards can group/filter
+  // on them without JSON extraction.
+  featureArea         String?     @map("feature_area")
+  pageName            String?     @map("page_name")
+  pagePath            String?     @map("page_path")
+  elementId           String?     @map("element_id")
+  elementType         String?     @map("element_type")
+  action              String?
+  outcome             String?
+  // Access geography (spec §4.2 / §H). Resolved server-side only — never
+  // trusted from the client. geoSource/geoProvider/geoProviderVersion make
+  // a row reproducible; geoAccuracy communicates uncertainty.
+  countryCode         String?     @map("country_code")
+  regionCode          String?     @map("region_code")
+  regionName          String?     @map("region_name")
+  city                String?
+  continentCode       String?     @map("continent_code")
+  timezone            String?
+  latitude            Float?
+  longitude           Float?
+  geoAccuracy         String?     @map("geo_accuracy")
+  geoSource           String?     @map("geo_source")
+  geoProvider         String?     @map("geo_provider")
+  geoProviderVersion  String?     @map("geo_provider_version")
+  asn                 String?
   // Pseudonymous, client-generated per browser-tab-session — deliberately
   // NOT the sessionId/UserSession FK above (that's the auth session; spec
   // Appendix B warns against reusing a raw auth session identifier for
   // analytics correlation).
   analyticsSessionId  String?     @map("analytics_session_id")
+  // web | mobile | server — server-authoritative outcomes (spec §23) are
+  // tagged 'server' so double-counting against a browser echo is detectable.
+  ingestionSource     String?     @map("ingestion_source")
   environment         String?     @map("environment")
+  // Staging / synthetic-monitoring traffic. Dashboards exclude these by
+  // default (spec §20) while QA can still query them explicitly.
+  isTestEvent         Boolean     @default(false) @map("is_test_event")
   occurredAt          DateTime    @default(now()) @map("occurred_at")
+  // Server receive time, distinct from client-reported occurredAt — lets the
+  // pipeline reason about late-arriving events (spec §25).
+  receivedAt          DateTime?   @map("received_at")
 
   patient Patient?     @relation(fields: [patientId], references: [id])
   session UserSession? @relation(fields: [sessionId], references: [id])
 
   @@index([patientId, occurredAt(sort: Desc)])
   @@index([eventName, occurredAt(sort: Desc)])
+  @@index([analyticsSessionId])
+  @@index([isTestEvent, occurredAt(sort: Desc)])
   @@map("patient_activity_events")
 }
 
