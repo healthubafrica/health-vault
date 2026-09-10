@@ -8,9 +8,10 @@ import { AppointmentsService } from './appointments.service';
 function buildService(mockPrisma: any) {
   return new AppointmentsService(
     mockPrisma,
-    {} as any,
-    {} as any,
-    {} as any,
+    {} as any, // openemrService
+    {} as any, // notifications
+    {} as any, // analytics
+    {} as any, // reminderQueue
   );
 }
 
@@ -111,7 +112,14 @@ describe('AppointmentsService.create (idempotency + double-booking)', () => {
     };
     const openemrService = { enqueueEncounterSync: jest.fn().mockResolvedValue(undefined) };
     const notifications = {};
-    const service = new AppointmentsService(prisma as any, openemrService as any, notifications as any, {} as any);
+    const analytics = { emitServerEvent: jest.fn().mockResolvedValue(undefined) };
+    const service = new AppointmentsService(
+      prisma as any,
+      openemrService as any,
+      notifications as any,
+      analytics as any,
+      {} as any,
+    );
     return { service, prisma };
   }
 
