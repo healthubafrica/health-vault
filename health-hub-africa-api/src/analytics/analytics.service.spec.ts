@@ -84,6 +84,54 @@ describe('AnalyticsService.trackEvent (anonymous + authenticated identity)', () 
     );
   });
 
+  it('prefers a GeoLite2 lookup over the edge-header geo when the resolver returns a hit', async () => {
+    const prisma = {
+      patient: { findUnique: jest.fn().mockResolvedValue({ id: 'patient-1' }) },
+      patientActivityEvent: { create: jest.fn().mockResolvedValue({}), upsert: jest.fn().mockResolvedValue({}) },
+    };
+    const geoResolver = {
+      resolve: jest.fn().mockReturnValue({
+        countryCode: 'GB',
+        regionCode: 'ENG',
+        regionName: 'England',
+        city: 'London',
+        continentName: 'Europe',
+        timezone: 'Europe/London',
+        latitude: 51.5,
+        longitude: -0.12,
+        asn: 'AS5089',
+        geoAccuracy: 'city',
+        geoProvider: 'maxmind-geolite2',
+        geoProviderVersion: '2026-09-10',
+      }),
+    };
+    const service = new AnalyticsService(prisma as any, geoResolver as any);
+    jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
+
+    await service.trackEvent(
+      { eventType: 'page_view' },
+      { sub: 'user-1' } as any,
+      // Edge headers say Nigeria — the GeoLite2 hit (UK) must win.
+      { ipAddress: '102.89.34.10', countryCode: 'NG', region: 'Lagos', city: 'Lagos' },
+    );
+
+    expect(geoResolver.resolve).toHaveBeenCalledWith('102.89.34.10');
+    expect(prisma.patientActivityEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          countryCode: 'GB',
+          regionName: 'England',
+          city: 'London',
+          continentCode: 'Europe',
+          asn: 'AS5089',
+          latitude: 51.5,
+          geoProvider: 'maxmind-geolite2',
+          geoProviderVersion: '2026-09-10',
+        }),
+      }),
+    );
+  });
+
   it('is idempotent on eventId — a replayed beacon upserts, never a second create', async () => {
     const { service, prisma } = buildService();
     const dto = { eventType: 'booking_confirmed', eventId: '22222222-2222-4222-8222-222222222222', anonymousVisitorId: 'anon-9' };

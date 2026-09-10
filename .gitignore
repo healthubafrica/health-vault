@@ -28,6 +28,12 @@ health-hub-africa-api/.env.*
 health-hub-africa-api/prisma/migrations/dev.db
 health-hub-africa-api/prisma/*.db
 
+# MaxMind GeoLite2 databases — downloaded at deploy time, not committed
+# (MaxMind's GeoLite2 EULA disallows redistribution). The geoip/ dir itself
+# is kept for its README; only the .mmdb payloads are ignored. See
+# health-hub-africa-api/geoip/README.md and scripts/download-geoip.mjs.
+*.mmdb
+
 # Logs
 npm-debug.log*
 yarn-debug.log*
