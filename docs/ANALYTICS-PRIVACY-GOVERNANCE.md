@@ -96,3 +96,25 @@ The machine-readable companion to this table is `health-hub-africa-api/src/analy
 **One event not in `PatientActivityEvent` at all:** `SiteVisit` rows (anonymous marketing-site pageviews, `recordVisit()`) are a separate table entirely. Login failures now have both a `login_events.success = false` row (Security dashboard) and a `login_failure` analytics event.
 
 **Adding a new event:** no backend change is required — `getFunnelAnalytics` groups by whatever `eventName` values exist in the table, and the admin dashboard's "Other events" table (in the Funnels tab) automatically shows anything not yet added to `FUNNEL_GROUPS`. Only that frontend grouping map needs a deliberate update to categorize a new event nicely; the pipeline itself needs nothing.
+
+## 5. Consent Gate & Test-Traffic Exclusion
+
+**Consent (spec §28).** `AnalyticsService.trackEvent` looks up the patient's
+`PatientConsent` row for `consent_type = 'analytics'`. If it exists and
+`granted = false`, the event is dropped before any write. **Absence of a row =
+not yet decided = allowed** (opt-out model) — flip `analyticsConsentDenied` to
+default-deny if a lawful-basis review calls for opt-in. Anonymous (pre-login)
+events are not consent-checked here; the marketing-site cookie banner gates that
+beacon client-side. `emitServerEvent` is intentionally **not** consent-gated:
+its events (`login_success` / `login_failure`) double as account-protection
+records, and §28 requires that a product-analytics opt-out never disables
+security logging.
+
+**Test / synthetic traffic (spec §20 / §30).** Rows carry `is_test_event`.
+Every admin dashboard query spreads `AnalyticsService.PRODUCTION_EVENT_FILTER`
+(`{ isTestEvent: false }`) into its `where`, so staging and synthetic-monitor
+traffic is excluded by default while QA can still query it explicitly. A row is
+marked test when the same-origin staging/monitoring BFF sends
+`x-hha-analytics-test: 1` (trusted like `x-hha-client-ip`), or — outside
+production only — when the client sets `isTestEvent` on the payload. `SiteVisit`
+has no such column yet; it relies on the existing bot-UA filter.
