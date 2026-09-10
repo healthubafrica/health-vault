@@ -45,6 +45,10 @@ function visitGeoContext(req: Request): VisitGeoContext {
     timezone:
       headerValue(req, 'x-vercel-ip-timezone') ??
       headerValue(req, 'cloudfront-viewer-time-zone'),
+    // Set only by our own staging / synthetic-monitoring BFF (same trust
+    // boundary as x-hha-client-ip). Marks the event is_test_event so it's
+    // kept out of production dashboards by default.
+    analyticsTest: headerValue(req, 'x-hha-analytics-test') === '1',
   };
 }
 

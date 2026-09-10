@@ -19,6 +19,11 @@ export interface VisitGeoContext {
   region?: string;
   city?: string;
   timezone?: string;
+  // Set server-side by our own staging/synthetic-monitoring BFF via the
+  // x-hha-analytics-test header — trusted at the same level as x-hha-client-ip
+  // (same-origin BFF only). Marks the row is_test_event so production
+  // dashboards exclude it (spec §20 / §30).
+  analyticsTest?: boolean;
 }
 
 // Access-geo derived from trusted edge headers (Vercel / CloudFront), not a
@@ -109,6 +114,27 @@ export class AnalyticsService {
     private readonly geoResolver?: GeoResolverService,
   ) {}
 
+  // Spec §20 / §30: production dashboards exclude staging + synthetic-monitor
+  // traffic by default. is_test_event is the explicit classification QA can
+  // still query around. Spread this into every dashboard `where`.
+  static readonly PRODUCTION_EVENT_FILTER = { isTestEvent: false } as const;
+
+  // Spec §28: true when the patient has an 'analytics' consent row set to
+  // granted = false. Absence of a row means "not yet decided" → allowed.
+  private async analyticsConsentDenied(patientId: string): Promise<boolean> {
+    try {
+      const consent = await this.prisma.patientConsent.findUnique({
+        where: { patientId_consentType: { patientId, consentType: 'analytics' } },
+        select: { granted: true },
+      });
+      return consent ? consent.granted === false : false;
+    } catch {
+      // Never let a consent-lookup failure silently suppress telemetry —
+      // fail open, same as the rest of this best-effort pipeline.
+      return false;
+    }
+  }
+
   // GeoLite2 result wins field-by-field; edge headers fill the gaps.
   private resolveAccessGeo(geo?: VisitGeoContext): AccessGeo {
     const resolved = this.geoResolver?.resolve(geo?.ipAddress) ?? undefined;
@@ -161,6 +187,13 @@ export class AnalyticsService {
       // Nothing to key the row on — drop rather than write an orphan event.
       if (!patientId && !dto.anonymousVisitorId) return;
 
+      // Consent gate (spec §28): if the patient has explicitly declined the
+      // 'analytics' consent, drop product telemetry. Absence of a row = not
+      // yet decided = allowed. Security-relevant events go through
+      // emitServerEvent (login_*), which is intentionally NOT gated so an
+      // analytics opt-out can't disable account-protection logging.
+      if (patientId && (await this.analyticsConsentDenied(patientId))) return;
+
       const isProd = (process.env.NODE_ENV ?? 'development') === 'production';
       const g = this.resolveAccessGeo(geo);
 
@@ -174,9 +207,9 @@ export class AnalyticsService {
         // 'server') collapses to 'web'. True server events use emitServerEvent().
         ingestionSource: dto.ingestionSource === 'mobile' ? 'mobile' : 'web',
         environment: process.env.NODE_ENV ?? 'development',
-        // A client can't mark itself as test traffic in production — that
-        // marker is owned by the staging BFF (added in a later branch).
-        isTestEvent: isProd ? false : Boolean(dto.isTestEvent),
+        // The staging/synthetic BFF header wins outright; otherwise a raw
+        // client can only self-mark as test traffic outside production.
+        isTestEvent: geo?.analyticsTest === true ? true : isProd ? false : Boolean(dto.isTestEvent),
         eventName,
         featureArea: dto.featureArea,
         pageName: dto.pageName,
@@ -718,6 +751,7 @@ export class AnalyticsService {
 
     const rows = await this.prisma.patientActivityEvent.findMany({
       where: {
+        ...AnalyticsService.PRODUCTION_EVENT_FILTER,
         occurredAt: { gte: since },
         ...(filters?.country && { countryCode: filters.country }),
         ...(filters?.device && { deviceCategory: filters.device }),
@@ -789,7 +823,12 @@ export class AnalyticsService {
     since.setDate(since.getDate() - days);
 
     const rows = await this.prisma.patientActivityEvent.findMany({
-      where: { occurredAt: { gte: since }, patientId: { not: null }, countryCode: { not: null } },
+      where: {
+        ...AnalyticsService.PRODUCTION_EVENT_FILTER,
+        occurredAt: { gte: since },
+        patientId: { not: null },
+        countryCode: { not: null },
+      },
       select: { patientId: true, countryCode: true },
       distinct: ['patientId', 'countryCode'],
     });
@@ -851,11 +890,20 @@ export class AnalyticsService {
 
     const [registrations, activity] = await Promise.all([
       this.prisma.patientActivityEvent.findMany({
-        where: { eventName: 'registration_complete', patientId: { not: null }, occurredAt: { gte: since } },
+        where: {
+          ...AnalyticsService.PRODUCTION_EVENT_FILTER,
+          eventName: 'registration_complete',
+          patientId: { not: null },
+          occurredAt: { gte: since },
+        },
         select: { patientId: true, occurredAt: true },
       }),
       this.prisma.patientActivityEvent.findMany({
-        where: { patientId: { not: null }, occurredAt: { gte: since } },
+        where: {
+          ...AnalyticsService.PRODUCTION_EVENT_FILTER,
+          patientId: { not: null },
+          occurredAt: { gte: since },
+        },
         select: { patientId: true, occurredAt: true },
       }),
     ]);
@@ -949,7 +997,11 @@ export class AnalyticsService {
       }),
       this.prisma.patientActivityEvent.groupBy({
         by: ['eventName'],
-        where: { patientId, eventName: { in: ['booking_confirmed', 'upload_success', 'manual_entry_success'] } },
+        where: {
+          ...AnalyticsService.PRODUCTION_EVENT_FILTER,
+          patientId,
+          eventName: { in: ['booking_confirmed', 'upload_success', 'manual_entry_success'] },
+        },
         _count: { _all: true },
       }),
     ]);
@@ -993,7 +1045,7 @@ export class AnalyticsService {
     since.setDate(since.getDate() - days);
 
     const events = await this.prisma.patientActivityEvent.findMany({
-      where: { occurredAt: { gte: since } },
+      where: { ...AnalyticsService.PRODUCTION_EVENT_FILTER, occurredAt: { gte: since } },
       select: { eventName: true, deviceCategory: true, userAgent: true, properties: true, occurredAt: true },
     });
 
