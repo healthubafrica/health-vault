@@ -15,6 +15,7 @@ import { randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OpenemrService } from '../openemr/openemr.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
@@ -58,6 +59,7 @@ export class AuthService {
     private config: ConfigService,
     private notifications: NotificationsService,
     private openemrService: OpenemrService,
+    private analytics: AnalyticsService,
   ) {}
 
   // ── Registration ─────────────────────────────────────────────────────────
@@ -669,6 +671,14 @@ export class AuthService {
     } catch (error) {
       this.logger.warn(`Unable to record login analytics for user ${userId}: ${String(error)}`);
     }
+
+    // Authoritative analytics event (spec §23) — the portal's own
+    // login_success beacon can be dropped by a closed tab. Fire-and-forget;
+    // emitServerEvent swallows its own errors.
+    void this.analytics.emitServerEvent(success ? 'login_success' : 'login_failure', {
+      userId,
+      geo: context,
+    });
   }
 
   private async saveRegistrationAttribution(userId: string, dto: RegisterDto) {

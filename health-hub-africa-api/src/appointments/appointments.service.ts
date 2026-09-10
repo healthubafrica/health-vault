@@ -17,6 +17,7 @@ import { QueryAppointmentsDto } from './dto/query-appointments.dto';
 import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
 import { OpenemrService } from '../openemr/openemr.service';
 import { NotificationsService, AppointmentNotificationData } from '../notifications/notifications.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { getSchedulingPolicy } from '../scheduling-policy/scheduling-policy.constants';
 import { buildProviderDisplayName } from '../common/utils/provider-name.util';
 
@@ -88,6 +89,7 @@ export class AppointmentsService {
     private readonly prisma: PrismaService,
     private readonly openemrService: OpenemrService,
     private readonly notifications: NotificationsService,
+    private readonly analytics: AnalyticsService,
     @InjectQueue(APPOINTMENT_REMINDERS_QUEUE) private readonly reminderQueue: Queue,
   ) {}
 
@@ -207,6 +209,20 @@ export class AppointmentsService {
       );
 
       void this.notifyAppointmentEvent(appointment.id, 'requested');
+
+      // Authoritative booking event (spec §23) — the portal fires its own
+      // booking_confirmed beacon, but a dropped tab shouldn't lose the
+      // conversion. Guarded by !conflicted so an idempotent replay doesn't
+      // double-count. Fire-and-forget; emitServerEvent swallows errors.
+      void this.analytics.emitServerEvent('booking_confirmed', {
+        patientId: appointment.patientId,
+        properties: {
+          serviceType: appointment.serviceType,
+          appointmentId: appointment.id,
+          hasProvider: Boolean(appointment.providerId),
+          source: 'server',
+        },
+      });
     }
 
     return appointment;

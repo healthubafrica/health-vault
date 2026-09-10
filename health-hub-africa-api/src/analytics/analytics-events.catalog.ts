@@ -43,6 +43,7 @@ export const ANALYTICS_EVENTS: Record<string, CatalogEntry> = {
   privacy_notice_viewed: { version: 1, origin: 'web' },
   profile_completed: { version: 1, origin: 'web' },
   login_success: { version: 1, origin: 'server' },
+  login_failure: { version: 1, origin: 'server' },
   first_meaningful_action: { version: 1, origin: 'server' },
 
   // ── Booking / appointments ──────────────────────────────────────────────
