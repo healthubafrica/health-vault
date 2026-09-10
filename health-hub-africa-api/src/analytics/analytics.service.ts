@@ -3,18 +3,13 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { RecordVisitDto } from './dto/record-visit.dto';
+import { TrackEventDto } from './dto/track-event.dto';
 import { continentForCountry } from './continent-map';
+import { catalogEntry, EVENT_NAME_RE } from './analytics-events.catalog';
 
-export interface ActivityEventDto {
-  eventType: string;
-  entityType?: string;
-  entityId?: string;
-  metadata?: Record<string, unknown>;
-  anonymousVisitorId?: string;
-  // Client-generated, persisted per browser-tab-session (sessionStorage) —
-  // groups events into a visit without reusing the auth session identifier.
-  analyticsSessionId?: string;
-}
+// Kept as an alias so existing importers don't churn; the shape now lives in
+// TrackEventDto (a validated class — see dto/track-event.dto.ts).
+export type ActivityEventDto = TrackEventDto;
 
 export interface VisitGeoContext {
   ipAddress?: string;
@@ -22,7 +17,13 @@ export interface VisitGeoContext {
   countryCode?: string;
   region?: string;
   city?: string;
+  timezone?: string;
 }
+
+// Access-geo derived from trusted edge headers (Vercel / CloudFront), not a
+// GeoIP database — stamped on every event so a row stays reproducible and
+// its uncertainty is legible. Swapped for a real provider in a later branch.
+const EDGE_GEO_PROVIDER = 'edge-header';
 
 // Crude but effective — the same substrings every major analytics vendor
 // checks first. Not trying to catch every bot (that's what real bot-
@@ -54,6 +55,28 @@ function browserFromUserAgent(userAgent: string | undefined): string {
   return 'Other';
 }
 
+// Same "good enough for a breakdown, not a UA library" bar as the two above.
+function osFromUserAgent(userAgent: string | undefined): string {
+  const ua = userAgent?.toLowerCase() ?? '';
+  if (!ua) return 'Unknown';
+  if (/windows nt/.test(ua)) return 'Windows';
+  if (/iphone|ipad|ipod/.test(ua)) return 'iOS';
+  if (/mac os x|macintosh/.test(ua)) return 'macOS';
+  if (/android/.test(ua)) return 'Android';
+  if (/cros/.test(ua)) return 'ChromeOS';
+  if (/linux/.test(ua)) return 'Linux';
+  return 'Other';
+}
+
+// country → 'country', +region → 'region', +city → 'city' (spec §H
+// geo_accuracy_level — "communicate uncertainty", never fabricate precision).
+function geoAccuracyLevel(geo: VisitGeoContext | undefined): string {
+  if (geo?.city) return 'city';
+  if (geo?.region) return 'region';
+  if (geo?.countryCode) return 'country';
+  return 'unknown';
+}
+
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
@@ -68,6 +91,22 @@ export class AnalyticsService {
   // halves of the identity model instead of authenticated patients only.
   async trackEvent(dto: ActivityEventDto, currentUser?: JwtPayload, geo?: VisitGeoContext) {
     try {
+      const eventName = dto.eventType?.trim();
+
+      // Reject malformed *shapes* (spec §23) — but let well-formed unknown
+      // names through: the pipeline deliberately surfaces newly-instrumented
+      // events in the dashboards without a backend change. An uncatalogued
+      // name is logged so it gets added to the catalog + governance doc on
+      // purpose rather than drifting in silently.
+      if (!eventName || !EVENT_NAME_RE.test(eventName)) {
+        this.logger.warn(`Dropped analytics event — malformed name: ${JSON.stringify(dto.eventType)?.slice(0, 80)}`);
+        return;
+      }
+      const catalog = catalogEntry(eventName);
+      if (!catalog) {
+        this.logger.warn(`Uncatalogued analytics event "${eventName}" — add it to analytics-events.catalog.ts and ANALYTICS-PRIVACY-GOVERNANCE.md`);
+      }
+
       const patientId = currentUser
         ? (await this.prisma.patient.findUnique({ where: { userId: currentUser.sub }, select: { id: true } }))?.id
         : undefined;
@@ -75,23 +114,61 @@ export class AnalyticsService {
       // Nothing to key the row on — drop rather than write an orphan event.
       if (!patientId && !dto.anonymousVisitorId) return;
 
-      await this.prisma.patientActivityEvent.create({
-        data: {
-          patientId,
-          anonymousVisitorId: patientId ? undefined : dto.anonymousVisitorId,
-          analyticsSessionId: dto.analyticsSessionId,
-          environment: process.env.NODE_ENV ?? 'development',
-          eventName: dto.eventType,
-          countryCode: geo?.countryCode,
-          deviceCategory: deviceCategoryFromUserAgent(geo?.userAgent),
-          userAgent: geo?.userAgent?.slice(0, 1000),
-          properties: {
-            entityType: dto.entityType,
-            entityId: dto.entityId,
-            ...(dto.metadata ?? {}),
-          } as Prisma.InputJsonValue,
-        },
-      });
+      const countryCode = geo?.countryCode?.toUpperCase();
+      const isProd = (process.env.NODE_ENV ?? 'development') === 'production';
+
+      const data = {
+        eventId: dto.eventId,
+        eventVersion: dto.eventVersion ?? catalog?.version ?? 1,
+        patientId,
+        anonymousVisitorId: patientId ? undefined : dto.anonymousVisitorId,
+        analyticsSessionId: dto.analyticsSessionId,
+        // Clients may only claim 'mobile'; anything else (incl. a spoofed
+        // 'server') collapses to 'web'. True server events use emitServerEvent().
+        ingestionSource: dto.ingestionSource === 'mobile' ? 'mobile' : 'web',
+        environment: process.env.NODE_ENV ?? 'development',
+        // A client can't mark itself as test traffic in production — that
+        // marker is owned by the staging BFF (added in a later branch).
+        isTestEvent: isProd ? false : Boolean(dto.isTestEvent),
+        eventName,
+        featureArea: dto.featureArea,
+        pageName: dto.pageName,
+        pagePath: dto.pagePath,
+        elementId: dto.elementId,
+        elementType: dto.elementType,
+        action: dto.action,
+        outcome: dto.outcome,
+        countryCode,
+        regionName: geo?.region,
+        city: geo?.city,
+        continentCode: countryCode ? continentForCountry(countryCode) : undefined,
+        timezone: geo?.timezone,
+        geoAccuracy: geoAccuracyLevel(geo),
+        geoSource: countryCode ? 'geoip' : undefined,
+        geoProvider: countryCode ? EDGE_GEO_PROVIDER : undefined,
+        deviceCategory: deviceCategoryFromUserAgent(geo?.userAgent),
+        browser: browserFromUserAgent(geo?.userAgent),
+        os: osFromUserAgent(geo?.userAgent),
+        userAgent: geo?.userAgent?.slice(0, 1000),
+        occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : undefined,
+        receivedAt: new Date(),
+        properties: {
+          entityType: dto.entityType,
+          entityId: dto.entityId,
+          ...(dto.metadata ?? {}),
+        } as Prisma.InputJsonValue,
+      };
+
+      if (dto.eventId) {
+        // Idempotent by dedup key — a retried beacon is a no-op, not a dup row.
+        await this.prisma.patientActivityEvent.upsert({
+          where: { eventId: dto.eventId },
+          create: data,
+          update: {},
+        });
+      } else {
+        await this.prisma.patientActivityEvent.create({ data });
+      }
     } catch (err) {
       // Never break the caller for analytics failures
       this.logger.error('Analytics track failed', err);

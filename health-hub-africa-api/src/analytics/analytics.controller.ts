@@ -3,8 +3,9 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { UserRole } from '@prisma/client';
 import { Request } from 'express';
-import { AnalyticsService, ActivityEventDto, VisitGeoContext } from './analytics.service';
+import { AnalyticsService, VisitGeoContext } from './analytics.service';
 import { RecordVisitDto } from './dto/record-visit.dto';
+import { TrackEventDto } from './dto/track-event.dto';
 import { Roles, Public } from '../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 import { IsString, IsOptional } from 'class-validator';
@@ -41,6 +42,9 @@ function visitGeoContext(req: Request): VisitGeoContext {
     city:
       headerValue(req, 'x-vercel-ip-city') ??
       headerValue(req, 'cloudfront-viewer-city'),
+    timezone:
+      headerValue(req, 'x-vercel-ip-timezone') ??
+      headerValue(req, 'cloudfront-viewer-time-zone'),
   };
 }
 
@@ -69,7 +73,7 @@ export class AnalyticsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @Throttle({ default: { ttl: 60_000, limit: 60 } })
   @ApiOperation({ summary: 'Track a patient or anonymous-visitor activity event' })
-  trackEvent(@Body() dto: ActivityEventDto, @Req() req: Request, @CurrentUser() user?: JwtPayload) {
+  trackEvent(@Body() dto: TrackEventDto, @Req() req: Request, @CurrentUser() user?: JwtPayload) {
     return this.analyticsService.trackEvent(dto, user, visitGeoContext(req));
   }
 
