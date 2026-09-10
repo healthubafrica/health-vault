@@ -15,6 +15,7 @@ describe('AnalyticsService.trackEvent (anonymous + authenticated identity)', () 
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         count: jest.fn().mockResolvedValue(0),
       },
+      patientConsent: { findUnique: jest.fn().mockResolvedValue(null) },
     };
     const service = new AnalyticsService(prisma as any);
     jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
@@ -319,6 +320,52 @@ describe('AnalyticsService.trackEvent (anonymous + authenticated identity)', () 
       service.emitServerEvent('payment_success', { patientId: 'p-1' }),
     ).resolves.toBeUndefined();
   });
+
+  // ── Consent gate (spec §28) + test-traffic marker (spec §20/§30) ─────────
+
+  it('drops an authenticated event when the patient has declined analytics consent', async () => {
+    const { service, prisma } = buildService();
+    prisma.patientConsent.findUnique.mockResolvedValueOnce({ granted: false });
+
+    await service.trackEvent({ eventType: 'page_view' }, { sub: 'user-1' } as any);
+
+    expect(prisma.patientConsent.findUnique).toHaveBeenCalledWith({
+      where: { patientId_consentType: { patientId: 'patient-1', consentType: 'analytics' } },
+      select: { granted: true },
+    });
+    expect(prisma.patientActivityEvent.create).not.toHaveBeenCalled();
+    expect(prisma.patientActivityEvent.upsert).not.toHaveBeenCalled();
+  });
+
+  it('records the event when the analytics consent row is granted', async () => {
+    const { service, prisma } = buildService();
+    prisma.patientConsent.findUnique.mockResolvedValueOnce({ granted: true });
+
+    await service.trackEvent({ eventType: 'page_view' }, { sub: 'user-1' } as any);
+
+    expect(prisma.patientActivityEvent.create).toHaveBeenCalled();
+  });
+
+  it('does not consult consent for anonymous (pre-login) events', async () => {
+    const { service, prisma } = buildService();
+    await service.trackEvent({ eventType: 'page_view', anonymousVisitorId: 'anon-1' }, undefined);
+
+    expect(prisma.patientConsent.findUnique).not.toHaveBeenCalled();
+    expect(prisma.patientActivityEvent.create).toHaveBeenCalled();
+  });
+
+  it('honours the staging BFF x-hha-analytics-test marker even outside a dev NODE_ENV', async () => {
+    const { service, prisma } = buildService();
+    await service.trackEvent(
+      { eventType: 'page_view', anonymousVisitorId: 'anon-1' },
+      undefined,
+      { analyticsTest: true },
+    );
+
+    expect(prisma.patientActivityEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ isTestEvent: true }) }),
+    );
+  });
 });
 
 describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {
@@ -363,6 +410,15 @@ describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {
       expect.objectContaining({
         where: expect.objectContaining({ countryCode: 'NG', deviceCategory: 'Mobile' }),
       }),
+    );
+  });
+
+  it('excludes test / synthetic traffic from the dashboard query by default (spec §20/§30)', async () => {
+    const { service, prisma } = buildService([]);
+    await service.getFunnelAnalytics('30d');
+
+    expect(prisma.patientActivityEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ isTestEvent: false }) }),
     );
   });
 
