@@ -163,6 +163,21 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   LIVEKIT_API_SECRET?: string;
+
+  // Directory holding the self-hosted MaxMind GeoLite2 databases
+  // (GeoLite2-City.mmdb, GeoLite2-ASN.mmdb). Optional: when the directory or
+  // files are absent, GeoResolverService returns null and analytics falls
+  // back to the trusted edge-header geo it already had. Populate the dir with
+  // `node scripts/download-geoip.mjs` (needs MAXMIND_LICENSE_KEY).
+  @IsOptional()
+  @IsString()
+  GEOIP_DB_DIR?: string;
+
+  // MaxMind licence key — only needed by the download script, never read at
+  // runtime. Kept here so env validation documents it in one place.
+  @IsOptional()
+  @IsString()
+  MAXMIND_LICENSE_KEY?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

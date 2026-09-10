@@ -6,6 +6,7 @@ import { RecordVisitDto } from './dto/record-visit.dto';
 import { TrackEventDto } from './dto/track-event.dto';
 import { continentForCountry } from './continent-map';
 import { catalogEntry, EVENT_NAME_RE } from './analytics-events.catalog';
+import { GeoResolverService } from './geo-resolver.service';
 
 // Kept as an alias so existing importers don't churn; the shape now lives in
 // TrackEventDto (a validated class — see dto/track-event.dto.ts).
@@ -70,18 +71,64 @@ function osFromUserAgent(userAgent: string | undefined): string {
 
 // country → 'country', +region → 'region', +city → 'city' (spec §H
 // geo_accuracy_level — "communicate uncertainty", never fabricate precision).
-function geoAccuracyLevel(geo: VisitGeoContext | undefined): string {
+function edgeGeoAccuracy(geo: VisitGeoContext | undefined): string {
   if (geo?.city) return 'city';
   if (geo?.region) return 'region';
   if (geo?.countryCode) return 'country';
   return 'unknown';
 }
 
+// Merged access-geo for a request: the self-hosted GeoLite2 lookup on the
+// trusted client IP when available, otherwise the trusted edge-header geo
+// the platform already resolves. Every field carries provider/accuracy so
+// the stored row stays reproducible.
+export interface AccessGeo {
+  countryCode?: string;
+  regionCode?: string;
+  regionName?: string;
+  city?: string;
+  continentName?: string;
+  timezone?: string;
+  latitude?: number;
+  longitude?: number;
+  asn?: string;
+  geoAccuracy: string;
+  geoSource?: string;
+  geoProvider?: string;
+  geoProviderVersion?: string;
+}
+
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // Optional so unit tests can `new AnalyticsService(prisma)`. In the app
+    // it's always provided by AnalyticsModule.
+    private readonly geoResolver?: GeoResolverService,
+  ) {}
+
+  // GeoLite2 result wins field-by-field; edge headers fill the gaps.
+  private resolveAccessGeo(geo?: VisitGeoContext): AccessGeo {
+    const resolved = this.geoResolver?.resolve(geo?.ipAddress) ?? undefined;
+    const countryCode = (resolved?.countryCode ?? geo?.countryCode)?.toUpperCase();
+    return {
+      countryCode,
+      regionCode: resolved?.regionCode,
+      regionName: resolved?.regionName ?? geo?.region,
+      city: resolved?.city ?? geo?.city,
+      continentName: resolved?.continentName ?? (countryCode ? continentForCountry(countryCode) : undefined),
+      timezone: resolved?.timezone ?? geo?.timezone,
+      latitude: resolved?.latitude,
+      longitude: resolved?.longitude,
+      asn: resolved?.asn,
+      geoAccuracy: resolved?.geoAccuracy ?? edgeGeoAccuracy(geo),
+      geoSource: countryCode ? 'geoip' : undefined,
+      geoProvider: resolved?.geoProvider ?? (countryCode ? EDGE_GEO_PROVIDER : undefined),
+      geoProviderVersion: resolved?.geoProviderVersion,
+    };
+  }
 
   // ── Event Ingestion ────────────────────────────────────────────────────────
 
@@ -114,8 +161,8 @@ export class AnalyticsService {
       // Nothing to key the row on — drop rather than write an orphan event.
       if (!patientId && !dto.anonymousVisitorId) return;
 
-      const countryCode = geo?.countryCode?.toUpperCase();
       const isProd = (process.env.NODE_ENV ?? 'development') === 'production';
+      const g = this.resolveAccessGeo(geo);
 
       const data = {
         eventId: dto.eventId,
@@ -138,14 +185,21 @@ export class AnalyticsService {
         elementType: dto.elementType,
         action: dto.action,
         outcome: dto.outcome,
-        countryCode,
-        regionName: geo?.region,
-        city: geo?.city,
-        continentCode: countryCode ? continentForCountry(countryCode) : undefined,
-        timezone: geo?.timezone,
-        geoAccuracy: geoAccuracyLevel(geo),
-        geoSource: countryCode ? 'geoip' : undefined,
-        geoProvider: countryCode ? EDGE_GEO_PROVIDER : undefined,
+        countryCode: g.countryCode,
+        regionCode: g.regionCode,
+        regionName: g.regionName,
+        city: g.city,
+        // Column holds the continent NAME ("Africa"), matching how the
+        // dashboards already filter (continentForCountry, not an ISO code).
+        continentCode: g.continentName,
+        timezone: g.timezone,
+        latitude: g.latitude,
+        longitude: g.longitude,
+        asn: g.asn,
+        geoAccuracy: g.geoAccuracy,
+        geoSource: g.geoSource,
+        geoProvider: g.geoProvider,
+        geoProviderVersion: g.geoProviderVersion,
         deviceCategory: deviceCategoryFromUserAgent(geo?.userAgent),
         browser: browserFromUserAgent(geo?.userAgent),
         os: osFromUserAgent(geo?.userAgent),
@@ -263,6 +317,10 @@ export class AnalyticsService {
   async recordVisit(dto: RecordVisitDto, geo: VisitGeoContext): Promise<void> {
     if (geo.userAgent && BOT_USER_AGENT.test(geo.userAgent)) return;
 
+    // Same GeoLite2-first, edge-header-fallback resolution as trackEvent —
+    // SiteVisit only has room for country/region/city/timezone.
+    const g = this.resolveAccessGeo(geo);
+
     try {
       await this.prisma.siteVisit.create({
         data: {
@@ -274,10 +332,10 @@ export class AnalyticsService {
           utmCampaign: dto.utmCampaign,
           utmTerm: dto.utmTerm,
           utmContent: dto.utmContent,
-          countryCode: geo.countryCode,
-          region: geo.region,
-          city: geo.city,
-          timezone: dto.timezone,
+          countryCode: g.countryCode,
+          region: g.regionName,
+          city: g.city,
+          timezone: g.timezone ?? dto.timezone,
           userAgent: geo.userAgent?.slice(0, 1000),
         },
       });
