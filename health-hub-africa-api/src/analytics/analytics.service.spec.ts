@@ -272,6 +272,53 @@ describe('AnalyticsService.trackEvent (anonymous + authenticated identity)', () 
 
     expect(prisma.patientActivityEvent.create).toHaveBeenCalled();
   });
+
+  // ── emitServerEvent (spec §23 authoritative outcomes) ────────────────────
+
+  it('emitServerEvent resolves patientId from userId and tags the row ingestionSource=server', async () => {
+    const { service, prisma } = buildService();
+    await service.emitServerEvent('login_success', { userId: 'user-1', geo: { countryCode: 'ng' } });
+
+    expect(prisma.patient.findUnique).toHaveBeenCalledWith({ where: { userId: 'user-1' }, select: { id: true } });
+    expect(prisma.patientActivityEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          eventName: 'login_success',
+          patientId: 'patient-1',
+          ingestionSource: 'server',
+          countryCode: 'NG',
+        }),
+      }),
+    );
+  });
+
+  it('emitServerEvent takes an explicit patientId without a Patient lookup', async () => {
+    const { service, prisma } = buildService();
+    await service.emitServerEvent('booking_confirmed', { patientId: 'p-99', properties: { serviceType: 'telecare' } });
+
+    expect(prisma.patient.findUnique).not.toHaveBeenCalled();
+    expect(prisma.patientActivityEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ eventName: 'booking_confirmed', patientId: 'p-99', ingestionSource: 'server' }),
+      }),
+    );
+  });
+
+  it('emitServerEvent drops the event when the user has no Patient row and no anon id', async () => {
+    const { service, prisma } = buildService(null);
+    await service.emitServerEvent('login_success', { userId: 'user-x' });
+
+    expect(prisma.patientActivityEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('emitServerEvent never throws back into the caller', async () => {
+    const { service, prisma } = buildService();
+    prisma.patientActivityEvent.create.mockRejectedValueOnce(new Error('insert failed'));
+
+    await expect(
+      service.emitServerEvent('payment_success', { patientId: 'p-1' }),
+    ).resolves.toBeUndefined();
+  });
 });
 
 describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {

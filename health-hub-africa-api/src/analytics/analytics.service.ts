@@ -246,6 +246,97 @@ export class AnalyticsService {
     }
   }
 
+  // Authoritative server-side event (spec §23): outcomes like
+  // registration_complete / payment_success / booking_confirmed must not be
+  // counted from a browser beacon that a closed tab can drop. Callers pass
+  // the patient they already have (userId or patientId); this is
+  // fire-and-forget — `void this.analytics.emitServerEvent(...)` — and never
+  // throws back into the caller.
+  async emitServerEvent(
+    eventName: string,
+    opts: {
+      userId?: string;
+      patientId?: string;
+      anonymousVisitorId?: string;
+      analyticsSessionId?: string;
+      properties?: Record<string, unknown>;
+      geo?: VisitGeoContext;
+    },
+  ): Promise<void> {
+    try {
+      if (!EVENT_NAME_RE.test(eventName)) {
+        this.logger.warn(`emitServerEvent: malformed event name "${eventName}"`);
+        return;
+      }
+
+      let patientId = opts.patientId;
+      if (!patientId && opts.userId) {
+        patientId = (
+          await this.prisma.patient.findUnique({ where: { userId: opts.userId }, select: { id: true } })
+        )?.id;
+      }
+      if (!patientId && !opts.anonymousVisitorId) return;
+
+      const catalog = catalogEntry(eventName);
+      const g = this.resolveAccessGeo(opts.geo);
+      const ua = opts.geo?.userAgent;
+      const deviceCategory = deviceCategoryFromUserAgent(ua);
+      const browser = browserFromUserAgent(ua);
+      const os = osFromUserAgent(ua);
+      const environment = process.env.NODE_ENV ?? 'development';
+
+      await this.prisma.patientActivityEvent.create({
+        data: {
+          eventVersion: catalog?.version ?? 1,
+          patientId,
+          anonymousVisitorId: patientId ? undefined : opts.anonymousVisitorId,
+          analyticsSessionId: opts.analyticsSessionId,
+          ingestionSource: 'server',
+          environment,
+          eventName,
+          countryCode: g.countryCode,
+          regionCode: g.regionCode,
+          regionName: g.regionName,
+          city: g.city,
+          continentCode: g.continentName,
+          timezone: g.timezone,
+          latitude: g.latitude,
+          longitude: g.longitude,
+          asn: g.asn,
+          geoAccuracy: g.geoAccuracy,
+          geoSource: g.geoSource,
+          geoProvider: g.geoProvider,
+          geoProviderVersion: g.geoProviderVersion,
+          deviceCategory,
+          browser,
+          os,
+          userAgent: ua?.slice(0, 1000),
+          receivedAt: new Date(),
+          properties: (opts.properties ?? {}) as Prisma.InputJsonValue,
+        },
+      });
+
+      // Rolls up only when the caller had a client session id to pass
+      // through (most webhooks won't) — rollUpSession no-ops otherwise.
+      await this.rollUpSession({
+        analyticsSessionId: opts.analyticsSessionId,
+        patientId,
+        anonymousVisitorId: opts.anonymousVisitorId,
+        eventName,
+        deviceCategory,
+        browser,
+        os,
+        countryCode: g.countryCode,
+        continentCode: g.continentName,
+        ingestionSource: 'server',
+        environment,
+        userAgent: ua ?? null,
+      });
+    } catch (err) {
+      this.logger.error(`emitServerEvent(${eventName}) failed`, err);
+    }
+  }
+
   // Meaningful health actions (spec §7 "engaged_session" / §13 activation
   // signals) — one of these makes a visit engaged regardless of length.
   private static readonly MEANINGFUL_SESSION_EVENTS = new Set([
