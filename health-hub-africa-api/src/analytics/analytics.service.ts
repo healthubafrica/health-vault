@@ -223,9 +223,130 @@ export class AnalyticsService {
       } else {
         await this.prisma.patientActivityEvent.create({ data });
       }
+
+      await this.rollUpSession({
+        analyticsSessionId: dto.analyticsSessionId,
+        patientId,
+        anonymousVisitorId: dto.anonymousVisitorId,
+        eventName,
+        pagePath: dto.pagePath,
+        deviceCategory: data.deviceCategory,
+        browser: data.browser,
+        os: data.os,
+        countryCode: g.countryCode,
+        continentCode: g.continentName,
+        ingestionSource: data.ingestionSource,
+        environment: data.environment,
+        isTestEvent: data.isTestEvent,
+        userAgent: data.userAgent,
+      });
     } catch (err) {
       // Never break the caller for analytics failures
       this.logger.error('Analytics track failed', err);
+    }
+  }
+
+  // Meaningful health actions (spec §7 "engaged_session" / §13 activation
+  // signals) — one of these makes a visit engaged regardless of length.
+  private static readonly MEANINGFUL_SESSION_EVENTS = new Set([
+    'booking_confirmed', 'payment_success', 'upload_success', 'manual_entry_success',
+    'ticket_created', 'share_success', 'registration_complete', 'otp_verify_success',
+    'dispatch_request_success', 'telecare_session_join_success', 'travelsafe_trip_created',
+    'profile_completed', 'first_meaningful_action',
+  ]);
+
+  // Incrementally rolls the AnalyticsSession row forward as each event lands
+  // (spec §7). Best-effort — a failure here never blocks the event write.
+  private async rollUpSession(p: {
+    analyticsSessionId?: string;
+    patientId?: string;
+    anonymousVisitorId?: string;
+    eventName: string;
+    pagePath?: string;
+    deviceCategory?: string | null;
+    browser?: string | null;
+    os?: string | null;
+    countryCode?: string;
+    continentCode?: string;
+    ingestionSource?: string;
+    environment?: string;
+    isTestEvent?: boolean;
+    userAgent?: string | null;
+  }): Promise<void> {
+    if (!p.analyticsSessionId) return;
+    const now = new Date();
+    const isPageView = p.eventName === 'page_view';
+    const isClick = p.eventName === 'ui_click';
+    const isMeaningful = AnalyticsService.MEANINGFUL_SESSION_EVENTS.has(p.eventName);
+
+    try {
+      const existing = await this.prisma.analyticsSession.findUnique({
+        where: { analyticsSessionId: p.analyticsSessionId },
+        select: { id: true, exitPage: true },
+      });
+
+      if (!existing) {
+        const identityWhere = p.patientId
+          ? { patientId: p.patientId }
+          : p.anonymousVisitorId
+            ? { anonymousVisitorId: p.anonymousVisitorId }
+            : undefined;
+        const returningVisitor = identityWhere
+          ? (await this.prisma.analyticsSession.count({ where: identityWhere })) > 0
+          : false;
+
+        await this.prisma.analyticsSession.create({
+          data: {
+            analyticsSessionId: p.analyticsSessionId,
+            patientId: p.patientId,
+            anonymousVisitorId: p.patientId ? null : p.anonymousVisitorId,
+            startedAt: now,
+            lastEventAt: now,
+            entryPage: p.pagePath,
+            exitPage: p.pagePath,
+            pageViewCount: isPageView ? 1 : 0,
+            clickCount: isClick ? 1 : 0,
+            eventCount: 1,
+            engaged: isMeaningful,
+            returningVisitor,
+            deviceCategory: p.deviceCategory,
+            browser: p.browser,
+            os: p.os,
+            countryCode: p.countryCode,
+            continentCode: p.continentCode,
+            ingestionSource: p.ingestionSource,
+            environment: p.environment,
+            isTestEvent: p.isTestEvent ?? false,
+            userAgent: p.userAgent,
+          },
+        });
+        return;
+      }
+
+      await this.prisma.analyticsSession.update({
+        where: { analyticsSessionId: p.analyticsSessionId },
+        data: {
+          lastEventAt: now,
+          exitPage: p.pagePath ?? existing.exitPage,
+          pageViewCount: isPageView ? { increment: 1 } : undefined,
+          clickCount: isClick ? { increment: 1 } : undefined,
+          eventCount: { increment: 1 },
+          // Stitch a session to the patient once it authenticates mid-visit.
+          ...(p.patientId ? { patientId: p.patientId } : {}),
+          ...(isMeaningful ? { engaged: true } : {}),
+        },
+      });
+
+      // >= 2 events is also "engaged" (spec §7). Column-only condition, no read.
+      if (!isMeaningful) {
+        await this.prisma.analyticsSession.updateMany({
+          where: { analyticsSessionId: p.analyticsSessionId, engaged: false, eventCount: { gte: 2 } },
+          data: { engaged: true },
+        });
+      }
+    } catch (err) {
+      // Unique-violation race on create just means a concurrent event won.
+      this.logger.debug(`Session rollup skipped: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

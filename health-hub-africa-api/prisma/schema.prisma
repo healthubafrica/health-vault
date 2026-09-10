@@ -370,6 +370,7 @@ model Patient {
   consents              PatientConsent[]
   supportTickets        SupportTicket[]
   activityEvents        PatientActivityEvent[]
+  analyticsSessions     AnalyticsSession[]
   providerAssignments   PatientProviderAssignment[]
   strideLogs            StrideTriage[]
   expertReviewCases     ExpertReviewCase[]
@@ -1684,6 +1685,52 @@ model PatientActivityEvent {
   @@index([analyticsSessionId])
   @@index([isTestEvent, occurredAt(sort: Desc)])
   @@map("patient_activity_events")
+}
+
+// A visit — events grouped by the client-generated analytics_session_id
+// (spec §7). Deliberately NOT UserSession: that's the auth session, and
+// Appendix B warns against reusing a raw auth identifier for analytics
+// correlation. Rows are rolled up incrementally by trackEvent as events
+// arrive; session_end / duration are inferred later from last_event_at +
+// the inactivity timeout.
+model AnalyticsSession {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  analyticsSessionId  String    @unique @map("analytics_session_id")
+  patientId           String?   @map("patient_id") @db.Uuid
+  anonymousVisitorId  String?   @map("anonymous_visitor_id")
+
+  startedAt           DateTime  @default(now()) @map("started_at")
+  lastEventAt         DateTime  @map("last_event_at")
+  // Set by the sessionization sweep once last_event_at is older than the
+  // inactivity timeout (a later branch); null while the visit looks live.
+  endedAt             DateTime? @map("ended_at")
+
+  entryPage           String?   @map("entry_page")
+  exitPage            String?   @map("exit_page")
+  pageViewCount       Int       @default(0) @map("page_view_count")
+  clickCount          Int       @default(0) @map("click_count")
+  eventCount          Int       @default(0) @map("event_count")
+  // Meaningful activity happened, or >= 2 events — spec §7 "engaged_session".
+  engaged             Boolean   @default(false)
+  // A previous session existed for this patient / anonymous visitor.
+  returningVisitor    Boolean   @default(false) @map("returning_visitor")
+
+  deviceCategory      String?   @map("device_category")
+  browser             String?
+  os                  String?
+  countryCode         String?   @map("country_code")
+  continentCode       String?   @map("continent_code")
+  ingestionSource     String?   @map("ingestion_source")
+  environment         String?
+  isTestEvent         Boolean   @default(false) @map("is_test_event")
+  userAgent           String?   @map("user_agent")
+
+  patient Patient? @relation(fields: [patientId], references: [id])
+
+  @@index([patientId, startedAt(sort: Desc)])
+  @@index([anonymousVisitorId, startedAt(sort: Desc)])
+  @@index([startedAt(sort: Desc)])
+  @@map("analytics_sessions")
 }
 
 // Anonymous site visits on the public marketing site (myvaultplus-web), for

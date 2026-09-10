@@ -8,10 +8,18 @@ describe('AnalyticsService.trackEvent (anonymous + authenticated identity)', () 
         create: jest.fn().mockResolvedValue({}),
         upsert: jest.fn().mockResolvedValue({}),
       },
+      analyticsSession: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        count: jest.fn().mockResolvedValue(0),
+      },
     };
     const service = new AnalyticsService(prisma as any);
     jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
     jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
+    jest.spyOn((service as any).logger, 'debug').mockImplementation(() => undefined);
     return { service, prisma };
   }
 
@@ -171,6 +179,98 @@ describe('AnalyticsService.trackEvent (anonymous + authenticated identity)', () 
     expect(prisma.patientActivityEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ ingestionSource: 'web' }) }),
     );
+  });
+
+  // ── Session rollup (spec §7), exercised through trackEvent ────────────────
+
+  it('opens an AnalyticsSession on the first event, seeding entry/exit page and counts', async () => {
+    const { service, prisma } = buildService();
+    await service.trackEvent(
+      { eventType: 'page_view', analyticsSessionId: 'sess-1', pagePath: '/portal/dashboard', anonymousVisitorId: 'anon-1' },
+      undefined,
+    );
+
+    expect(prisma.analyticsSession.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          analyticsSessionId: 'sess-1',
+          entryPage: '/portal/dashboard',
+          exitPage: '/portal/dashboard',
+          pageViewCount: 1,
+          eventCount: 1,
+          engaged: false,
+          returningVisitor: false,
+        }),
+      }),
+    );
+  });
+
+  it('marks a returning visitor when a prior session exists for the identity', async () => {
+    const { service, prisma } = buildService();
+    prisma.analyticsSession.count.mockResolvedValueOnce(3);
+
+    await service.trackEvent(
+      { eventType: 'page_view', analyticsSessionId: 'sess-2', anonymousVisitorId: 'anon-7' },
+      undefined,
+    );
+
+    expect(prisma.analyticsSession.count).toHaveBeenCalledWith({ where: { anonymousVisitorId: 'anon-7' } });
+    expect(prisma.analyticsSession.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ returningVisitor: true }) }),
+    );
+  });
+
+  it('opens the session as engaged when the very first event is a meaningful action', async () => {
+    const { service, prisma } = buildService();
+    await service.trackEvent(
+      { eventType: 'booking_confirmed', analyticsSessionId: 'sess-3', anonymousVisitorId: 'anon-1' },
+      undefined,
+    );
+
+    expect(prisma.analyticsSession.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ engaged: true }) }),
+    );
+  });
+
+  it('advances an existing session: moves exit page, increments counts, flips engaged at 2+ events', async () => {
+    const { service, prisma } = buildService();
+    prisma.analyticsSession.findUnique.mockResolvedValueOnce({ id: 'row-1', exitPage: '/a' });
+
+    await service.trackEvent(
+      { eventType: 'ui_click', analyticsSessionId: 'sess-4', pagePath: '/b', anonymousVisitorId: 'anon-1' },
+      undefined,
+    );
+
+    expect(prisma.analyticsSession.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { analyticsSessionId: 'sess-4' },
+        data: expect.objectContaining({ exitPage: '/b', clickCount: { increment: 1 }, eventCount: { increment: 1 } }),
+      }),
+    );
+    expect(prisma.analyticsSession.updateMany).toHaveBeenCalledWith({
+      where: { analyticsSessionId: 'sess-4', engaged: false, eventCount: { gte: 2 } },
+      data: { engaged: true },
+    });
+  });
+
+  it('does not touch AnalyticsSession when the event carries no analyticsSessionId', async () => {
+    const { service, prisma } = buildService();
+    await service.trackEvent({ eventType: 'page_view', anonymousVisitorId: 'anon-1' }, undefined);
+
+    expect(prisma.analyticsSession.findUnique).not.toHaveBeenCalled();
+    expect(prisma.analyticsSession.create).not.toHaveBeenCalled();
+  });
+
+  it('never lets a session-rollup failure break the event write', async () => {
+    const { service, prisma } = buildService();
+    prisma.analyticsSession.findUnique.mockRejectedValueOnce(new Error('db down'));
+
+    await service.trackEvent(
+      { eventType: 'page_view', analyticsSessionId: 'sess-5', anonymousVisitorId: 'anon-1' },
+      undefined,
+    );
+
+    expect(prisma.patientActivityEvent.create).toHaveBeenCalled();
   });
 });
 
