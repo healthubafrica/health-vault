@@ -13,6 +13,7 @@ import {
   friendlySessionExpired,
 } from './errorMessages'
 import type { AcquisitionSource, MarketingAttribution } from '@/lib/marketingAttribution'
+import * as analyticsClient from '@/lib/analytics/client'
 
 const BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000') + '/api/v1'
 
@@ -1311,61 +1312,15 @@ export const expertReview = {
 }
 
 // ── Analytics (fire-and-forget) ───────────────────────────────────────────
-
-const VISITOR_ID_KEY = 'hha-anonymous-visitor-id'
-
-// Persists across sessions (localStorage, not sessionStorage) so the same
-// pre-login visitor can be correlated across repeat visits before they ever
-// register. Ignored server-side once a real patient is resolved from the
-// access token.
-function getAnonymousVisitorId(): string | undefined {
-  if (typeof window === 'undefined') return undefined
-  try {
-    let id = localStorage.getItem(VISITOR_ID_KEY)
-    if (!id) {
-      id = generateIdempotencyKey()
-      localStorage.setItem(VISITOR_ID_KEY, id)
-    }
-    return id
-  } catch {
-    return undefined
-  }
-}
-
-const SESSION_ID_KEY = 'hha-analytics-session-id'
-
-// sessionStorage (not localStorage): resets on tab close, groups events into
-// one visit. Deliberately separate from both the anonymous visitor id above
-// (that one persists across visits) and the auth session (spec Appendix B —
-// never reuse a raw auth session identifier for analytics correlation).
-function getAnalyticsSessionId(): string | undefined {
-  if (typeof window === 'undefined') return undefined
-  try {
-    let id = sessionStorage.getItem(SESSION_ID_KEY)
-    if (!id) {
-      id = generateIdempotencyKey()
-      sessionStorage.setItem(SESSION_ID_KEY, id)
-    }
-    return id
-  } catch {
-    return undefined
-  }
-}
+//
+// Delegates to lib/analytics/client.ts, the central SDK wrapper (spec §22).
+// That module owns identity (anonymous visitor + session id, with idle-
+// timeout rotation), eventId dedup, duplicate-click debouncing, and a
+// bounded retry queue — none of which the ~40 existing analytics.track()
+// call sites need to know about or change for.
 
 export const analytics = {
-  // Never awaited by callers and never surfaces errors — product telemetry
-  // must not affect the user experience.
-  track: (eventType: string, metadata?: Record<string, unknown>) => {
-    request<void>('/analytics/events', {
-      method: 'POST',
-      body: JSON.stringify({
-        eventType,
-        metadata,
-        anonymousVisitorId: getAnonymousVisitorId(),
-        analyticsSessionId: getAnalyticsSessionId(),
-      }),
-    }).catch(() => undefined)
-  },
+  track: analyticsClient.track,
 }
 
 // ── Support Tickets ───────────────────────────────────────────────────────

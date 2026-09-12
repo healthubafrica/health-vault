@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "npx playwright test"
+    "test": "npx playwright test",
+    "test:unit": "vitest run"
   },
   "dependencies": {
     "@livekit/components-react": "^2.9.21",
@@ -41,7 +42,9 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "jsdom": "^27.4.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }
