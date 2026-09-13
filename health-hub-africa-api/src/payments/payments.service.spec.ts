@@ -6,6 +6,7 @@ import { PaymentsService } from './payments.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OpenemrService } from '../openemr/openemr.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 
 // ----- Mocks ----------------------------------------------------------------
@@ -47,6 +48,7 @@ const mockNotifications = {
   sendPatientWelcomeEmail: jest.fn().mockResolvedValue(undefined),
 };
 const mockOpenemrService = { syncSubscription: jest.fn().mockResolvedValue(undefined) };
+const mockAnalyticsService = { emitServerEvent: jest.fn().mockResolvedValue(undefined) };
 
 // ----- Fixtures --------------------------------------------------------------
 
@@ -64,6 +66,7 @@ describe('PaymentsService', () => {
         { provide: ConfigService, useValue: mockConfig },
         { provide: NotificationsService, useValue: mockNotifications },
         { provide: OpenemrService, useValue: mockOpenemrService },
+        { provide: AnalyticsService, useValue: mockAnalyticsService },
       ],
     }).compile();
 
@@ -213,6 +216,13 @@ describe('PaymentsService', () => {
       );
       expect(tx.invoice.create).toHaveBeenCalled();
       expect(mockNotifications.createPatientAlert).toHaveBeenCalled();
+      expect(mockAnalyticsService.emitServerEvent).toHaveBeenCalledWith(
+        'payment_success',
+        expect.objectContaining({
+          patientId: 'patient-1',
+          properties: expect.objectContaining({ paymentId: 'pay-1', gateway: PaymentGateway.Flutterwave }),
+        }),
+      );
     });
 
     it('skips every side effect when it loses the atomic update to a concurrent delivery', async () => {
@@ -231,6 +241,9 @@ describe('PaymentsService', () => {
       expect(tx.patientSubscription.create).not.toHaveBeenCalled();
       expect(mockNotifications.createPatientAlert).not.toHaveBeenCalled();
       expect(mockNotifications.sendEmail).not.toHaveBeenCalled();
+      // Lost the race — the winning delivery already fired payment_success;
+      // firing again here would double-count the conversion.
+      expect(mockAnalyticsService.emitServerEvent).not.toHaveBeenCalled();
     });
 
     it('does not re-run side effects for a webhook retry on an already-paid payment (pre-check fast path)', async () => {
@@ -239,6 +252,44 @@ describe('PaymentsService', () => {
       await (service as any).handleChargeSuccess(event, event.data, PaymentGateway.Flutterwave);
 
       expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+      expect(mockAnalyticsService.emitServerEvent).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('handleChargeFailed', () => {
+    const payment = {
+      id: 'pay-2',
+      patientId: 'patient-1',
+      status: PaymentStatus.pending,
+      metadata: null,
+    };
+    const event = { event: 'charge.failed', data: { reference: 'ref-2', status: 'failed' } };
+
+    it('marks the payment failed and emits payment_failure', async () => {
+      mockPrisma.payment.findFirst.mockResolvedValue(payment);
+      mockPrisma.payment.update.mockResolvedValue({ ...payment, status: PaymentStatus.failed });
+
+      await (service as any).handleChargeFailed(event, event.data, PaymentGateway.Flutterwave);
+
+      expect(mockPrisma.payment.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'pay-2' }, data: expect.objectContaining({ status: PaymentStatus.failed }) }),
+      );
+      expect(mockAnalyticsService.emitServerEvent).toHaveBeenCalledWith(
+        'payment_failure',
+        expect.objectContaining({
+          patientId: 'patient-1',
+          properties: expect.objectContaining({ paymentId: 'pay-2', gateway: PaymentGateway.Flutterwave, reason: 'webhook' }),
+        }),
+      );
+    });
+
+    it('never downgrades an already-paid payment, and never emits payment_failure for it', async () => {
+      mockPrisma.payment.findFirst.mockResolvedValue({ ...payment, status: PaymentStatus.paid });
+
+      await (service as any).handleChargeFailed(event, event.data, PaymentGateway.Flutterwave);
+
+      expect(mockPrisma.payment.update).not.toHaveBeenCalled();
+      expect(mockAnalyticsService.emitServerEvent).not.toHaveBeenCalled();
     });
   });
 });
