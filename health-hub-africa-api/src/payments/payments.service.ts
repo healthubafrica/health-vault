@@ -13,6 +13,7 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OpenemrService } from '../openemr/openemr.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
 import { RefundPaymentDto } from './dto/refund-payment.dto';
@@ -28,6 +29,7 @@ export class PaymentsService {
     private readonly config: ConfigService,
     private readonly notifications: NotificationsService,
     private readonly openemrService: OpenemrService,
+    private readonly analytics: AnalyticsService,
   ) {}
 
   // PAY-YYYY-000001 sequential payment reference
@@ -489,6 +491,12 @@ export class PaymentsService {
     if (!res.ok || body.status !== 'success' || !body.data) {
       this.logger.error(`Flutterwave tokenized charge failed for payment ${payment.id}: ${JSON.stringify(body)}`);
       await this.prisma.payment.update({ where: { id: payment.id }, data: { status: PaymentStatus.failed } });
+      // Declined before a webhook was ever generated — doesn't funnel
+      // through handleChargeFailed, so it needs its own emission.
+      void this.analytics.emitServerEvent('payment_failure', {
+        patientId,
+        properties: { paymentId: payment.id, gateway: PaymentGateway.Flutterwave, reason: 'declined', source: 'server' },
+      });
       throw new BadRequestException('The saved card was declined. Please try a different payment method.');
     }
 
@@ -519,6 +527,10 @@ export class PaymentsService {
 
     this.logger.error(`Flutterwave tokenized charge returned unexpected status for payment ${payment.id}: ${JSON.stringify(body)}`);
     await this.prisma.payment.update({ where: { id: payment.id }, data: { status: PaymentStatus.failed } });
+    void this.analytics.emitServerEvent('payment_failure', {
+      patientId,
+      properties: { paymentId: payment.id, gateway: PaymentGateway.Flutterwave, reason: 'unexpected_status', source: 'server' },
+    });
     throw new BadRequestException('The saved card was declined. Please try a different payment method.');
   }
 
@@ -926,6 +938,27 @@ export class PaymentsService {
 
     this.logger.log(`Payment ${payment.id} → paid via ${gateway}`);
 
+    // Authoritative payment event (spec §23) — the portal fires its own
+    // payment_success beacon, but a dropped tab shouldn't lose the
+    // conversion, and every success path here (webhook, verifyPayment
+    // polling fallback, validateCharge OTP flow, saved-card tokenized
+    // charge) funnels through this one already-`claimed`-guarded method, so
+    // one call site covers all of them without double-counting a replay.
+    void this.analytics.emitServerEvent('payment_success', {
+      patientId: payment.patientId,
+      properties: {
+        paymentId: payment.id,
+        gateway,
+        amountKobo: payment.amountKobo,
+        currency: payment.currency,
+        // TS narrows `activation` to `never` here otherwise — same quirk the
+        // existing code below already works around with this exact cast
+        // (the variable is reassigned inside the $transaction closure).
+        firstSubscription: (activation as { firstSubscription: boolean; planId: string } | null)?.firstSubscription ?? false,
+        source: 'server',
+      },
+    });
+
     // Capture and save the card token, only if the patient opted in when
     // initiating this payment. Only present on the real Flutterwave webhook
     // (which carries the full `card` object) — not on the verifyPayment
@@ -1002,6 +1035,11 @@ export class PaymentsService {
     });
 
     this.logger.log(`Payment ${payment.id} → failed via ${gateway}`);
+
+    void this.analytics.emitServerEvent('payment_failure', {
+      patientId: payment.patientId,
+      properties: { paymentId: payment.id, gateway, reason: 'webhook', source: 'server' },
+    });
 
     // Best-effort — only actually changes anything on the OpenEMR side if
     // this failed payment happens to be the one linked to the patient's
