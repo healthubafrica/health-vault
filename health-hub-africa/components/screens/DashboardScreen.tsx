@@ -143,9 +143,10 @@ export function DashboardScreen() {
   const lastRbcReading = [...chronological].reverse().find((v) => v.rbc != null)
 
   // Quick Actions are the highest-traffic CTAs on the app — the ones the
-  // clickstream spec calls out by name (§8.2). element_id/feature_area/
-  // destination live in the properties JSON (see trackEvent()); no first-
-  // class columns for them yet, same tradeoff as every other event here.
+  // clickstream spec calls out by name (§8.2). element_id/feature_area are
+  // promoted to first-class columns by the analytics client (lib/analytics/
+  // client.ts); destination has no dedicated column yet, so it still rides
+  // in the properties JSON.
   function trackQuickAction(elementId: string, destination: string) {
     analytics.track('ui_click', { element_id: `quick_action_${elementId}`, feature_area: 'dashboard', destination })
     router.push(destination)
