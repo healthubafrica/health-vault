@@ -70,6 +70,7 @@ function loginContext(req: Request, attribution?: MarketingAttributionDto) {
     utmSource: attribution?.utmSource,
     utmMedium: attribution?.utmMedium,
     utmCampaign: attribution?.utmCampaign,
+    anonymousVisitorId: attribution?.anonymousVisitorId,
   };
 }
 
@@ -86,7 +87,7 @@ export class AuthController {
   @Throttle({ auth: { ttl: 60_000, limit: 5 } })
   @ApiOperation({ summary: 'Register a new user account' })
   register(@Body() dto: RegisterDto, @Req() req: Request) {
-    return this.authService.register(dto, loginContext(req, dto).ipAddress);
+    return this.authService.register(dto, loginContext(req, dto));
   }
 
   // Pre-registration referral check — read-only, never assigns a partner.
