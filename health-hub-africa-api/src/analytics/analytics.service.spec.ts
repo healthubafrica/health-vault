@@ -670,6 +670,78 @@ describe('AnalyticsService.getGeoComparison (declared vs access geography)', () 
   });
 });
 
+describe('AnalyticsService.getDemographicsAnalytics (age band / gender / nationality / plan)', () => {
+  const now = new Date();
+  // Relative to "now" rather than fixed calendar dates so this test never
+  // rots into a different age band as the years pass.
+  function bornYearsAgo(years: number): Date {
+    return new Date(now.getFullYear() - years, now.getMonth(), now.getDate());
+  }
+
+  function buildService(patients: Array<{
+    dateOfBirth: Date;
+    gender: string;
+    nationality: string | null;
+    subscriptions: Array<{ plan: { tier: string } }>;
+  }>) {
+    const prisma = { patient: { findMany: jest.fn().mockResolvedValue(patients) } };
+    const service = new AnalyticsService(prisma as any);
+    return { service, prisma };
+  }
+
+  it('excludes patients whose user account is soft-deleted', async () => {
+    const { service, prisma } = buildService([]);
+    await service.getDemographicsAnalytics();
+
+    expect(prisma.patient.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { user: { deletedAt: null } } }),
+    );
+  });
+
+  it('buckets patients into configured age bands, ordered by age progression not count', async () => {
+    const { service } = buildService([
+      { dateOfBirth: bornYearsAgo(70), gender: 'Male', nationality: 'Nigerian', subscriptions: [] },
+      { dateOfBirth: bornYearsAgo(70), gender: 'Male', nationality: 'Nigerian', subscriptions: [] },
+      { dateOfBirth: bornYearsAgo(70), gender: 'Male', nationality: 'Nigerian', subscriptions: [] },
+      { dateOfBirth: bornYearsAgo(20), gender: 'Female', nationality: 'Nigerian', subscriptions: [] },
+    ]);
+
+    const result = await service.getDemographicsAnalytics();
+
+    // 65+ has 3x the count of 18-24 but must still render after it.
+    expect(result.data.ageBands).toEqual([
+      { label: '18–24', count: 1 },
+      { label: '65+', count: 3 },
+    ]);
+    expect(result.data.totalPatients).toBe(4);
+  });
+
+  it('counts gender and defaults an undeclared nationality to "Not declared"', async () => {
+    const { service } = buildService([
+      { dateOfBirth: bornYearsAgo(30), gender: 'Female', nationality: null, subscriptions: [] },
+      { dateOfBirth: bornYearsAgo(30), gender: 'Female', nationality: '  ', subscriptions: [] },
+    ]);
+
+    const result = await service.getDemographicsAnalytics();
+
+    expect(result.data.genders).toEqual([{ label: 'Female', count: 2 }]);
+    expect(result.data.nationalities).toEqual([{ label: 'Not declared', count: 2 }]);
+  });
+
+  it('defaults plan tier to Free when there is no active subscription', async () => {
+    const { service } = buildService([
+      { dateOfBirth: bornYearsAgo(30), gender: 'Male', nationality: 'Ghanaian', subscriptions: [] },
+      { dateOfBirth: bornYearsAgo(30), gender: 'Male', nationality: 'Ghanaian', subscriptions: [{ plan: { tier: 'GoldCare' } }] },
+    ]);
+
+    const result = await service.getDemographicsAnalytics();
+
+    expect(result.data.planTiers).toEqual(
+      expect.arrayContaining([{ label: 'Free', count: 1 }, { label: 'GoldCare', count: 1 }]),
+    );
+  });
+});
+
 describe('AnalyticsService.getTrafficAnalytics (country -> region -> city hierarchy)', () => {
   function buildService(visits: Array<{ occurredAt: Date; countryCode: string | null; region: string | null; city: string | null; userAgent?: string | null; referrer?: string | null; utmSource?: string | null; utmMedium?: string | null; utmCampaign?: string | null }>) {
     const prisma = { siteVisit: { findMany: jest.fn().mockResolvedValue(visits) } };

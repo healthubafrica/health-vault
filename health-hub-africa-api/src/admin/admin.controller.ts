@@ -194,6 +194,12 @@ export class AdminController {
     return this.adminService.getFunnelAnalytics(period, { country, continent, device });
   }
 
+  @Get('analytics/demographics')
+  @ApiOperation({ summary: 'Get age band, sex/gender, nationality, and plan-tier breakdown of the active patient base (spec §18)' })
+  getDemographicsAnalytics() {
+    return this.adminService.getDemographicsAnalytics();
+  }
+
   @Get('analytics/geo-comparison')
   @ApiOperation({ summary: 'Compare patient-declared country against IP-derived access country (spec §4.4)' })
   getGeoComparison(@Query('period') period?: string) {

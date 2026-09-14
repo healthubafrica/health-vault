@@ -410,6 +410,14 @@ export interface FunnelAnalytics {
   kpis: Array<{ key: string; label: string; numerator: number; denominator: number; value: number | null }>
 }
 
+export interface DemographicsAnalytics {
+  totalPatients: number
+  ageBands: Array<{ label: string; count: number }>
+  genders: Array<{ label: string; count: number }>
+  nationalities: Array<{ label: string; count: number }>
+  planTiers: Array<{ label: string; count: number }>
+}
+
 // ── Admin: Dispatch ───────────────────────────────────────────────────────
 
 export interface DispatchUnit {
@@ -891,6 +899,8 @@ export const adminApi = {
       if (filters?.device) qs.set('device', filters.device)
       return request<{ data: FunnelAnalytics }>(`/admin/analytics/funnel?${qs}`)
     },
+    demographics: () =>
+      request<{ data: DemographicsAnalytics }>('/admin/analytics/demographics'),
     geoComparison: (period = '30d') =>
       request<{ data: GeoComparison }>(`/admin/analytics/geo-comparison?period=${period}`),
     retention: (lookbackDays = 90) =>
