@@ -812,15 +812,41 @@ describe('AnalyticsService.getTrafficAnalytics (country -> region -> city hierar
 
     expect(result.data.hierarchy).toEqual([
       {
-        countryCode: 'NG', continent: 'Africa', visits: 3,
-        regions: [
-          { region: 'LA', visits: 2, cities: [{ city: 'Lagos', visits: 2 }] },
-          { region: 'FC', visits: 1, cities: [{ city: 'Abuja', visits: 1 }] },
-        ],
+        continent: 'Africa', continentCode: 'AF', visits: 3,
+        countries: [{
+          countryCode: 'NG', visits: 3,
+          regions: [
+            { region: 'LA', visits: 2, cities: [{ city: 'Lagos', visits: 2 }] },
+            { region: 'FC', visits: 1, cities: [{ city: 'Abuja', visits: 1 }] },
+          ],
+        }],
       },
       {
-        countryCode: 'US', continent: 'North America', visits: 1,
-        regions: [{ region: 'CA', visits: 1, cities: [{ city: 'San Francisco', visits: 1 }] }],
+        continent: 'North America', continentCode: 'NA', visits: 1,
+        countries: [{
+          countryCode: 'US', visits: 1,
+          regions: [{ region: 'CA', visits: 1, cities: [{ city: 'San Francisco', visits: 1 }] }],
+        }],
+      },
+    ]);
+  });
+
+  it('groups multiple countries under the same continent, sorted by visit count within it', async () => {
+    const { service } = buildService([
+      { occurredAt: new Date(), countryCode: 'ng', region: 'LA', city: 'Lagos' },
+      { occurredAt: new Date(), countryCode: 'gh', region: 'AA', city: 'Accra' },
+      { occurredAt: new Date(), countryCode: 'gh', region: 'AA', city: 'Accra' },
+    ]);
+
+    const result = await service.getTrafficAnalytics('30d');
+
+    expect(result.data.hierarchy).toEqual([
+      {
+        continent: 'Africa', continentCode: 'AF', visits: 3,
+        countries: [
+          { countryCode: 'GH', visits: 2, regions: [{ region: 'AA', visits: 2, cities: [{ city: 'Accra', visits: 2 }] }] },
+          { countryCode: 'NG', visits: 1, regions: [{ region: 'LA', visits: 1, cities: [{ city: 'Lagos', visits: 1 }] }] },
+        ],
       },
     ]);
   });
@@ -831,7 +857,10 @@ describe('AnalyticsService.getTrafficAnalytics (country -> region -> city hierar
     const result = await service.getTrafficAnalytics('30d');
 
     expect(result.data.hierarchy).toEqual([
-      { countryCode: 'Unknown', continent: 'Unknown', visits: 1, regions: [{ region: 'Unknown', visits: 1, cities: [{ city: 'Unknown', visits: 1 }] }] },
+      {
+        continent: 'Unknown', continentCode: 'UN', visits: 1,
+        countries: [{ countryCode: 'Unknown', visits: 1, regions: [{ region: 'Unknown', visits: 1, cities: [{ city: 'Unknown', visits: 1 }] }] }],
+      },
     ]);
   });
 });

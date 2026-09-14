@@ -129,19 +129,27 @@ function CardHeader({ title, subtitle, onExport }: { title: string; subtitle?: s
   )
 }
 
-// Country -> admin-1 region -> city drill-down (TrafficAnalytics.hierarchy).
-// Two-level expand state (country, and "country|region" for its city list)
-// rather than a generic recursive tree — the hierarchy is exactly 3 levels
-// deep, always, so a generic tree component would be more code for the same
-// result.
+// World -> Continent -> Country -> Region -> City (spec §B levels 0-5;
+// World is this component's implicit root — the array itself). Three-level
+// expand state (continent, "continent|country", "continent|country|region"
+// for the city list) rather than a generic recursive tree — the hierarchy
+// is exactly 4 levels deep, always, so a generic tree component would be
+// more code for the same result.
 function GeoHierarchyTree({ hierarchy }: { hierarchy: TrafficAnalytics['hierarchy'] }) {
+  const [openContinents, setOpenContinents] = useState<Set<string>>(new Set())
   const [openCountries, setOpenCountries] = useState<Set<string>>(new Set())
   const [openRegions, setOpenRegions] = useState<Set<string>>(new Set())
 
-  const toggleCountry = (code: string) =>
-    setOpenCountries((prev) => {
+  const toggleContinent = (code: string) =>
+    setOpenContinents((prev) => {
       const next = new Set(prev)
       next.has(code) ? next.delete(code) : next.add(code)
+      return next
+    })
+  const toggleCountry = (key: string) =>
+    setOpenCountries((prev) => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
       return next
     })
   const toggleRegion = (key: string) =>
@@ -153,46 +161,69 @@ function GeoHierarchyTree({ hierarchy }: { hierarchy: TrafficAnalytics['hierarch
 
   return (
     <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
-      {hierarchy.map((country) => {
-        const isOpen = openCountries.has(country.countryCode)
+      {hierarchy.map((continent) => {
+        const continentOpen = openContinents.has(continent.continentCode)
         return (
-          <div key={country.countryCode}>
+          <div key={continent.continentCode}>
             <button
-              onClick={() => toggleCountry(country.countryCode)}
+              onClick={() => toggleContinent(continent.continentCode)}
               className="w-full flex items-center justify-between gap-3 px-5 py-3 text-left hover:opacity-80 transition-opacity"
             >
               <span className="flex items-center gap-2 min-w-0">
-                {isOpen ? <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />}
-                <span className="font-medium truncate" style={{ color: 'var(--color-text)' }}>{countryName(country.countryCode)}</span>
-                <span className="text-[11px] flex-shrink-0" style={{ color: 'var(--color-text-faint)' }}>{country.continent} · {country.regions.length} region{country.regions.length === 1 ? '' : 's'}</span>
+                {continentOpen ? <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />}
+                <span className="font-semibold truncate" style={{ color: 'var(--color-text)' }}>{continent.continent}</span>
+                <span className="text-[11px] flex-shrink-0" style={{ color: 'var(--color-text-faint)' }}>{continent.countries.length} countr{continent.countries.length === 1 ? 'y' : 'ies'}</span>
               </span>
-              <span className="tabular-nums text-sm flex-shrink-0" style={{ color: 'var(--color-text)' }}>{country.visits}</span>
+              <span className="tabular-nums text-sm flex-shrink-0" style={{ color: 'var(--color-text)' }}>{continent.visits}</span>
             </button>
-            {isOpen && (
+            {continentOpen && (
               <div className="pb-2">
-                {country.regions.map((region) => {
-                  const regionKey = `${country.countryCode}|${region.region}`
-                  const regionOpen = openRegions.has(regionKey)
+                {continent.countries.map((country) => {
+                  const countryKey = `${continent.continentCode}|${country.countryCode}`
+                  const countryOpen = openCountries.has(countryKey)
                   return (
-                    <div key={regionKey}>
+                    <div key={countryKey}>
                       <button
-                        onClick={() => toggleRegion(regionKey)}
-                        className="w-full flex items-center justify-between gap-3 pl-10 pr-5 py-2 text-left hover:opacity-80 transition-opacity"
+                        onClick={() => toggleCountry(countryKey)}
+                        className="w-full flex items-center justify-between gap-3 pl-10 pr-5 py-2.5 text-left hover:opacity-80 transition-opacity"
                       >
                         <span className="flex items-center gap-2 min-w-0">
-                          {regionOpen ? <ChevronDown className="w-3 h-3 flex-shrink-0" /> : <ChevronRight className="w-3 h-3 flex-shrink-0" />}
-                          <span className="text-sm truncate" style={{ color: 'var(--color-text-muted)' }}>{region.region}</span>
+                          {countryOpen ? <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />}
+                          <span className="font-medium truncate" style={{ color: 'var(--color-text)' }}>{countryName(country.countryCode)}</span>
+                          <span className="text-[11px] flex-shrink-0" style={{ color: 'var(--color-text-faint)' }}>{country.regions.length} region{country.regions.length === 1 ? '' : 's'}</span>
                         </span>
-                        <span className="tabular-nums text-xs flex-shrink-0" style={{ color: 'var(--color-text-muted)' }}>{region.visits}</span>
+                        <span className="tabular-nums text-sm flex-shrink-0" style={{ color: 'var(--color-text)' }}>{country.visits}</span>
                       </button>
-                      {regionOpen && (
-                        <div className="pl-16 pr-5 pb-1 flex flex-col gap-1">
-                          {region.cities.map((c) => (
-                            <div key={c.city} className="flex items-center justify-between gap-3 py-0.5">
-                              <span className="text-xs truncate" style={{ color: 'var(--color-text-faint)' }}>{c.city}</span>
-                              <span className="tabular-nums text-xs flex-shrink-0" style={{ color: 'var(--color-text-faint)' }}>{c.visits}</span>
-                            </div>
-                          ))}
+                      {countryOpen && (
+                        <div className="pb-2">
+                          {country.regions.map((region) => {
+                            const regionKey = `${countryKey}|${region.region}`
+                            const regionOpen = openRegions.has(regionKey)
+                            return (
+                              <div key={regionKey}>
+                                <button
+                                  onClick={() => toggleRegion(regionKey)}
+                                  className="w-full flex items-center justify-between gap-3 pl-16 pr-5 py-2 text-left hover:opacity-80 transition-opacity"
+                                >
+                                  <span className="flex items-center gap-2 min-w-0">
+                                    {regionOpen ? <ChevronDown className="w-3 h-3 flex-shrink-0" /> : <ChevronRight className="w-3 h-3 flex-shrink-0" />}
+                                    <span className="text-sm truncate" style={{ color: 'var(--color-text-muted)' }}>{region.region}</span>
+                                  </span>
+                                  <span className="tabular-nums text-xs flex-shrink-0" style={{ color: 'var(--color-text-muted)' }}>{region.visits}</span>
+                                </button>
+                                {regionOpen && (
+                                  <div className="pl-24 pr-5 pb-1 flex flex-col gap-1">
+                                    {region.cities.map((c) => (
+                                      <div key={c.city} className="flex items-center justify-between gap-3 py-0.5">
+                                        <span className="text-xs truncate" style={{ color: 'var(--color-text-faint)' }}>{c.city}</span>
+                                        <span className="tabular-nums text-xs flex-shrink-0" style={{ color: 'var(--color-text-faint)' }}>{c.visits}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
                       )}
                     </div>

@@ -49,3 +49,21 @@ export function continentForCountry(countryCode: string | null | undefined): str
   if (!countryCode) return 'Unknown'
   return COUNTRY_TO_CONTINENT.get(countryCode.toUpperCase()) ?? 'Unknown'
 }
+
+// Spec §C: "store stable codes plus localized/display names" — a display
+// name alone isn't a stable key (a label could change; a code shouldn't).
+// Not a formal ISO standard (none exists for continents), but a
+// conventional short code set widely used for exactly this purpose.
+const CONTINENT_CODES: Record<string, string> = {
+  Africa: 'AF',
+  Asia: 'AS',
+  Europe: 'EU',
+  'North America': 'NA',
+  'South America': 'SA',
+  Oceania: 'OC',
+  Antarctica: 'AN',
+}
+
+export function continentCodeForContinent(continent: string): string {
+  return CONTINENT_CODES[continent] ?? 'UN'
+}
