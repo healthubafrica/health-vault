@@ -18,6 +18,7 @@ import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { AuthService } from '../auth/auth.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { AlertsService } from '../alerts/alerts.service';
+import { fetchLoginAttemptsSince, detectLoginLocationAnomalies } from '../analytics/login-anomaly.util';
 import {
   UpdateUserRoleDto,
   UpdateUserStatusDto,
@@ -1004,23 +1005,9 @@ export class AdminService {
   async getSecurityAnalytics(period = '30d') {
     const since = this.periodToDate(period);
 
-    type LoginAttemptRow = {
-      userId: string;
-      email: string;
-      occurredAt: Date;
-      countryCode: string | null;
-      success: boolean;
-    };
-
-    const attempts = await this.prisma.$queryRaw<LoginAttemptRow[]>`
-      SELECT le."user_id" AS "userId", u."email", le."occurred_at" AS "occurredAt",
-        le."country_code" AS "countryCode", le."success"
-      FROM "login_events" le
-      INNER JOIN "users" u ON u."id" = le."user_id"
-      WHERE le."occurred_at" >= ${since}
-        AND u."deleted_at" IS NULL
-      ORDER BY le."user_id", le."occurred_at" ASC
-    `;
+    // Shared with AlertsService's cross-country login alert — see
+    // analytics/login-anomaly.util.ts for why.
+    const attempts = await fetchLoginAttemptsSince(this.prisma, since);
 
     const dayMap = new Map<string, number>();
     const cursor = new Date(since);
@@ -1033,38 +1020,17 @@ export class AdminService {
     }
 
     const failedLocationMap = new Map<string, number>();
-    type Anomaly = { userId: string; email: string; fromCountry: string; toCountry: string; occurredAt: Date };
-    const anomalies: Anomaly[] = [];
-    // Rows arrive user-then-time ordered (see ORDER BY above), so the
-    // previous row is the previous chronological login for the same user
-    // exactly when userId is unchanged — no grouping pass needed.
-    let prevUserId: string | null = null;
-    let prevCountry: string | null = null;
-
     for (const a of attempts) {
-      if (!a.success) {
-        const day = a.occurredAt.toISOString().slice(0, 10);
-        const row = dayMap.get(day);
-        if (row !== undefined) dayMap.set(day, row + 1);
+      if (a.success) continue;
+      const day = a.occurredAt.toISOString().slice(0, 10);
+      const row = dayMap.get(day);
+      if (row !== undefined) dayMap.set(day, row + 1);
 
-        const country = a.countryCode?.toUpperCase() ?? 'Unknown';
-        failedLocationMap.set(country, (failedLocationMap.get(country) ?? 0) + 1);
-      }
-
-      // Anomaly = a successful login from a different country than this
-      // same user's immediately preceding successful login. Failed attempts
-      // don't update prevCountry — a wrong password from a new country
-      // isn't "the account's new normal location," and would otherwise mask
-      // the very next successful login's anomaly.
-      if (a.success) {
-        const country = a.countryCode?.toUpperCase() ?? null;
-        if (a.userId === prevUserId && prevCountry && country && country !== prevCountry) {
-          anomalies.push({ userId: a.userId, email: a.email, fromCountry: prevCountry, toCountry: country, occurredAt: a.occurredAt });
-        }
-        prevUserId = a.userId;
-        if (country) prevCountry = country;
-      }
+      const country = a.countryCode?.toUpperCase() ?? 'Unknown';
+      failedLocationMap.set(country, (failedLocationMap.get(country) ?? 0) + 1);
     }
+
+    const anomalies = detectLoginLocationAnomalies(attempts);
 
     const successCount = attempts.filter((a) => a.success).length;
     const failureCount = attempts.length - successCount;
