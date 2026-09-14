@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -26,6 +27,17 @@ const STATUS_PILL: Record<string, 'success' | 'warning'> = {
 export function LabsScreen() {
   const router = useRouter()
   const { data: labsRes, isInitialLoad, error, refetch } = useApi(() => labs.listOrders())
+
+  // Fires once per mount when real data first lands — spec §15 result_view,
+  // distinct from the generic page_view PageViewTracker already emits for
+  // every route.
+  const firedResultView = useRef(false)
+  useEffect(() => {
+    if (!labsRes || firedResultView.current) return
+    firedResultView.current = true
+    const resultCount = labsRes.data.reduce((sum, order) => sum + order.results.length, 0)
+    analytics.track('result_view', { count: resultCount })
+  }, [labsRes])
 
   if (isInitialLoad) return <ListSkeleton ariaLabel="Loading lab results" showStats showBadge />
   if (error && !labsRes) return <ErrorState message={error} onRetry={refetch} />

@@ -16,7 +16,7 @@ import {
   X,
   BellOff,
 } from 'lucide-react'
-import { notifications, type AppNotification, type NotificationCategory } from '@/lib/api'
+import { notifications, analytics, type AppNotification, type NotificationCategory } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { formatRelativeTime } from '@/lib/utils'
 
@@ -48,7 +48,17 @@ function NotificationItem({
   const meta = CATEGORY_META[item.category] ?? CATEGORY_META.system
   const Icon = meta.icon
 
+  // Spec §8.2/§15: "Notification links" must be instrumented, and Results
+  // specifically names notification_clicked — one hook here covers every
+  // category (appointment/lab/payment/record/telecare/alert/system) since
+  // they all funnel through this same item component.
   const handleClick = () => {
+    analytics.track('notification_clicked', {
+      element_id: `notification_${item.category}`,
+      feature_area: 'notifications',
+      category: item.category,
+      destination: item.actionUrl,
+    })
     if (!item.isRead) onRead(item.id)
     if (item.actionUrl) router.push(item.actionUrl)
   }
