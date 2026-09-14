@@ -812,6 +812,72 @@ export class AnalyticsService {
     };
   }
 
+  // Spec §8.3 CTA CTR = qualified unique clicks ÷ qualified impressions.
+  // Pairs cta_impression events (TrackImpression, web only so far) with
+  // ui_click events sharing the same elementId. Unique-user basis, matching
+  // every other KPI in this file (booking/payment conversion, activation) —
+  // an element seen twice by the same visitor across two page loads should
+  // count as one qualified impression, not two.
+  async getClickstreamAnalytics(period = '30d') {
+    const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const rows = await this.prisma.patientActivityEvent.findMany({
+      where: {
+        occurredAt: { gte: since },
+        eventName: { in: ['cta_impression', 'ui_click'] },
+        elementId: { not: null },
+      },
+      select: { eventName: true, elementId: true, patientId: true, anonymousVisitorId: true },
+    });
+
+    const byElement = new Map<
+      string,
+      { impressions: number; impressionUsers: Set<string>; clicks: number; clickUsers: Set<string> }
+    >();
+
+    for (const r of rows) {
+      const elementId = r.elementId as string;
+      const bucket = byElement.get(elementId) ?? {
+        impressions: 0,
+        impressionUsers: new Set<string>(),
+        clicks: 0,
+        clickUsers: new Set<string>(),
+      };
+      const userKey = r.patientId ?? (r.anonymousVisitorId ? `anon:${r.anonymousVisitorId}` : undefined);
+
+      if (r.eventName === 'cta_impression') {
+        bucket.impressions++;
+        if (userKey) bucket.impressionUsers.add(userKey);
+      } else {
+        bucket.clicks++;
+        if (userKey) bucket.clickUsers.add(userKey);
+      }
+      byElement.set(elementId, bucket);
+    }
+
+    return {
+      data: {
+        ctas: Array.from(byElement.entries())
+          .map(([elementId, b]) => ({
+            elementId,
+            impressions: b.impressions,
+            uniqueImpressions: b.impressionUsers.size,
+            clicks: b.clicks,
+            uniqueClicks: b.clickUsers.size,
+            // null (not 0) when nothing has seen this element yet — same
+            // convention as every other ratio KPI in this file.
+            ctr:
+              b.impressionUsers.size > 0
+                ? Math.round((b.clickUsers.size / b.impressionUsers.size) * 1000) / 10
+                : null,
+          }))
+          .sort((a, b) => b.clicks - a.clicks),
+      },
+    };
+  }
+
   // Compares where a patient SAYS they live (Patient.country, entered at
   // onboarding) against where their sessions actually originate (IP-derived
   // countryCode on their events) — spec §4.4/§D. Only covers authenticated

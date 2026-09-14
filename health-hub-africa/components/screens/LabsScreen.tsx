@@ -13,6 +13,7 @@ import { labs, analytics } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { TrackImpression } from '@/components/analytics/TrackImpression'
 import { EmptyState } from '@/components/ui/states'
 import { buildProviderDisplayName } from '@/lib/providerName'
 
@@ -71,16 +72,18 @@ export function LabsScreen() {
             Your diagnostic results and lab history
           </p>
         </div>
-        <Button
-          size="sm"
-          onClick={() => {
-            analytics.track('ui_click', { element_id: 'book_caretest_cta', feature_area: 'labs', destination: '/appointments' })
-            toast.info('Visit Appointments to book a CareTest™')
-            router.push('/appointments')
-          }}
-        >
-          <FlaskConical size={14} />Book CareTest™
-        </Button>
+        <TrackImpression elementId="book_caretest_cta" featureArea="labs" elementType="button">
+          <Button
+            size="sm"
+            onClick={() => {
+              analytics.track('ui_click', { element_id: 'book_caretest_cta', feature_area: 'labs', destination: '/appointments' })
+              toast.info('Visit Appointments to book a CareTest™')
+              router.push('/appointments')
+            }}
+          >
+            <FlaskConical size={14} />Book CareTest™
+          </Button>
+        </TrackImpression>
       </div>
 
       <Card>

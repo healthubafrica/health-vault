@@ -410,6 +410,17 @@ export interface FunnelAnalytics {
   kpis: Array<{ key: string; label: string; numerator: number; denominator: number; value: number | null }>
 }
 
+export interface ClickstreamAnalytics {
+  ctas: Array<{
+    elementId: string
+    impressions: number
+    uniqueImpressions: number
+    clicks: number
+    uniqueClicks: number
+    ctr: number | null
+  }>
+}
+
 // ── Admin: Dispatch ───────────────────────────────────────────────────────
 
 export interface DispatchUnit {
@@ -891,6 +902,8 @@ export const adminApi = {
       if (filters?.device) qs.set('device', filters.device)
       return request<{ data: FunnelAnalytics }>(`/admin/analytics/funnel?${qs}`)
     },
+    clickstream: (period = '30d') =>
+      request<{ data: ClickstreamAnalytics }>(`/admin/analytics/clickstream?period=${period}`),
     geoComparison: (period = '30d') =>
       request<{ data: GeoComparison }>(`/admin/analytics/geo-comparison?period=${period}`),
     retention: (lookbackDays = 90) =>
