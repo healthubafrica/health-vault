@@ -194,6 +194,12 @@ export class AdminController {
     return this.adminService.getFunnelAnalytics(period, { country, continent, device });
   }
 
+  @Get('analytics/demographics')
+  @ApiOperation({ summary: 'Get age band, sex/gender, nationality, and plan-tier breakdown of the active patient base (spec §18)' })
+  getDemographicsAnalytics() {
+    return this.adminService.getDemographicsAnalytics();
+  }
+
   @Get('analytics/clickstream')
   @ApiOperation({ summary: 'Get per-CTA impressions, clicks, and CTR (spec §8.3)' })
   @ApiQuery({ name: 'period', required: false, description: "e.g. '7d', '30d', '90d' (default 30d)" })

@@ -940,6 +940,98 @@ export class AnalyticsService {
     };
   }
 
+  // Spec §3: age bands are "configuration-driven", not hardcoded per query —
+  // this table is the one place that changes if the business redefines a
+  // bracket. calculateAge()/ageBandFor() are pure so they're trivially unit
+  // testable without a DB.
+  private static readonly AGE_BANDS: Array<{ label: string; minAge: number; maxAge: number | null }> = [
+    { label: '0–4', minAge: 0, maxAge: 4 },
+    { label: '5–12', minAge: 5, maxAge: 12 },
+    { label: '13–17', minAge: 13, maxAge: 17 },
+    { label: '18–24', minAge: 18, maxAge: 24 },
+    { label: '25–34', minAge: 25, maxAge: 34 },
+    { label: '35–44', minAge: 35, maxAge: 44 },
+    { label: '45–54', minAge: 45, maxAge: 54 },
+    { label: '55–64', minAge: 55, maxAge: 64 },
+    { label: '65+', minAge: 65, maxAge: null },
+  ];
+
+  private static calculateAge(dateOfBirth: Date, asOf: Date): number {
+    let age = asOf.getFullYear() - dateOfBirth.getFullYear();
+    const monthDiff = asOf.getMonth() - dateOfBirth.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && asOf.getDate() < dateOfBirth.getDate())) age--;
+    return age;
+  }
+
+  private static ageBandFor(age: number): string {
+    return AnalyticsService.AGE_BANDS.find((b) => age >= b.minAge && (b.maxAge === null || age <= b.maxAge))?.label ?? 'Unknown';
+  }
+
+  // Spec §18 Demographics & Geography dashboard: age bands, sex/gender as
+  // collected, nationality — a population snapshot of the current active
+  // patient base (not time-windowed like the funnel/retention metrics
+  // above), matching how "population profile" reads in spec §3. patient_type
+  // segmentation from that same table isn't included: there's no
+  // patient_type field on Patient today, and inventing a business
+  // classification isn't an analytics-reporting decision to make silently.
+  async getDemographicsAnalytics() {
+    const now = new Date();
+    const patients = await this.prisma.patient.findMany({
+      where: { user: { deletedAt: null } },
+      select: {
+        dateOfBirth: true,
+        gender: true,
+        nationality: true,
+        subscriptions: {
+          where: { status: 'active' },
+          select: { plan: { select: { tier: true } } },
+          take: 1,
+        },
+      },
+    });
+
+    const ageBands = new Map<string, number>();
+    const genders = new Map<string, number>();
+    const nationalities = new Map<string, number>();
+    const planTiers = new Map<string, number>();
+
+    for (const p of patients) {
+      const ageBand = AnalyticsService.ageBandFor(AnalyticsService.calculateAge(p.dateOfBirth, now));
+      ageBands.set(ageBand, (ageBands.get(ageBand) ?? 0) + 1);
+
+      genders.set(p.gender, (genders.get(p.gender) ?? 0) + 1);
+
+      const nationality = p.nationality?.trim() || 'Not declared';
+      nationalities.set(nationality, (nationalities.get(nationality) ?? 0) + 1);
+
+      const tier = p.subscriptions[0]?.plan.tier ?? 'Free';
+      planTiers.set(tier, (planTiers.get(tier) ?? 0) + 1);
+    }
+
+    // Age bands render in their defined order (not by count) — a bar chart
+    // of "0-4, 5-12, 13-17, ..." reads naturally; sorted-by-count would
+    // scramble the age progression every time the mix shifts.
+    const ageBandOrder = [...AnalyticsService.AGE_BANDS.map((b) => b.label), 'Unknown'];
+
+    return {
+      data: {
+        totalPatients: patients.length,
+        ageBands: ageBandOrder
+          .filter((label) => ageBands.has(label))
+          .map((label) => ({ label, count: ageBands.get(label) as number })),
+        genders: Array.from(genders.entries())
+          .map(([label, count]) => ({ label, count }))
+          .sort((a, b) => b.count - a.count),
+        nationalities: Array.from(nationalities.entries())
+          .map(([label, count]) => ({ label, count }))
+          .sort((a, b) => b.count - a.count),
+        planTiers: Array.from(planTiers.entries())
+          .map(([label, count]) => ({ label, count }))
+          .sort((a, b) => b.count - a.count),
+      },
+    };
+  }
+
   // Spec §16: N-day retention. ponytail: this is the common product-analytics
   // simplification ("returned at least once N+ days after registering"), not
   // a strict single-day cohort curve (active on exactly day N) — the latter

@@ -779,6 +779,10 @@ export class AdminService {
     return this.analyticsService.getGeoComparison(period);
   }
 
+  getDemographicsAnalytics() {
+    return this.analyticsService.getDemographicsAnalytics();
+  }
+
   getRetentionAnalytics(lookbackDays = 90) {
     return this.analyticsService.getRetentionAnalytics(lookbackDays);
   }

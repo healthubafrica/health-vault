@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download, ChevronRight, ChevronDown } from 'lucide-react'
 import { useAutoRefresh } from '@/lib/hooks/useLiveData'
-import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type ClickstreamAnalytics, type GeoComparison, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
+import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type ClickstreamAnalytics, type GeoComparison, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { FilterTabs } from '@/components/ui/FilterTabs'
@@ -25,7 +25,7 @@ import { Bar, Line } from 'react-chartjs-2'
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Tooltip, Legend, Filler)
 
 const PERIODS = ['7d', '30d', '90d']
-const SECTIONS = ['Overview', 'Funnels', 'Acquisition', 'Geography', 'Digital Experience', 'Security'] as const
+const SECTIONS = ['Overview', 'Funnels', 'Acquisition', 'Geography', 'Demographics', 'Digital Experience', 'Security'] as const
 type Section = (typeof SECTIONS)[number]
 
 const CHART_OPTIONS = {
@@ -215,6 +215,7 @@ export default function AnalyticsPage() {
   const [marketing, setMarketing] = useState<MarketingAnalytics | null>(null)
   const [traffic, setTraffic] = useState<TrafficAnalytics | null>(null)
   const [funnel, setFunnel] = useState<FunnelAnalytics | null>(null)
+  const [demographics, setDemographics] = useState<DemographicsAnalytics | null>(null)
   const [clickstream, setClickstream] = useState<ClickstreamAnalytics | null>(null)
   const [geoComparison, setGeoComparison] = useState<GeoComparison | null>(null)
   const [retention, setRetention] = useState<RetentionAnalytics | null>(null)
@@ -227,7 +228,7 @@ export default function AnalyticsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [rRes, uRes, mRes, tRes, fRes, csRes, gRes, retRes, deRes, secRes] = await Promise.all([
+      const [rRes, uRes, mRes, tRes, fRes, demoRes, csRes, gRes, retRes, deRes, secRes] = await Promise.all([
         adminApi.analytics.revenue(period),
         adminApi.analytics.usage(period),
         adminApi.analytics.marketing(period),
@@ -237,6 +238,7 @@ export default function AnalyticsPage() {
           continent: funnelContinent || undefined,
           device: funnelDevice || undefined,
         }),
+        adminApi.analytics.demographics(),
         adminApi.analytics.clickstream(period),
         adminApi.analytics.geoComparison(period),
         adminApi.analytics.retention(),
@@ -248,6 +250,7 @@ export default function AnalyticsPage() {
       setMarketing(mRes.data)
       setTraffic(tRes.data)
       setFunnel(fRes.data)
+      setDemographics(demoRes.data)
       setClickstream(csRes.data)
       setGeoComparison(gRes.data)
       setRetention(retRes.data)
@@ -311,6 +314,22 @@ export default function AnalyticsPage() {
     () => Math.max(1, ...(digitalExperience?.browsers.map((row) => row.count) ?? [1])),
     [digitalExperience],
   )
+  const maxAgeBandCount = useMemo(
+    () => Math.max(1, ...(demographics?.ageBands.map((row) => row.count) ?? [1])),
+    [demographics],
+  )
+  const maxGenderCount = useMemo(
+    () => Math.max(1, ...(demographics?.genders.map((row) => row.count) ?? [1])),
+    [demographics],
+  )
+  const maxNationalityCount = useMemo(
+    () => Math.max(1, ...(demographics?.nationalities.map((row) => row.count) ?? [1])),
+    [demographics],
+  )
+  const maxPlanTierCount = useMemo(
+    () => Math.max(1, ...(demographics?.planTiers.map((row) => row.count) ?? [1])),
+    [demographics],
+  )
 
   const exportFunnelSteps = () =>
     downloadCsv(
@@ -329,6 +348,17 @@ export default function AnalyticsPage() {
       `declared-vs-access-geography-${period}.csv`,
       ['Declared country', 'Access country', 'Patients', 'Diaspora'],
       (geoComparison?.comparisons ?? []).map((c) => [c.declaredCountry, c.accessCountry, c.patients, c.matches ? 'No' : 'Yes']),
+    )
+  const exportDemographics = () =>
+    downloadCsv(
+      'demographics.csv',
+      ['Dimension', 'Value', 'Patients'],
+      [
+        ...(demographics?.ageBands ?? []).map((r) => ['Age band', r.label, r.count]),
+        ...(demographics?.genders ?? []).map((r) => ['Gender', r.label, r.count]),
+        ...(demographics?.nationalities ?? []).map((r) => ['Nationality', r.label, r.count]),
+        ...(demographics?.planTiers ?? []).map((r) => ['Plan tier', r.label, r.count]),
+      ] as Array<[string, string, number]>,
     )
   const exportCampaigns = () =>
     downloadCsv(
@@ -944,6 +974,117 @@ export default function AnalyticsPage() {
               </div>
             )}
           </Card>
+        </>
+      )}
+
+      {section === 'Demographics' && (
+        <>
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Demographics</h2>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                Age band, sex/gender, nationality, and plan tier — a population snapshot of the current active patient base, not time-windowed like the other tabs
+              </p>
+            </div>
+            <ExportButton onExport={exportDemographics} />
+          </div>
+
+          {loading && !demographics ? (
+            <SkeletonBox height={88} className="rounded-xl mb-4" />
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 mb-4 border-y" style={{ borderColor: 'var(--color-border)' }}>
+              <Metric label="Active patients" value={String(demographics?.totalPatients ?? 0)} detail="Accounts, not soft-deleted" />
+              <Metric label="Top age band" value={demographics?.ageBands.slice().sort((a, b) => b.count - a.count)[0]?.label ?? '—'} detail={demographics?.ageBands.length ? `${demographics.ageBands.length} bands represented` : 'No data yet'} />
+              <Metric label="Top nationality" value={demographics?.nationalities[0]?.label ?? '—'} detail={demographics?.nationalities[0] ? `${demographics.nationalities[0].count} patients` : 'No data yet'} />
+              <Metric label="Top plan" value={demographics?.planTiers[0]?.label ?? '—'} detail={demographics?.planTiers[0] ? `${demographics.planTiers[0].count} patients` : 'No data yet'} />
+            </div>
+          )}
+
+          <div className="grid lg:grid-cols-2 gap-4 mb-4">
+            <Card>
+              <CardTitle>Age bands</CardTitle>
+              {!loading && !demographics?.ageBands.length ? (
+                <Empty>No patients yet.</Empty>
+              ) : (
+                <div className="space-y-4 pt-1">
+                  {(demographics?.ageBands ?? []).map((row) => (
+                    <div key={row.label}>
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="font-medium" style={{ color: 'var(--color-text)' }}>{row.label}</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>{row.count}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full" style={{ background: 'var(--color-border)' }}>
+                        <div className="h-full rounded-full bg-[#6DC43F] transition-[width] duration-300" style={{ width: `${(row.count / maxAgeBandCount) * 100}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <Card>
+              <CardTitle>Sex / gender (as collected)</CardTitle>
+              {!loading && !demographics?.genders.length ? (
+                <Empty>No patients yet.</Empty>
+              ) : (
+                <div className="space-y-4 pt-1">
+                  {(demographics?.genders ?? []).map((row) => (
+                    <div key={row.label}>
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="font-medium" style={{ color: 'var(--color-text)' }}>{row.label}</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>{row.count}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full" style={{ background: 'var(--color-border)' }}>
+                        <div className="h-full rounded-full bg-[#3B82F6] transition-[width] duration-300" style={{ width: `${(row.count / maxGenderCount) * 100}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <Card>
+              <CardTitle>Nationality</CardTitle>
+              {!loading && !demographics?.nationalities.length ? (
+                <Empty>No patients yet.</Empty>
+              ) : (
+                <div className="space-y-4 pt-1">
+                  {(demographics?.nationalities ?? []).slice(0, 10).map((row) => (
+                    <div key={row.label}>
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="font-medium" style={{ color: 'var(--color-text)' }}>{row.label}</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>{row.count}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full" style={{ background: 'var(--color-border)' }}>
+                        <div className="h-full rounded-full bg-[#E8930A] transition-[width] duration-300" style={{ width: `${(row.count / maxNationalityCount) * 100}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <Card>
+              <CardTitle>Subscription plan tier</CardTitle>
+              {!loading && !demographics?.planTiers.length ? (
+                <Empty>No patients yet.</Empty>
+              ) : (
+                <div className="space-y-4 pt-1">
+                  {(demographics?.planTiers ?? []).map((row) => (
+                    <div key={row.label}>
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="font-medium" style={{ color: 'var(--color-text)' }}>{row.label}</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>{row.count}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full" style={{ background: 'var(--color-border)' }}>
+                        <div className="h-full rounded-full bg-[#C0392B] transition-[width] duration-300" style={{ width: `${(row.count / maxPlanTierCount) * 100}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
         </>
       )}
 
