@@ -18,6 +18,7 @@ import { InCallShareButton } from '@/components/telecare/InCallShareButton'
 import { EmptyState, NoInternetState } from '@/components/ui/states'
 import { downloadTelecareInvite } from '@/components/telecare/icsUtils'
 import { GuestInviteModal } from '@/components/telecare/GuestInviteModal'
+import { TrackImpression } from '@/components/analytics/TrackImpression'
 
 // LiveKit/getUserMedia surface a browser permission block as an error whose
 // message mentions one of these — distinct from a network/server failure, and
@@ -139,6 +140,7 @@ export function TeleCareScreen() {
   // Step 1 of joining: show the device check screen. The actual LiveKit
   // connect only happens once the patient confirms from there.
   const handleRequestJoin = (session: TelecareSession) => {
+    analytics.track('ui_click', { element_id: 'join_telecare_cta', feature_area: 'telecare' })
     setPrecheckSession(session)
   }
 
@@ -407,26 +409,33 @@ export function TeleCareScreen() {
           style={{ background: 'var(--color-surface)' }}
         >
           {nextSession ? (
-            <Button
-              size="lg"
-              className="px-6 gap-2"
-              onClick={() => handleRequestJoin(nextSession)}
-              disabled={joining}
-            >
-              {joining ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" /> Connecting...
-                </>
-              ) : nextSession.status === 'active' ? (
-                <>
-                  <Video size={16} /> Join Active Call ({nextSession.hhaRef})
-                </>
-              ) : (
-                <>
-                  <Video size={16} /> Join Scheduled Session ({nextSession.hhaRef})
-                </>
-              )}
-            </Button>
+            // Only the primary CTA gets impression tracking for CTR — the
+            // same click handler also fires from the secondary "Join"
+            // button in the scheduled-sessions list below, which counts
+            // clicks but isn't wrapped for impressions (it's a compact list
+            // row, not a call-to-action someone decides whether to click).
+            <TrackImpression elementId="join_telecare_cta" featureArea="telecare" elementType="button">
+              <Button
+                size="lg"
+                className="px-6 gap-2"
+                onClick={() => handleRequestJoin(nextSession)}
+                disabled={joining}
+              >
+                {joining ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" /> Connecting...
+                  </>
+                ) : nextSession.status === 'active' ? (
+                  <>
+                    <Video size={16} /> Join Active Call ({nextSession.hhaRef})
+                  </>
+                ) : (
+                  <>
+                    <Video size={16} /> Join Scheduled Session ({nextSession.hhaRef})
+                  </>
+                )}
+              </Button>
+            </TrackImpression>
           ) : (
             <Button size="lg" className="px-6 gap-2" disabled={true}>
               <Video size={16} /> No Session Scheduled
