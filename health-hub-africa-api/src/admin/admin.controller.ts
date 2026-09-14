@@ -214,8 +214,8 @@ export class AdminController {
   }
 
   @Get('analytics/retention')
-  @ApiOperation({ summary: 'Get D1/D7/D30 patient retention (spec §16)' })
-  @ApiQuery({ name: 'lookbackDays', required: false, description: 'How far back to search for eligible cohort members (default 90)' })
+  @ApiOperation({ summary: 'Get D1/D7/D30/D60/D90 patient retention (spec §16)' })
+  @ApiQuery({ name: 'lookbackDays', required: false, description: 'How far back to search for eligible cohort members (default 120 — 30 days past the largest D90 window)' })
   getRetentionAnalytics(@Query('lookbackDays') lookbackDays?: string) {
     return this.adminService.getRetentionAnalytics(lookbackDays ? parseInt(lookbackDays, 10) : undefined);
   }

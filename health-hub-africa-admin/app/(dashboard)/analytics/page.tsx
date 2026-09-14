@@ -465,19 +465,25 @@ export default function AnalyticsPage() {
           </Card>
 
           <Card className="mb-6" padding={false}>
-            <CardHeader title="Retention" subtitle={`Registered patients who returned N+ days later, out of ${retention?.cohortSize ?? 0} registered in the last 90 days`} />
+            <CardHeader
+              title="Retention"
+              subtitle={`Registered patients who returned N+ days later, out of ${retention?.cohortSize ?? 0} registered in the last ${retention?.lookbackDays ?? 120} days (cohort definition v${retention?.cohortDefinitionVersion ?? 1})`}
+            />
             {!loading && !retention?.windows.some((w) => w.eligibleCohortSize > 0) ? (
               <Empty>No cohort has reached a retention window yet — check back once patients have been registered for a few days.</Empty>
             ) : (
-              <div className="grid grid-cols-3 divide-x" style={{ borderColor: 'var(--color-border)' }}>
+              // grid-cols-2/md:5 rather than divide-x: 5 windows (D1/D7/D30/D60/D90)
+              // don't all fit on one row below md, and divide-x's border-left
+              // approach draws a stray line on whichever cell wraps to a new
+              // row — Metric's own border-r per-cell doesn't have that problem.
+              <div className="grid grid-cols-2 md:grid-cols-5 border-y" style={{ borderColor: 'var(--color-border)' }}>
                 {(retention?.windows ?? []).map((w) => (
-                  <div key={w.days} className="px-5 py-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>D{w.days}</p>
-                    <p className="text-2xl font-bold mt-1" style={{ color: 'var(--color-text)' }}>{w.rate === null ? '—' : `${w.rate}%`}</p>
-                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-faint)' }}>
-                      {w.eligibleCohortSize === 0 ? 'No eligible cohort yet' : `${w.retainedUsers} of ${w.eligibleCohortSize}`}
-                    </p>
-                  </div>
+                  <Metric
+                    key={w.days}
+                    label={`D${w.days}`}
+                    value={w.rate === null ? '—' : `${w.rate}%`}
+                    detail={w.eligibleCohortSize === 0 ? 'No eligible cohort yet' : `${w.retainedUsers} of ${w.eligibleCohortSize}`}
+                  />
                 ))}
               </div>
             )}

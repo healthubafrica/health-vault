@@ -1055,10 +1055,25 @@ export class AnalyticsService {
   // needs a much larger sample to be statistically meaningful and isn't worth
   // the extra complexity until there's real registration volume to look at.
   // lookbackDays controls how far back to search for eligible cohort members
-  // (must be >= the largest window, 30, or D30 has no eligible cohort at all).
-  private static readonly RETENTION_WINDOWS = [1, 7, 30];
+  // (must exceed the largest window below, or that window has no eligible
+  // cohort at all — kept as a buffer past the max rather than exactly equal
+  // to it, so there's a real cohort at the edge, not just the boundary day).
+  private static readonly RETENTION_WINDOWS = [1, 7, 30, 60, 90];
+  private static readonly RETENTION_LOOKBACK_BUFFER_DAYS = 30;
+  private static readonly RETENTION_DEFAULT_LOOKBACK_DAYS =
+    Math.max(...AnalyticsService.RETENTION_WINDOWS) + AnalyticsService.RETENTION_LOOKBACK_BUFFER_DAYS;
 
-  async getRetentionAnalytics(lookbackDays = 90) {
+  // Spec §16: "Cohort definitions must be immutable/versioned so historical
+  // retention reports do not change silently when business rules are
+  // modified." Same idea as ENGAGEMENT_SCORE_VERSION below — bump this
+  // whenever RETENTION_WINDOWS or the eligibility/return-window logic in
+  // this method changes, and every response carries it, so a report that
+  // was generated (or exported/screenshotted) under an older definition can
+  // be told apart from one generated after a rule change, instead of the
+  // numbers silently drifting between two runs of the "same" report.
+  private static readonly RETENTION_COHORT_DEFINITION_VERSION = 1;
+
+  async getRetentionAnalytics(lookbackDays = AnalyticsService.RETENTION_DEFAULT_LOOKBACK_DAYS) {
     const since = new Date();
     since.setDate(since.getDate() - lookbackDays);
     const now = new Date();
@@ -1123,7 +1138,14 @@ export class AnalyticsService {
       };
     });
 
-    return { data: { windows, cohortSize: registeredAt.size } };
+    return {
+      data: {
+        windows,
+        cohortSize: registeredAt.size,
+        lookbackDays,
+        cohortDefinitionVersion: AnalyticsService.RETENTION_COHORT_DEFINITION_VERSION,
+      },
+    };
   }
 
   // Spec §17: Engagement Score must be transparent and configurable, not a
