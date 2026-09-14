@@ -501,7 +501,7 @@ describe('AnalyticsService.getClickstreamAnalytics (CTA impressions/clicks/CTR)'
   });
 });
 
-describe('AnalyticsService.getRetentionAnalytics (D1/D7/D30)', () => {
+describe('AnalyticsService.getRetentionAnalytics (D1/D7/D30/D60/D90)', () => {
   function buildService(registrations: unknown[], activity: unknown[]) {
     const prisma = {
       patientActivityEvent: {
@@ -557,6 +557,42 @@ describe('AnalyticsService.getRetentionAnalytics (D1/D7/D30)', () => {
 
     const result = await service.getRetentionAnalytics(90);
     expect(result.data.cohortSize).toBe(1);
+  });
+
+  it('counts a patient as D60/D90-retained only once they return that far out, using the default lookback', async () => {
+    const registeredAt = new Date();
+    registeredAt.setDate(registeredAt.getDate() - 95); // old enough to be eligible for every window, including D90
+
+    const returnedD65 = new Date(registeredAt);
+    returnedD65.setDate(returnedD65.getDate() + 65); // past D60, short of D90
+
+    const { service } = buildService(
+      [{ patientId: 'p1', occurredAt: registeredAt }],
+      [
+        { patientId: 'p1', occurredAt: registeredAt },
+        { patientId: 'p1', occurredAt: returnedD65 },
+      ],
+    );
+
+    // No lookbackDays passed — must default to enough of a buffer past D90
+    // for a 95-day-old registration to actually be eligible for it.
+    const result = await service.getRetentionAnalytics();
+
+    const d30 = result.data.windows.find((w) => w.days === 30);
+    const d60 = result.data.windows.find((w) => w.days === 60);
+    const d90 = result.data.windows.find((w) => w.days === 90);
+
+    expect(d30).toMatchObject({ eligibleCohortSize: 1, retainedUsers: 1, rate: 100 });
+    expect(d60).toMatchObject({ eligibleCohortSize: 1, retainedUsers: 1, rate: 100 });
+    expect(d90).toMatchObject({ eligibleCohortSize: 1, retainedUsers: 0, rate: 0 });
+  });
+
+  it('reports lookbackDays used and a stable cohortDefinitionVersion for historical comparability', async () => {
+    const { service } = buildService([], []);
+    const result = await service.getRetentionAnalytics();
+
+    expect(result.data.lookbackDays).toBe(120); // max window (90) + 30-day buffer
+    expect(result.data.cohortDefinitionVersion).toBe(1);
   });
 });
 
