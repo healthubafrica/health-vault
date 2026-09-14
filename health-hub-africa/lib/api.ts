@@ -217,7 +217,12 @@ export const auth = {
   ) =>
     request<{ message: string }>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password, phoneNumber, fullName, newsletterOptIn, acquisitionSource, ...attribution }),
+      body: JSON.stringify({
+        email, password, phoneNumber, fullName, newsletterOptIn, acquisitionSource, ...attribution,
+        // No Patient row exists until onboarding, so the server can only
+        // attribute registration_complete (spec §23) via this id.
+        anonymousVisitorId: analyticsClient.getAnonymousVisitorId(),
+      }),
     }),
 
   // Read-only pre-registration check — never assigns a partner, just powers
@@ -238,7 +243,12 @@ export const auth = {
     ),
 
   verifyOtp: (email: string, otp: string, type = 'email', attribution: MarketingAttribution = {}) =>
-    bffFetch<{ accessToken: string }>('/api/auth/verify-otp', { email, otp, type, ...attribution }),
+    bffFetch<{ accessToken: string }>('/api/auth/verify-otp', {
+      email, otp, type, ...attribution,
+      // Same reasoning as register() — otp_verify_success (spec §23) has no
+      // Patient row to attribute to yet either.
+      anonymousVisitorId: analyticsClient.getAnonymousVisitorId(),
+    }),
 
   requestSmsOtp: (email: string, phone?: string) =>
     request<{ message: string }>('/auth/request-sms-otp', {

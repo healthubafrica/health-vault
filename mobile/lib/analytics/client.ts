@@ -87,9 +87,12 @@ export function randomEventId(): string {
 // Persists across app installs' sessions via SecureStore (already the
 // pattern this file used before — no encryption need, just reusing what's
 // available) so a pre-login visitor can be correlated across repeat opens.
+// Exported so lib/api.ts's register()/verifyOtp() can attach it — the server
+// has no Patient row yet at that point (spec §23 registration_complete /
+// otp_verify_success), so it can only attribute the event this way.
 let cachedVisitorId: string | null = null;
 
-async function getAnonymousVisitorId(): Promise<string | undefined> {
+export async function getAnonymousVisitorId(): Promise<string | undefined> {
   if (cachedVisitorId) return cachedVisitorId;
   try {
     let id = await SecureStore.getItemAsync(VISITOR_ID_KEY);
