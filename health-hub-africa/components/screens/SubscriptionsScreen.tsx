@@ -9,6 +9,7 @@ import { subscriptions, analytics, type SubscriptionPlan } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { TrackImpression } from '@/components/analytics/TrackImpression'
 import { toast } from 'sonner'
 
 function planFeatures(plan: SubscriptionPlan): string[] {
@@ -56,6 +57,7 @@ export function SubscriptionsScreen() {
     const confirmMsg = isSwitch
       ? `Switch to ${label}? You'll be taken to a secure payment page.`
       : `Subscribe to ${label}? You'll be taken to a secure payment page.`
+    analytics.track('ui_click', { element_id: `subscribe_cta_${plan.tier}`, feature_area: 'subscriptions' })
     analytics.track('plan_select', { plan: plan.tier, billing, isSwitch })
     if (!window.confirm(confirmMsg)) return
     try {
@@ -271,21 +273,23 @@ export function SubscriptionsScreen() {
                   )}
 
                   {/* CTA */}
-                  <Button
-                    variant={theme.isDark || isCurrent ? 'primary' : 'secondary'}
-                    fullWidth
-                    size="md"
-                    disabled={isCurrent || !!saving}
-                    onClick={isCurrent ? undefined : () => handleSubscribe(plan)}
-                  >
-                    {isCurrent
-                      ? '✓ Your Current Plan'
-                      : isLoading
-                      ? 'Processing…'
-                      : activeSub
-                      ? `Switch to ${plan.name}`
-                      : `Get ${plan.name}`}
-                  </Button>
+                  <TrackImpression elementId={`subscribe_cta_${plan.tier}`} featureArea="subscriptions" elementType="button">
+                    <Button
+                      variant={theme.isDark || isCurrent ? 'primary' : 'secondary'}
+                      fullWidth
+                      size="md"
+                      disabled={isCurrent || !!saving}
+                      onClick={isCurrent ? undefined : () => handleSubscribe(plan)}
+                    >
+                      {isCurrent
+                        ? '✓ Your Current Plan'
+                        : isLoading
+                        ? 'Processing…'
+                        : activeSub
+                        ? `Switch to ${plan.name}`
+                        : `Get ${plan.name}`}
+                    </Button>
+                  </TrackImpression>
                 </div>
               )
             })}

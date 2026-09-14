@@ -7,6 +7,7 @@ import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { SuccessState } from '@/components/ui/states'
 import { Button } from '@/components/ui/Button'
+import { TrackImpression } from '@/components/analytics/TrackImpression'
 import { toast } from 'sonner'
 import {
   Link2,
@@ -515,10 +516,22 @@ export function ShareManageScreen() {
             Control who can view your health records
           </p>
         </div>
-        <Button variant="primary" size="sm" onClick={() => setShowCreate(v => !v)}>
-          <Plus size={14} />
-          {showCreate ? 'Cancel' : 'New link'}
-        </Button>
+        <TrackImpression elementId="share_record_cta" featureArea="records" elementType="button">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => {
+              // Only counts as a "click" on the Share CTA when it's
+              // opening the wizard — toggling it closed again is a cancel,
+              // not a second interaction with the same affordance.
+              if (!showCreate) analytics.track('ui_click', { element_id: 'share_record_cta', feature_area: 'records' })
+              setShowCreate(v => !v)
+            }}
+          >
+            <Plus size={14} />
+            {showCreate ? 'Cancel' : 'New link'}
+          </Button>
+        </TrackImpression>
       </div>
 
       {showCreate && (

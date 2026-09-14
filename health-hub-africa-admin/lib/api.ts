@@ -347,14 +347,20 @@ export interface TrafficAnalytics {
   devices: Array<{ device: string; count: number }>
   referrers: Array<{ referrer: string; count: number }>
   campaigns: Array<{ campaign: string; source: string; medium: string; visits: number }>
-  // Country -> admin-1 region -> city, nested from the same rows as
-  // `locations` above (no extra request). Admin-2 (LGA/county) isn't
-  // included — city is the ceiling without a paid GeoIP vendor.
+  // World (this object's array root, aggregate = totalVisits above) ->
+  // Continent -> Country -> admin-1 region -> city (spec §B levels 0-5),
+  // nested from the same rows as `locations` above (no extra request).
+  // Admin-2 (LGA/county) isn't included — city is the ceiling without a
+  // paid GeoIP vendor.
   hierarchy: Array<{
-    countryCode: string
     continent: string
+    continentCode: string
     visits: number
-    regions: Array<{ region: string; visits: number; cities: Array<{ city: string; visits: number }> }>
+    countries: Array<{
+      countryCode: string
+      visits: number
+      regions: Array<{ region: string; visits: number; cities: Array<{ city: string; visits: number }> }>
+    }>
   }>
 }
 
@@ -367,11 +373,17 @@ export interface GeoComparison {
   diasporaPatients: number
 }
 
-// D1/D7/D30 retention — "returned at least once N+ days after registering",
-// not a strict single-day cohort curve (see AnalyticsService.getRetentionAnalytics).
+// D1/D7/D30/D60/D90 retention — "returned at least once N+ days after
+// registering", not a strict single-day cohort curve (see
+// AnalyticsService.getRetentionAnalytics). cohortDefinitionVersion changes
+// only when the window list or eligibility rule changes server-side — spec
+// §16 requires cohort definitions to be versioned so historical reports
+// can be told apart from ones generated under a later rule change.
 export interface RetentionAnalytics {
   windows: Array<{ days: number; eligibleCohortSize: number; retainedUsers: number; rate: number | null }>
   cohortSize: number
+  lookbackDays: number
+  cohortDefinitionVersion: number
 }
 
 // Device/browser breakdown for the patient portal itself, plus client-error
@@ -916,8 +928,13 @@ export const adminApi = {
       request<{ data: ClickstreamAnalytics }>(`/admin/analytics/clickstream?period=${period}`),
     geoComparison: (period = '30d') =>
       request<{ data: GeoComparison }>(`/admin/analytics/geo-comparison?period=${period}`),
-    retention: (lookbackDays = 90) =>
-      request<{ data: RetentionAnalytics }>(`/admin/analytics/retention?lookbackDays=${lookbackDays}`),
+    // No default here — an unset lookbackDays lets the API fall back to its
+    // own default (kept in sync with its RETENTION_WINDOWS), rather than
+    // this client silently pinning an old value the backend has moved past.
+    retention: (lookbackDays?: number) =>
+      request<{ data: RetentionAnalytics }>(
+        `/admin/analytics/retention${lookbackDays ? `?lookbackDays=${lookbackDays}` : ''}`,
+      ),
     digitalExperience: (period = '30d') =>
       request<{ data: DigitalExperienceAnalytics }>(`/admin/analytics/digital-experience?period=${period}`),
     security: (period = '30d') =>

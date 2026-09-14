@@ -783,7 +783,10 @@ export class AdminService {
     return this.analyticsService.getDemographicsAnalytics();
   }
 
-  getRetentionAnalytics(lookbackDays = 90) {
+  // No default hardcoded here — forwards straight through so
+  // AnalyticsService's own default (kept in sync with RETENTION_WINDOWS)
+  // stays the single source of truth instead of two constants drifting apart.
+  getRetentionAnalytics(lookbackDays?: number) {
     return this.analyticsService.getRetentionAnalytics(lookbackDays);
   }
 

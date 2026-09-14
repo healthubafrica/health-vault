@@ -11,6 +11,7 @@ import { useApi } from '@/lib/hooks/useApi'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { EmptyState } from '@/components/ui/states'
+import { TrackImpression } from '@/components/analytics/TrackImpression'
 import { toast } from 'sonner'
 
 type PillVariant = 'success' | 'warning' | 'emergency' | 'neutral'
@@ -114,6 +115,7 @@ export function PaymentsScreen() {
   }
 
   function openModal() {
+    analytics.track('ui_click', { element_id: 'make_payment_cta', feature_area: 'payments' })
     setDescription('')
     setAmountNaira('')
     setGateway('flutterwave')
@@ -137,7 +139,9 @@ export function PaymentsScreen() {
             Your billing history and payment methods
           </p>
         </div>
-        <Button size="sm" onClick={openModal}><CreditCard size={14} />Make Payment</Button>
+        <TrackImpression elementId="make_payment_cta" featureArea="payments" elementType="button">
+          <Button size="sm" onClick={openModal}><CreditCard size={14} />Make Payment</Button>
+        </TrackImpression>
       </div>
 
       {/* Make Payment modal */}
