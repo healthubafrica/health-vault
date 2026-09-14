@@ -418,6 +418,17 @@ export interface DemographicsAnalytics {
   planTiers: Array<{ label: string; count: number }>
 }
 
+export interface ClickstreamAnalytics {
+  ctas: Array<{
+    elementId: string
+    impressions: number
+    uniqueImpressions: number
+    clicks: number
+    uniqueClicks: number
+    ctr: number | null
+  }>
+}
+
 // ── Admin: Dispatch ───────────────────────────────────────────────────────
 
 export interface DispatchUnit {
@@ -901,6 +912,8 @@ export const adminApi = {
     },
     demographics: () =>
       request<{ data: DemographicsAnalytics }>('/admin/analytics/demographics'),
+    clickstream: (period = '30d') =>
+      request<{ data: ClickstreamAnalytics }>(`/admin/analytics/clickstream?period=${period}`),
     geoComparison: (period = '30d') =>
       request<{ data: GeoComparison }>(`/admin/analytics/geo-comparison?period=${period}`),
     retention: (lookbackDays = 90) =>

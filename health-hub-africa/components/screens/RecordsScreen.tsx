@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Card } from '@/components/ui/Card'
 import { FilterTabs } from '@/components/ui/FilterTabs'
 import { Pill } from '@/components/ui/Pill'
@@ -107,6 +107,16 @@ export function RecordsScreen() {
       date: order.orderedAt,
     }))
   )
+
+  // Fires once per mount when real data first lands — spec §15 records_view,
+  // distinct from the generic page_view PageViewTracker already emits for
+  // every route (this one carries how many records the patient actually has).
+  const firedRecordsView = useRef(false)
+  useEffect(() => {
+    if (!recordsRes || firedRecordsView.current) return
+    firedRecordsView.current = true
+    analytics.track('records_view', { count: recordsRes.data.length })
+  }, [recordsRes])
 
   if (isInitialLoad) return <ListSkeleton ariaLabel="Loading records" showAction />
   if (error && !recordsRes) return <ErrorState message={error} onRetry={refetch} />

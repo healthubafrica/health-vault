@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download, ChevronRight, ChevronDown } from 'lucide-react'
 import { useAutoRefresh } from '@/lib/hooks/useLiveData'
-import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type GeoComparison, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
+import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type ClickstreamAnalytics, type GeoComparison, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { FilterTabs } from '@/components/ui/FilterTabs'
@@ -216,6 +216,7 @@ export default function AnalyticsPage() {
   const [traffic, setTraffic] = useState<TrafficAnalytics | null>(null)
   const [funnel, setFunnel] = useState<FunnelAnalytics | null>(null)
   const [demographics, setDemographics] = useState<DemographicsAnalytics | null>(null)
+  const [clickstream, setClickstream] = useState<ClickstreamAnalytics | null>(null)
   const [geoComparison, setGeoComparison] = useState<GeoComparison | null>(null)
   const [retention, setRetention] = useState<RetentionAnalytics | null>(null)
   const [digitalExperience, setDigitalExperience] = useState<DigitalExperienceAnalytics | null>(null)
@@ -227,7 +228,7 @@ export default function AnalyticsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [rRes, uRes, mRes, tRes, fRes, demoRes, gRes, retRes, deRes, secRes] = await Promise.all([
+      const [rRes, uRes, mRes, tRes, fRes, demoRes, csRes, gRes, retRes, deRes, secRes] = await Promise.all([
         adminApi.analytics.revenue(period),
         adminApi.analytics.usage(period),
         adminApi.analytics.marketing(period),
@@ -238,6 +239,7 @@ export default function AnalyticsPage() {
           device: funnelDevice || undefined,
         }),
         adminApi.analytics.demographics(),
+        adminApi.analytics.clickstream(period),
         adminApi.analytics.geoComparison(period),
         adminApi.analytics.retention(),
         adminApi.analytics.digitalExperience(period),
@@ -249,6 +251,7 @@ export default function AnalyticsPage() {
       setTraffic(tRes.data)
       setFunnel(fRes.data)
       setDemographics(demoRes.data)
+      setClickstream(csRes.data)
       setGeoComparison(gRes.data)
       setRetention(retRes.data)
       setDigitalExperience(deRes.data)
@@ -333,6 +336,12 @@ export default function AnalyticsPage() {
       `funnel-steps-${period}.csv`,
       ['Event', 'Count', 'Unique users', 'Unique sessions'],
       (funnel?.steps ?? []).map((s) => [s.eventName, s.count, s.uniqueUsers, s.uniqueSessions]),
+    )
+  const exportClickstream = () =>
+    downloadCsv(
+      `cta-clickstream-${period}.csv`,
+      ['Element', 'Impressions', 'Unique impressions', 'Clicks', 'Unique clicks', 'CTR %'],
+      (clickstream?.ctas ?? []).map((c) => [c.elementId, c.impressions, c.uniqueImpressions, c.clicks, c.uniqueClicks, c.ctr ?? '']),
     )
   const exportGeoComparison = () =>
     downloadCsv(
@@ -574,6 +583,42 @@ export default function AnalyticsPage() {
                   )
                 })}
               </div>
+
+              <Card className="mb-6" padding={false}>
+                <CardHeader
+                  title="Top CTAs — impressions, clicks & CTR"
+                  subtitle="CTR = unique clickers ÷ unique viewers. Only elements wrapped in <TrackImpression> report impressions today."
+                  onExport={clickstream?.ctas.length ? exportClickstream : undefined}
+                />
+                {!loading && !clickstream?.ctas.length ? (
+                  <Empty>No instrumented CTAs have been seen yet.</Empty>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-y text-left text-[11px] uppercase tracking-wider" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                          <th className="px-5 py-2.5 font-semibold">Element</th>
+                          <th className="px-5 py-2.5 font-semibold text-right">Impressions</th>
+                          <th className="px-5 py-2.5 font-semibold text-right">Clicks</th>
+                          <th className="px-5 py-2.5 font-semibold text-right">CTR</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(clickstream?.ctas ?? []).map((row) => (
+                          <tr key={row.elementId} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                            <td className="px-5 py-3 font-medium" style={{ color: 'var(--color-text)' }}>{row.elementId}</td>
+                            <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.uniqueImpressions}</td>
+                            <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.uniqueClicks}</td>
+                            <td className="px-5 py-3 text-right tabular-nums font-semibold" style={{ color: 'var(--color-text)' }}>
+                              {row.ctr === null ? '—' : `${row.ctr}%`}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </Card>
 
               {otherEvents.length > 0 && (
                 <Card className="mb-6" padding={false}>

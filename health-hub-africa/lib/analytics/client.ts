@@ -112,8 +112,11 @@ function writeStorage(storage: Storage, key: string, value: string): void {
 }
 
 // Persists across visits (localStorage) so a pre-login visitor can be
-// correlated across repeat sessions before they ever register.
-function getAnonymousVisitorId(): string | undefined {
+// correlated across repeat sessions before they ever register. Exported so
+// lib/api.ts's register()/verifyOtp() can attach it to the request — the
+// server has no Patient row yet at that point (spec §23 registration_complete
+// / otp_verify_success), so it can only attribute the event this way.
+export function getAnonymousVisitorId(): string | undefined {
   if (typeof window === 'undefined') return undefined
   let id = readStorage(localStorage, VISITOR_ID_KEY)
   if (!id) {

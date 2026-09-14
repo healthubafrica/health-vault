@@ -450,6 +450,57 @@ describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {
   });
 });
 
+describe('AnalyticsService.getClickstreamAnalytics (CTA impressions/clicks/CTR)', () => {
+  function buildService(rows: Array<{ eventName: string; elementId: string | null; patientId: string | null; anonymousVisitorId: string | null }>) {
+    const prisma = { patientActivityEvent: { findMany: jest.fn().mockResolvedValue(rows) } };
+    const service = new AnalyticsService(prisma as any);
+    return { service, prisma };
+  }
+
+  it('computes CTR as unique clickers ÷ unique viewers, not raw event counts', async () => {
+    const { service } = buildService([
+      // 3 impressions, 2 unique viewers (p1 twice — two page loads)
+      { eventName: 'cta_impression', elementId: 'book_telecare_btn', patientId: 'p1', anonymousVisitorId: null },
+      { eventName: 'cta_impression', elementId: 'book_telecare_btn', patientId: 'p1', anonymousVisitorId: null },
+      { eventName: 'cta_impression', elementId: 'book_telecare_btn', patientId: 'p2', anonymousVisitorId: null },
+      // only p1 clicks
+      { eventName: 'ui_click', elementId: 'book_telecare_btn', patientId: 'p1', anonymousVisitorId: null },
+    ]);
+
+    const result = await service.getClickstreamAnalytics('30d');
+
+    expect(result.data.ctas).toEqual([
+      { elementId: 'book_telecare_btn', impressions: 3, uniqueImpressions: 2, clicks: 1, uniqueClicks: 1, ctr: 50 },
+    ]);
+  });
+
+  it('reports a null CTR instead of dividing by zero when the element has never been seen', async () => {
+    const { service } = buildService([
+      { eventName: 'ui_click', elementId: 'orphan_btn', patientId: null, anonymousVisitorId: 'a1' },
+    ]);
+
+    const result = await service.getClickstreamAnalytics('30d');
+
+    expect(result.data.ctas).toEqual([
+      { elementId: 'orphan_btn', impressions: 0, uniqueImpressions: 0, clicks: 1, uniqueClicks: 1, ctr: null },
+    ]);
+  });
+
+  it('keeps separate elements separate and sorts by click volume', async () => {
+    const { service } = buildService([
+      { eventName: 'cta_impression', elementId: 'low_click_btn', patientId: null, anonymousVisitorId: 'v1' },
+      { eventName: 'ui_click', elementId: 'low_click_btn', patientId: null, anonymousVisitorId: 'v1' },
+      { eventName: 'cta_impression', elementId: 'high_click_btn', patientId: null, anonymousVisitorId: 'v2' },
+      { eventName: 'ui_click', elementId: 'high_click_btn', patientId: null, anonymousVisitorId: 'v2' },
+      { eventName: 'ui_click', elementId: 'high_click_btn', patientId: null, anonymousVisitorId: 'v3' },
+    ]);
+
+    const result = await service.getClickstreamAnalytics('30d');
+
+    expect(result.data.ctas.map((c) => c.elementId)).toEqual(['high_click_btn', 'low_click_btn']);
+  });
+});
+
 describe('AnalyticsService.getRetentionAnalytics (D1/D7/D30)', () => {
   function buildService(registrations: unknown[], activity: unknown[]) {
     const prisma = {

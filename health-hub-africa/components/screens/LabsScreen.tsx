@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -13,6 +14,7 @@ import { labs, analytics } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { TrackImpression } from '@/components/analytics/TrackImpression'
 import { EmptyState } from '@/components/ui/states'
 import { buildProviderDisplayName } from '@/lib/providerName'
 
@@ -26,6 +28,17 @@ const STATUS_PILL: Record<string, 'success' | 'warning'> = {
 export function LabsScreen() {
   const router = useRouter()
   const { data: labsRes, isInitialLoad, error, refetch } = useApi(() => labs.listOrders())
+
+  // Fires once per mount when real data first lands — spec §15 result_view,
+  // distinct from the generic page_view PageViewTracker already emits for
+  // every route.
+  const firedResultView = useRef(false)
+  useEffect(() => {
+    if (!labsRes || firedResultView.current) return
+    firedResultView.current = true
+    const resultCount = labsRes.data.reduce((sum, order) => sum + order.results.length, 0)
+    analytics.track('result_view', { count: resultCount })
+  }, [labsRes])
 
   if (isInitialLoad) return <ListSkeleton ariaLabel="Loading lab results" showStats showBadge />
   if (error && !labsRes) return <ErrorState message={error} onRetry={refetch} />
@@ -71,16 +84,18 @@ export function LabsScreen() {
             Your diagnostic results and lab history
           </p>
         </div>
-        <Button
-          size="sm"
-          onClick={() => {
-            analytics.track('ui_click', { element_id: 'book_caretest_cta', feature_area: 'labs', destination: '/appointments' })
-            toast.info('Visit Appointments to book a CareTest™')
-            router.push('/appointments')
-          }}
-        >
-          <FlaskConical size={14} />Book CareTest™
-        </Button>
+        <TrackImpression elementId="book_caretest_cta" featureArea="labs" elementType="button">
+          <Button
+            size="sm"
+            onClick={() => {
+              analytics.track('ui_click', { element_id: 'book_caretest_cta', feature_area: 'labs', destination: '/appointments' })
+              toast.info('Visit Appointments to book a CareTest™')
+              router.push('/appointments')
+            }}
+          >
+            <FlaskConical size={14} />Book CareTest™
+          </Button>
+        </TrackImpression>
       </div>
 
       <Card>

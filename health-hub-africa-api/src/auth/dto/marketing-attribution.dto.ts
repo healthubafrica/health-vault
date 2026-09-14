@@ -49,4 +49,15 @@ export class MarketingAttributionDto {
   @IsString()
   @MaxLength(100)
   timezone?: string;
+
+  // Client-generated pseudonymous id (lib/analytics/client.ts), threaded
+  // through so the pre-auth funnel's authoritative server events
+  // (registration_complete, otp_verify_success — spec §23) can still be
+  // attributed to a visitor before a Patient row exists to resolve from the
+  // JWT. See AuthService.register()/verifyEmailOtp().
+  @ApiPropertyOptional({ description: 'Client-generated pseudonymous analytics visitor id.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  anonymousVisitorId?: string;
 }

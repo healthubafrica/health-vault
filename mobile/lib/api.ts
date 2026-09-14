@@ -357,17 +357,33 @@ export const auth = {
       false
     ),
 
-  register: (email: string, password: string, phoneNumber: string | undefined, fullName: string, acquisitionSource: AcquisitionSource) =>
+  register: async (email: string, password: string, phoneNumber: string | undefined, fullName: string, acquisitionSource: AcquisitionSource) =>
     apiRequest<{ message: string }>(
       '/auth/register',
-      { method: 'POST', body: JSON.stringify({ email, password, phoneNumber, fullName, acquisitionSource }) },
+      {
+        method: 'POST',
+        // No Patient row exists until onboarding, so the server can only
+        // attribute registration_complete (spec §23) via this id.
+        body: JSON.stringify({
+          email, password, phoneNumber, fullName, acquisitionSource,
+          anonymousVisitorId: await analyticsClient.getAnonymousVisitorId(),
+        }),
+      },
       false
     ),
 
-  verifyOtp: (email: string, otp: string, type = 'email') =>
+  verifyOtp: async (email: string, otp: string, type = 'email') =>
     apiRequest<{ accessToken: string; refreshToken: string }>(
       '/auth/verify-otp',
-      { method: 'POST', body: JSON.stringify({ email, otp, type }) },
+      {
+        method: 'POST',
+        // Same reasoning as register() — otp_verify_success (spec §23) has
+        // no Patient row to attribute to yet either.
+        body: JSON.stringify({
+          email, otp, type,
+          anonymousVisitorId: await analyticsClient.getAnonymousVisitorId(),
+        }),
+      },
       false
     ),
 

@@ -47,6 +47,7 @@ export interface LoginContext {
   utmSource?: string;
   utmMedium?: string;
   utmCampaign?: string;
+  anonymousVisitorId?: string;
 }
 
 @Injectable()
@@ -72,7 +73,7 @@ export class AuthService {
     return this.openemrService.validateReferralCode(referralCode);
   }
 
-  async register(dto: RegisterDto, _ipAddress?: string) {
+  async register(dto: RegisterDto, context: LoginContext = {}) {
     const phone = dto.phoneNumber ?? dto.phone;
 
     // Check duplicate email
@@ -115,6 +116,7 @@ export class AuthService {
       await this.saveRegistrationAttribution(existingEmail.id, dto);
 
       await this.sendEmailOtp(existingEmail.email, existingEmail.id, 'email');
+      this.emitRegistrationComplete(dto, context);
       return { message: 'Registration successful. Check your email for OTP.' };
     }
 
@@ -163,8 +165,25 @@ export class AuthService {
     await this.saveRegistrationAttribution(user.id, dto);
 
     await this.sendEmailOtp(user.email, user.id, 'email');
+    this.emitRegistrationComplete(dto, context);
 
     return { message: 'Registration successful. Check your email for OTP.' };
+  }
+
+  // Authoritative registration_complete (spec §23) — the portal's own beacon
+  // fires from authStore right after this same API call resolves, so a
+  // dropped tab loses the conversion. No Patient row exists yet at this
+  // point (that happens later, in onboarding), so this can only key off the
+  // client-supplied anonymousVisitorId, not a resolved patientId — silently
+  // a no-op if an older client build didn't send one. Fires for both
+  // branches above (new account and resend-to-unverified-account), matching
+  // what the client-side event already counts as a completed registration.
+  private emitRegistrationComplete(dto: RegisterDto, context: LoginContext): void {
+    void this.analytics.emitServerEvent('registration_complete', {
+      anonymousVisitorId: context.anonymousVisitorId,
+      geo: context,
+      properties: { acquisitionSource: dto.acquisitionSource, source: 'server' },
+    });
   }
 
   // ── Login ─────────────────────────────────────────────────────────────────
@@ -322,6 +341,18 @@ export class AuthService {
       context.userAgent,
     );
     await this.recordLoginEvent(user.id, context);
+
+    // Authoritative otp_verify_success (spec §23). Same no-Patient-row-yet
+    // situation as registration_complete — pass both userId (harmless; the
+    // Patient lookup inside emitServerEvent just won't find anything yet)
+    // and anonymousVisitorId so the event still attributes correctly.
+    void this.analytics.emitServerEvent('otp_verify_success', {
+      userId: user.id,
+      anonymousVisitorId: context.anonymousVisitorId,
+      geo: context,
+      properties: { source: 'server' },
+    });
+
     return tokens;
   }
 
