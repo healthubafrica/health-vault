@@ -439,13 +439,12 @@ export function DashboardScreen() {
           {/* CTA impressions (spec §8.3) — pairs with the ui_click these chips
               already emit so CTR = clicks / impressions can be computed.
               Followed up on Labs' "Book CareTest™" CTA, the primary CTAs in
-              Appointments/TeleCare/Payments/Subscriptions (a separate PR,
-              feat/analytics-clickstream-cta-coverage), and the Vault upload
-              dropzone + "New link" share CTA — still open: per-document
-              Download/Replace/Delete (dropdown menu items with no
-              persistent visibility, so no natural impression signal — click-
-              only if ever added), per-result lab actions, vitals entry/
-              device-sync, nav menu items, profile-completion prompts,
+              Appointments/TeleCare/Payments/Subscriptions, and the Vault
+              upload dropzone + "New link" share CTA — still open:
+              per-document Download/Replace/Delete (dropdown menu items with
+              no persistent visibility, so no natural impression signal —
+              click-only if ever added), per-result lab actions, vitals
+              entry/device-sync, nav menu items, profile-completion prompts,
               search. */}
           <TrackImpression elementId="quick_action_telecare" featureArea="dashboard" elementType="card" className="h-full">
             <ActionChip icon={Video} name="TeleCare™" description="Virtual consult" onClick={() => trackQuickAction('telecare', '/telecare')} />

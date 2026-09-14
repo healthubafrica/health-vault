@@ -12,6 +12,7 @@ import { CalendarDays, Star, Info } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { ProviderDetailsModal } from '@/components/appointments/ProviderDetailsModal'
 import { Tooltip } from '@/components/ui/Tooltip'
+import { TrackImpression } from '@/components/analytics/TrackImpression'
 import { toast } from 'sonner'
 import {
   appointments as apptApi,
@@ -185,6 +186,7 @@ export function AppointmentsScreen() {
   }
 
   async function handleBook() {
+    analytics.track('ui_click', { element_id: 'book_appointment_cta', feature_area: 'appointments' })
     if (!scheduledAt) {
       analytics.track('booking_validation_error', { reason: 'missing_time', serviceType })
       toast.error('Please select a date and time')
@@ -522,13 +524,15 @@ export function AppointmentsScreen() {
             onChange={e => setReason(e.target.value)}
           />
         </div>
-        <Button
-          className="mt-4"
-          disabled={isBooking}
-          onClick={handleBook}
-        >
-          {isBooking ? 'Requesting…' : 'Request Appointment'}
-        </Button>
+        <TrackImpression elementId="book_appointment_cta" featureArea="appointments" elementType="button">
+          <Button
+            className="mt-4"
+            disabled={isBooking}
+            onClick={handleBook}
+          >
+            {isBooking ? 'Requesting…' : 'Request Appointment'}
+          </Button>
+        </TrackImpression>
       </Card>
     </div>
   )

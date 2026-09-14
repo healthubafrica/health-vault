@@ -129,19 +129,27 @@ function CardHeader({ title, subtitle, onExport }: { title: string; subtitle?: s
   )
 }
 
-// Country -> admin-1 region -> city drill-down (TrafficAnalytics.hierarchy).
-// Two-level expand state (country, and "country|region" for its city list)
-// rather than a generic recursive tree — the hierarchy is exactly 3 levels
-// deep, always, so a generic tree component would be more code for the same
-// result.
+// World -> Continent -> Country -> Region -> City (spec §B levels 0-5;
+// World is this component's implicit root — the array itself). Three-level
+// expand state (continent, "continent|country", "continent|country|region"
+// for the city list) rather than a generic recursive tree — the hierarchy
+// is exactly 4 levels deep, always, so a generic tree component would be
+// more code for the same result.
 function GeoHierarchyTree({ hierarchy }: { hierarchy: TrafficAnalytics['hierarchy'] }) {
+  const [openContinents, setOpenContinents] = useState<Set<string>>(new Set())
   const [openCountries, setOpenCountries] = useState<Set<string>>(new Set())
   const [openRegions, setOpenRegions] = useState<Set<string>>(new Set())
 
-  const toggleCountry = (code: string) =>
-    setOpenCountries((prev) => {
+  const toggleContinent = (code: string) =>
+    setOpenContinents((prev) => {
       const next = new Set(prev)
       next.has(code) ? next.delete(code) : next.add(code)
+      return next
+    })
+  const toggleCountry = (key: string) =>
+    setOpenCountries((prev) => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
       return next
     })
   const toggleRegion = (key: string) =>
@@ -153,46 +161,69 @@ function GeoHierarchyTree({ hierarchy }: { hierarchy: TrafficAnalytics['hierarch
 
   return (
     <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
-      {hierarchy.map((country) => {
-        const isOpen = openCountries.has(country.countryCode)
+      {hierarchy.map((continent) => {
+        const continentOpen = openContinents.has(continent.continentCode)
         return (
-          <div key={country.countryCode}>
+          <div key={continent.continentCode}>
             <button
-              onClick={() => toggleCountry(country.countryCode)}
+              onClick={() => toggleContinent(continent.continentCode)}
               className="w-full flex items-center justify-between gap-3 px-5 py-3 text-left hover:opacity-80 transition-opacity"
             >
               <span className="flex items-center gap-2 min-w-0">
-                {isOpen ? <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />}
-                <span className="font-medium truncate" style={{ color: 'var(--color-text)' }}>{countryName(country.countryCode)}</span>
-                <span className="text-[11px] flex-shrink-0" style={{ color: 'var(--color-text-faint)' }}>{country.continent} · {country.regions.length} region{country.regions.length === 1 ? '' : 's'}</span>
+                {continentOpen ? <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />}
+                <span className="font-semibold truncate" style={{ color: 'var(--color-text)' }}>{continent.continent}</span>
+                <span className="text-[11px] flex-shrink-0" style={{ color: 'var(--color-text-faint)' }}>{continent.countries.length} countr{continent.countries.length === 1 ? 'y' : 'ies'}</span>
               </span>
-              <span className="tabular-nums text-sm flex-shrink-0" style={{ color: 'var(--color-text)' }}>{country.visits}</span>
+              <span className="tabular-nums text-sm flex-shrink-0" style={{ color: 'var(--color-text)' }}>{continent.visits}</span>
             </button>
-            {isOpen && (
+            {continentOpen && (
               <div className="pb-2">
-                {country.regions.map((region) => {
-                  const regionKey = `${country.countryCode}|${region.region}`
-                  const regionOpen = openRegions.has(regionKey)
+                {continent.countries.map((country) => {
+                  const countryKey = `${continent.continentCode}|${country.countryCode}`
+                  const countryOpen = openCountries.has(countryKey)
                   return (
-                    <div key={regionKey}>
+                    <div key={countryKey}>
                       <button
-                        onClick={() => toggleRegion(regionKey)}
-                        className="w-full flex items-center justify-between gap-3 pl-10 pr-5 py-2 text-left hover:opacity-80 transition-opacity"
+                        onClick={() => toggleCountry(countryKey)}
+                        className="w-full flex items-center justify-between gap-3 pl-10 pr-5 py-2.5 text-left hover:opacity-80 transition-opacity"
                       >
                         <span className="flex items-center gap-2 min-w-0">
-                          {regionOpen ? <ChevronDown className="w-3 h-3 flex-shrink-0" /> : <ChevronRight className="w-3 h-3 flex-shrink-0" />}
-                          <span className="text-sm truncate" style={{ color: 'var(--color-text-muted)' }}>{region.region}</span>
+                          {countryOpen ? <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />}
+                          <span className="font-medium truncate" style={{ color: 'var(--color-text)' }}>{countryName(country.countryCode)}</span>
+                          <span className="text-[11px] flex-shrink-0" style={{ color: 'var(--color-text-faint)' }}>{country.regions.length} region{country.regions.length === 1 ? '' : 's'}</span>
                         </span>
-                        <span className="tabular-nums text-xs flex-shrink-0" style={{ color: 'var(--color-text-muted)' }}>{region.visits}</span>
+                        <span className="tabular-nums text-sm flex-shrink-0" style={{ color: 'var(--color-text)' }}>{country.visits}</span>
                       </button>
-                      {regionOpen && (
-                        <div className="pl-16 pr-5 pb-1 flex flex-col gap-1">
-                          {region.cities.map((c) => (
-                            <div key={c.city} className="flex items-center justify-between gap-3 py-0.5">
-                              <span className="text-xs truncate" style={{ color: 'var(--color-text-faint)' }}>{c.city}</span>
-                              <span className="tabular-nums text-xs flex-shrink-0" style={{ color: 'var(--color-text-faint)' }}>{c.visits}</span>
-                            </div>
-                          ))}
+                      {countryOpen && (
+                        <div className="pb-2">
+                          {country.regions.map((region) => {
+                            const regionKey = `${countryKey}|${region.region}`
+                            const regionOpen = openRegions.has(regionKey)
+                            return (
+                              <div key={regionKey}>
+                                <button
+                                  onClick={() => toggleRegion(regionKey)}
+                                  className="w-full flex items-center justify-between gap-3 pl-16 pr-5 py-2 text-left hover:opacity-80 transition-opacity"
+                                >
+                                  <span className="flex items-center gap-2 min-w-0">
+                                    {regionOpen ? <ChevronDown className="w-3 h-3 flex-shrink-0" /> : <ChevronRight className="w-3 h-3 flex-shrink-0" />}
+                                    <span className="text-sm truncate" style={{ color: 'var(--color-text-muted)' }}>{region.region}</span>
+                                  </span>
+                                  <span className="tabular-nums text-xs flex-shrink-0" style={{ color: 'var(--color-text-muted)' }}>{region.visits}</span>
+                                </button>
+                                {regionOpen && (
+                                  <div className="pl-24 pr-5 pb-1 flex flex-col gap-1">
+                                    {region.cities.map((c) => (
+                                      <div key={c.city} className="flex items-center justify-between gap-3 py-0.5">
+                                        <span className="text-xs truncate" style={{ color: 'var(--color-text-faint)' }}>{c.city}</span>
+                                        <span className="tabular-nums text-xs flex-shrink-0" style={{ color: 'var(--color-text-faint)' }}>{c.visits}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
                       )}
                     </div>
@@ -434,19 +465,25 @@ export default function AnalyticsPage() {
           </Card>
 
           <Card className="mb-6" padding={false}>
-            <CardHeader title="Retention" subtitle={`Registered patients who returned N+ days later, out of ${retention?.cohortSize ?? 0} registered in the last 90 days`} />
+            <CardHeader
+              title="Retention"
+              subtitle={`Registered patients who returned N+ days later, out of ${retention?.cohortSize ?? 0} registered in the last ${retention?.lookbackDays ?? 120} days (cohort definition v${retention?.cohortDefinitionVersion ?? 1})`}
+            />
             {!loading && !retention?.windows.some((w) => w.eligibleCohortSize > 0) ? (
               <Empty>No cohort has reached a retention window yet — check back once patients have been registered for a few days.</Empty>
             ) : (
-              <div className="grid grid-cols-3 divide-x" style={{ borderColor: 'var(--color-border)' }}>
+              // grid-cols-2/md:5 rather than divide-x: 5 windows (D1/D7/D30/D60/D90)
+              // don't all fit on one row below md, and divide-x's border-left
+              // approach draws a stray line on whichever cell wraps to a new
+              // row — Metric's own border-r per-cell doesn't have that problem.
+              <div className="grid grid-cols-2 md:grid-cols-5 border-y" style={{ borderColor: 'var(--color-border)' }}>
                 {(retention?.windows ?? []).map((w) => (
-                  <div key={w.days} className="px-5 py-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>D{w.days}</p>
-                    <p className="text-2xl font-bold mt-1" style={{ color: 'var(--color-text)' }}>{w.rate === null ? '—' : `${w.rate}%`}</p>
-                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-faint)' }}>
-                      {w.eligibleCohortSize === 0 ? 'No eligible cohort yet' : `${w.retainedUsers} of ${w.eligibleCohortSize}`}
-                    </p>
-                  </div>
+                  <Metric
+                    key={w.days}
+                    label={`D${w.days}`}
+                    value={w.rate === null ? '—' : `${w.rate}%`}
+                    detail={w.eligibleCohortSize === 0 ? 'No eligible cohort yet' : `${w.retainedUsers} of ${w.eligibleCohortSize}`}
+                  />
                 ))}
               </div>
             )}
