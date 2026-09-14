@@ -771,6 +771,10 @@ export class AdminService {
     return this.analyticsService.getFunnelAnalytics(period, filters);
   }
 
+  getClickstreamAnalytics(period = '30d') {
+    return this.analyticsService.getClickstreamAnalytics(period);
+  }
+
   getGeoComparison(period = '30d') {
     return this.analyticsService.getGeoComparison(period);
   }

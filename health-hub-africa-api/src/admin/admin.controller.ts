@@ -194,6 +194,13 @@ export class AdminController {
     return this.adminService.getFunnelAnalytics(period, { country, continent, device });
   }
 
+  @Get('analytics/clickstream')
+  @ApiOperation({ summary: 'Get per-CTA impressions, clicks, and CTR (spec §8.3)' })
+  @ApiQuery({ name: 'period', required: false, description: "e.g. '7d', '30d', '90d' (default 30d)" })
+  getClickstreamAnalytics(@Query('period') period?: string) {
+    return this.adminService.getClickstreamAnalytics(period);
+  }
+
   @Get('analytics/geo-comparison')
   @ApiOperation({ summary: 'Compare patient-declared country against IP-derived access country (spec §4.4)' })
   getGeoComparison(@Query('period') period?: string) {

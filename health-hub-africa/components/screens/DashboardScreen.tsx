@@ -31,6 +31,7 @@ import { DashboardSkeleton } from '@/components/skeletons/DashboardSkeleton'
 import { LogVitalsModal } from '@/components/vitals/LogVitalsModal'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { buildProviderDisplayName } from '@/lib/providerName'
+import { TrackImpression } from '@/components/analytics/TrackImpression'
 
 const HeartRateChart = dynamic(() => import('@/components/charts/HeartRateChart').then(m => ({ default: m.HeartRateChart })), { ssr: false })
 const SleepChart = dynamic(() => import('@/components/charts/SleepChart').then(m => ({ default: m.SleepChart })), { ssr: false })
@@ -435,11 +436,25 @@ export function DashboardScreen() {
       <Card className="rounded-[24px]">
         <CardTitle className="text-xs font-extrabold text-[var(--color-text-muted)] uppercase tracking-wider mb-4">Quick Actions</CardTitle>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <ActionChip icon={Video} name="TeleCare™" description="Virtual consult" onClick={() => trackQuickAction('telecare', '/telecare')} />
-          <ActionChip icon={FlaskConical} name="CareTest™" description="Book a lab test" onClick={() => trackQuickAction('caretest', '/labs')} />
-          <ActionChip icon={CalendarPlus} name="Appointment" description="Schedule a visit" onClick={() => trackQuickAction('appointment', '/appointments')} />
-          <ActionChip icon={HeartPulse} name="Log Vitals" description="Record readings" onClick={() => { analytics.track('ui_click', { element_id: 'quick_action_log_vitals', feature_area: 'dashboard' }); setShowLogVitals(true) }} />
-          <ActionChip icon={Truck} name="DispatchCare™" description="Emergency" emergency onClick={() => trackQuickAction('dispatch', '/dispatch')} />
+          {/* CTA impressions (spec §8.3) — pairs with the ui_click these chips
+              already emit so CTR = clicks / impressions can be computed. Only
+              the Quick Actions row for now; the spec names ~15 more elements
+              across other screens as follow-up. */}
+          <TrackImpression elementId="quick_action_telecare" featureArea="dashboard" elementType="card" className="h-full">
+            <ActionChip icon={Video} name="TeleCare™" description="Virtual consult" onClick={() => trackQuickAction('telecare', '/telecare')} />
+          </TrackImpression>
+          <TrackImpression elementId="quick_action_caretest" featureArea="dashboard" elementType="card" className="h-full">
+            <ActionChip icon={FlaskConical} name="CareTest™" description="Book a lab test" onClick={() => trackQuickAction('caretest', '/labs')} />
+          </TrackImpression>
+          <TrackImpression elementId="quick_action_appointment" featureArea="dashboard" elementType="card" className="h-full">
+            <ActionChip icon={CalendarPlus} name="Appointment" description="Schedule a visit" onClick={() => trackQuickAction('appointment', '/appointments')} />
+          </TrackImpression>
+          <TrackImpression elementId="quick_action_log_vitals" featureArea="dashboard" elementType="card" className="h-full">
+            <ActionChip icon={HeartPulse} name="Log Vitals" description="Record readings" onClick={() => { analytics.track('ui_click', { element_id: 'quick_action_log_vitals', feature_area: 'dashboard' }); setShowLogVitals(true) }} />
+          </TrackImpression>
+          <TrackImpression elementId="quick_action_dispatch" featureArea="dashboard" elementType="card" className="h-full">
+            <ActionChip icon={Truck} name="DispatchCare™" description="Emergency" emergency onClick={() => trackQuickAction('dispatch', '/dispatch')} />
+          </TrackImpression>
         </div>
       </Card>
 
