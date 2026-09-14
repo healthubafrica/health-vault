@@ -438,14 +438,15 @@ export function DashboardScreen() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {/* CTA impressions (spec §8.3) — pairs with the ui_click these chips
               already emit so CTR = clicks / impressions can be computed.
-              Followed up on Labs' "Book CareTest™" CTA, the primary CTAs in
-              Appointments/TeleCare/Payments/Subscriptions, and the Vault
-              upload dropzone + "New link" share CTA — still open:
-              per-document Download/Replace/Delete (dropdown menu items with
-              no persistent visibility, so no natural impression signal —
-              click-only if ever added), per-result lab actions, vitals
-              entry/device-sync, nav menu items, profile-completion prompts,
-              search. */}
+              Followed up (separate PRs) on Labs' "Book CareTest™" CTA, the
+              primary CTAs in Appointments/TeleCare/Payments/Subscriptions,
+              the Vault upload/share CTAs, and the vitals "Save readings"
+              button — still open: per-document Download/Replace/Delete
+              (dropdown menu items with no persistent visibility, so no
+              honest impression signal to pair a click with), per-result lab
+              actions, nav menu items, profile-completion prompts, search.
+              No "device-sync" controls exist to instrument — there's no
+              wearable/device integration in this codebase. */}
           <TrackImpression elementId="quick_action_telecare" featureArea="dashboard" elementType="card" className="h-full">
             <ActionChip icon={Video} name="TeleCare™" description="Virtual consult" onClick={() => trackQuickAction('telecare', '/telecare')} />
           </TrackImpression>
