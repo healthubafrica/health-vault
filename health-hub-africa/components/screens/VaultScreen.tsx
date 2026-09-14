@@ -12,6 +12,7 @@ import { UploadQueueModal } from '@/components/vault/UploadQueueModal'
 import { EditDocumentModal } from '@/components/vault/EditDocumentModal'
 import { DocumentRow } from '@/components/vault/DocumentRow'
 import { VaultToolbar } from '@/components/vault/VaultToolbar'
+import { TrackImpression } from '@/components/analytics/TrackImpression'
 import { useApi } from '@/lib/hooks/useApi'
 import { useDocumentUpload } from '@/lib/hooks/useDocumentUpload'
 import { documents as documentsApi, records as recordsApi, analytics, type VaultDocument, type DocumentListParams } from '@/lib/api'
@@ -65,6 +66,14 @@ export function VaultScreen() {
 
   const requestReplace = (doc: VaultDocument) =>
     setReplaceRequest({ doc, nonce: Date.now() })
+
+  // Fires on both click-to-browse and drag-drop — either way, the dropzone
+  // did its job of getting a file selected, which is the "click" this
+  // element_id's CTR is measuring.
+  const handleFilesSelected = (files: File[]) => {
+    analytics.track('ui_click', { element_id: 'upload_record_cta', feature_area: 'records' })
+    setPendingFiles(files)
+  }
 
   const handleDownload = async (doc: VaultDocument) => {
     if (!doc.fileUrl) return
@@ -164,11 +173,13 @@ export function VaultScreen() {
         </div>
       )}
 
-      <UploadDropzone
-        onFilesSelected={setPendingFiles}
-        disabled={storagePct >= 100 || atFileLimit}
-        disabledMessage="You've reached your plan's storage/file limit — upgrade to add more documents."
-      />
+      <TrackImpression elementId="upload_record_cta" featureArea="records" elementType="dropzone">
+        <UploadDropzone
+          onFilesSelected={handleFilesSelected}
+          disabled={storagePct >= 100 || atFileLimit}
+          disabledMessage="You've reached your plan's storage/file limit — upgrade to add more documents."
+        />
+      </TrackImpression>
 
       <VaultToolbar query={query} onChange={setQuery} />
 
