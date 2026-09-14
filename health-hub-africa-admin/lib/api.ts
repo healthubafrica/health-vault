@@ -347,14 +347,20 @@ export interface TrafficAnalytics {
   devices: Array<{ device: string; count: number }>
   referrers: Array<{ referrer: string; count: number }>
   campaigns: Array<{ campaign: string; source: string; medium: string; visits: number }>
-  // Country -> admin-1 region -> city, nested from the same rows as
-  // `locations` above (no extra request). Admin-2 (LGA/county) isn't
-  // included — city is the ceiling without a paid GeoIP vendor.
+  // World (this object's array root, aggregate = totalVisits above) ->
+  // Continent -> Country -> admin-1 region -> city (spec §B levels 0-5),
+  // nested from the same rows as `locations` above (no extra request).
+  // Admin-2 (LGA/county) isn't included — city is the ceiling without a
+  // paid GeoIP vendor.
   hierarchy: Array<{
-    countryCode: string
     continent: string
+    continentCode: string
     visits: number
-    regions: Array<{ region: string; visits: number; cities: Array<{ city: string; visits: number }> }>
+    countries: Array<{
+      countryCode: string
+      visits: number
+      regions: Array<{ region: string; visits: number; cities: Array<{ city: string; visits: number }> }>
+    }>
   }>
 }
 

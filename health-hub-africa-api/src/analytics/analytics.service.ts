@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { RecordVisitDto } from './dto/record-visit.dto';
 import { TrackEventDto } from './dto/track-event.dto';
-import { continentForCountry } from './continent-map';
+import { continentForCountry, continentCodeForContinent } from './continent-map';
 import { catalogEntry, EVENT_NAME_RE } from './analytics-events.catalog';
 import { GeoResolverService } from './geo-resolver.service';
 
@@ -624,35 +624,44 @@ export class AnalyticsService {
     const referrerMap = new Map<string, number>();
     const campaignMap = new Map<string, { campaign: string; source: string; medium: string; visits: number }>();
 
-    // Country -> admin-1 (region, from x-vercel-ip-country-region /
-    // cloudfront-viewer-country-region — free edge-header geo, an ISO 3166-2
-    // subdivision code/name depending on provider) -> city. All from data
-    // already collected for the flat `locations` list below; this just
-    // nests it instead of a second query.
+    // World (implicit — totalVisits below is the level-0 aggregate) ->
+    // Continent -> Country -> admin-1 (region, from x-vercel-ip-country-region
+    // / cloudfront-viewer-country-region — free edge-header geo, an ISO
+    // 3166-2 subdivision code/name depending on provider) -> city (spec §B
+    // levels 0-5). All from data already collected for the flat `locations`
+    // list below; this just nests it instead of a second query.
     // ponytail: admin-2 (LGA/county — finer than city) has no free source;
     // city is the practical ceiling without a paid GeoIP vendor. Stop here
     // until that's decided, rather than approximating city->LGA mapping for
     // one country while leaving every other country flat.
-    type CountryNode = { countryCode: string; continent: string; visits: number; regions: Map<string, RegionNode> };
+    type CountryNode = { countryCode: string; visits: number; regions: Map<string, RegionNode> };
     type RegionNode = { region: string; visits: number; cities: Map<string, number> };
-    const hierarchyMap = new Map<string, CountryNode>();
+    type ContinentNode = { continent: string; visits: number; countries: Map<string, CountryNode> };
+    const hierarchyMap = new Map<string, ContinentNode>();
 
     for (const v of visits) {
       const countryCode = v.countryCode?.toUpperCase() ?? 'Unknown';
       const region = v.region ?? 'Unknown';
       const city = v.city ?? 'Unknown';
+      // 'Unknown' isn't a real ISO code, so this falls through to
+      // continentForCountry's own not-found fallback ('Unknown') rather
+      // than needing a special case here.
+      const continent = continentForCountry(countryCode);
       const locationKey = `${countryCode} ${region} ${city}`;
-      const location = locationMap.get(locationKey) ?? { countryCode, continent: continentForCountry(countryCode), region, city, visits: 0 };
+      const location = locationMap.get(locationKey) ?? { countryCode, continent, region, city, visits: 0 };
       location.visits++;
       locationMap.set(locationKey, location);
 
-      const countryNode = hierarchyMap.get(countryCode) ?? { countryCode, continent: continentForCountry(countryCode), visits: 0, regions: new Map<string, RegionNode>() };
+      const continentNode = hierarchyMap.get(continent) ?? { continent, visits: 0, countries: new Map<string, CountryNode>() };
+      continentNode.visits++;
+      const countryNode = continentNode.countries.get(countryCode) ?? { countryCode, visits: 0, regions: new Map<string, RegionNode>() };
       countryNode.visits++;
       const regionNode = countryNode.regions.get(region) ?? { region, visits: 0, cities: new Map<string, number>() };
       regionNode.visits++;
       regionNode.cities.set(city, (regionNode.cities.get(city) ?? 0) + 1);
       countryNode.regions.set(region, regionNode);
-      hierarchyMap.set(countryCode, countryNode);
+      continentNode.countries.set(countryCode, countryNode);
+      hierarchyMap.set(continent, continentNode);
 
       const device = deviceCategoryFromUserAgent(v.userAgent ?? undefined);
       deviceMap.set(device, (deviceMap.get(device) ?? 0) + 1);
@@ -691,17 +700,25 @@ export class AnalyticsService {
           .sort((a, b) => b.count - a.count)
           .slice(0, 10),
         campaigns: Array.from(campaignMap.values()).sort((a, b) => b.visits - a.visits).slice(0, 20),
+        // World is the implicit level 0 — totalVisits above already is that
+        // aggregate, so it isn't repeated as a wrapping node here.
         hierarchy: Array.from(hierarchyMap.values())
-          .map((c) => ({
-            countryCode: c.countryCode,
-            continent: c.continent,
-            visits: c.visits,
-            regions: Array.from(c.regions.values())
-              .map((r) => ({
-                region: r.region,
-                visits: r.visits,
-                cities: Array.from(r.cities.entries())
-                  .map(([city, visits]) => ({ city, visits }))
+          .map((cont) => ({
+            continent: cont.continent,
+            continentCode: continentCodeForContinent(cont.continent),
+            visits: cont.visits,
+            countries: Array.from(cont.countries.values())
+              .map((c) => ({
+                countryCode: c.countryCode,
+                visits: c.visits,
+                regions: Array.from(c.regions.values())
+                  .map((r) => ({
+                    region: r.region,
+                    visits: r.visits,
+                    cities: Array.from(r.cities.entries())
+                      .map(([city, visits]) => ({ city, visits }))
+                      .sort((a, b) => b.visits - a.visits),
+                  }))
                   .sort((a, b) => b.visits - a.visits),
               }))
               .sort((a, b) => b.visits - a.visits),
