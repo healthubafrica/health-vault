@@ -81,6 +81,9 @@ export const ANALYTICS_EVENTS: Record<string, CatalogEntry> = {
   manual_entry_success: { version: 1, origin: 'web' },
   ticket_created: { version: 1, origin: 'web' },
   download: { version: 1, origin: 'web' },
+  records_view: { version: 1, origin: 'web' },
+  result_view: { version: 1, origin: 'web' },
+  notification_clicked: { version: 1, origin: 'web' },
 
   // ── Cross-cutting ───────────────────────────────────────────────────────
   page_view: { version: 1, origin: 'web' },

@@ -84,6 +84,9 @@ The machine-readable companion to this table is `health-hub-africa-api/src/analy
 | Vitals | `manual_entry_success` | A vital sign logged manually (also an Engagement Score signal — see `AnalyticsService.getEngagementScore`) |
 | Support | `ticket_created` | Support ticket submitted |
 | Records | `download` | Clinical record or vault document downloaded |
+| Records | `records_view` | Records screen loaded with real data (fires once per mount, carries the record count) |
+| Results | `result_view` | Labs screen loaded with real data (fires once per mount, carries the result count) |
+| Notifications | `notification_clicked` | Any notification item clicked, across every category (appointment/lab/payment/record/telecare/alert/system) |
 | Profile | `profile_completed` | Onboarding profile step finished |
 | Digital Experience | `client_error` | Uncaught JS error or unhandled promise rejection (`ErrorTracker` — window-level, not a React boundary) |
 | Navigation | `page_view` | Route change (`PageViewTracker`, authenticated area only) |
