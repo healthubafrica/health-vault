@@ -437,9 +437,12 @@ export function DashboardScreen() {
         <CardTitle className="text-xs font-extrabold text-[var(--color-text-muted)] uppercase tracking-wider mb-4">Quick Actions</CardTitle>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {/* CTA impressions (spec §8.3) — pairs with the ui_click these chips
-              already emit so CTR = clicks / impressions can be computed. Only
-              the Quick Actions row for now; the spec names ~15 more elements
-              across other screens as follow-up. */}
+              already emit so CTR = clicks / impressions can be computed.
+              Followed up on Labs' "Book CareTest™" CTA, and on the primary
+              CTAs in Appointments/TeleCare/Payments/Subscriptions — still
+              open: Upload/Share record controls, per-result lab actions,
+              vitals entry/device-sync, nav menu items, profile-completion
+              prompts, search. */}
           <TrackImpression elementId="quick_action_telecare" featureArea="dashboard" elementType="card" className="h-full">
             <ActionChip icon={Video} name="TeleCare™" description="Virtual consult" onClick={() => trackQuickAction('telecare', '/telecare')} />
           </TrackImpression>
