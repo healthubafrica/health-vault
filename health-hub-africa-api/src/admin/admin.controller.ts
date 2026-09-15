@@ -185,13 +185,17 @@ export class AdminController {
   @ApiQuery({ name: 'country', required: false, description: 'Filter to a single ISO country code' })
   @ApiQuery({ name: 'continent', required: false, description: 'Filter to a single continent' })
   @ApiQuery({ name: 'device', required: false, description: 'Filter to a single device category (Desktop/Mobile/Tablet)' })
+  @ApiQuery({ name: 'ageBand', required: false, description: 'Filter to a single age band (e.g. "25–34") — spec §J' })
+  @ApiQuery({ name: 'planTier', required: false, description: 'Filter to a single subscription plan tier — spec §J' })
   getFunnelAnalytics(
     @Query('period') period?: string,
     @Query('country') country?: string,
     @Query('continent') continent?: string,
     @Query('device') device?: string,
+    @Query('ageBand') ageBand?: string,
+    @Query('planTier') planTier?: string,
   ) {
-    return this.adminService.getFunnelAnalytics(period, { country, continent, device });
+    return this.adminService.getFunnelAnalytics(period, { country, continent, device, ageBand, planTier });
   }
 
   @Get('analytics/demographics')

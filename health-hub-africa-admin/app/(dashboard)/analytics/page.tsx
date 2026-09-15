@@ -255,6 +255,8 @@ export default function AnalyticsPage() {
   const [funnelCountry, setFunnelCountry] = useState('')
   const [funnelContinent, setFunnelContinent] = useState('')
   const [funnelDevice, setFunnelDevice] = useState('')
+  const [funnelAgeBand, setFunnelAgeBand] = useState('')
+  const [funnelPlanTier, setFunnelPlanTier] = useState('')
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
@@ -268,6 +270,8 @@ export default function AnalyticsPage() {
           country: funnelCountry || undefined,
           continent: funnelContinent || undefined,
           device: funnelDevice || undefined,
+          ageBand: funnelAgeBand || undefined,
+          planTier: funnelPlanTier || undefined,
         }),
         adminApi.analytics.demographics(),
         adminApi.analytics.clickstream(period),
@@ -290,7 +294,7 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false)
     }
-  }, [period, funnelCountry, funnelContinent, funnelDevice])
+  }, [period, funnelCountry, funnelContinent, funnelDevice, funnelAgeBand, funnelPlanTier])
 
   useEffect(() => {
     setLoading(true)
@@ -570,6 +574,30 @@ export default function AnalyticsPage() {
                 <option value="">All devices</option>
                 {Array.from(new Set((traffic?.devices ?? []).map((d) => d.device))).map((device) => (
                   <option key={device} value={device}>{device}</option>
+                ))}
+              </select>
+              <select
+                value={funnelAgeBand}
+                onChange={(e) => setFunnelAgeBand(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by age band"
+              >
+                <option value="">All age bands</option>
+                {(demographics?.ageBands ?? []).map((b) => (
+                  <option key={b.label} value={b.label}>{b.label}</option>
+                ))}
+              </select>
+              <select
+                value={funnelPlanTier}
+                onChange={(e) => setFunnelPlanTier(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by plan tier"
+              >
+                <option value="">All plan tiers</option>
+                {(demographics?.planTiers ?? []).map((t) => (
+                  <option key={t.label} value={t.label}>{t.label}</option>
                 ))}
               </select>
               <ExportButton onExport={exportFunnelSteps} />

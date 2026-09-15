@@ -915,11 +915,16 @@ export const adminApi = {
       request<{ data: MarketingAnalytics }>(`/admin/analytics/marketing?period=${period}`),
     traffic: (period = '30d') =>
       request<{ data: TrafficAnalytics }>(`/admin/analytics/traffic?period=${period}`),
-    funnel: (period = '30d', filters?: { country?: string; continent?: string; device?: string }) => {
+    funnel: (
+      period = '30d',
+      filters?: { country?: string; continent?: string; device?: string; ageBand?: string; planTier?: string },
+    ) => {
       const qs = new URLSearchParams({ period })
       if (filters?.country) qs.set('country', filters.country)
       if (filters?.continent) qs.set('continent', filters.continent)
       if (filters?.device) qs.set('device', filters.device)
+      if (filters?.ageBand) qs.set('ageBand', filters.ageBand)
+      if (filters?.planTier) qs.set('planTier', filters.planTier)
       return request<{ data: FunnelAnalytics }>(`/admin/analytics/funnel?${qs}`)
     },
     demographics: () =>
