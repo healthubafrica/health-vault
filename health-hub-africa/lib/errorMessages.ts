@@ -10,6 +10,8 @@ const GENERIC_MSG =
   'Something went wrong on our side. Please try again shortly.'
 const SESSION_EXPIRED_MSG =
   "You've been signed out due to inactivity. Kindly sign in again — any unsaved changes on this page may be lost."
+const AMBIGUOUS_RESPONSE_MSG =
+  "Your request may have gone through, but we lost the connection before we could confirm. Kindly check before trying again."
 
 interface Rule {
   test: (status: number, msg: string) => boolean
@@ -168,4 +170,16 @@ export function friendlyNetworkError(): string {
 
 export function friendlySessionExpired(): string {
   return SESSION_EXPIRED_MSG
+}
+
+// The request reached the server and got a success status, but the
+// connection dropped while the body was still being read (e.g. a container
+// swap mid-deploy) — distinct from friendlyNetworkError(), which fires when
+// the request never reached a response at all. Saying "we can't reach the
+// server" here would be actively wrong: the server likely already processed
+// the write. Callers built on idempotency keys (appointments, payments) are
+// safe to let the user retry, but the copy should tell them to check first
+// rather than imply nothing happened.
+export function friendlyAmbiguousResponse(): string {
+  return AMBIGUOUS_RESPONSE_MSG
 }
