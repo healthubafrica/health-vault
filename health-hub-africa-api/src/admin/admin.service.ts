@@ -16,7 +16,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService, NOTIFICATIONS_QUEUE, NotificationJobData, NotificationChannel } from '../notifications/notifications.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { AuthService } from '../auth/auth.service';
-import { AnalyticsService } from '../analytics/analytics.service';
+import { AnalyticsService, FunnelFilters } from '../analytics/analytics.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { fetchLoginAttemptsSince, detectLoginLocationAnomalies } from '../analytics/login-anomaly.util';
 import {
@@ -767,10 +767,7 @@ export class AdminService {
     return this.analyticsService.getTrafficAnalytics(period);
   }
 
-  getFunnelAnalytics(
-    period = '30d',
-    filters?: { country?: string; continent?: string; device?: string; ageBand?: string; planTier?: string },
-  ) {
+  getFunnelAnalytics(period = '30d', filters?: FunnelFilters) {
     return this.analyticsService.getFunnelAnalytics(period, filters);
   }
 

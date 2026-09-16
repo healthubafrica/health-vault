@@ -257,6 +257,9 @@ export default function AnalyticsPage() {
   const [funnelDevice, setFunnelDevice] = useState('')
   const [funnelAgeBand, setFunnelAgeBand] = useState('')
   const [funnelPlanTier, setFunnelPlanTier] = useState('')
+  const [funnelGender, setFunnelGender] = useState('')
+  const [funnelNationality, setFunnelNationality] = useState('')
+  const [funnelBrowser, setFunnelBrowser] = useState('')
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
@@ -272,6 +275,9 @@ export default function AnalyticsPage() {
           device: funnelDevice || undefined,
           ageBand: funnelAgeBand || undefined,
           planTier: funnelPlanTier || undefined,
+          gender: funnelGender || undefined,
+          nationality: funnelNationality || undefined,
+          browser: funnelBrowser || undefined,
         }),
         adminApi.analytics.demographics(),
         adminApi.analytics.clickstream(period),
@@ -294,7 +300,7 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false)
     }
-  }, [period, funnelCountry, funnelContinent, funnelDevice, funnelAgeBand, funnelPlanTier])
+  }, [period, funnelCountry, funnelContinent, funnelDevice, funnelAgeBand, funnelPlanTier, funnelGender, funnelNationality, funnelBrowser])
 
   useEffect(() => {
     setLoading(true)
@@ -598,6 +604,42 @@ export default function AnalyticsPage() {
                 <option value="">All plan tiers</option>
                 {(demographics?.planTiers ?? []).map((t) => (
                   <option key={t.label} value={t.label}>{t.label}</option>
+                ))}
+              </select>
+              <select
+                value={funnelGender}
+                onChange={(e) => setFunnelGender(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by sex/gender"
+              >
+                <option value="">All genders</option>
+                {(demographics?.genders ?? []).map((g) => (
+                  <option key={g.label} value={g.label}>{g.label}</option>
+                ))}
+              </select>
+              <select
+                value={funnelNationality}
+                onChange={(e) => setFunnelNationality(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by nationality"
+              >
+                <option value="">All nationalities</option>
+                {(demographics?.nationalities ?? []).map((n) => (
+                  <option key={n.label} value={n.label}>{n.label}</option>
+                ))}
+              </select>
+              <select
+                value={funnelBrowser}
+                onChange={(e) => setFunnelBrowser(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by browser"
+              >
+                <option value="">All browsers</option>
+                {(digitalExperience?.browsers ?? []).map((b) => (
+                  <option key={b.browser} value={b.browser}>{b.browser}</option>
                 ))}
               </select>
               <ExportButton onExport={exportFunnelSteps} />
