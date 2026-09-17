@@ -260,6 +260,8 @@ export default function AnalyticsPage() {
   const [funnelGender, setFunnelGender] = useState('')
   const [funnelNationality, setFunnelNationality] = useState('')
   const [funnelBrowser, setFunnelBrowser] = useState('')
+  const [funnelAcquisitionSource, setFunnelAcquisitionSource] = useState('')
+  const [funnelUtmCampaign, setFunnelUtmCampaign] = useState('')
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
@@ -278,6 +280,8 @@ export default function AnalyticsPage() {
           gender: funnelGender || undefined,
           nationality: funnelNationality || undefined,
           browser: funnelBrowser || undefined,
+          acquisitionSource: funnelAcquisitionSource || undefined,
+          utmCampaign: funnelUtmCampaign || undefined,
         }),
         adminApi.analytics.demographics(),
         adminApi.analytics.clickstream(period),
@@ -300,7 +304,7 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false)
     }
-  }, [period, funnelCountry, funnelContinent, funnelDevice, funnelAgeBand, funnelPlanTier, funnelGender, funnelNationality, funnelBrowser])
+  }, [period, funnelCountry, funnelContinent, funnelDevice, funnelAgeBand, funnelPlanTier, funnelGender, funnelNationality, funnelBrowser, funnelAcquisitionSource, funnelUtmCampaign])
 
   useEffect(() => {
     setLoading(true)
@@ -640,6 +644,30 @@ export default function AnalyticsPage() {
                 <option value="">All browsers</option>
                 {(digitalExperience?.browsers ?? []).map((b) => (
                   <option key={b.browser} value={b.browser}>{b.browser}</option>
+                ))}
+              </select>
+              <select
+                value={funnelAcquisitionSource}
+                onChange={(e) => setFunnelAcquisitionSource(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by acquisition source"
+              >
+                <option value="">All acquisition sources</option>
+                {(marketing?.acquisitionSources ?? []).map((s) => (
+                  <option key={s.source} value={s.source}>{s.source}</option>
+                ))}
+              </select>
+              <select
+                value={funnelUtmCampaign}
+                onChange={(e) => setFunnelUtmCampaign(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by UTM campaign"
+              >
+                <option value="">All campaigns</option>
+                {Array.from(new Set((marketing?.campaigns ?? []).map((c) => c.campaign))).map((campaign) => (
+                  <option key={campaign} value={campaign}>{campaign}</option>
                 ))}
               </select>
               <ExportButton onExport={exportFunnelSteps} />
