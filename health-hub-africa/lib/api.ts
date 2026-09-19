@@ -508,7 +508,7 @@ export const appointments = {
     return request<{ data: Appointment[]; meta: { total: number } }>(`/appointments${qs}`)
   },
 
-  get: (id: string) => request<{ data: Appointment }>(`/appointments/${id}`),
+  get: (id: string) => request<Appointment>(`/appointments/${id}`),
 
   // Facilities mirrored from OpenEMR — used to populate the picker on the
   // booking screen for in-person appointment types. Telecare bookings skip
@@ -528,16 +528,20 @@ export const appointments = {
   // manual retry — or a client timeout / dropped response — replays the
   // original appointment instead of creating a duplicate. See payments.initiate()
   // for the same pattern.
+  //
+  // Resolves to the bare appointment — the controller returns the service
+  // result unwrapped and no interceptor adds a { data } envelope. Only
+  // list() is enveloped ({ data, meta }).
   create: (data: CreateAppointmentPayload, idempotencyKey?: string) =>
-    request<{ data: Appointment }>('/appointments', {
+    request<Appointment>('/appointments', {
       method: 'POST',
       body: JSON.stringify(data),
       headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
     }),
 
   // Cancels via the dedicated cancel endpoint — body takes {reason}, not {cancellationNote}.
-  // Backend returns the appointment unwrapped (not {data: ...}) — unlike
-  // get/create above, which are wrapped. Typed correctly here.
+  // Backend returns the appointment unwrapped (not {data: ...}), same as
+  // get/create above.
   cancel: (id: string, reason?: string) =>
     request<Appointment>(`/appointments/${id}/cancel`, {
       method: 'POST',
