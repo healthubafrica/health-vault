@@ -726,6 +726,28 @@ export class AdminService {
     };
   }
 
+  // Explicit ServiceType → chart-column map. This used to be substring
+  // matching on the enum's string value, written before anything populated
+  // service_usage_daily; once the daily aggregation cron started writing
+  // real rows it misfiled CareTest (no "lab" in "caretest") as appointments.
+  // Typed as a full Record so adding a ServiceType is a compile error here
+  // instead of a silent misfile. NeuroFlex/TravelSafe/MinuteCare/
+  // HealthConsult have no series of their own on the chart yet, so they roll
+  // into "appointments" — deliberately, not by fall-through.
+  private static readonly USAGE_COLUMN_BY_SERVICE_TYPE: Record<
+    ServiceType,
+    'appointments' | 'telecare' | 'dispatch' | 'labOrders' | 'expertReviews'
+  > = {
+    MinuteCare: 'appointments',
+    TeleCare: 'telecare',
+    CareTest: 'labOrders',
+    HealthConsult: 'appointments',
+    ExpertReview: 'expertReviews',
+    NeuroFlex: 'appointments',
+    DispatchCare: 'dispatch',
+    TravelSafe: 'appointments',
+  };
+
   async getAnalyticsUsage(period = '30d') {
     const since = this.periodToDate(period);
     const records = await this.prisma.serviceUsageDaily
@@ -739,19 +761,7 @@ export class AdminService {
       if (!byDate.has(date)) {
         byDate.set(date, { appointments: 0, telecare: 0, dispatch: 0, labOrders: 0, expertReviews: 0 });
       }
-      const row = byDate.get(date)!;
-      const st = String(r.serviceType).toLowerCase();
-      if (st.includes('telecare') || st.includes('teleconsult')) {
-        row.telecare += r.totalSessions;
-      } else if (st.includes('dispatch') || st.includes('emergency')) {
-        row.dispatch += r.totalSessions;
-      } else if (st.includes('lab')) {
-        row.labOrders += r.totalSessions;
-      } else if (st.includes('expert')) {
-        row.expertReviews += r.totalSessions;
-      } else {
-        row.appointments += r.totalSessions;
-      }
+      byDate.get(date)![AdminService.USAGE_COLUMN_BY_SERVICE_TYPE[r.serviceType]] += r.totalSessions;
     }
 
     return {
