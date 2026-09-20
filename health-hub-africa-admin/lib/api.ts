@@ -384,9 +384,14 @@ export interface GeoMapCountry {
   paymentSuccessRate: number | null
 }
 
+// spec §D: 'access' (IP-derived, default) or 'declared' (Patient.countryCode
+// — thin/empty until enough patients have one; see feat/patient-declared-country).
+export type GeoBasis = 'access' | 'declared'
+
 export interface GeoMapAnalytics {
   countries: GeoMapCountry[]
   period: string
+  basis: GeoBasis
 }
 
 export interface GeoComparison {
@@ -950,8 +955,8 @@ export const adminApi = {
       request<{ data: DemographicsAnalytics }>('/admin/analytics/demographics'),
     clickstream: (period = '30d') =>
       request<{ data: ClickstreamAnalytics }>(`/admin/analytics/clickstream?period=${period}`),
-    geoMap: (period = '30d') =>
-      request<{ data: GeoMapAnalytics }>(`/admin/analytics/geo-map?period=${period}`),
+    geoMap: (period = '30d', basis: GeoBasis = 'access') =>
+      request<{ data: GeoMapAnalytics }>(`/admin/analytics/geo-map?period=${period}&basis=${basis}`),
     geoComparison: (period = '30d') =>
       request<{ data: GeoComparison }>(`/admin/analytics/geo-comparison?period=${period}`),
     // No default here — an unset lookbackDays lets the API fall back to its

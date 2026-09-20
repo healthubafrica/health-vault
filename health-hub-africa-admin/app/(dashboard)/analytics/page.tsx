@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download, ChevronRight, ChevronDown } from 'lucide-react'
 import { useAutoRefresh } from '@/lib/hooks/useLiveData'
-import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type ClickstreamAnalytics, type GeoComparison, type GeoMapAnalytics, type GeoMapCountry, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
+import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type ClickstreamAnalytics, type GeoComparison, type GeoMapAnalytics, type GeoMapCountry, type GeoBasis, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
 import dynamic from 'next/dynamic'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -272,6 +272,7 @@ export default function AnalyticsPage() {
   const [geoComparison, setGeoComparison] = useState<GeoComparison | null>(null)
   const [geoMap, setGeoMap] = useState<GeoMapAnalytics | null>(null)
   const [mapMetricKey, setMapMetricKey] = useState<keyof GeoMapCountry>('visitors')
+  const [mapBasis, setMapBasis] = useState<GeoBasis>('access')
   const [retention, setRetention] = useState<RetentionAnalytics | null>(null)
   const [digitalExperience, setDigitalExperience] = useState<DigitalExperienceAnalytics | null>(null)
   const [security, setSecurity] = useState<SecurityAnalytics | null>(null)
@@ -295,7 +296,7 @@ export default function AnalyticsPage() {
         adminApi.analytics.demographics(),
         adminApi.analytics.clickstream(period),
         adminApi.analytics.geoComparison(period),
-        adminApi.analytics.geoMap(period),
+        adminApi.analytics.geoMap(period, mapBasis),
         adminApi.analytics.retention(),
         adminApi.analytics.digitalExperience(period),
         adminApi.analytics.security(period),
@@ -315,7 +316,7 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false)
     }
-  }, [period, funnelCountry, funnelContinent, funnelDevice])
+  }, [period, funnelCountry, funnelContinent, funnelDevice, mapBasis])
 
   useEffect(() => {
     setLoading(true)
@@ -858,27 +859,40 @@ export default function AnalyticsPage() {
             <div>
               <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Global portal map</h2>
               <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-                Where portal sessions connect from — approximate, IP-derived, aggregated by country. This is access geography, not where patients say they live.
+                {mapBasis === 'access'
+                  ? 'Where portal sessions connect from — approximate, IP-derived, aggregated by country. This is access geography, not where patients say they live.'
+                  : "Where patients say they live — only patients who were actually asked (see Profile/onboarding) have a value, so this is likely sparse until adoption grows."}
               </p>
             </div>
-            <select
-              value={mapMetricKey}
-              onChange={(e) => setMapMetricKey(e.target.value as keyof GeoMapCountry)}
-              className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
-              style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-              aria-label="Map metric"
-            >
-              {MAP_METRICS.map((m) => (
-                <option key={m.key} value={m.key}>{m.label}</option>
-              ))}
-            </select>
+            <div className="flex flex-wrap items-center gap-2">
+              <FilterTabs
+                tabs={['Access', 'Declared']}
+                active={mapBasis === 'access' ? 'Access' : 'Declared'}
+                onChange={(t) => setMapBasis(t === 'Access' ? 'access' : 'declared')}
+              />
+              <select
+                value={mapMetricKey}
+                onChange={(e) => setMapMetricKey(e.target.value as keyof GeoMapCountry)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Map metric"
+              >
+                {MAP_METRICS.map((m) => (
+                  <option key={m.key} value={m.key}>{m.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <Card className="mb-6">
             {loading && !geoMap ? (
               <SkeletonBox height={360} className="rounded-xl" />
             ) : !geoMap?.countries.length ? (
-              <Empty>No located portal activity in this period yet.</Empty>
+              <Empty>
+                {mapBasis === 'access'
+                  ? 'No located portal activity in this period yet.'
+                  : 'No patients have declared a country yet — add it from Profile or during onboarding.'}
+              </Empty>
             ) : (
               <div className="grid lg:grid-cols-[1.8fr_1fr] gap-5">
                 <WorldMap

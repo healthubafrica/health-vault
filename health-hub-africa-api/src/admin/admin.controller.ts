@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -208,10 +209,14 @@ export class AdminController {
   }
 
   @Get('analytics/geo-map')
-  @ApiOperation({ summary: 'Per-country access-geography metrics for the global maps (spec §F) — IP-derived, not patient-declared' })
+  @ApiOperation({ summary: 'Per-country geography metrics for the global maps (spec §F) — access (IP-derived) or declared (Patient.countryCode)' })
   @ApiQuery({ name: 'period', required: false, description: "e.g. '7d', '30d', '90d' (default 30d)" })
-  getGeoMapAnalytics(@Query('period') period?: string) {
-    return this.adminService.getGeoMapAnalytics(period);
+  @ApiQuery({ name: 'basis', required: false, enum: ['access', 'declared'], description: 'Geography dimension — spec §D (default access)' })
+  getGeoMapAnalytics(@Query('period') period?: string, @Query('basis') basis?: string) {
+    if (basis && basis !== 'access' && basis !== 'declared') {
+      throw new BadRequestException('basis must be one of: access, declared');
+    }
+    return this.adminService.getGeoMapAnalytics(period, basis as 'access' | 'declared' | undefined);
   }
 
   @Get('analytics/geo-comparison')

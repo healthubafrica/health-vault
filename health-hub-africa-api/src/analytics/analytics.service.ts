@@ -896,17 +896,24 @@ export class AnalyticsService {
   }
 
   // Spec §F Global Portal Access / Registration / Engagement / Conversion
-  // maps: one row per country, all from IP-DERIVED ACCESS geography
-  // (PatientActivityEvent.countryCode) — not declared geography. The two must
-  // never be conflated (spec §D/§I), and today Patient.country is mostly a
-  // hard-coded "Nigeria" default (web onboarding, mobile signup and the API
-  // all set it), so a declared-geography map would just report the default.
+  // maps: one row per country. `basis` picks which geography dimension
+  // (spec §D) the map uses — they must never be conflated:
+  //   'access'   — IP-derived, from PatientActivityEvent.countryCode.
+  //                Covers anonymous visitors too (no patient needed).
+  //   'declared' — Patient.countryCode, set ONLY when a client actually
+  //                asked (see country.util.ts / patients.service.ts).
+  //                Anonymous events and patients who haven't declared are
+  //                excluded rather than shown under a fabricated country —
+  //                same rule getGeoComparison uses. Expect this basis to be
+  //                thin (few/no rows) until enough patients have a real
+  //                countryCode; that's a true reflection of adoption, not
+  //                a bug to paper over with the access-geography numbers.
   // Aggregated at country level only — no coordinates, no addresses, no IPs.
   //
   // Conversion metrics reuse KPI_DEFINITIONS and ACTIVATION_QUALIFYING_EVENTS
   // (unique-user based, same as the Funnels tab) so "booking conversion in
   // Ghana" means the same thing as the funnel KPI filtered to Ghana.
-  async getGeoMapAnalytics(period = '30d') {
+  async getGeoMapAnalytics(period = '30d', basis: 'access' | 'declared' = 'access') {
     const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
     const since = new Date();
     since.setDate(since.getDate() - days);
@@ -915,15 +922,34 @@ export class AnalyticsService {
       where: {
         ...AnalyticsService.PRODUCTION_EVENT_FILTER,
         occurredAt: { gte: since },
-        countryCode: { not: null },
+        // Access basis can filter server-side (countryCode is a column);
+        // declared basis needs every authenticated row first, then resolves
+        // each patientId's declared country below.
+        ...(basis === 'access' ? { countryCode: { not: null } } : {}),
       },
       select: { eventName: true, patientId: true, anonymousVisitorId: true, analyticsSessionId: true, countryCode: true },
     });
 
+    let countryOf: (r: (typeof rows)[number]) => string | undefined;
+    if (basis === 'declared') {
+      const patientIds = Array.from(new Set(rows.map((r) => r.patientId).filter((id): id is string => !!id)));
+      const declared = patientIds.length
+        ? await this.prisma.patient.findMany({
+            where: { id: { in: patientIds }, countryCode: { not: null } },
+            select: { id: true, countryCode: true },
+          })
+        : [];
+      const declaredByPatient = new Map(declared.map((p) => [p.id, p.countryCode as string]));
+      countryOf = (r) => (r.patientId ? declaredByPatient.get(r.patientId) : undefined);
+    } else {
+      countryOf = (r) => r.countryCode?.toUpperCase();
+    }
+
     type Bucket = { clicks: number; sessions: Set<string>; usersByEvent: Map<string, Set<string>>; users: Set<string> };
     const byCountry = new Map<string, Bucket>();
     for (const r of rows) {
-      const code = (r.countryCode as string).toUpperCase();
+      const code = countryOf(r);
+      if (!code) continue;
       const b = byCountry.get(code) ?? { clicks: 0, sessions: new Set(), usersByEvent: new Map(), users: new Set() };
       if (r.eventName === 'ui_click') b.clicks++;
       if (r.analyticsSessionId) b.sessions.add(r.analyticsSessionId);
@@ -969,7 +995,7 @@ export class AnalyticsService {
       })
       .sort((a, b) => b.visitors - a.visitors);
 
-    return { data: { countries, period } };
+    return { data: { countries, period, basis } };
   }
 
   // Compares where a patient SAYS they live against where their sessions
