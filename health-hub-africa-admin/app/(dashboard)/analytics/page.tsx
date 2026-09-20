@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download, ChevronRight, ChevronDown } from 'lucide-react'
 import { useAutoRefresh } from '@/lib/hooks/useLiveData'
-import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type ClickstreamAnalytics, type GeoComparison, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
+import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type ClickstreamAnalytics, type GeoComparison, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type UsageServiceKey, type RevenueDataPoint } from '@/lib/api'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { FilterTabs } from '@/components/ui/FilterTabs'
@@ -44,6 +44,29 @@ const CHART_OPTIONS = {
   scales: {
     x: { grid: { color: '#253525' }, ticks: { color: '#8A9A8A', font: { size: 10 } } },
     y: { grid: { color: '#253525' }, ticks: { color: '#8A9A8A', font: { size: 10 }, precision: 0 } },
+  },
+}
+
+// Every service the API reports usage for. Series with no activity in the
+// visible window are dropped at render time so the legend only lists what's
+// actually on the chart.
+const USAGE_SERIES: Array<{ key: UsageServiceKey; label: string; color: string }> = [
+  { key: 'minuteCare', label: 'MinuteCare', color: '#6DC43F' },
+  { key: 'teleCare', label: 'TeleCare', color: '#3B82F6' },
+  { key: 'careTest', label: 'CareTest (labs)', color: '#E8930A' },
+  { key: 'healthConsult', label: 'HealthConsult', color: '#14B8A6' },
+  { key: 'expertReview', label: 'Expert Review', color: '#8B5CF6' },
+  { key: 'neuroFlex', label: 'STRIDE / NeuroFlex', color: '#EC4899' },
+  { key: 'dispatchCare', label: 'DispatchCare', color: '#C0392B' },
+  { key: 'travelSafe', label: 'TravelSafe', color: '#64748B' },
+]
+
+// Same look as CHART_OPTIONS, stacked so up to 8 services stay readable per day.
+const STACKED_CHART_OPTIONS = {
+  ...CHART_OPTIONS,
+  scales: {
+    x: { ...CHART_OPTIONS.scales.x, stacked: true },
+    y: { ...CHART_OPTIONS.scales.y, stacked: true },
   },
 }
 const SOURCE_LABELS: Record<string, string> = {
@@ -512,14 +535,13 @@ export default function AnalyticsPage() {
                   <Bar
                     data={{
                       labels: usageLabels,
-                      datasets: [
-                        { label: 'Appointments', data: usage.slice(-14).map((row) => row.appointments), backgroundColor: '#6DC43F' },
-                        { label: 'TeleCare', data: usage.slice(-14).map((row) => row.telecare), backgroundColor: '#3B82F6' },
-                        { label: 'Dispatch', data: usage.slice(-14).map((row) => row.dispatch), backgroundColor: '#C0392B' },
-                        { label: 'Labs', data: usage.slice(-14).map((row) => row.labOrders), backgroundColor: '#E8930A' },
-                      ],
+                      datasets: USAGE_SERIES.filter((series) => usage.slice(-14).some((row) => row[series.key] > 0)).map((series) => ({
+                        label: series.label,
+                        data: usage.slice(-14).map((row) => row[series.key]),
+                        backgroundColor: series.color,
+                      })),
                     }}
-                    options={CHART_OPTIONS}
+                    options={STACKED_CHART_OPTIONS}
                   />
                 </div>
               )}

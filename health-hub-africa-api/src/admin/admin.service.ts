@@ -52,6 +52,17 @@ const DEFAULT_FLAGS: Record<string, { label: string; description: string; defaul
 
 const FLAGS_REDIS_KEY = 'admin:feature-flags';
 
+// Column keys of the per-day usage pivot — one per ServiceType.
+type UsageKey =
+  | 'minuteCare'
+  | 'teleCare'
+  | 'careTest'
+  | 'healthConsult'
+  | 'expertReview'
+  | 'neuroFlex'
+  | 'dispatchCare'
+  | 'travelSafe';
+
 @Injectable()
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
@@ -726,26 +737,21 @@ export class AdminService {
     };
   }
 
-  // Explicit ServiceType → chart-column map. This used to be substring
-  // matching on the enum's string value, written before anything populated
-  // service_usage_daily; once the daily aggregation cron started writing
-  // real rows it misfiled CareTest (no "lab" in "caretest") as appointments.
-  // Typed as a full Record so adding a ServiceType is a compile error here
-  // instead of a silent misfile. NeuroFlex/TravelSafe/MinuteCare/
-  // HealthConsult have no series of their own on the chart yet, so they roll
-  // into "appointments" — deliberately, not by fall-through.
-  private static readonly USAGE_COLUMN_BY_SERVICE_TYPE: Record<
-    ServiceType,
-    'appointments' | 'telecare' | 'dispatch' | 'labOrders' | 'expertReviews'
-  > = {
-    MinuteCare: 'appointments',
-    TeleCare: 'telecare',
-    CareTest: 'labOrders',
-    HealthConsult: 'appointments',
-    ExpertReview: 'expertReviews',
-    NeuroFlex: 'appointments',
-    DispatchCare: 'dispatch',
-    TravelSafe: 'appointments',
+  // One chart column per ServiceType — no bucketing. An earlier version
+  // matched substrings of the enum value and folded several services into
+  // "appointments"; once the daily aggregation cron started writing real
+  // rows that misfiled CareTest (no "lab" in "caretest") and hid four
+  // services entirely. Typed as a full Record so adding a ServiceType is a
+  // compile error here, not a silent misfile.
+  private static readonly USAGE_KEY_BY_SERVICE_TYPE: Record<ServiceType, UsageKey> = {
+    MinuteCare: 'minuteCare',
+    TeleCare: 'teleCare',
+    CareTest: 'careTest',
+    HealthConsult: 'healthConsult',
+    ExpertReview: 'expertReview',
+    NeuroFlex: 'neuroFlex',
+    DispatchCare: 'dispatchCare',
+    TravelSafe: 'travelSafe',
   };
 
   async getAnalyticsUsage(period = '30d') {
@@ -754,14 +760,16 @@ export class AdminService {
       .findMany({ where: { reportDate: { gte: since } }, orderBy: { reportDate: 'asc' } })
       .catch(() => []);
 
-    // Pivot: one row per date, each service type becomes a column
-    const byDate = new Map<string, { appointments: number; telecare: number; dispatch: number; labOrders: number; expertReviews: number }>();
+    // Pivot: one row per date, every service type its own column (zero-filled
+    // so each row has the same shape and charts don't have to guess).
+    const emptyRow = () =>
+      Object.fromEntries(Object.values(AdminService.USAGE_KEY_BY_SERVICE_TYPE).map((k) => [k, 0])) as Record<UsageKey, number>;
+    const byDate = new Map<string, Record<UsageKey, number>>();
     for (const r of records) {
       const date = r.reportDate.toISOString().split('T')[0];
-      if (!byDate.has(date)) {
-        byDate.set(date, { appointments: 0, telecare: 0, dispatch: 0, labOrders: 0, expertReviews: 0 });
-      }
-      byDate.get(date)![AdminService.USAGE_COLUMN_BY_SERVICE_TYPE[r.serviceType]] += r.totalSessions;
+      const row = byDate.get(date) ?? emptyRow();
+      row[AdminService.USAGE_KEY_BY_SERVICE_TYPE[r.serviceType]] += r.totalSessions;
+      byDate.set(date, row);
     }
 
     return {

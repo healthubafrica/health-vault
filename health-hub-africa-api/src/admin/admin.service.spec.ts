@@ -344,7 +344,7 @@ describe('AdminService.getAnalyticsUsage / getAnalyticsRevenue (read the daily a
 
   const day = new Date('2026-09-10T00:00:00Z');
 
-  it('files every ServiceType under its intended chart column — CareTest is lab volume, not appointments', async () => {
+  it('gives every ServiceType its own column — nothing is folded into another service', async () => {
     const row = (serviceType: string, totalSessions: number) => ({ reportDate: day, serviceType, totalSessions });
     const { service } = buildService({
       usage: [
@@ -364,14 +364,25 @@ describe('AdminService.getAnalyticsUsage / getAnalyticsRevenue (read the daily a
     expect(data).toEqual([
       {
         date: '2026-09-10',
-        telecare: 2,
-        labOrders: 4,
-        expertReviews: 16,
-        dispatch: 64,
-        // MinuteCare + HealthConsult + NeuroFlex + TravelSafe (no series of their own yet)
-        appointments: 1 + 8 + 32 + 128,
+        minuteCare: 1,
+        teleCare: 2,
+        careTest: 4,
+        healthConsult: 8,
+        expertReview: 16,
+        neuroFlex: 32,
+        dispatchCare: 64,
+        travelSafe: 128,
       },
     ]);
+  });
+
+  it('zero-fills services with no activity so every row has the same shape', async () => {
+    const { service } = buildService({ usage: [{ reportDate: day, serviceType: 'CareTest', totalSessions: 3 }] });
+
+    const { data } = await service.getAnalyticsUsage('30d');
+
+    expect(data[0]).toMatchObject({ careTest: 3, teleCare: 0, expertReview: 0, travelSafe: 0 });
+    expect(Object.keys(data[0])).toHaveLength(9); // date + 8 service types
   });
 
   it('pivots multiple days into one row per date', async () => {
@@ -384,7 +395,7 @@ describe('AdminService.getAnalyticsUsage / getAnalyticsRevenue (read the daily a
     });
 
     const { data } = await service.getAnalyticsUsage('30d');
-    expect(data.map((d) => [d.date, d.telecare])).toEqual([['2026-09-10', 3], ['2026-09-11', 5]]);
+    expect(data.map((d) => [d.date, d.teleCare])).toEqual([['2026-09-10', 3], ['2026-09-11', 5]]);
   });
 
   it('returns an empty series instead of throwing when the aggregate table read fails', async () => {
