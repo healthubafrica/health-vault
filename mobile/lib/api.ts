@@ -440,8 +440,11 @@ export const appointments = {
     );
   },
 
+  // Resolves to the bare appointment — the controller returns the service
+  // result unwrapped and no interceptor adds a { data } envelope. Only
+  // list() is enveloped ({ data, meta }).
   create: (data: CreateAppointmentPayload) =>
-    apiRequest<{ data: Appointment }>(
+    apiRequest<Appointment>(
       '/appointments',
       { method: 'POST', body: JSON.stringify(data) }
     ),
