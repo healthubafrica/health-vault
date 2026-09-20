@@ -274,6 +274,33 @@ export function codeableConceptText(concept: FhirCodeableConcept | undefined): s
   ).trim();
 }
 
+// Best-effort id from an OpenEMR create response. FHIR returns the resource
+// itself ({ id }); the REST API wraps the created row ({ data: { uuid,
+// encounter } }, where data may be a one-element array). The uuid is
+// preferred over the numeric encounter number since it is what the rest of
+// the integration keys on. The REST shape has not been confirmed against a
+// live instance — hence several candidates, and responseKeys() below to
+// learn the real one if none match.
+export function extractEncounterId(created: unknown): string | undefined {
+  if (!created || typeof created !== 'object') return undefined;
+  const root = created as Record<string, unknown>;
+  const data = Array.isArray(root.data) ? root.data[0] : root.data;
+  const inner = data && typeof data === 'object' ? (data as Record<string, unknown>) : {};
+  const found = [root.id, root.uuid, inner.uuid, inner.id, inner.encounter, inner.eid, root.encounter]
+    .find((v) => (typeof v === 'string' && v.length > 0) || typeof v === 'number');
+  return found === undefined ? undefined : String(found);
+}
+
+// Field NAMES only, never values — the response is clinical data. Enough to
+// see the response shape in logs without leaking anything about the patient.
+function responseKeys(value: unknown): string {
+  if (!value || typeof value !== 'object') return 'none';
+  const root = value as Record<string, unknown>;
+  const data = Array.isArray(root.data) ? root.data[0] : root.data;
+  const nested = data && typeof data === 'object' ? ` data{${Object.keys(data).join(',')}}` : '';
+  return `${Object.keys(root).join(',') || 'none'}${nested}`;
+}
+
 function mapGender(g: Gender): string {
   const map: Record<string, string> = {
     Male:              'male',
@@ -558,13 +585,15 @@ export class OpenemrProcessor {
 
   // ── Encounter ────────────────────────────────────────────────────────────
   //
-  // Uses FHIR /fhir/Encounter rather than the legacy REST
-  // /api/patient/{uuid}/encounter endpoint. Production hit a 401 on every
-  // REST encounter POST in late June 2026 — the OAuth token that works
-  // for /fhir/* didn't grant whatever scope the REST API requires. FHIR
-  // works with the existing token so we route all encounter writes
-  // through it consistently with our other syncs (Patient, Observation,
-  // MedicationRequest, DocumentReference, etc.).
+  // Tries FHIR /fhir/Encounter first, then falls back to the legacy REST
+  // /api/patient/{uuid}/encounter endpoint when the server answers 404 (see
+  // runSyncEncounter). Production hit a 401 on every REST encounter POST in
+  // late June 2026 — the OAuth token that works for /fhir/* didn't grant
+  // whatever scope the REST API requires — which is why FHIR is preferred
+  // and consistent with our other syncs (Patient, Observation,
+  // MedicationRequest, DocumentReference, etc.). This OpenEMR has no POST
+  // /fhir/Encounter (404), and the REST scope has since been granted, so in
+  // practice every encounter now lands via the REST fallback.
 
   @Process({ name: 'sync-encounter' })
   async handleSyncEncounter(job: Job<SyncJobData>) {
@@ -669,16 +698,20 @@ export class OpenemrProcessor {
     const token = await this.openemrService.getAccessToken();
 
     // OpenEMR's FHIR module supports POST /fhir/Encounter on some versions
-    // and not others — prod returned 404 "Route not found". Try FHIR first
+    // and not others — prod returns 404 "Route not found". Try FHIR first
     // (the right path); if the server doesn't expose it, fall back to the
     // legacy REST endpoint. Either one will let the encounter land.
+    //
+    // The FHIR attempt is a probe, so its 404 is declared expected: without
+    // that, callOpenemr wrote an IntegrationError row (admin System Errors)
+    // and an ERROR log on every booking for a sync that then succeeded.
     let openemrId: string | undefined;
     try {
       const created = await this.openemrService['callOpenemr'](
         token, 'POST', '/fhir/Encounter', fhirEncounter, patientId, appointmentId,
+        { expectedStatuses: [404] },
       );
-      openemrId = (created as Record<string, unknown>).id as string | undefined
-        ?? (created as Record<string, unknown>).uuid as string | undefined;
+      openemrId = extractEncounterId(created);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       // Only swap to REST when FHIR is unavailable (404). Anything else —
@@ -703,7 +736,14 @@ export class OpenemrProcessor {
         patientId,
         appointmentId,
       );
-      openemrId = (created as Record<string, Record<string, unknown>>).data?.eid as string | undefined;
+      openemrId = extractEncounterId(created);
+      if (!openemrId) {
+        // The call succeeded (callOpenemr throws on any non-2xx), so the
+        // encounter was created — we just don't recognise where the id is.
+        this.logger.warn(
+          `OpenEMR REST encounter create returned no recognisable id for appointment ${appointmentId} (response keys: ${responseKeys(created)})`,
+        );
+      }
     }
 
     this.logger.log(

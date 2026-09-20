@@ -3,7 +3,7 @@ import { OpenemrService } from './openemr.service';
 // buildAuthorizationUrl only needs config (client id / base url), redis (state
 // storage) and no queue interaction, so the service is constructed directly
 // with minimal mocks rather than a Nest TestingModule.
-function buildService() {
+function buildService(prisma: unknown = {}) {
   const config = {
     getOrThrow: jest.fn((key: string) => {
       if (key === 'OPENEMR_BASE_URL') return 'https://clinical.example.com';
@@ -14,7 +14,7 @@ function buildService() {
     get: jest.fn(() => 'af-south-1'),
   };
   const redis = { set: jest.fn().mockResolvedValue('OK') };
-  return new OpenemrService({} as any, config as any, {} as any, redis as any);
+  return new OpenemrService(prisma as any, config as any, {} as any, redis as any);
 }
 
 describe('OpenemrService.buildAuthorizationUrl', () => {
@@ -102,5 +102,62 @@ describe('OpenemrService.getAccessToken (concurrent refresh)', () => {
     expect(a).toBe('new-access-token');
     expect(b).toBe('new-access-token');
     expect(c).toBe('new-access-token');
+  });
+});
+
+describe('OpenemrService.callOpenemr (error recording)', () => {
+  function stubFetch(status: number, body: string) {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status,
+      text: async () => body,
+    }) as unknown as typeof fetch;
+  }
+
+  it('records an IntegrationError and logs for an unexpected non-2xx', async () => {
+    const prisma = { integrationError: { create: jest.fn().mockResolvedValue({}) } };
+    const service = buildService(prisma);
+    const logError = jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
+    stubFetch(500, 'boom');
+
+    await expect(
+      (service as any).callOpenemr('token', 'POST', '/api/patient/u/encounter', {}),
+    ).rejects.toThrow(/OpenEMR 500 on POST/);
+
+    expect(prisma.integrationError.create).toHaveBeenCalledTimes(1);
+    expect(logError).toHaveBeenCalledTimes(1);
+  });
+
+  // The encounter sync deliberately tries POST /fhir/Encounter first and falls
+  // back to the REST endpoint when the server answers 404 (this OpenEMR does
+  // not expose it). That 404 is the *expected* outcome of a probe, not an
+  // integration failure — but it was being written to IntegrationError (the
+  // admin System Errors page) and logged at ERROR on every single booking,
+  // even though the fallback then succeeded.
+  it('does not record an IntegrationError or log ERROR for a status the caller declared expected', async () => {
+    const prisma = { integrationError: { create: jest.fn().mockResolvedValue({}) } };
+    const service = buildService(prisma);
+    const logError = jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
+    stubFetch(404, '{"error":"An error occurred","message":"Route not found","code":0}');
+
+    await expect(
+      (service as any).callOpenemr('token', 'POST', '/fhir/Encounter', {}, 'p1', 'a1', { expectedStatuses: [404] }),
+    ).rejects.toThrow(/OpenEMR 404 on POST \/fhir\/Encounter/);
+
+    expect(prisma.integrationError.create).not.toHaveBeenCalled();
+    expect(logError).not.toHaveBeenCalled();
+  });
+
+  it('still records a status that was not declared expected, even when others were', async () => {
+    const prisma = { integrationError: { create: jest.fn().mockResolvedValue({}) } };
+    const service = buildService(prisma);
+    jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
+    stubFetch(401, 'unauthorized');
+
+    await expect(
+      (service as any).callOpenemr('token', 'POST', '/fhir/Encounter', {}, 'p1', 'a1', { expectedStatuses: [404] }),
+    ).rejects.toThrow(/OpenEMR 401 on POST/);
+
+    expect(prisma.integrationError.create).toHaveBeenCalledTimes(1);
   });
 });
