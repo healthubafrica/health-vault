@@ -209,7 +209,7 @@ export function AppointmentsScreen() {
         ...(isInPerson && facilityId && { facilityId }),
       }, bookingIdempotencyKey)
       analytics.track('booking_confirmed', { serviceType, hasProvider: !!selectedProviderId })
-      setBookingSuccess({ refId: res.data.hhaRef, service: selectedService.label, scheduledAt })
+      setBookingSuccess({ refId: res.hhaRef, service: selectedService.label, scheduledAt })
       toast.success('Appointment requested', {
         description: 'Your care team will confirm shortly.',
       })
