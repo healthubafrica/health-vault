@@ -46,6 +46,17 @@ const CHART_OPTIONS = {
     y: { grid: { color: '#253525' }, ticks: { color: '#8A9A8A', font: { size: 10 }, precision: 0 } },
   },
 }
+
+// Spec §J lifecycle segments (mirrors LIFECYCLE_STAGES in the API). They
+// overlap — a patient can be Activated and Returning — and are evaluated
+// within the selected period.
+const LIFECYCLE_STAGE_OPTIONS = [
+  { value: 'anonymous', label: 'Anonymous' },
+  { value: 'registered', label: 'Registered' },
+  { value: 'verified', label: 'Verified' },
+  { value: 'activated', label: 'Activated' },
+  { value: 'returning', label: 'Returning' },
+]
 const SOURCE_LABELS: Record<string, string> = {
   social_media: 'Social media',
   friend: 'Friend',
@@ -262,6 +273,7 @@ export default function AnalyticsPage() {
   const [funnelBrowser, setFunnelBrowser] = useState('')
   const [funnelAcquisitionSource, setFunnelAcquisitionSource] = useState('')
   const [funnelUtmCampaign, setFunnelUtmCampaign] = useState('')
+  const [funnelLifecycleStage, setFunnelLifecycleStage] = useState('')
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
@@ -282,6 +294,7 @@ export default function AnalyticsPage() {
           browser: funnelBrowser || undefined,
           acquisitionSource: funnelAcquisitionSource || undefined,
           utmCampaign: funnelUtmCampaign || undefined,
+          lifecycleStage: funnelLifecycleStage || undefined,
         }),
         adminApi.analytics.demographics(),
         adminApi.analytics.clickstream(period),
@@ -304,7 +317,7 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false)
     }
-  }, [period, funnelCountry, funnelContinent, funnelDevice, funnelAgeBand, funnelPlanTier, funnelGender, funnelNationality, funnelBrowser, funnelAcquisitionSource, funnelUtmCampaign])
+  }, [period, funnelCountry, funnelContinent, funnelDevice, funnelAgeBand, funnelPlanTier, funnelGender, funnelNationality, funnelBrowser, funnelAcquisitionSource, funnelUtmCampaign, funnelLifecycleStage])
 
   useEffect(() => {
     setLoading(true)
@@ -668,6 +681,18 @@ export default function AnalyticsPage() {
                 <option value="">All campaigns</option>
                 {Array.from(new Set((marketing?.campaigns ?? []).map((c) => c.campaign))).map((campaign) => (
                   <option key={campaign} value={campaign}>{campaign}</option>
+                ))}
+              </select>
+              <select
+                value={funnelLifecycleStage}
+                onChange={(e) => setFunnelLifecycleStage(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by lifecycle stage"
+              >
+                <option value="">All lifecycle stages</option>
+                {LIFECYCLE_STAGE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
               <ExportButton onExport={exportFunnelSteps} />

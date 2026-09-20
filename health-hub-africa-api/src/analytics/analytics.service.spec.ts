@@ -379,11 +379,13 @@ describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {
       nationality?: string | null;
     }> = [],
     attributionPatientIds: string[] = [],
+    returningSessionIds: string[] = [],
   ) {
     const prisma = {
       patientActivityEvent: { findMany: jest.fn().mockResolvedValue(rows) },
       patient: { findMany: jest.fn().mockResolvedValue(patients) },
       $queryRaw: jest.fn().mockResolvedValue(attributionPatientIds.map((patientId) => ({ patientId }))),
+      analyticsSession: { findMany: jest.fn().mockResolvedValue(returningSessionIds.map((analyticsSessionId) => ({ analyticsSessionId }))) },
     };
     const service = new AnalyticsService(prisma as any);
     return { service, prisma };
@@ -591,6 +593,82 @@ describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {
     const result = await service.getFunnelAnalytics('30d', { gender: 'female', utmCampaign: 'spring_launch' });
 
     expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
+  });
+
+  describe('lifecycleStage (spec §J)', () => {
+    const ev = (eventName: string, patientId: string | null, extra: Record<string, unknown> = {}) =>
+      ({ eventName, patientId, anonymousVisitorId: patientId ? null : 'anon-1', analyticsSessionId: null, ...extra }) as any;
+
+    it('anonymous keeps only events with no patient; registered keeps only events with one', async () => {
+      const rows = [ev('page_view', null), ev('page_view', 'p1'), ev('page_view', 'p2')];
+
+      const anon = await buildService(rows).service.getFunnelAnalytics('30d', { lifecycleStage: 'anonymous' });
+      expect(anon.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
+
+      const reg = await buildService(rows).service.getFunnelAnalytics('30d', { lifecycleStage: 'registered' });
+      expect(reg.data.steps).toEqual([{ eventName: 'page_view', count: 2, uniqueUsers: 2, uniqueSessions: 0 }]);
+    });
+
+    it('verified resolves through the Patient→User.isVerified lookup and skips it when nobody is registered', async () => {
+      const { service, prisma } = buildService([ev('page_view', 'p1'), ev('page_view', 'p2')]);
+      prisma.patient.findMany.mockResolvedValue([{ id: 'p1' }]);
+
+      const result = await service.getFunnelAnalytics('30d', { lifecycleStage: 'verified' });
+
+      expect(prisma.patient.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ user: { isVerified: true, deletedAt: null } }) }),
+      );
+      expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
+
+      const none = buildService([ev('page_view', null)]);
+      await none.service.getFunnelAnalytics('30d', { lifecycleStage: 'verified' });
+      expect(none.prisma.patient.findMany).not.toHaveBeenCalled();
+    });
+
+    it('activated keeps the whole journey of patients who did a qualifying action, and only them', async () => {
+      const { service } = buildService([
+        ev('page_view', 'p1'),
+        ev('booking_confirmed', 'p1'), // p1 activated
+        ev('page_view', 'p2'), // p2 never did a qualifying action
+      ]);
+
+      const result = await service.getFunnelAnalytics('30d', { lifecycleStage: 'activated' });
+
+      const names = result.data.steps.map((s) => s.eventName).sort();
+      expect(names).toEqual(['booking_confirmed', 'page_view']);
+      expect(result.data.steps.find((s) => s.eventName === 'page_view')).toMatchObject({ count: 1 });
+    });
+
+    it('returning keys off the session flag, so it works for anonymous visitors too', async () => {
+      const { service, prisma } = buildService(
+        [
+          ev('page_view', null, { analyticsSessionId: 's-returning' }),
+          ev('page_view', null, { analyticsSessionId: 's-new' }),
+          ev('page_view', null, { analyticsSessionId: null }),
+        ],
+        [],
+        [],
+        ['s-returning'],
+      );
+
+      const result = await service.getFunnelAnalytics('30d', { lifecycleStage: 'returning' });
+
+      expect(prisma.analyticsSession.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ returningVisitor: true }) }),
+      );
+      expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 1 }]);
+    });
+
+    it('composes with other filters (AND) — lifecycle narrows the already-filtered rows', async () => {
+      const { service } = buildService(
+        [ev('page_view', 'p1'), ev('page_view', 'p2')],
+        [{ id: 'p1', dateOfBirth: new Date(1990, 0, 1), subscriptions: [], gender: 'female' }],
+      );
+
+      const result = await service.getFunnelAnalytics('30d', { gender: 'female', lifecycleStage: 'registered' });
+
+      expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
+    });
   });
 });
 
