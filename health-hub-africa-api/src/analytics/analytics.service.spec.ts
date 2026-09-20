@@ -721,19 +721,25 @@ describe('AnalyticsService.getDigitalExperienceAnalytics (device/browser + clien
 });
 
 describe('AnalyticsService.getGeoComparison (declared vs access geography)', () => {
-  function buildService(events: Array<{ patientId: string; countryCode: string }>, patients: Array<{ id: string; country: string }>) {
+  function buildService(
+    events: Array<{ patientId: string; countryCode: string }>,
+    patients: Array<{ id: string; country: string; countryCode: string | null }>,
+  ) {
     const prisma = {
       patientActivityEvent: { findMany: jest.fn().mockResolvedValue(events) },
-      patient: { findMany: jest.fn().mockResolvedValue(patients) },
+      // countryCode: { not: null } in the real query means undeclared patients
+      // are never returned here — the mock enforces that same filter so a test
+      // can't accidentally pass a null-countryCode patient through.
+      patient: { findMany: jest.fn().mockImplementation(() => Promise.resolve(patients.filter((p) => p.countryCode != null))) },
     };
     const service = new AnalyticsService(prisma as any);
     return { service, prisma };
   }
 
-  it('matches declared country name against the access country code via Intl.DisplayNames', async () => {
+  it('matches on countryCode (ISO code), not on the always-populated country name', async () => {
     const { service } = buildService(
       [{ patientId: 'p1', countryCode: 'NG' }],
-      [{ id: 'p1', country: 'Nigeria' }],
+      [{ id: 'p1', country: 'Nigeria', countryCode: 'NG' }],
     );
 
     const result = await service.getGeoComparison('30d');
@@ -742,18 +748,42 @@ describe('AnalyticsService.getGeoComparison (declared vs access geography)', () 
       { declaredCountry: 'Nigeria', accessCountry: 'Nigeria', patients: 1, matches: true },
     ]);
     expect(result.data.diasporaPatients).toBe(0);
+    expect(result.data.declaredPatients).toBe(1);
+    expect(result.data.undeclaredPatients).toBe(0);
   });
 
-  it('flags a diaspora patient when declared and access countries differ', async () => {
+  it('flags a diaspora patient when declared and access country codes differ', async () => {
     const { service } = buildService(
       [{ patientId: 'p1', countryCode: 'US' }],
-      [{ id: 'p1', country: 'Nigeria' }],
+      [{ id: 'p1', country: 'Nigeria', countryCode: 'NG' }],
     );
 
     const result = await service.getGeoComparison('30d');
 
     expect(result.data.comparisons[0]).toMatchObject({ declaredCountry: 'Nigeria', accessCountry: 'United States', matches: false });
     expect(result.data.diasporaPatients).toBe(1);
+  });
+
+  it('excludes undeclared patients from comparisons instead of reporting a fabricated "Unknown" mismatch', async () => {
+    const { service } = buildService(
+      [
+        { patientId: 'p1', countryCode: 'NG' },
+        { patientId: 'p2', countryCode: 'US' }, // never declared a country
+      ],
+      [
+        { id: 'p1', country: 'Nigeria', countryCode: 'NG' },
+        { id: 'p2', country: 'Nigeria', countryCode: null }, // country defaulted, never actually asked
+      ],
+    );
+
+    const result = await service.getGeoComparison('30d');
+
+    expect(result.data.comparisons).toEqual([
+      { declaredCountry: 'Nigeria', accessCountry: 'Nigeria', patients: 1, matches: true },
+    ]);
+    expect(result.data.declaredPatients).toBe(1);
+    expect(result.data.undeclaredPatients).toBe(1);
+    expect(result.data.totalPatients).toBe(2); // both patients had located activity; only 1 had a declaration to compare
   });
 });
 

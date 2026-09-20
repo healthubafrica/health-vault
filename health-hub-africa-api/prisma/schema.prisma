@@ -324,6 +324,13 @@ model Patient {
   city        String?
   state       String?
   country     String     @default("Nigeria")
+  // ISO 3166-1 alpha-2, set ONLY when the patient explicitly chose their
+  // country (web onboarding/profile via countryCode). Legacy rows and old
+  // clients leave it null on purpose: `country` above is NOT NULL with a
+  // "Nigeria" default and several clients hard-coded it, so `country` alone
+  // can't distinguish "declared Nigeria" from "never asked". Declared-
+  // geography analytics must key on this column, not on `country`.
+  countryCode String?    @map("country_code") @db.Char(2)
   bloodGroup  BloodGroup? @map("blood_group")
   nextOfKinName        String? @map("next_of_kin_name")
   nextOfKinRelationship String? @map("next_of_kin_relationship")

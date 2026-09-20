@@ -981,7 +981,7 @@ export default function AnalyticsPage() {
           <Card padding={false}>
             <CardHeader
               title="Declared vs. access geography"
-              subtitle={`Where patients say they live vs. where their sessions actually originate${geoComparison ? ` — ${geoComparison.diasporaPatients} of ${geoComparison.totalPatients} patients access from a different country than declared` : ''}`}
+              subtitle={`Where patients say they live vs. where their sessions actually originate${geoComparison ? ` — ${geoComparison.diasporaPatients} of ${geoComparison.declaredPatients} patients who declared a country access from a different one (${geoComparison.undeclaredPatients} haven't declared one yet)` : ''}`}
               onExport={geoComparison?.comparisons.length ? exportGeoComparison : undefined}
             />
             {!loading && !geoComparison?.comparisons.length ? (

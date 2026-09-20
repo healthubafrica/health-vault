@@ -895,11 +895,17 @@ export class AnalyticsService {
     };
   }
 
-  // Compares where a patient SAYS they live (Patient.country, entered at
-  // onboarding) against where their sessions actually originate (IP-derived
-  // countryCode on their events) — spec §4.4/§D. Only covers authenticated
-  // events (anonymous visitors have no declared location to compare against).
-  // Declared values never get overwritten by this — it's a read-only report.
+  // Compares where a patient SAYS they live against where their sessions
+  // actually originate (IP-derived countryCode on their events) — spec
+  // §4.4/§D. Keys off Patient.countryCode, NOT Patient.country: `country` is
+  // a NOT NULL column defaulted to "Nigeria" (and hard-coded by several
+  // clients — see country.util.ts), so it can't tell "declared Nigeria"
+  // from "never asked". `countryCode` is only ever set when a client
+  // actually sent one, i.e. the patient was actually asked. Patients who
+  // haven't declared are excluded rather than shown as a fabricated
+  // "Unknown vs NG" mismatch. Only covers authenticated events (anonymous
+  // visitors have no declared location to compare against). Declared
+  // values never get overwritten by this — it's a read-only report.
   async getGeoComparison(period = '30d') {
     const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
     const since = new Date();
@@ -918,29 +924,30 @@ export class AnalyticsService {
 
     const patientIds = Array.from(new Set(rows.map((r) => r.patientId as string)));
     const patients = await this.prisma.patient.findMany({
-      where: { id: { in: patientIds } },
-      select: { id: true, country: true },
+      where: { id: { in: patientIds }, countryCode: { not: null } },
+      select: { id: true, country: true, countryCode: true },
     });
-    const declaredByPatient = new Map(patients.map((p) => [p.id, p.country]));
+    const declaredByPatient = new Map(patients.map((p) => [p.id, { name: p.country, code: p.countryCode as string }]));
 
-    // Patient.country is a free-text country NAME ("Nigeria"); the access
-    // side is an ISO alpha-2 code ("NG") off the geo headers. Intl.DisplayNames
-    // converts the code to its English name so the two sides compare
-    // meaningfully instead of "Nigeria" !== "NG" always mismatching.
     const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
     const comparisonMap = new Map<string, { declaredCountry: string; accessCountry: string; patients: number; matches: boolean }>();
+    let undeclaredPatients = 0;
     for (const r of rows) {
-      const declaredCountry = declaredByPatient.get(r.patientId as string) ?? 'Unknown';
+      const declared = declaredByPatient.get(r.patientId as string);
+      if (!declared) {
+        undeclaredPatients++;
+        continue;
+      }
       const accessCode = (r.countryCode as string).toUpperCase();
+      const matches = declared.code === accessCode;
       let accessCountry = accessCode;
       try {
         accessCountry = regionNames.of(accessCode) ?? accessCode;
       } catch {
         // Unrecognized/reserved code (e.g. private IP range) — keep the raw code.
       }
-      const matches = declaredCountry.toLowerCase() === accessCountry.toLowerCase();
-      const key = `${declaredCountry}|${accessCountry}`;
-      const row = comparisonMap.get(key) ?? { declaredCountry, accessCountry, patients: 0, matches };
+      const key = `${declared.name}|${accessCountry}`;
+      const row = comparisonMap.get(key) ?? { declaredCountry: declared.name, accessCountry, patients: 0, matches };
       row.patients++;
       comparisonMap.set(key, row);
     }
@@ -952,6 +959,8 @@ export class AnalyticsService {
       data: {
         comparisons,
         totalPatients: patientIds.length,
+        declaredPatients: patients.length,
+        undeclaredPatients,
         diasporaPatients,
       },
     };

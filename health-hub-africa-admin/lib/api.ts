@@ -370,6 +370,8 @@ export interface TrafficAnalytics {
 export interface GeoComparison {
   comparisons: Array<{ declaredCountry: string; accessCountry: string; patients: number; matches: boolean }>
   totalPatients: number
+  declaredPatients: number
+  undeclaredPatients: number
   diasporaPatients: number
 }
 
