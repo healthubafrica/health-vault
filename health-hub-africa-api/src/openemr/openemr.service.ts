@@ -723,6 +723,11 @@ export class OpenemrService implements OnModuleInit {
     body?: Record<string, unknown>,
     patientId?: string,
     appointmentId?: string,
+    // Statuses the caller handles itself (e.g. probing a route that some
+    // OpenEMR versions lack, then falling back). Still thrown so the caller
+    // can react, but not treated as an integration failure worth an ERROR
+    // log and an IntegrationError row.
+    options?: { expectedStatuses?: readonly number[] },
   ): Promise<Record<string, unknown>> {
     const isFhir = path.startsWith('/fhir');
     const url = `${this.openemrBase}/apis/default${path}`;
@@ -739,6 +744,11 @@ export class OpenemrService implements OnModuleInit {
 
     if (!res.ok) {
       const text = await res.text().catch(() => '');
+
+      if (options?.expectedStatuses?.includes(res.status)) {
+        throw new Error(`OpenEMR ${res.status} on ${method} ${path}: ${text.slice(0, 200)}`);
+      }
+
       this.logger.error(`OpenEMR ${method} ${path} → ${res.status}: ${text.slice(0, 300)}`);
 
       // GET 404s are routine existence checks (e.g. "does this patient exist?"),
