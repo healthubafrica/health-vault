@@ -367,6 +367,28 @@ export interface TrafficAnalytics {
 // Patient-declared country (Patient.country, entered at onboarding) vs where
 // their sessions actually originate (IP-derived) — spec §4.4. Read-only:
 // declared values are never overwritten by this comparison.
+// Per-country ACCESS-geography metrics (IP-derived, approximate) for the global
+// maps — see AnalyticsService.getGeoMapAnalytics. Not patient-declared geography.
+export interface GeoMapCountry {
+  countryCode: string
+  continent: string
+  continentCode: string
+  visitors: number
+  sessions: number
+  clicks: number
+  registrations: number
+  activatedUsers: number
+  /** null = denominator step never fired in that country */
+  activationRate: number | null
+  bookingConversionRate: number | null
+  paymentSuccessRate: number | null
+}
+
+export interface GeoMapAnalytics {
+  countries: GeoMapCountry[]
+  period: string
+}
+
 export interface GeoComparison {
   comparisons: Array<{ declaredCountry: string; accessCountry: string; patients: number; matches: boolean }>
   totalPatients: number
@@ -926,6 +948,8 @@ export const adminApi = {
       request<{ data: DemographicsAnalytics }>('/admin/analytics/demographics'),
     clickstream: (period = '30d') =>
       request<{ data: ClickstreamAnalytics }>(`/admin/analytics/clickstream?period=${period}`),
+    geoMap: (period = '30d') =>
+      request<{ data: GeoMapAnalytics }>(`/admin/analytics/geo-map?period=${period}`),
     geoComparison: (period = '30d') =>
       request<{ data: GeoComparison }>(`/admin/analytics/geo-comparison?period=${period}`),
     // No default here — an unset lookbackDays lets the API fall back to its
