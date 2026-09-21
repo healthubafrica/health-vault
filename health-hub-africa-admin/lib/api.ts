@@ -922,7 +922,19 @@ export const adminApi = {
       request<{ data: TrafficAnalytics }>(`/admin/analytics/traffic?period=${period}`),
     funnel: (
       period = '30d',
-      filters?: { country?: string; continent?: string; device?: string; ageBand?: string; planTier?: string },
+      filters?: {
+        country?: string
+        continent?: string
+        device?: string
+        ageBand?: string
+        planTier?: string
+        os?: string
+        browser?: string
+        featureArea?: string
+        timezone?: string
+        gender?: string
+        nationality?: string
+      },
     ) => {
       const qs = new URLSearchParams({ period })
       if (filters?.country) qs.set('country', filters.country)
@@ -930,6 +942,12 @@ export const adminApi = {
       if (filters?.device) qs.set('device', filters.device)
       if (filters?.ageBand) qs.set('ageBand', filters.ageBand)
       if (filters?.planTier) qs.set('planTier', filters.planTier)
+      if (filters?.os) qs.set('os', filters.os)
+      if (filters?.browser) qs.set('browser', filters.browser)
+      if (filters?.featureArea) qs.set('featureArea', filters.featureArea)
+      if (filters?.timezone) qs.set('timezone', filters.timezone)
+      if (filters?.gender) qs.set('gender', filters.gender)
+      if (filters?.nationality) qs.set('nationality', filters.nationality)
       return request<{ data: FunnelAnalytics }>(`/admin/analytics/funnel?${qs}`)
     },
     demographics: () =>

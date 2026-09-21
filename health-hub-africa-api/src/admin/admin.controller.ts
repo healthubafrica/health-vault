@@ -187,6 +187,12 @@ export class AdminController {
   @ApiQuery({ name: 'device', required: false, description: 'Filter to a single device category (Desktop/Mobile/Tablet)' })
   @ApiQuery({ name: 'ageBand', required: false, description: 'Filter to a single age band (e.g. "25–34") — spec §J' })
   @ApiQuery({ name: 'planTier', required: false, description: 'Filter to a single subscription plan tier — spec §J' })
+  @ApiQuery({ name: 'os', required: false, description: 'Filter to a single OS — spec §J' })
+  @ApiQuery({ name: 'browser', required: false, description: 'Filter to a single browser — spec §J' })
+  @ApiQuery({ name: 'featureArea', required: false, description: 'Filter to a single feature area — spec §J' })
+  @ApiQuery({ name: 'timezone', required: false, description: 'Filter to a single IANA timezone — spec §J' })
+  @ApiQuery({ name: 'gender', required: false, description: 'Filter to a single sex/gender as collected — spec §J' })
+  @ApiQuery({ name: 'nationality', required: false, description: 'Filter to a single nationality — spec §J' })
   getFunnelAnalytics(
     @Query('period') period?: string,
     @Query('country') country?: string,
@@ -194,8 +200,26 @@ export class AdminController {
     @Query('device') device?: string,
     @Query('ageBand') ageBand?: string,
     @Query('planTier') planTier?: string,
+    @Query('os') os?: string,
+    @Query('browser') browser?: string,
+    @Query('featureArea') featureArea?: string,
+    @Query('timezone') timezone?: string,
+    @Query('gender') gender?: string,
+    @Query('nationality') nationality?: string,
   ) {
-    return this.adminService.getFunnelAnalytics(period, { country, continent, device, ageBand, planTier });
+    return this.adminService.getFunnelAnalytics(period, {
+      country,
+      continent,
+      device,
+      ageBand,
+      planTier,
+      os,
+      browser,
+      featureArea,
+      timezone,
+      gender,
+      nationality,
+    });
   }
 
   @Get('analytics/demographics')

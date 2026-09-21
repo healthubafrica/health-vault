@@ -103,6 +103,24 @@ export interface AccessGeo {
   geoProviderVersion?: string;
 }
 
+// Spec §J Global Dashboard Filters, as implemented on getFunnelAnalytics.
+// country/continent/device/os/browser/featureArea/timezone are direct
+// PatientActivityEvent columns; ageBand/planTier/gender/nationality live on
+// Patient and are resolved via resolvePatientIdsForSegment instead.
+export interface FunnelFilters {
+  country?: string;
+  continent?: string;
+  device?: string;
+  os?: string;
+  browser?: string;
+  featureArea?: string;
+  timezone?: string;
+  ageBand?: string;
+  planTier?: string;
+  gender?: string;
+  nationality?: string;
+}
+
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
@@ -759,13 +777,11 @@ export class AnalyticsService {
   // Step counts (raw + unique users/sessions) for every funnel event name
   // emitted via analytics.track() — not hardcoded per funnel so new event
   // names show up automatically as screens are instrumented; the dashboard
-  // groups them into named steps. Optional country/continent/device/ageBand/
-  // planTier filters narrow both the steps and the KPIs computed from them
-  // (spec §J Global Dashboard Filters — Age Band and Subscription Plan).
-  async getFunnelAnalytics(
-    period = '30d',
-    filters?: { country?: string; continent?: string; device?: string; ageBand?: string; planTier?: string },
-  ) {
+  // groups them into named steps. Filters implement spec §J Global Dashboard
+  // Filters: country/continent/device/os/browser/featureArea/timezone are
+  // direct columns on the event row; ageBand/planTier/gender/nationality
+  // live on Patient instead (see resolvePatientIdsForSegment below).
+  async getFunnelAnalytics(period = '30d', filters?: FunnelFilters) {
     const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
     const since = new Date();
     since.setDate(since.getDate() - days);
@@ -776,6 +792,10 @@ export class AnalyticsService {
         occurredAt: { gte: since },
         ...(filters?.country && { countryCode: filters.country }),
         ...(filters?.device && { deviceCategory: filters.device }),
+        ...(filters?.os && { os: filters.os }),
+        ...(filters?.browser && { browser: filters.browser }),
+        ...(filters?.featureArea && { featureArea: filters.featureArea }),
+        ...(filters?.timezone && { timezone: filters.timezone }),
       },
       select: { eventName: true, patientId: true, anonymousVisitorId: true, analyticsSessionId: true, countryCode: true },
     });
@@ -783,13 +803,15 @@ export class AnalyticsService {
       ? rows.filter((r) => continentForCountry(r.countryCode) === filters.continent)
       : rows;
 
-    // Age band / plan tier live on Patient, not on the event row itself, so
-    // (unlike country/continent/device) this needs a second query resolving
-    // which patients currently match — only run it when actually filtering.
-    // Anonymous events have no patientId and are correctly excluded here:
-    // there's no patient record to segment them by.
-    if (filters?.ageBand || filters?.planTier) {
-      const matchingPatientIds = await this.resolvePatientIdsForSegment(filters.ageBand, filters.planTier);
+    // Age band / plan tier / gender / nationality live on Patient, not on
+    // the event row itself, so (unlike the direct-column filters above)
+    // this needs a second query resolving which patients currently match —
+    // only run it when actually filtering. Anonymous events have no
+    // patientId and are correctly excluded here: there's no patient record
+    // to segment them by.
+    const { ageBand, planTier, gender, nationality } = filters ?? {};
+    if (ageBand || planTier || gender || nationality) {
+      const matchingPatientIds = await this.resolvePatientIdsForSegment({ ageBand, planTier, gender, nationality });
       filtered = filtered.filter((r) => r.patientId && matchingPatientIds.has(r.patientId));
     }
 
@@ -1003,22 +1025,32 @@ export class AnalyticsService {
   // patient ids instead of counts. Only ever called when at least one of
   // the two filters is set, so the extra query stays out of the common
   // unfiltered funnel-load path.
-  private async resolvePatientIdsForSegment(ageBand?: string, planTier?: string): Promise<Set<string>> {
+  private async resolvePatientIdsForSegment(segment: {
+    ageBand?: string;
+    planTier?: string;
+    gender?: string;
+    nationality?: string;
+  }): Promise<Set<string>> {
     const now = new Date();
     const patients = await this.prisma.patient.findMany({
       where: { user: { deletedAt: null } },
       select: {
         id: true,
         dateOfBirth: true,
+        gender: true,
+        nationality: true,
         subscriptions: { where: { status: 'active' }, select: { plan: { select: { tier: true } } }, take: 1 },
       },
     });
 
     const matching = new Set<string>();
     for (const p of patients) {
-      if (ageBand && AnalyticsService.ageBandFor(AnalyticsService.calculateAge(p.dateOfBirth, now)) !== ageBand) continue;
+      if (segment.ageBand && AnalyticsService.ageBandFor(AnalyticsService.calculateAge(p.dateOfBirth, now)) !== segment.ageBand) continue;
       const tier = p.subscriptions[0]?.plan.tier ?? 'Free';
-      if (planTier && tier !== planTier) continue;
+      if (segment.planTier && tier !== segment.planTier) continue;
+      if (segment.gender && p.gender !== segment.gender) continue;
+      const nationality = p.nationality?.trim() || 'Not declared';
+      if (segment.nationality && nationality !== segment.nationality) continue;
       matching.add(p.id);
     }
     return matching;

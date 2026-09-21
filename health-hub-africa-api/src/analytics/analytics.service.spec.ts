@@ -371,7 +371,13 @@ describe('AnalyticsService.trackEvent (anonymous + authenticated identity)', () 
 describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {
   function buildService(
     rows: Array<{ eventName: string; patientId: string | null; anonymousVisitorId: string | null }>,
-    patients: Array<{ id: string; dateOfBirth: Date; subscriptions: Array<{ plan: { tier: string } }> }> = [],
+    patients: Array<{
+      id: string;
+      dateOfBirth: Date;
+      subscriptions: Array<{ plan: { tier: string } }>;
+      gender?: string;
+      nationality?: string | null;
+    }> = [],
   ) {
     const prisma = {
       patientActivityEvent: { findMany: jest.fn().mockResolvedValue(rows) },
@@ -496,11 +502,58 @@ describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {
     expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
   });
 
-  it('does not query Patient at all when no age/plan filter is given', async () => {
+  it('does not query Patient at all when no age/plan/gender/nationality filter is given', async () => {
     const { service, prisma } = buildService([]);
     await service.getFunnelAnalytics('30d', { country: 'NG' });
 
     expect(prisma.patient.findMany).not.toHaveBeenCalled();
+  });
+
+  it('passes os/browser/featureArea/timezone filters through to the query as direct columns', async () => {
+    const { service, prisma } = buildService([]);
+    await service.getFunnelAnalytics('7d', { os: 'iOS', browser: 'Safari', featureArea: 'labs', timezone: 'Africa/Lagos' });
+
+    expect(prisma.patientActivityEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ os: 'iOS', browser: 'Safari', featureArea: 'labs', timezone: 'Africa/Lagos' }),
+      }),
+    );
+  });
+
+  it('narrows by gender client-side, resolved from Patient (spec §J)', async () => {
+    const dob = new Date(1990, 0, 1);
+    const { service } = buildService(
+      [
+        { eventName: 'page_view', patientId: 'p1', anonymousVisitorId: null } as any,
+        { eventName: 'page_view', patientId: 'p2', anonymousVisitorId: null } as any,
+      ],
+      [
+        { id: 'p1', dateOfBirth: dob, subscriptions: [], gender: 'female' },
+        { id: 'p2', dateOfBirth: dob, subscriptions: [], gender: 'male' },
+      ],
+    );
+
+    const result = await service.getFunnelAnalytics('30d', { gender: 'female' });
+
+    expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
+  });
+
+  it('narrows by nationality client-side, defaulting blank nationality to "Not declared" (spec §J)', async () => {
+    const dob = new Date(1990, 0, 1);
+    const { service } = buildService(
+      [
+        { eventName: 'page_view', patientId: 'p1', anonymousVisitorId: null } as any,
+        { eventName: 'page_view', patientId: 'p2', anonymousVisitorId: null } as any,
+      ],
+      [
+        { id: 'p1', dateOfBirth: dob, subscriptions: [], nationality: 'Nigerian' },
+        { id: 'p2', dateOfBirth: dob, subscriptions: [], nationality: null },
+      ],
+    );
+
+    const result = await service.getFunnelAnalytics('30d', { nationality: 'Nigerian' });
+
+    expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
   });
 });
 
