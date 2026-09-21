@@ -369,8 +369,14 @@ describe('AnalyticsService.trackEvent (anonymous + authenticated identity)', () 
 });
 
 describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {
-  function buildService(rows: Array<{ eventName: string; patientId: string | null; anonymousVisitorId: string | null }>) {
-    const prisma = { patientActivityEvent: { findMany: jest.fn().mockResolvedValue(rows) } };
+  function buildService(
+    rows: Array<{ eventName: string; patientId: string | null; anonymousVisitorId: string | null }>,
+    patients: Array<{ id: string; dateOfBirth: Date; subscriptions: Array<{ plan: { tier: string } }> }> = [],
+  ) {
+    const prisma = {
+      patientActivityEvent: { findMany: jest.fn().mockResolvedValue(rows) },
+      patient: { findMany: jest.fn().mockResolvedValue(patients) },
+    };
     const service = new AnalyticsService(prisma as any);
     return { service, prisma };
   }
@@ -447,6 +453,54 @@ describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {
     const result = await service.getFunnelAnalytics('30d', { continent: 'Africa' });
 
     expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
+  });
+
+  it('narrows by age band client-side, resolved from Patient (spec §J)', async () => {
+    const now = new Date();
+    const age30 = new Date(now.getFullYear() - 30, now.getMonth(), now.getDate());
+    const age70 = new Date(now.getFullYear() - 70, now.getMonth(), now.getDate());
+    const { service, prisma } = buildService(
+      [
+        { eventName: 'page_view', patientId: 'p1', anonymousVisitorId: null } as any,
+        { eventName: 'page_view', patientId: 'p2', anonymousVisitorId: null } as any,
+        // anonymous events have no patient to segment by age — excluded whenever an age/plan filter is active
+        { eventName: 'page_view', patientId: null, anonymousVisitorId: 'anon-1' } as any,
+      ],
+      [
+        { id: 'p1', dateOfBirth: age30, subscriptions: [] },
+        { id: 'p2', dateOfBirth: age70, subscriptions: [] },
+      ],
+    );
+
+    const result = await service.getFunnelAnalytics('30d', { ageBand: '25–34' });
+
+    expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
+    expect(prisma.patient.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('narrows by plan tier client-side, resolved from Patient (spec §J)', async () => {
+    const dob = new Date(1990, 0, 1);
+    const { service } = buildService(
+      [
+        { eventName: 'page_view', patientId: 'p1', anonymousVisitorId: null } as any,
+        { eventName: 'page_view', patientId: 'p2', anonymousVisitorId: null } as any,
+      ],
+      [
+        { id: 'p1', dateOfBirth: dob, subscriptions: [{ plan: { tier: 'SilverCare' } }] },
+        { id: 'p2', dateOfBirth: dob, subscriptions: [] }, // no active subscription -> defaults to Free
+      ],
+    );
+
+    const result = await service.getFunnelAnalytics('30d', { planTier: 'SilverCare' });
+
+    expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
+  });
+
+  it('does not query Patient at all when no age/plan filter is given', async () => {
+    const { service, prisma } = buildService([]);
+    await service.getFunnelAnalytics('30d', { country: 'NG' });
+
+    expect(prisma.patient.findMany).not.toHaveBeenCalled();
   });
 });
 

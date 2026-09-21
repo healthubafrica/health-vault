@@ -785,7 +785,10 @@ export class AdminService {
     return this.analyticsService.getTrafficAnalytics(period);
   }
 
-  getFunnelAnalytics(period = '30d', filters?: { country?: string; continent?: string; device?: string }) {
+  getFunnelAnalytics(
+    period = '30d',
+    filters?: { country?: string; continent?: string; device?: string; ageBand?: string; planTier?: string },
+  ) {
     return this.analyticsService.getFunnelAnalytics(period, filters);
   }
 

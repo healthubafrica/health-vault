@@ -759,9 +759,13 @@ export class AnalyticsService {
   // Step counts (raw + unique users/sessions) for every funnel event name
   // emitted via analytics.track() — not hardcoded per funnel so new event
   // names show up automatically as screens are instrumented; the dashboard
-  // groups them into named steps. Optional country/continent/device filters
-  // narrow both the steps and the KPIs computed from them.
-  async getFunnelAnalytics(period = '30d', filters?: { country?: string; continent?: string; device?: string }) {
+  // groups them into named steps. Optional country/continent/device/ageBand/
+  // planTier filters narrow both the steps and the KPIs computed from them
+  // (spec §J Global Dashboard Filters — Age Band and Subscription Plan).
+  async getFunnelAnalytics(
+    period = '30d',
+    filters?: { country?: string; continent?: string; device?: string; ageBand?: string; planTier?: string },
+  ) {
     const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
     const since = new Date();
     since.setDate(since.getDate() - days);
@@ -775,9 +779,19 @@ export class AnalyticsService {
       },
       select: { eventName: true, patientId: true, anonymousVisitorId: true, analyticsSessionId: true, countryCode: true },
     });
-    const filtered = filters?.continent
+    let filtered = filters?.continent
       ? rows.filter((r) => continentForCountry(r.countryCode) === filters.continent)
       : rows;
+
+    // Age band / plan tier live on Patient, not on the event row itself, so
+    // (unlike country/continent/device) this needs a second query resolving
+    // which patients currently match — only run it when actually filtering.
+    // Anonymous events have no patientId and are correctly excluded here:
+    // there's no patient record to segment them by.
+    if (filters?.ageBand || filters?.planTier) {
+      const matchingPatientIds = await this.resolvePatientIdsForSegment(filters.ageBand, filters.planTier);
+      filtered = filtered.filter((r) => r.patientId && matchingPatientIds.has(r.patientId));
+    }
 
     const byEvent = new Map<string, { count: number; users: Set<string>; sessions: Set<string> }>();
     for (const r of filtered) {
@@ -982,6 +996,32 @@ export class AnalyticsService {
 
   private static ageBandFor(age: number): string {
     return AnalyticsService.AGE_BANDS.find((b) => age >= b.minAge && (b.maxAge === null || age <= b.maxAge))?.label ?? 'Unknown';
+  }
+
+  // Backs the funnel filter's ageBand/planTier options (spec §J) — same
+  // band/tier logic as getDemographicsAnalytics, just returning matching
+  // patient ids instead of counts. Only ever called when at least one of
+  // the two filters is set, so the extra query stays out of the common
+  // unfiltered funnel-load path.
+  private async resolvePatientIdsForSegment(ageBand?: string, planTier?: string): Promise<Set<string>> {
+    const now = new Date();
+    const patients = await this.prisma.patient.findMany({
+      where: { user: { deletedAt: null } },
+      select: {
+        id: true,
+        dateOfBirth: true,
+        subscriptions: { where: { status: 'active' }, select: { plan: { select: { tier: true } } }, take: 1 },
+      },
+    });
+
+    const matching = new Set<string>();
+    for (const p of patients) {
+      if (ageBand && AnalyticsService.ageBandFor(AnalyticsService.calculateAge(p.dateOfBirth, now)) !== ageBand) continue;
+      const tier = p.subscriptions[0]?.plan.tier ?? 'Free';
+      if (planTier && tier !== planTier) continue;
+      matching.add(p.id);
+    }
+    return matching;
   }
 
   // Spec §18 Demographics & Geography dashboard: age bands, sex/gender as
