@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download, ChevronRight, ChevronDown } from 'lucide-react'
 import { useAutoRefresh } from '@/lib/hooks/useLiveData'
-import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type ClickstreamAnalytics, type GeoComparison, type GeoMapAnalytics, type GeoMapCountry, type GeoBasis, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type UsageServiceKey, type RevenueDataPoint } from '@/lib/api'
+import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type ClickstreamAnalytics, type GeoComparison, type GeoMapAnalytics, type GeoMapCountry, type GeoBasis, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type UsageServiceKey, type RevenueDataPoint, type CoreKpis } from '@/lib/api'
 import dynamic from 'next/dynamic'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -325,11 +325,12 @@ export default function AnalyticsPage() {
   const [funnelUtmCampaign, setFunnelUtmCampaign] = useState('')
   const [funnelLifecycleStage, setFunnelLifecycleStage] = useState('')
   const [funnelCompare, setFunnelCompare] = useState(false)
+  const [coreKpis, setCoreKpis] = useState<CoreKpis | null>(null)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     try {
-      const [rRes, uRes, mRes, tRes, fRes, demoRes, csRes, gRes, mapRes, retRes, deRes, secRes] = await Promise.all([
+      const [rRes, uRes, mRes, tRes, fRes, demoRes, csRes, gRes, mapRes, retRes, deRes, secRes, ckRes] = await Promise.all([
         adminApi.analytics.revenue(period),
         adminApi.analytics.usage(period),
         adminApi.analytics.marketing(period),
@@ -358,6 +359,7 @@ export default function AnalyticsPage() {
         adminApi.analytics.retention(),
         adminApi.analytics.digitalExperience(period),
         adminApi.analytics.security(period),
+        adminApi.analytics.coreKpis(period),
       ])
       setRevenue(rRes.data)
       setUsage(uRes.data)
@@ -371,6 +373,7 @@ export default function AnalyticsPage() {
       setRetention(retRes.data)
       setDigitalExperience(deRes.data)
       setSecurity(secRes.data)
+      setCoreKpis(ckRes.data)
     } finally {
       setLoading(false)
     }
@@ -810,6 +813,39 @@ export default function AnalyticsPage() {
                 <p className="text-[11px] mb-2" style={{ color: 'var(--color-text-faint)' }}>
                   Comparing to the previous {period}: {new Date(funnel.comparisonWindow.since).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })} – {new Date(funnel.comparisonWindow.until).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}
                 </p>
+              )}
+              {coreKpis && (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  <Card>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>{coreKpis.mau.label}</p>
+                    <p className="text-2xl font-bold mt-1" style={{ color: 'var(--color-text)' }}>{coreKpis.mau.value}</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-faint)' }}>Rolling {coreKpis.mau.windowDays}d, not the period filter above</p>
+                  </Card>
+                  <Card>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>{coreKpis.clicksPerSession.label}</p>
+                    <p className="text-2xl font-bold mt-1" style={{ color: 'var(--color-text)' }}>{coreKpis.clicksPerSession.value === null ? '—' : coreKpis.clicksPerSession.value}</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-faint)' }}>
+                      {coreKpis.clicksPerSession.denominator === 0 ? 'No engaged sessions yet' : `${coreKpis.clicksPerSession.numerator} clicks / ${coreKpis.clicksPerSession.denominator} sessions`}
+                    </p>
+                  </Card>
+                  <Card className="sm:col-span-2 lg:col-span-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Feature Adoption</p>
+                    {coreKpis.featureAdoption.length === 0 ? (
+                      <p className="text-xs" style={{ color: 'var(--color-text-faint)' }}>No featureArea-tagged activity yet.</p>
+                    ) : (
+                      <div className="flex flex-col gap-1">
+                        {coreKpis.featureAdoption.slice(0, 4).map((f) => (
+                          <div key={f.featureArea} className="flex items-center justify-between text-sm">
+                            <span style={{ color: 'var(--color-text-muted)' }}>{f.featureArea}</span>
+                            <span className="tabular-nums font-medium" style={{ color: 'var(--color-text)' }}>
+                              {f.value === null ? '—' : `${f.value}%`} ({f.activePatients}/{f.eligiblePatients})
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Card>
+                </div>
               )}
               <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
                 {(funnel?.kpis ?? []).map((kpi) => (

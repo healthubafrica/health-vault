@@ -1641,4 +1641,92 @@ export class AnalyticsService {
       },
     };
   }
+
+  // Spec §26's three minimum-required KPIs that had no implementation
+  // anywhere in this service: MAU, Clicks per Session, Feature Adoption.
+  async getCoreKpis(period = '30d') {
+    // MAU is spec'd as "rolling/configured 30-day period" — a fixed window,
+    // not the dashboard's period selector — same fixed-window convention
+    // RETENTION_WINDOWS already uses for D30/D60/D90 in this file.
+    const mauSince = new Date();
+    mauSince.setDate(mauSince.getDate() - 30);
+    const mauRows = await this.prisma.patientActivityEvent.findMany({
+      where: {
+        ...AnalyticsService.PRODUCTION_EVENT_FILTER,
+        occurredAt: { gte: mauSince },
+        patientId: { not: null },
+        eventName: { in: AnalyticsService.ACTIVATION_QUALIFYING_EVENTS },
+      },
+      select: { patientId: true },
+    });
+    const mau = new Set(mauRows.map((r) => r.patientId as string)).size;
+
+    const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const [sessions, featureRows, eligibleRows] = await Promise.all([
+      this.prisma.analyticsSession.findMany({
+        where: { isTestEvent: false, startedAt: { gte: since }, engaged: true },
+        select: { clickCount: true },
+      }),
+      this.prisma.patientActivityEvent.findMany({
+        where: { ...AnalyticsService.PRODUCTION_EVENT_FILTER, occurredAt: { gte: since }, patientId: { not: null }, featureArea: { not: null } },
+        select: { patientId: true, featureArea: true },
+      }),
+      // "Eligible active patients" — the denominator for feature adoption —
+      // uses the same qualifying-activity definition as MAU, but scoped to
+      // THIS period (not the fixed 30-day MAU window) so the adoption
+      // percentage moves in step with the period selector.
+      this.prisma.patientActivityEvent.findMany({
+        where: {
+          ...AnalyticsService.PRODUCTION_EVENT_FILTER,
+          occurredAt: { gte: since },
+          patientId: { not: null },
+          eventName: { in: AnalyticsService.ACTIVATION_QUALIFYING_EVENTS },
+        },
+        select: { patientId: true },
+      }),
+    ]);
+
+    const totalClicks = sessions.reduce((sum, s) => sum + s.clickCount, 0);
+    const clicksPerSession = {
+      key: 'clicksPerSession',
+      label: 'Clicks per Session',
+      numerator: totalClicks,
+      denominator: sessions.length,
+      value: sessions.length > 0 ? Math.round((totalClicks / sessions.length) * 10) / 10 : null,
+    };
+
+    const eligiblePatients = new Set(eligibleRows.map((r) => r.patientId as string));
+    const patientsByFeature = new Map<string, Set<string>>();
+    for (const r of featureRows) {
+      if (!r.patientId || !r.featureArea) continue;
+      const set = patientsByFeature.get(r.featureArea) ?? new Set<string>();
+      set.add(r.patientId);
+      patientsByFeature.set(r.featureArea, set);
+    }
+    // Numerator is the intersection with eligiblePatients, not every patient
+    // who touched the feature — spec formula is "active patients using
+    // feature", not "all patients using feature".
+    const featureAdoption = Array.from(patientsByFeature.entries())
+      .map(([featureArea, patients]) => {
+        const activePatients = [...patients].filter((id) => eligiblePatients.has(id)).length;
+        return {
+          featureArea,
+          activePatients,
+          eligiblePatients: eligiblePatients.size,
+          value: eligiblePatients.size > 0 ? Math.round((activePatients / eligiblePatients.size) * 1000) / 10 : null,
+        };
+      })
+      .sort((a, b) => b.activePatients - a.activePatients);
+
+    return {
+      data: {
+        mau: { key: 'mau', label: 'Monthly Active Patients', value: mau, windowDays: 30 },
+        clicksPerSession,
+        featureAdoption,
+      },
+    };
+  }
 }

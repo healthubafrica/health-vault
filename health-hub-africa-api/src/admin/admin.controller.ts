@@ -286,6 +286,13 @@ export class AdminController {
     return this.adminService.getDigitalExperienceAnalytics(period);
   }
 
+  @Get('analytics/core-kpis')
+  @ApiOperation({ summary: 'MAU, Clicks per Session, and Feature Adoption — spec §26 minimum-required KPIs (default 30d; MAU is always a fixed rolling 30-day window)' })
+  @ApiQuery({ name: 'period', required: false, description: "Scopes Clicks per Session and Feature Adoption; e.g. '7d', '30d', '90d' (default 30d)" })
+  getCoreKpis(@Query('period') period?: string) {
+    return this.adminService.getCoreKpis(period);
+  }
+
   @Get('analytics/security')
   @ApiOperation({ summary: 'Get login failure rate, failure locations, and cross-country login anomalies' })
   @ApiQuery({ name: 'period', required: false, description: "e.g. '7d', '30d', '90d' (default 30d)" })
