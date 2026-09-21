@@ -962,6 +962,83 @@ export class AnalyticsService {
     };
   }
 
+  // Spec §F Global Portal Access / Registration / Engagement / Conversion
+  // maps: one row per country, all from IP-DERIVED ACCESS geography
+  // (PatientActivityEvent.countryCode) — not declared geography. The two must
+  // never be conflated (spec §D/§I), and today Patient.country is mostly a
+  // hard-coded "Nigeria" default (web onboarding, mobile signup and the API
+  // all set it), so a declared-geography map would just report the default.
+  // Aggregated at country level only — no coordinates, no addresses, no IPs.
+  //
+  // Conversion metrics reuse KPI_DEFINITIONS and ACTIVATION_QUALIFYING_EVENTS
+  // (unique-user based, same as the Funnels tab) so "booking conversion in
+  // Ghana" means the same thing as the funnel KPI filtered to Ghana.
+  async getGeoMapAnalytics(period = '30d') {
+    const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const rows = await this.prisma.patientActivityEvent.findMany({
+      where: {
+        ...AnalyticsService.PRODUCTION_EVENT_FILTER,
+        occurredAt: { gte: since },
+        countryCode: { not: null },
+      },
+      select: { eventName: true, patientId: true, anonymousVisitorId: true, analyticsSessionId: true, countryCode: true },
+    });
+
+    type Bucket = { clicks: number; sessions: Set<string>; usersByEvent: Map<string, Set<string>>; users: Set<string> };
+    const byCountry = new Map<string, Bucket>();
+    for (const r of rows) {
+      const code = (r.countryCode as string).toUpperCase();
+      const b = byCountry.get(code) ?? { clicks: 0, sessions: new Set(), usersByEvent: new Map(), users: new Set() };
+      if (r.eventName === 'ui_click') b.clicks++;
+      if (r.analyticsSessionId) b.sessions.add(r.analyticsSessionId);
+      const userKey = r.patientId ?? (r.anonymousVisitorId ? `anon:${r.anonymousVisitorId}` : undefined);
+      if (userKey) {
+        b.users.add(userKey);
+        const set = b.usersByEvent.get(r.eventName) ?? new Set<string>();
+        set.add(userKey);
+        b.usersByEvent.set(r.eventName, set);
+      }
+      byCountry.set(code, b);
+    }
+
+    const rate = (numerator: number, denominator: number) =>
+      denominator > 0 ? Math.round((numerator / denominator) * 1000) / 10 : null;
+
+    const countries = Array.from(byCountry.entries())
+      .map(([countryCode, b]) => {
+        const unique = (eventName: string) => b.usersByEvent.get(eventName)?.size ?? 0;
+        const registered = b.usersByEvent.get('registration_complete') ?? new Set<string>();
+        const activated = new Set<string>();
+        for (const eventName of AnalyticsService.ACTIVATION_QUALIFYING_EVENTS) {
+          for (const u of b.usersByEvent.get(eventName) ?? []) if (registered.has(u)) activated.add(u);
+        }
+        const kpi = (key: string) => {
+          const def = AnalyticsService.KPI_DEFINITIONS.find((d) => d.key === key)!;
+          return rate(unique(def.numerator), unique(def.denominator));
+        };
+        const continent = continentForCountry(countryCode);
+        return {
+          countryCode,
+          continent,
+          continentCode: continentCodeForContinent(continent),
+          visitors: b.users.size,
+          sessions: b.sessions.size,
+          clicks: b.clicks,
+          registrations: registered.size,
+          activatedUsers: activated.size,
+          activationRate: rate(activated.size, registered.size),
+          bookingConversionRate: kpi('bookingConversionRate'),
+          paymentSuccessRate: kpi('paymentSuccessRate'),
+        };
+      })
+      .sort((a, b) => b.visitors - a.visitors);
+
+    return { data: { countries, period } };
+  }
+
   // Compares where a patient SAYS they live (Patient.country, entered at
   // onboarding) against where their sessions actually originate (IP-derived
   // countryCode on their events) — spec §4.4/§D. Only covers authenticated

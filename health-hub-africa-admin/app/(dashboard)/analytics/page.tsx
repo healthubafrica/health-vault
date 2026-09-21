@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download, ChevronRight, ChevronDown } from 'lucide-react'
 import { useAutoRefresh } from '@/lib/hooks/useLiveData'
-import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type ClickstreamAnalytics, type GeoComparison, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type UsageServiceKey, type RevenueDataPoint } from '@/lib/api'
+import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type ClickstreamAnalytics, type GeoComparison, type GeoMapAnalytics, type GeoMapCountry, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type UsageServiceKey, type RevenueDataPoint } from '@/lib/api'
+import dynamic from 'next/dynamic'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { FilterTabs } from '@/components/ui/FilterTabs'
@@ -96,6 +97,26 @@ function countryName(code: string) {
     return code
   }
 }
+
+// Chart.js + the ~100KB world atlas only load when the Geography tab renders the map.
+const WorldMap = dynamic(() => import('@/components/analytics/WorldMap'), {
+  ssr: false,
+  loading: () => <SkeletonBox height={360} className="rounded-xl" />,
+})
+
+// Spec §F maps that rest on IP-derived ACCESS geography. The two declared-
+// geography maps (Patient Distribution, and "declared vs access") are not
+// here on purpose: Patient.country is a hard-coded "Nigeria" default in web
+// onboarding, mobile signup and the API, so it isn't real data yet.
+const MAP_METRICS: Array<{ key: keyof GeoMapCountry; label: string; kind: 'count' | 'rate'; unit: string }> = [
+  { key: 'visitors', label: 'Portal access (unique visitors)', kind: 'count', unit: '' },
+  { key: 'sessions', label: 'Engagement (sessions)', kind: 'count', unit: '' },
+  { key: 'clicks', label: 'Engagement (clicks)', kind: 'count', unit: '' },
+  { key: 'registrations', label: 'Registrations', kind: 'count', unit: '' },
+  { key: 'activationRate', label: 'Activation rate', kind: 'rate', unit: '%' },
+  { key: 'bookingConversionRate', label: 'Booking conversion', kind: 'rate', unit: '%' },
+  { key: 'paymentSuccessRate', label: 'Payment success', kind: 'rate', unit: '%' },
+]
 
 function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
@@ -283,6 +304,8 @@ export default function AnalyticsPage() {
   const [demographics, setDemographics] = useState<DemographicsAnalytics | null>(null)
   const [clickstream, setClickstream] = useState<ClickstreamAnalytics | null>(null)
   const [geoComparison, setGeoComparison] = useState<GeoComparison | null>(null)
+  const [geoMap, setGeoMap] = useState<GeoMapAnalytics | null>(null)
+  const [mapMetricKey, setMapMetricKey] = useState<keyof GeoMapCountry>('visitors')
   const [retention, setRetention] = useState<RetentionAnalytics | null>(null)
   const [digitalExperience, setDigitalExperience] = useState<DigitalExperienceAnalytics | null>(null)
   const [security, setSecurity] = useState<SecurityAnalytics | null>(null)
@@ -301,7 +324,7 @@ export default function AnalyticsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [rRes, uRes, mRes, tRes, fRes, demoRes, csRes, gRes, retRes, deRes, secRes] = await Promise.all([
+      const [rRes, uRes, mRes, tRes, fRes, demoRes, csRes, gRes, mapRes, retRes, deRes, secRes] = await Promise.all([
         adminApi.analytics.revenue(period),
         adminApi.analytics.usage(period),
         adminApi.analytics.marketing(period),
@@ -322,6 +345,7 @@ export default function AnalyticsPage() {
         adminApi.analytics.demographics(),
         adminApi.analytics.clickstream(period),
         adminApi.analytics.geoComparison(period),
+        adminApi.analytics.geoMap(period),
         adminApi.analytics.retention(),
         adminApi.analytics.digitalExperience(period),
         adminApi.analytics.security(period),
@@ -334,6 +358,7 @@ export default function AnalyticsPage() {
       setDemographics(demoRes.data)
       setClickstream(csRes.data)
       setGeoComparison(gRes.data)
+      setGeoMap(mapRes.data)
       setRetention(retRes.data)
       setDigitalExperience(deRes.data)
       setSecurity(secRes.data)
@@ -382,6 +407,12 @@ export default function AnalyticsPage() {
   )
   const groupedEventNames = new Set(Object.values(FUNNEL_GROUPS).flat())
   const otherEvents = (funnel?.steps ?? []).filter((s) => !groupedEventNames.has(s.eventName))
+  const mapMetric = MAP_METRICS.find((m) => m.key === mapMetricKey) ?? MAP_METRICS[0]
+  // Accessible text alternative to the canvas map; also lists countries the atlas can't draw.
+  const topMapCountries = (geoMap?.countries ?? [])
+    .filter((c) => typeof c[mapMetric.key] === 'number' && (c[mapMetric.key] as number) > 0)
+    .sort((a, b) => (b[mapMetric.key] as number) - (a[mapMetric.key] as number))
+    .slice(0, 10)
   const topTrafficLocation = traffic?.locations[0]
   const maxTrafficDeviceCount = useMemo(
     () => Math.max(1, ...(traffic?.devices.map((row) => row.count) ?? [1])),
@@ -968,6 +999,56 @@ export default function AnalyticsPage() {
 
       {section === 'Geography' && (
         <>
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Global portal map</h2>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                Where portal sessions connect from — approximate, IP-derived, aggregated by country. This is access geography, not where patients say they live.
+              </p>
+            </div>
+            <select
+              value={mapMetricKey}
+              onChange={(e) => setMapMetricKey(e.target.value as keyof GeoMapCountry)}
+              className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+              style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+              aria-label="Map metric"
+            >
+              {MAP_METRICS.map((m) => (
+                <option key={m.key} value={m.key}>{m.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <Card className="mb-6">
+            {loading && !geoMap ? (
+              <SkeletonBox height={360} className="rounded-xl" />
+            ) : !geoMap?.countries.length ? (
+              <Empty>No located portal activity in this period yet.</Empty>
+            ) : (
+              <div className="grid lg:grid-cols-[1.8fr_1fr] gap-5">
+                <WorldMap
+                  countries={geoMap.countries.map((c) => ({ countryCode: c.countryCode, value: c[mapMetric.key] as number | null }))}
+                  metricLabel={mapMetric.label}
+                  kind={mapMetric.kind}
+                  unit={mapMetric.unit}
+                />
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--color-text-muted)' }}>
+                    Top countries — {mapMetric.label}
+                  </p>
+                  <ol className="text-xs">
+                    {topMapCountries.map((c) => (
+                      <li key={c.countryCode} className="flex items-center justify-between py-1.5 border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                        <span style={{ color: 'var(--color-text)' }}>{countryName(c.countryCode)} <span style={{ color: 'var(--color-text-faint)' }}>· {c.continent}</span></span>
+                        <span className="font-semibold" style={{ color: 'var(--color-text)' }}>{(c[mapMetric.key] as number).toLocaleString()}{mapMetric.unit}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              </div>
+            )}
+          </Card>
+
           <div className="mb-3">
             <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Site traffic</h2>
             <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>

@@ -249,6 +249,13 @@ export class AdminController {
     return this.adminService.getClickstreamAnalytics(period);
   }
 
+  @Get('analytics/geo-map')
+  @ApiOperation({ summary: 'Per-country access-geography metrics for the global maps (spec §F) — IP-derived, not patient-declared' })
+  @ApiQuery({ name: 'period', required: false, description: "e.g. '7d', '30d', '90d' (default 30d)" })
+  getGeoMapAnalytics(@Query('period') period?: string) {
+    return this.adminService.getGeoMapAnalytics(period);
+  }
+
   @Get('analytics/geo-comparison')
   @ApiOperation({ summary: 'Compare patient-declared country against IP-derived access country (spec §4.4)' })
   getGeoComparison(@Query('period') period?: string) {

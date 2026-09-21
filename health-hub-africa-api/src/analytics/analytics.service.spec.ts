@@ -1122,3 +1122,82 @@ describe('AnalyticsService.getTrafficAnalytics (country -> region -> city hierar
     ]);
   });
 });
+
+describe('AnalyticsService.getGeoMapAnalytics (access-geography metrics per country)', () => {
+  type Row = { eventName: string; patientId: string | null; anonymousVisitorId: string | null; analyticsSessionId: string | null; countryCode: string | null };
+  const ev = (eventName: string, countryCode: string, who: string, session: string | null = null): Row => ({
+    eventName,
+    patientId: who.startsWith('p') ? who : null,
+    anonymousVisitorId: who.startsWith('p') ? null : who,
+    analyticsSessionId: session,
+    countryCode,
+  });
+
+  function buildService(rows: Row[]) {
+    const prisma = { patientActivityEvent: { findMany: jest.fn().mockResolvedValue(rows) } };
+    return { service: new AnalyticsService(prisma as any), prisma };
+  }
+
+  it('buckets by country and counts unique visitors, distinct sessions and raw clicks', async () => {
+    const { service } = buildService([
+      ev('page_view', 'NG', 'p1', 's1'),
+      ev('ui_click', 'NG', 'p1', 's1'),
+      ev('ui_click', 'NG', 'p1', 's1'),
+      ev('page_view', 'NG', 'anon-1', 's2'),
+      ev('page_view', 'GH', 'anon-2', 's3'),
+    ]);
+
+    const { data } = await service.getGeoMapAnalytics('30d');
+
+    const ng = data.countries.find((c) => c.countryCode === 'NG')!;
+    expect(ng).toMatchObject({ visitors: 2, sessions: 2, clicks: 2, continent: 'Africa', continentCode: 'AF' });
+    expect(data.countries.find((c) => c.countryCode === 'GH')).toMatchObject({ visitors: 1, sessions: 1, clicks: 0 });
+    expect(data.countries.map((c) => c.countryCode)).toEqual(['NG', 'GH']); // sorted by visitors desc
+  });
+
+  it('computes conversion with the same unique-user KPI definitions as the funnel, per country', async () => {
+    const { service } = buildService([
+      ev('booking_started', 'NG', 'p1'),
+      ev('booking_started', 'NG', 'p2'),
+      ev('booking_confirmed', 'NG', 'p1'), // 1 of 2 -> 50%
+      ev('registration_complete', 'NG', 'p1'),
+      ev('registration_complete', 'NG', 'p2'), // p1 activated via booking_confirmed, p2 not -> 50%
+      ev('checkout_started', 'GH', 'p3'), // no payment_success -> 0%
+    ]);
+
+    const { data } = await service.getGeoMapAnalytics('30d');
+
+    const ng = data.countries.find((c) => c.countryCode === 'NG')!;
+    expect(ng.bookingConversionRate).toBe(50);
+    expect(ng.registrations).toBe(2);
+    expect(ng.activatedUsers).toBe(1);
+    expect(ng.activationRate).toBe(50);
+    expect(data.countries.find((c) => c.countryCode === 'GH')!.paymentSuccessRate).toBe(0);
+  });
+
+  it('reports null (not 0, not NaN) when a denominator step never fired in that country', async () => {
+    const { service } = buildService([ev('page_view', 'NG', 'anon-1')]);
+
+    const ng = (await service.getGeoMapAnalytics('30d')).data.countries[0];
+
+    expect(ng.bookingConversionRate).toBeNull();
+    expect(ng.paymentSuccessRate).toBeNull();
+    expect(ng.activationRate).toBeNull();
+  });
+
+  it('queries only rows with a resolved country, excludes test traffic, and normalizes code case', async () => {
+    const { service, prisma } = buildService([ev('page_view', 'ng', 'anon-1')]);
+
+    const { data } = await service.getGeoMapAnalytics('7d');
+
+    expect(prisma.patientActivityEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ isTestEvent: false, countryCode: { not: null } }) }),
+    );
+    expect(data.countries[0].countryCode).toBe('NG');
+  });
+
+  it('returns an empty list when there is no located traffic', async () => {
+    const { service } = buildService([]);
+    expect((await service.getGeoMapAnalytics('30d')).data.countries).toEqual([]);
+  });
+});
