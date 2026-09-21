@@ -329,3 +329,88 @@ describe('AdminService.listUsers (registration stage)', () => {
     );
   });
 });
+
+describe('AdminService.getAnalyticsUsage / getAnalyticsRevenue (read the daily aggregate tables)', () => {
+  function buildService(opts: { usage?: unknown[]; revenue?: unknown[] } = {}) {
+    const prisma = {
+      serviceUsageDaily: { findMany: jest.fn().mockResolvedValue(opts.usage ?? []) },
+      revenueSummary: { findMany: jest.fn().mockResolvedValue(opts.revenue ?? []) },
+    };
+    const service = new AdminService(
+      prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never,
+    );
+    return { service, prisma };
+  }
+
+  const day = new Date('2026-09-10T00:00:00Z');
+
+  it('gives every ServiceType its own column — nothing is folded into another service', async () => {
+    const row = (serviceType: string, totalSessions: number) => ({ reportDate: day, serviceType, totalSessions });
+    const { service } = buildService({
+      usage: [
+        row('MinuteCare', 1),
+        row('TeleCare', 2),
+        row('CareTest', 4),
+        row('HealthConsult', 8),
+        row('ExpertReview', 16),
+        row('NeuroFlex', 32),
+        row('DispatchCare', 64),
+        row('TravelSafe', 128),
+      ],
+    });
+
+    const { data } = await service.getAnalyticsUsage('30d');
+
+    expect(data).toEqual([
+      {
+        date: '2026-09-10',
+        minuteCare: 1,
+        teleCare: 2,
+        careTest: 4,
+        healthConsult: 8,
+        expertReview: 16,
+        neuroFlex: 32,
+        dispatchCare: 64,
+        travelSafe: 128,
+      },
+    ]);
+  });
+
+  it('zero-fills services with no activity so every row has the same shape', async () => {
+    const { service } = buildService({ usage: [{ reportDate: day, serviceType: 'CareTest', totalSessions: 3 }] });
+
+    const { data } = await service.getAnalyticsUsage('30d');
+
+    expect(data[0]).toMatchObject({ careTest: 3, teleCare: 0, expertReview: 0, travelSafe: 0 });
+    expect(Object.keys(data[0])).toHaveLength(9); // date + 8 service types
+  });
+
+  it('pivots multiple days into one row per date', async () => {
+    const next = new Date('2026-09-11T00:00:00Z');
+    const { service } = buildService({
+      usage: [
+        { reportDate: day, serviceType: 'TeleCare', totalSessions: 3 },
+        { reportDate: next, serviceType: 'TeleCare', totalSessions: 5 },
+      ],
+    });
+
+    const { data } = await service.getAnalyticsUsage('30d');
+    expect(data.map((d) => [d.date, d.teleCare])).toEqual([['2026-09-10', 3], ['2026-09-11', 5]]);
+  });
+
+  it('returns an empty series instead of throwing when the aggregate table read fails', async () => {
+    const { service, prisma } = buildService();
+    prisma.serviceUsageDaily.findMany.mockRejectedValue(new Error('relation does not exist'));
+
+    await expect(service.getAnalyticsUsage('30d')).resolves.toEqual({ data: [] });
+  });
+
+  it('reports revenue per gateway from net kobo, matching the null-serviceType rows the cron writes', async () => {
+    const { service } = buildService({
+      revenue: [{ reportDate: day, serviceType: null, gateway: 'Paystack', netRevenueKobo: 800000n }],
+    });
+
+    const { data } = await service.getAnalyticsRevenue('30d');
+    expect(data).toEqual([{ date: '2026-09-10', amount: 800000, gateway: 'Paystack' }]);
+  });
+});

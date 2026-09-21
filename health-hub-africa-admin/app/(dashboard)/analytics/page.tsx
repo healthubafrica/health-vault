@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download, ChevronRight, ChevronDown } from 'lucide-react'
 import { useAutoRefresh } from '@/lib/hooks/useLiveData'
-import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type ClickstreamAnalytics, type GeoComparison, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
+import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type ClickstreamAnalytics, type GeoComparison, type GeoMapAnalytics, type GeoMapCountry, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type UsageServiceKey, type RevenueDataPoint } from '@/lib/api'
+import dynamic from 'next/dynamic'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { FilterTabs } from '@/components/ui/FilterTabs'
@@ -46,6 +47,40 @@ const CHART_OPTIONS = {
     y: { grid: { color: '#253525' }, ticks: { color: '#8A9A8A', font: { size: 10 }, precision: 0 } },
   },
 }
+
+// Spec §J lifecycle segments (mirrors LIFECYCLE_STAGES in the API). They
+// overlap — a patient can be Activated and Returning — and are evaluated
+// within the selected period.
+const LIFECYCLE_STAGE_OPTIONS = [
+  { value: 'anonymous', label: 'Anonymous' },
+  { value: 'registered', label: 'Registered' },
+  { value: 'verified', label: 'Verified' },
+  { value: 'activated', label: 'Activated' },
+  { value: 'returning', label: 'Returning' },
+]
+
+// Every service the API reports usage for. Series with no activity in the
+// visible window are dropped at render time so the legend only lists what's
+// actually on the chart.
+const USAGE_SERIES: Array<{ key: UsageServiceKey; label: string; color: string }> = [
+  { key: 'minuteCare', label: 'MinuteCare', color: '#6DC43F' },
+  { key: 'teleCare', label: 'TeleCare', color: '#3B82F6' },
+  { key: 'careTest', label: 'CareTest (labs)', color: '#E8930A' },
+  { key: 'healthConsult', label: 'HealthConsult', color: '#14B8A6' },
+  { key: 'expertReview', label: 'Expert Review', color: '#8B5CF6' },
+  { key: 'neuroFlex', label: 'STRIDE / NeuroFlex', color: '#EC4899' },
+  { key: 'dispatchCare', label: 'DispatchCare', color: '#C0392B' },
+  { key: 'travelSafe', label: 'TravelSafe', color: '#64748B' },
+]
+
+// Same look as CHART_OPTIONS, stacked so up to 8 services stay readable per day.
+const STACKED_CHART_OPTIONS = {
+  ...CHART_OPTIONS,
+  scales: {
+    x: { ...CHART_OPTIONS.scales.x, stacked: true },
+    y: { ...CHART_OPTIONS.scales.y, stacked: true },
+  },
+}
 const SOURCE_LABELS: Record<string, string> = {
   social_media: 'Social media',
   friend: 'Friend',
@@ -62,6 +97,26 @@ function countryName(code: string) {
     return code
   }
 }
+
+// Chart.js + the ~100KB world atlas only load when the Geography tab renders the map.
+const WorldMap = dynamic(() => import('@/components/analytics/WorldMap'), {
+  ssr: false,
+  loading: () => <SkeletonBox height={360} className="rounded-xl" />,
+})
+
+// Spec §F maps that rest on IP-derived ACCESS geography. The two declared-
+// geography maps (Patient Distribution, and "declared vs access") are not
+// here on purpose: Patient.country is a hard-coded "Nigeria" default in web
+// onboarding, mobile signup and the API, so it isn't real data yet.
+const MAP_METRICS: Array<{ key: keyof GeoMapCountry; label: string; kind: 'count' | 'rate'; unit: string }> = [
+  { key: 'visitors', label: 'Portal access (unique visitors)', kind: 'count', unit: '' },
+  { key: 'sessions', label: 'Engagement (sessions)', kind: 'count', unit: '' },
+  { key: 'clicks', label: 'Engagement (clicks)', kind: 'count', unit: '' },
+  { key: 'registrations', label: 'Registrations', kind: 'count', unit: '' },
+  { key: 'activationRate', label: 'Activation rate', kind: 'rate', unit: '%' },
+  { key: 'bookingConversionRate', label: 'Booking conversion', kind: 'rate', unit: '%' },
+  { key: 'paymentSuccessRate', label: 'Payment success', kind: 'rate', unit: '%' },
+]
 
 function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
@@ -249,17 +304,27 @@ export default function AnalyticsPage() {
   const [demographics, setDemographics] = useState<DemographicsAnalytics | null>(null)
   const [clickstream, setClickstream] = useState<ClickstreamAnalytics | null>(null)
   const [geoComparison, setGeoComparison] = useState<GeoComparison | null>(null)
+  const [geoMap, setGeoMap] = useState<GeoMapAnalytics | null>(null)
+  const [mapMetricKey, setMapMetricKey] = useState<keyof GeoMapCountry>('visitors')
   const [retention, setRetention] = useState<RetentionAnalytics | null>(null)
   const [digitalExperience, setDigitalExperience] = useState<DigitalExperienceAnalytics | null>(null)
   const [security, setSecurity] = useState<SecurityAnalytics | null>(null)
   const [funnelCountry, setFunnelCountry] = useState('')
   const [funnelContinent, setFunnelContinent] = useState('')
   const [funnelDevice, setFunnelDevice] = useState('')
+  const [funnelAgeBand, setFunnelAgeBand] = useState('')
+  const [funnelPlanTier, setFunnelPlanTier] = useState('')
+  const [funnelGender, setFunnelGender] = useState('')
+  const [funnelNationality, setFunnelNationality] = useState('')
+  const [funnelBrowser, setFunnelBrowser] = useState('')
+  const [funnelAcquisitionSource, setFunnelAcquisitionSource] = useState('')
+  const [funnelUtmCampaign, setFunnelUtmCampaign] = useState('')
+  const [funnelLifecycleStage, setFunnelLifecycleStage] = useState('')
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     try {
-      const [rRes, uRes, mRes, tRes, fRes, demoRes, csRes, gRes, retRes, deRes, secRes] = await Promise.all([
+      const [rRes, uRes, mRes, tRes, fRes, demoRes, csRes, gRes, mapRes, retRes, deRes, secRes] = await Promise.all([
         adminApi.analytics.revenue(period),
         adminApi.analytics.usage(period),
         adminApi.analytics.marketing(period),
@@ -268,10 +333,19 @@ export default function AnalyticsPage() {
           country: funnelCountry || undefined,
           continent: funnelContinent || undefined,
           device: funnelDevice || undefined,
+          ageBand: funnelAgeBand || undefined,
+          planTier: funnelPlanTier || undefined,
+          gender: funnelGender || undefined,
+          nationality: funnelNationality || undefined,
+          browser: funnelBrowser || undefined,
+          acquisitionSource: funnelAcquisitionSource || undefined,
+          utmCampaign: funnelUtmCampaign || undefined,
+          lifecycleStage: funnelLifecycleStage || undefined,
         }),
         adminApi.analytics.demographics(),
         adminApi.analytics.clickstream(period),
         adminApi.analytics.geoComparison(period),
+        adminApi.analytics.geoMap(period),
         adminApi.analytics.retention(),
         adminApi.analytics.digitalExperience(period),
         adminApi.analytics.security(period),
@@ -284,13 +358,14 @@ export default function AnalyticsPage() {
       setDemographics(demoRes.data)
       setClickstream(csRes.data)
       setGeoComparison(gRes.data)
+      setGeoMap(mapRes.data)
       setRetention(retRes.data)
       setDigitalExperience(deRes.data)
       setSecurity(secRes.data)
     } finally {
       setLoading(false)
     }
-  }, [period, funnelCountry, funnelContinent, funnelDevice])
+  }, [period, funnelCountry, funnelContinent, funnelDevice, funnelAgeBand, funnelPlanTier, funnelGender, funnelNationality, funnelBrowser, funnelAcquisitionSource, funnelUtmCampaign, funnelLifecycleStage])
 
   useEffect(() => {
     setLoading(true)
@@ -332,6 +407,12 @@ export default function AnalyticsPage() {
   )
   const groupedEventNames = new Set(Object.values(FUNNEL_GROUPS).flat())
   const otherEvents = (funnel?.steps ?? []).filter((s) => !groupedEventNames.has(s.eventName))
+  const mapMetric = MAP_METRICS.find((m) => m.key === mapMetricKey) ?? MAP_METRICS[0]
+  // Accessible text alternative to the canvas map; also lists countries the atlas can't draw.
+  const topMapCountries = (geoMap?.countries ?? [])
+    .filter((c) => typeof c[mapMetric.key] === 'number' && (c[mapMetric.key] as number) > 0)
+    .sort((a, b) => (b[mapMetric.key] as number) - (a[mapMetric.key] as number))
+    .slice(0, 10)
   const topTrafficLocation = traffic?.locations[0]
   const maxTrafficDeviceCount = useMemo(
     () => Math.max(1, ...(traffic?.devices.map((row) => row.count) ?? [1])),
@@ -512,14 +593,13 @@ export default function AnalyticsPage() {
                   <Bar
                     data={{
                       labels: usageLabels,
-                      datasets: [
-                        { label: 'Appointments', data: usage.slice(-14).map((row) => row.appointments), backgroundColor: '#6DC43F' },
-                        { label: 'TeleCare', data: usage.slice(-14).map((row) => row.telecare), backgroundColor: '#3B82F6' },
-                        { label: 'Dispatch', data: usage.slice(-14).map((row) => row.dispatch), backgroundColor: '#C0392B' },
-                        { label: 'Labs', data: usage.slice(-14).map((row) => row.labOrders), backgroundColor: '#E8930A' },
-                      ],
+                      datasets: USAGE_SERIES.filter((series) => usage.slice(-14).some((row) => row[series.key] > 0)).map((series) => ({
+                        label: series.label,
+                        data: usage.slice(-14).map((row) => row[series.key]),
+                        backgroundColor: series.color,
+                      })),
                     }}
-                    options={CHART_OPTIONS}
+                    options={STACKED_CHART_OPTIONS}
                   />
                 </div>
               )}
@@ -570,6 +650,102 @@ export default function AnalyticsPage() {
                 <option value="">All devices</option>
                 {Array.from(new Set((traffic?.devices ?? []).map((d) => d.device))).map((device) => (
                   <option key={device} value={device}>{device}</option>
+                ))}
+              </select>
+              <select
+                value={funnelAgeBand}
+                onChange={(e) => setFunnelAgeBand(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by age band"
+              >
+                <option value="">All age bands</option>
+                {(demographics?.ageBands ?? []).map((b) => (
+                  <option key={b.label} value={b.label}>{b.label}</option>
+                ))}
+              </select>
+              <select
+                value={funnelPlanTier}
+                onChange={(e) => setFunnelPlanTier(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by plan tier"
+              >
+                <option value="">All plan tiers</option>
+                {(demographics?.planTiers ?? []).map((t) => (
+                  <option key={t.label} value={t.label}>{t.label}</option>
+                ))}
+              </select>
+              <select
+                value={funnelGender}
+                onChange={(e) => setFunnelGender(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by sex/gender"
+              >
+                <option value="">All genders</option>
+                {(demographics?.genders ?? []).map((g) => (
+                  <option key={g.label} value={g.label}>{g.label}</option>
+                ))}
+              </select>
+              <select
+                value={funnelNationality}
+                onChange={(e) => setFunnelNationality(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by nationality"
+              >
+                <option value="">All nationalities</option>
+                {(demographics?.nationalities ?? []).map((n) => (
+                  <option key={n.label} value={n.label}>{n.label}</option>
+                ))}
+              </select>
+              <select
+                value={funnelBrowser}
+                onChange={(e) => setFunnelBrowser(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by browser"
+              >
+                <option value="">All browsers</option>
+                {(digitalExperience?.browsers ?? []).map((b) => (
+                  <option key={b.browser} value={b.browser}>{b.browser}</option>
+                ))}
+              </select>
+              <select
+                value={funnelAcquisitionSource}
+                onChange={(e) => setFunnelAcquisitionSource(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by acquisition source"
+              >
+                <option value="">All acquisition sources</option>
+                {(marketing?.acquisitionSources ?? []).map((s) => (
+                  <option key={s.source} value={s.source}>{s.source}</option>
+                ))}
+              </select>
+              <select
+                value={funnelUtmCampaign}
+                onChange={(e) => setFunnelUtmCampaign(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by UTM campaign"
+              >
+                <option value="">All campaigns</option>
+                {Array.from(new Set((marketing?.campaigns ?? []).map((c) => c.campaign))).map((campaign) => (
+                  <option key={campaign} value={campaign}>{campaign}</option>
+                ))}
+              </select>
+              <select
+                value={funnelLifecycleStage}
+                onChange={(e) => setFunnelLifecycleStage(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by lifecycle stage"
+              >
+                <option value="">All lifecycle stages</option>
+                {LIFECYCLE_STAGE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
               <ExportButton onExport={exportFunnelSteps} />
@@ -823,6 +999,56 @@ export default function AnalyticsPage() {
 
       {section === 'Geography' && (
         <>
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Global portal map</h2>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                Where portal sessions connect from — approximate, IP-derived, aggregated by country. This is access geography, not where patients say they live.
+              </p>
+            </div>
+            <select
+              value={mapMetricKey}
+              onChange={(e) => setMapMetricKey(e.target.value as keyof GeoMapCountry)}
+              className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+              style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+              aria-label="Map metric"
+            >
+              {MAP_METRICS.map((m) => (
+                <option key={m.key} value={m.key}>{m.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <Card className="mb-6">
+            {loading && !geoMap ? (
+              <SkeletonBox height={360} className="rounded-xl" />
+            ) : !geoMap?.countries.length ? (
+              <Empty>No located portal activity in this period yet.</Empty>
+            ) : (
+              <div className="grid lg:grid-cols-[1.8fr_1fr] gap-5">
+                <WorldMap
+                  countries={geoMap.countries.map((c) => ({ countryCode: c.countryCode, value: c[mapMetric.key] as number | null }))}
+                  metricLabel={mapMetric.label}
+                  kind={mapMetric.kind}
+                  unit={mapMetric.unit}
+                />
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--color-text-muted)' }}>
+                    Top countries — {mapMetric.label}
+                  </p>
+                  <ol className="text-xs">
+                    {topMapCountries.map((c) => (
+                      <li key={c.countryCode} className="flex items-center justify-between py-1.5 border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                        <span style={{ color: 'var(--color-text)' }}>{countryName(c.countryCode)} <span style={{ color: 'var(--color-text-faint)' }}>· {c.continent}</span></span>
+                        <span className="font-semibold" style={{ color: 'var(--color-text)' }}>{(c[mapMetric.key] as number).toLocaleString()}{mapMetric.unit}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              </div>
+            )}
+          </Card>
+
           <div className="mb-3">
             <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Site traffic</h2>
             <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>

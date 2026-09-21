@@ -369,8 +369,24 @@ describe('AnalyticsService.trackEvent (anonymous + authenticated identity)', () 
 });
 
 describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {
-  function buildService(rows: Array<{ eventName: string; patientId: string | null; anonymousVisitorId: string | null }>) {
-    const prisma = { patientActivityEvent: { findMany: jest.fn().mockResolvedValue(rows) } };
+  function buildService(
+    rows: Array<{ eventName: string; patientId: string | null; anonymousVisitorId: string | null }>,
+    patients: Array<{
+      id: string;
+      dateOfBirth: Date;
+      subscriptions: Array<{ plan: { tier: string } }>;
+      gender?: string;
+      nationality?: string | null;
+    }> = [],
+    attributionPatientIds: string[] = [],
+    returningSessionIds: string[] = [],
+  ) {
+    const prisma = {
+      patientActivityEvent: { findMany: jest.fn().mockResolvedValue(rows) },
+      patient: { findMany: jest.fn().mockResolvedValue(patients) },
+      $queryRaw: jest.fn().mockResolvedValue(attributionPatientIds.map((patientId) => ({ patientId }))),
+      analyticsSession: { findMany: jest.fn().mockResolvedValue(returningSessionIds.map((analyticsSessionId) => ({ analyticsSessionId }))) },
+    };
     const service = new AnalyticsService(prisma as any);
     return { service, prisma };
   }
@@ -447,6 +463,212 @@ describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {
     const result = await service.getFunnelAnalytics('30d', { continent: 'Africa' });
 
     expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
+  });
+
+  it('narrows by age band client-side, resolved from Patient (spec §J)', async () => {
+    const now = new Date();
+    const age30 = new Date(now.getFullYear() - 30, now.getMonth(), now.getDate());
+    const age70 = new Date(now.getFullYear() - 70, now.getMonth(), now.getDate());
+    const { service, prisma } = buildService(
+      [
+        { eventName: 'page_view', patientId: 'p1', anonymousVisitorId: null } as any,
+        { eventName: 'page_view', patientId: 'p2', anonymousVisitorId: null } as any,
+        // anonymous events have no patient to segment by age — excluded whenever an age/plan filter is active
+        { eventName: 'page_view', patientId: null, anonymousVisitorId: 'anon-1' } as any,
+      ],
+      [
+        { id: 'p1', dateOfBirth: age30, subscriptions: [] },
+        { id: 'p2', dateOfBirth: age70, subscriptions: [] },
+      ],
+    );
+
+    const result = await service.getFunnelAnalytics('30d', { ageBand: '25–34' });
+
+    expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
+    expect(prisma.patient.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('narrows by plan tier client-side, resolved from Patient (spec §J)', async () => {
+    const dob = new Date(1990, 0, 1);
+    const { service } = buildService(
+      [
+        { eventName: 'page_view', patientId: 'p1', anonymousVisitorId: null } as any,
+        { eventName: 'page_view', patientId: 'p2', anonymousVisitorId: null } as any,
+      ],
+      [
+        { id: 'p1', dateOfBirth: dob, subscriptions: [{ plan: { tier: 'SilverCare' } }] },
+        { id: 'p2', dateOfBirth: dob, subscriptions: [] }, // no active subscription -> defaults to Free
+      ],
+    );
+
+    const result = await service.getFunnelAnalytics('30d', { planTier: 'SilverCare' });
+
+    expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
+  });
+
+  it('does not query Patient at all when no age/plan/gender/nationality filter is given', async () => {
+    const { service, prisma } = buildService([]);
+    await service.getFunnelAnalytics('30d', { country: 'NG' });
+
+    expect(prisma.patient.findMany).not.toHaveBeenCalled();
+  });
+
+  it('passes os/browser/featureArea/timezone filters through to the query as direct columns', async () => {
+    const { service, prisma } = buildService([]);
+    await service.getFunnelAnalytics('7d', { os: 'iOS', browser: 'Safari', featureArea: 'labs', timezone: 'Africa/Lagos' });
+
+    expect(prisma.patientActivityEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ os: 'iOS', browser: 'Safari', featureArea: 'labs', timezone: 'Africa/Lagos' }),
+      }),
+    );
+  });
+
+  it('narrows by gender client-side, resolved from Patient (spec §J)', async () => {
+    const dob = new Date(1990, 0, 1);
+    const { service } = buildService(
+      [
+        { eventName: 'page_view', patientId: 'p1', anonymousVisitorId: null } as any,
+        { eventName: 'page_view', patientId: 'p2', anonymousVisitorId: null } as any,
+      ],
+      [
+        { id: 'p1', dateOfBirth: dob, subscriptions: [], gender: 'female' },
+        { id: 'p2', dateOfBirth: dob, subscriptions: [], gender: 'male' },
+      ],
+    );
+
+    const result = await service.getFunnelAnalytics('30d', { gender: 'female' });
+
+    expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
+  });
+
+  it('narrows by nationality client-side, defaulting blank nationality to "Not declared" (spec §J)', async () => {
+    const dob = new Date(1990, 0, 1);
+    const { service } = buildService(
+      [
+        { eventName: 'page_view', patientId: 'p1', anonymousVisitorId: null } as any,
+        { eventName: 'page_view', patientId: 'p2', anonymousVisitorId: null } as any,
+      ],
+      [
+        { id: 'p1', dateOfBirth: dob, subscriptions: [], nationality: 'Nigerian' },
+        { id: 'p2', dateOfBirth: dob, subscriptions: [], nationality: null },
+      ],
+    );
+
+    const result = await service.getFunnelAnalytics('30d', { nationality: 'Nigerian' });
+
+    expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
+  });
+
+  it('narrows by acquisitionSource/utmCampaign, resolved from User via raw SQL (spec §J)', async () => {
+    const { service, prisma } = buildService(
+      [
+        { eventName: 'page_view', patientId: 'p1', anonymousVisitorId: null } as any,
+        { eventName: 'page_view', patientId: 'p2', anonymousVisitorId: null } as any,
+      ],
+      [],
+      ['p1'], // only p1's registration matched the attribution query
+    );
+
+    const result = await service.getFunnelAnalytics('30d', { acquisitionSource: 'social_media' });
+
+    expect(prisma.patient.findMany).not.toHaveBeenCalled(); // pure attribution filter never touches the Patient-side query
+    expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
+  });
+
+  it('intersects the Patient-side and User-attribution segments when both are filtered together', async () => {
+    const dob = new Date(1990, 0, 1);
+    const { service } = buildService(
+      [
+        { eventName: 'page_view', patientId: 'p1', anonymousVisitorId: null } as any,
+        { eventName: 'page_view', patientId: 'p2', anonymousVisitorId: null } as any,
+      ],
+      [
+        { id: 'p1', dateOfBirth: dob, subscriptions: [], gender: 'female' },
+        { id: 'p2', dateOfBirth: dob, subscriptions: [], gender: 'female' },
+      ],
+      ['p1'], // both patients are 'female', but only p1 matches the campaign too
+    );
+
+    const result = await service.getFunnelAnalytics('30d', { gender: 'female', utmCampaign: 'spring_launch' });
+
+    expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
+  });
+
+  describe('lifecycleStage (spec §J)', () => {
+    const ev = (eventName: string, patientId: string | null, extra: Record<string, unknown> = {}) =>
+      ({ eventName, patientId, anonymousVisitorId: patientId ? null : 'anon-1', analyticsSessionId: null, ...extra }) as any;
+
+    it('anonymous keeps only events with no patient; registered keeps only events with one', async () => {
+      const rows = [ev('page_view', null), ev('page_view', 'p1'), ev('page_view', 'p2')];
+
+      const anon = await buildService(rows).service.getFunnelAnalytics('30d', { lifecycleStage: 'anonymous' });
+      expect(anon.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
+
+      const reg = await buildService(rows).service.getFunnelAnalytics('30d', { lifecycleStage: 'registered' });
+      expect(reg.data.steps).toEqual([{ eventName: 'page_view', count: 2, uniqueUsers: 2, uniqueSessions: 0 }]);
+    });
+
+    it('verified resolves through the Patient→User.isVerified lookup and skips it when nobody is registered', async () => {
+      const { service, prisma } = buildService([ev('page_view', 'p1'), ev('page_view', 'p2')]);
+      prisma.patient.findMany.mockResolvedValue([{ id: 'p1' }]);
+
+      const result = await service.getFunnelAnalytics('30d', { lifecycleStage: 'verified' });
+
+      expect(prisma.patient.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ user: { isVerified: true, deletedAt: null } }) }),
+      );
+      expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
+
+      const none = buildService([ev('page_view', null)]);
+      await none.service.getFunnelAnalytics('30d', { lifecycleStage: 'verified' });
+      expect(none.prisma.patient.findMany).not.toHaveBeenCalled();
+    });
+
+    it('activated keeps the whole journey of patients who did a qualifying action, and only them', async () => {
+      const { service } = buildService([
+        ev('page_view', 'p1'),
+        ev('booking_confirmed', 'p1'), // p1 activated
+        ev('page_view', 'p2'), // p2 never did a qualifying action
+      ]);
+
+      const result = await service.getFunnelAnalytics('30d', { lifecycleStage: 'activated' });
+
+      const names = result.data.steps.map((s) => s.eventName).sort();
+      expect(names).toEqual(['booking_confirmed', 'page_view']);
+      expect(result.data.steps.find((s) => s.eventName === 'page_view')).toMatchObject({ count: 1 });
+    });
+
+    it('returning keys off the session flag, so it works for anonymous visitors too', async () => {
+      const { service, prisma } = buildService(
+        [
+          ev('page_view', null, { analyticsSessionId: 's-returning' }),
+          ev('page_view', null, { analyticsSessionId: 's-new' }),
+          ev('page_view', null, { analyticsSessionId: null }),
+        ],
+        [],
+        [],
+        ['s-returning'],
+      );
+
+      const result = await service.getFunnelAnalytics('30d', { lifecycleStage: 'returning' });
+
+      expect(prisma.analyticsSession.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ returningVisitor: true }) }),
+      );
+      expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 1 }]);
+    });
+
+    it('composes with other filters (AND) — lifecycle narrows the already-filtered rows', async () => {
+      const { service } = buildService(
+        [ev('page_view', 'p1'), ev('page_view', 'p2')],
+        [{ id: 'p1', dateOfBirth: new Date(1990, 0, 1), subscriptions: [], gender: 'female' }],
+      );
+
+      const result = await service.getFunnelAnalytics('30d', { gender: 'female', lifecycleStage: 'registered' });
+
+      expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
+    });
   });
 });
 
@@ -928,5 +1150,84 @@ describe('AnalyticsService.getTrafficAnalytics (country -> region -> city hierar
         countries: [{ countryCode: 'Unknown', visits: 1, regions: [{ region: 'Unknown', visits: 1, cities: [{ city: 'Unknown', visits: 1 }] }] }],
       },
     ]);
+  });
+});
+
+describe('AnalyticsService.getGeoMapAnalytics (access-geography metrics per country)', () => {
+  type Row = { eventName: string; patientId: string | null; anonymousVisitorId: string | null; analyticsSessionId: string | null; countryCode: string | null };
+  const ev = (eventName: string, countryCode: string, who: string, session: string | null = null): Row => ({
+    eventName,
+    patientId: who.startsWith('p') ? who : null,
+    anonymousVisitorId: who.startsWith('p') ? null : who,
+    analyticsSessionId: session,
+    countryCode,
+  });
+
+  function buildService(rows: Row[]) {
+    const prisma = { patientActivityEvent: { findMany: jest.fn().mockResolvedValue(rows) } };
+    return { service: new AnalyticsService(prisma as any), prisma };
+  }
+
+  it('buckets by country and counts unique visitors, distinct sessions and raw clicks', async () => {
+    const { service } = buildService([
+      ev('page_view', 'NG', 'p1', 's1'),
+      ev('ui_click', 'NG', 'p1', 's1'),
+      ev('ui_click', 'NG', 'p1', 's1'),
+      ev('page_view', 'NG', 'anon-1', 's2'),
+      ev('page_view', 'GH', 'anon-2', 's3'),
+    ]);
+
+    const { data } = await service.getGeoMapAnalytics('30d');
+
+    const ng = data.countries.find((c) => c.countryCode === 'NG')!;
+    expect(ng).toMatchObject({ visitors: 2, sessions: 2, clicks: 2, continent: 'Africa', continentCode: 'AF' });
+    expect(data.countries.find((c) => c.countryCode === 'GH')).toMatchObject({ visitors: 1, sessions: 1, clicks: 0 });
+    expect(data.countries.map((c) => c.countryCode)).toEqual(['NG', 'GH']); // sorted by visitors desc
+  });
+
+  it('computes conversion with the same unique-user KPI definitions as the funnel, per country', async () => {
+    const { service } = buildService([
+      ev('booking_started', 'NG', 'p1'),
+      ev('booking_started', 'NG', 'p2'),
+      ev('booking_confirmed', 'NG', 'p1'), // 1 of 2 -> 50%
+      ev('registration_complete', 'NG', 'p1'),
+      ev('registration_complete', 'NG', 'p2'), // p1 activated via booking_confirmed, p2 not -> 50%
+      ev('checkout_started', 'GH', 'p3'), // no payment_success -> 0%
+    ]);
+
+    const { data } = await service.getGeoMapAnalytics('30d');
+
+    const ng = data.countries.find((c) => c.countryCode === 'NG')!;
+    expect(ng.bookingConversionRate).toBe(50);
+    expect(ng.registrations).toBe(2);
+    expect(ng.activatedUsers).toBe(1);
+    expect(ng.activationRate).toBe(50);
+    expect(data.countries.find((c) => c.countryCode === 'GH')!.paymentSuccessRate).toBe(0);
+  });
+
+  it('reports null (not 0, not NaN) when a denominator step never fired in that country', async () => {
+    const { service } = buildService([ev('page_view', 'NG', 'anon-1')]);
+
+    const ng = (await service.getGeoMapAnalytics('30d')).data.countries[0];
+
+    expect(ng.bookingConversionRate).toBeNull();
+    expect(ng.paymentSuccessRate).toBeNull();
+    expect(ng.activationRate).toBeNull();
+  });
+
+  it('queries only rows with a resolved country, excludes test traffic, and normalizes code case', async () => {
+    const { service, prisma } = buildService([ev('page_view', 'ng', 'anon-1')]);
+
+    const { data } = await service.getGeoMapAnalytics('7d');
+
+    expect(prisma.patientActivityEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ isTestEvent: false, countryCode: { not: null } }) }),
+    );
+    expect(data.countries[0].countryCode).toBe('NG');
+  });
+
+  it('returns an empty list when there is no located traffic', async () => {
+    const { service } = buildService([]);
+    expect((await service.getGeoMapAnalytics('30d')).data.countries).toEqual([]);
   });
 });

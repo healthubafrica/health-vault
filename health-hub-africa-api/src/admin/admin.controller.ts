@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -15,6 +16,7 @@ import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ServiceType, UserRole } from '@prisma/client';
 import { AdminService } from './admin.service';
+import { LIFECYCLE_STAGES, LifecycleStage } from '../analytics/analytics.service';
 import { UpdateUserRoleDto, UpdateUserStatusDto, UpdateUserEmailDto, CreateFacilityDto } from './dto/admin.dto';
 import { SetStorageOverrideDto } from './dto/set-storage-override.dto';
 import { UpdateSchedulingPolicyDto } from './dto/update-scheduling-policy.dto';
@@ -185,13 +187,53 @@ export class AdminController {
   @ApiQuery({ name: 'country', required: false, description: 'Filter to a single ISO country code' })
   @ApiQuery({ name: 'continent', required: false, description: 'Filter to a single continent' })
   @ApiQuery({ name: 'device', required: false, description: 'Filter to a single device category (Desktop/Mobile/Tablet)' })
+  @ApiQuery({ name: 'ageBand', required: false, description: 'Filter to a single age band (e.g. "25–34") — spec §J' })
+  @ApiQuery({ name: 'planTier', required: false, description: 'Filter to a single subscription plan tier — spec §J' })
+  @ApiQuery({ name: 'os', required: false, description: 'Filter to a single OS — spec §J' })
+  @ApiQuery({ name: 'browser', required: false, description: 'Filter to a single browser — spec §J' })
+  @ApiQuery({ name: 'featureArea', required: false, description: 'Filter to a single feature area — spec §J' })
+  @ApiQuery({ name: 'timezone', required: false, description: 'Filter to a single IANA timezone — spec §J' })
+  @ApiQuery({ name: 'gender', required: false, description: 'Filter to a single sex/gender as collected — spec §J' })
+  @ApiQuery({ name: 'nationality', required: false, description: 'Filter to a single nationality — spec §J' })
+  @ApiQuery({ name: 'acquisitionSource', required: false, description: 'Filter to a single acquisition source captured at registration — spec §J' })
+  @ApiQuery({ name: 'utmCampaign', required: false, description: 'Filter to a single first-touch UTM campaign captured at registration — spec §J' })
+  @ApiQuery({ name: 'lifecycleStage', required: false, enum: LIFECYCLE_STAGES, description: 'Filter to one lifecycle segment — spec §J (overlapping, evaluated within the period)' })
   getFunnelAnalytics(
     @Query('period') period?: string,
     @Query('country') country?: string,
     @Query('continent') continent?: string,
     @Query('device') device?: string,
+    @Query('ageBand') ageBand?: string,
+    @Query('planTier') planTier?: string,
+    @Query('os') os?: string,
+    @Query('browser') browser?: string,
+    @Query('featureArea') featureArea?: string,
+    @Query('timezone') timezone?: string,
+    @Query('gender') gender?: string,
+    @Query('nationality') nationality?: string,
+    @Query('acquisitionSource') acquisitionSource?: string,
+    @Query('utmCampaign') utmCampaign?: string,
+    @Query('lifecycleStage') lifecycleStage?: string,
   ) {
-    return this.adminService.getFunnelAnalytics(period, { country, continent, device });
+    if (lifecycleStage && !(LIFECYCLE_STAGES as readonly string[]).includes(lifecycleStage)) {
+      throw new BadRequestException(`lifecycleStage must be one of: ${LIFECYCLE_STAGES.join(', ')}`);
+    }
+    return this.adminService.getFunnelAnalytics(period, {
+      country,
+      continent,
+      device,
+      ageBand,
+      planTier,
+      os,
+      browser,
+      featureArea,
+      timezone,
+      gender,
+      nationality,
+      acquisitionSource,
+      utmCampaign,
+      lifecycleStage: lifecycleStage as LifecycleStage | undefined,
+    });
   }
 
   @Get('analytics/demographics')
@@ -205,6 +247,13 @@ export class AdminController {
   @ApiQuery({ name: 'period', required: false, description: "e.g. '7d', '30d', '90d' (default 30d)" })
   getClickstreamAnalytics(@Query('period') period?: string) {
     return this.adminService.getClickstreamAnalytics(period);
+  }
+
+  @Get('analytics/geo-map')
+  @ApiOperation({ summary: 'Per-country access-geography metrics for the global maps (spec §F) — IP-derived, not patient-declared' })
+  @ApiQuery({ name: 'period', required: false, description: "e.g. '7d', '30d', '90d' (default 30d)" })
+  getGeoMapAnalytics(@Query('period') period?: string) {
+    return this.adminService.getGeoMapAnalytics(period);
   }
 
   @Get('analytics/geo-comparison')
