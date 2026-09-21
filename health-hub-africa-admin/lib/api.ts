@@ -934,6 +934,8 @@ export const adminApi = {
         timezone?: string
         gender?: string
         nationality?: string
+        acquisitionSource?: string
+        utmCampaign?: string
       },
     ) => {
       const qs = new URLSearchParams({ period })
@@ -948,6 +950,8 @@ export const adminApi = {
       if (filters?.timezone) qs.set('timezone', filters.timezone)
       if (filters?.gender) qs.set('gender', filters.gender)
       if (filters?.nationality) qs.set('nationality', filters.nationality)
+      if (filters?.acquisitionSource) qs.set('acquisitionSource', filters.acquisitionSource)
+      if (filters?.utmCampaign) qs.set('utmCampaign', filters.utmCampaign)
       return request<{ data: FunnelAnalytics }>(`/admin/analytics/funnel?${qs}`)
     },
     demographics: () =>

@@ -193,6 +193,8 @@ export class AdminController {
   @ApiQuery({ name: 'timezone', required: false, description: 'Filter to a single IANA timezone — spec §J' })
   @ApiQuery({ name: 'gender', required: false, description: 'Filter to a single sex/gender as collected — spec §J' })
   @ApiQuery({ name: 'nationality', required: false, description: 'Filter to a single nationality — spec §J' })
+  @ApiQuery({ name: 'acquisitionSource', required: false, description: 'Filter to a single acquisition source captured at registration — spec §J' })
+  @ApiQuery({ name: 'utmCampaign', required: false, description: 'Filter to a single first-touch UTM campaign captured at registration — spec §J' })
   getFunnelAnalytics(
     @Query('period') period?: string,
     @Query('country') country?: string,
@@ -206,6 +208,8 @@ export class AdminController {
     @Query('timezone') timezone?: string,
     @Query('gender') gender?: string,
     @Query('nationality') nationality?: string,
+    @Query('acquisitionSource') acquisitionSource?: string,
+    @Query('utmCampaign') utmCampaign?: string,
   ) {
     return this.adminService.getFunnelAnalytics(period, {
       country,
@@ -219,6 +223,8 @@ export class AdminController {
       timezone,
       gender,
       nationality,
+      acquisitionSource,
+      utmCampaign,
     });
   }
 

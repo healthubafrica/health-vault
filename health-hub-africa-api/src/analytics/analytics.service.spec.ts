@@ -378,10 +378,12 @@ describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {
       gender?: string;
       nationality?: string | null;
     }> = [],
+    attributionPatientIds: string[] = [],
   ) {
     const prisma = {
       patientActivityEvent: { findMany: jest.fn().mockResolvedValue(rows) },
       patient: { findMany: jest.fn().mockResolvedValue(patients) },
+      $queryRaw: jest.fn().mockResolvedValue(attributionPatientIds.map((patientId) => ({ patientId }))),
     };
     const service = new AnalyticsService(prisma as any);
     return { service, prisma };
@@ -552,6 +554,41 @@ describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {
     );
 
     const result = await service.getFunnelAnalytics('30d', { nationality: 'Nigerian' });
+
+    expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
+  });
+
+  it('narrows by acquisitionSource/utmCampaign, resolved from User via raw SQL (spec §J)', async () => {
+    const { service, prisma } = buildService(
+      [
+        { eventName: 'page_view', patientId: 'p1', anonymousVisitorId: null } as any,
+        { eventName: 'page_view', patientId: 'p2', anonymousVisitorId: null } as any,
+      ],
+      [],
+      ['p1'], // only p1's registration matched the attribution query
+    );
+
+    const result = await service.getFunnelAnalytics('30d', { acquisitionSource: 'social_media' });
+
+    expect(prisma.patient.findMany).not.toHaveBeenCalled(); // pure attribution filter never touches the Patient-side query
+    expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
+  });
+
+  it('intersects the Patient-side and User-attribution segments when both are filtered together', async () => {
+    const dob = new Date(1990, 0, 1);
+    const { service } = buildService(
+      [
+        { eventName: 'page_view', patientId: 'p1', anonymousVisitorId: null } as any,
+        { eventName: 'page_view', patientId: 'p2', anonymousVisitorId: null } as any,
+      ],
+      [
+        { id: 'p1', dateOfBirth: dob, subscriptions: [], gender: 'female' },
+        { id: 'p2', dateOfBirth: dob, subscriptions: [], gender: 'female' },
+      ],
+      ['p1'], // both patients are 'female', but only p1 matches the campaign too
+    );
+
+    const result = await service.getFunnelAnalytics('30d', { gender: 'female', utmCampaign: 'spring_launch' });
 
     expect(result.data.steps).toEqual([{ eventName: 'page_view', count: 1, uniqueUsers: 1, uniqueSessions: 0 }]);
   });

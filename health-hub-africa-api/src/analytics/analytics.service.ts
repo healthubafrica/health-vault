@@ -106,7 +106,9 @@ export interface AccessGeo {
 // Spec §J Global Dashboard Filters, as implemented on getFunnelAnalytics.
 // country/continent/device/os/browser/featureArea/timezone are direct
 // PatientActivityEvent columns; ageBand/planTier/gender/nationality live on
-// Patient and are resolved via resolvePatientIdsForSegment instead.
+// Patient; acquisitionSource/utmCampaign live on User (captured once, at
+// registration — see MarketingAttributionDto) — all four non-column filters
+// are resolved via resolvePatientIdsForSegment instead.
 export interface FunnelFilters {
   country?: string;
   continent?: string;
@@ -119,6 +121,8 @@ export interface FunnelFilters {
   planTier?: string;
   gender?: string;
   nationality?: string;
+  acquisitionSource?: string;
+  utmCampaign?: string;
 }
 
 @Injectable()
@@ -803,15 +807,28 @@ export class AnalyticsService {
       ? rows.filter((r) => continentForCountry(r.countryCode) === filters.continent)
       : rows;
 
-    // Age band / plan tier / gender / nationality live on Patient, not on
-    // the event row itself, so (unlike the direct-column filters above)
-    // this needs a second query resolving which patients currently match —
-    // only run it when actually filtering. Anonymous events have no
-    // patientId and are correctly excluded here: there's no patient record
-    // to segment them by.
-    const { ageBand, planTier, gender, nationality } = filters ?? {};
-    if (ageBand || planTier || gender || nationality) {
-      const matchingPatientIds = await this.resolvePatientIdsForSegment({ ageBand, planTier, gender, nationality });
+    // Age band / plan tier / gender / nationality / acquisitionSource /
+    // utmCampaign live on Patient or User, not on the event row itself, so
+    // (unlike the direct-column filters above) this needs a second query
+    // resolving which patients currently match — only run it when actually
+    // filtering. Anonymous events have no patientId and are correctly
+    // excluded here: there's no patient record to segment them by.
+    const { ageBand, planTier, gender, nationality, acquisitionSource, utmCampaign } = filters ?? {};
+    const wantsPatientSegment = !!(ageBand || planTier || gender || nationality);
+    const wantsAttributionSegment = !!(acquisitionSource || utmCampaign);
+    if (wantsPatientSegment || wantsAttributionSegment) {
+      // Two independent facets, each resolved by its own query (Patient
+      // fields vs. raw User columns — see resolveUserAttributionPatientIds
+      // for why those aren't a normal Prisma select) — intersected when
+      // both are active, same AND semantics a real filter bar implies.
+      const [patientMatch, attributionMatch] = await Promise.all([
+        wantsPatientSegment ? this.resolvePatientIdsForSegment({ ageBand, planTier, gender, nationality }) : null,
+        wantsAttributionSegment ? this.resolveUserAttributionPatientIds(acquisitionSource, utmCampaign) : null,
+      ]);
+      const matchingPatientIds =
+        patientMatch && attributionMatch
+          ? new Set([...patientMatch].filter((id) => attributionMatch.has(id)))
+          : (patientMatch ?? attributionMatch)!;
       filtered = filtered.filter((r) => r.patientId && matchingPatientIds.has(r.patientId));
     }
 
@@ -1054,6 +1071,26 @@ export class AnalyticsService {
       matching.add(p.id);
     }
     return matching;
+  }
+
+  // acquisitionSource/utmCampaign live on `users.acquisition_source`/
+  // `users.utm_campaign` — real Postgres columns (added by a raw-SQL
+  // migration, see 20260901170000_add_marketing_attribution) that were
+  // never added to the User model in schema.prisma, so Prisma's query
+  // builder has no typed way to select them; AdminService.getMarketingAnalytics
+  // and AuthService.register() both already read/write them via $queryRaw/
+  // $executeRaw for the same reason — this follows that existing pattern
+  // rather than editing the shared schema for one filter.
+  private async resolveUserAttributionPatientIds(acquisitionSource?: string, utmCampaign?: string): Promise<Set<string>> {
+    const rows = await this.prisma.$queryRaw<Array<{ patientId: string }>>`
+      SELECT p."id" AS "patientId"
+      FROM "patients" p
+      INNER JOIN "users" u ON u."id" = p."user_id"
+      WHERE u."deleted_at" IS NULL
+        AND (${acquisitionSource ?? null}::text IS NULL OR u."acquisition_source"::text = ${acquisitionSource ?? null})
+        AND (${utmCampaign ?? null}::text IS NULL OR u."utm_campaign" = ${utmCampaign ?? null})
+    `;
+    return new Set(rows.map((r) => r.patientId));
   }
 
   // Spec §18 Demographics & Geography dashboard: age bands, sex/gender as
