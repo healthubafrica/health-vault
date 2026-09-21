@@ -896,7 +896,17 @@ describe('AnalyticsService.getEngagementScore (transparent, versioned)', () => {
 });
 
 describe('AnalyticsService.getDigitalExperienceAnalytics (device/browser + client errors)', () => {
-  function buildService(events: Array<{ eventName: string; deviceCategory: string | null; userAgent: string | null; properties?: unknown }>) {
+  function buildService(
+    events: Array<{
+      eventName: string;
+      deviceCategory: string | null;
+      userAgent: string | null;
+      properties?: unknown;
+      os?: string | null;
+      featureArea?: string | null;
+      timezone?: string | null;
+    }>,
+  ) {
     const prisma = { patientActivityEvent: { findMany: jest.fn().mockResolvedValue(events) } };
     const service = new AnalyticsService(prisma as any);
     return { service };
@@ -916,6 +926,23 @@ describe('AnalyticsService.getDigitalExperienceAnalytics (device/browser + clien
     expect(result.data.browsers).toEqual(
       expect.arrayContaining([{ browser: 'Chrome', count: 2 }, { browser: 'Safari', count: 1 }]),
     );
+  });
+
+  it('breaks down os/featureArea/timezone, omitting an Unknown bucket for missing values', async () => {
+    const { service } = buildService([
+      { eventName: 'page_view', deviceCategory: 'Mobile', userAgent: 'CriOS/1.0', os: 'iOS', featureArea: 'vault', timezone: 'Africa/Lagos' },
+      { eventName: 'page_view', deviceCategory: 'Desktop', userAgent: 'Chrome/1.0', os: 'Windows', featureArea: 'vault', timezone: 'Africa/Lagos' },
+      { eventName: 'page_view', deviceCategory: 'Desktop', userAgent: 'Chrome/1.0', os: null, featureArea: null, timezone: null },
+    ]);
+
+    const result = await service.getDigitalExperienceAnalytics('30d');
+
+    expect(result.data.operatingSystems).toEqual([
+      { os: 'iOS', count: 1 },
+      { os: 'Windows', count: 1 },
+    ]);
+    expect(result.data.featureAreas).toEqual([{ featureArea: 'vault', count: 2 }]);
+    expect(result.data.timezones).toEqual([{ timezone: 'Africa/Lagos', count: 2 }]);
   });
 
   it('counts client_error events and ranks their top messages', async () => {

@@ -318,6 +318,9 @@ export default function AnalyticsPage() {
   const [funnelGender, setFunnelGender] = useState('')
   const [funnelNationality, setFunnelNationality] = useState('')
   const [funnelBrowser, setFunnelBrowser] = useState('')
+  const [funnelOs, setFunnelOs] = useState('')
+  const [funnelFeatureArea, setFunnelFeatureArea] = useState('')
+  const [funnelTimezone, setFunnelTimezone] = useState('')
   const [funnelAcquisitionSource, setFunnelAcquisitionSource] = useState('')
   const [funnelUtmCampaign, setFunnelUtmCampaign] = useState('')
   const [funnelLifecycleStage, setFunnelLifecycleStage] = useState('')
@@ -339,6 +342,9 @@ export default function AnalyticsPage() {
           gender: funnelGender || undefined,
           nationality: funnelNationality || undefined,
           browser: funnelBrowser || undefined,
+          os: funnelOs || undefined,
+          featureArea: funnelFeatureArea || undefined,
+          timezone: funnelTimezone || undefined,
           acquisitionSource: funnelAcquisitionSource || undefined,
           utmCampaign: funnelUtmCampaign || undefined,
           lifecycleStage: funnelLifecycleStage || undefined,
@@ -366,7 +372,7 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false)
     }
-  }, [period, funnelCountry, funnelContinent, funnelDevice, funnelAgeBand, funnelPlanTier, funnelGender, funnelNationality, funnelBrowser, funnelAcquisitionSource, funnelUtmCampaign, funnelLifecycleStage, mapBasis])
+  }, [period, funnelCountry, funnelContinent, funnelDevice, funnelAgeBand, funnelPlanTier, funnelGender, funnelNationality, funnelBrowser, funnelOs, funnelFeatureArea, funnelTimezone, funnelAcquisitionSource, funnelUtmCampaign, funnelLifecycleStage, mapBasis])
 
   useEffect(() => {
     setLoading(true)
@@ -711,6 +717,42 @@ export default function AnalyticsPage() {
                 <option value="">All browsers</option>
                 {(digitalExperience?.browsers ?? []).map((b) => (
                   <option key={b.browser} value={b.browser}>{b.browser}</option>
+                ))}
+              </select>
+              <select
+                value={funnelOs}
+                onChange={(e) => setFunnelOs(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by operating system"
+              >
+                <option value="">All operating systems</option>
+                {(digitalExperience?.operatingSystems ?? []).map((o) => (
+                  <option key={o.os} value={o.os}>{o.os}</option>
+                ))}
+              </select>
+              <select
+                value={funnelFeatureArea}
+                onChange={(e) => setFunnelFeatureArea(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by feature area"
+              >
+                <option value="">All feature areas</option>
+                {(digitalExperience?.featureAreas ?? []).map((f) => (
+                  <option key={f.featureArea} value={f.featureArea}>{f.featureArea}</option>
+                ))}
+              </select>
+              <select
+                value={funnelTimezone}
+                onChange={(e) => setFunnelTimezone(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by timezone"
+              >
+                <option value="">All timezones</option>
+                {(digitalExperience?.timezones ?? []).map((t) => (
+                  <option key={t.timezone} value={t.timezone}>{t.timezone}</option>
                 ))}
               </select>
               <select

@@ -427,6 +427,9 @@ export interface DigitalExperienceAnalytics {
   totalEvents: number
   devices: Array<{ device: string; count: number }>
   browsers: Array<{ browser: string; count: number }>
+  operatingSystems: Array<{ os: string; count: number }>
+  featureAreas: Array<{ featureArea: string; count: number }>
+  timezones: Array<{ timezone: string; count: number }>
   errorCount: number
   errorRate: number | null
   topErrors: Array<{ message: string; count: number }>

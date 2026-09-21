@@ -1530,11 +1530,23 @@ export class AnalyticsService {
 
     const events = await this.prisma.patientActivityEvent.findMany({
       where: { ...AnalyticsService.PRODUCTION_EVENT_FILTER, occurredAt: { gte: since } },
-      select: { eventName: true, deviceCategory: true, userAgent: true, properties: true, occurredAt: true },
+      select: {
+        eventName: true,
+        deviceCategory: true,
+        userAgent: true,
+        properties: true,
+        occurredAt: true,
+        os: true,
+        featureArea: true,
+        timezone: true,
+      },
     });
 
     const deviceMap = new Map<string, number>();
     const browserMap = new Map<string, number>();
+    const osMap = new Map<string, number>();
+    const featureAreaMap = new Map<string, number>();
+    const timezoneMap = new Map<string, number>();
     const errorMessageMap = new Map<string, number>();
     let errorCount = 0;
 
@@ -1544,6 +1556,16 @@ export class AnalyticsService {
 
       const browser = browserFromUserAgent(e.userAgent ?? undefined);
       browserMap.set(browser, (browserMap.get(browser) ?? 0) + 1);
+
+      if (e.os) {
+        osMap.set(e.os, (osMap.get(e.os) ?? 0) + 1);
+      }
+      if (e.featureArea) {
+        featureAreaMap.set(e.featureArea, (featureAreaMap.get(e.featureArea) ?? 0) + 1);
+      }
+      if (e.timezone) {
+        timezoneMap.set(e.timezone, (timezoneMap.get(e.timezone) ?? 0) + 1);
+      }
 
       if (e.eventName === 'client_error') {
         errorCount++;
@@ -1560,6 +1582,19 @@ export class AnalyticsService {
           .sort((a, b) => b.count - a.count),
         browsers: Array.from(browserMap.entries())
           .map(([browser, count]) => ({ browser, count }))
+          .sort((a, b) => b.count - a.count),
+        // os/featureArea/timezone omit an "Unknown" bucket (unlike devices)
+        // since these are optional filter dropdowns, not summary charts —
+        // an option for absent data would let admins filter on "no value",
+        // which isn't a meaningful segment.
+        operatingSystems: Array.from(osMap.entries())
+          .map(([os, count]) => ({ os, count }))
+          .sort((a, b) => b.count - a.count),
+        featureAreas: Array.from(featureAreaMap.entries())
+          .map(([featureArea, count]) => ({ featureArea, count }))
+          .sort((a, b) => b.count - a.count),
+        timezones: Array.from(timezoneMap.entries())
+          .map(([timezone, count]) => ({ timezone, count }))
           .sort((a, b) => b.count - a.count),
         errorCount,
         // null (not 0) when there's simply no traffic to divide by — same
