@@ -672,6 +672,76 @@ describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {
   });
 });
 
+describe('AnalyticsService.getFunnelAnalytics compare=true (spec §J date range comparison)', () => {
+  function buildService() {
+    const prisma = {
+      patientActivityEvent: { findMany: jest.fn() },
+    };
+    const service = new AnalyticsService(prisma as any);
+    return { service, prisma };
+  }
+
+  it('omits previousValue/changePercent/comparisonWindow when compare is not requested', async () => {
+    const { service, prisma } = buildService();
+    prisma.patientActivityEvent.findMany.mockResolvedValue([]);
+
+    const result = await service.getFunnelAnalytics('30d');
+
+    expect(prisma.patientActivityEvent.findMany).toHaveBeenCalledTimes(1);
+    expect(result.data.kpis.every((k) => !('previousValue' in k))).toBe(true);
+    expect((result.data as any).comparisonWindow).toBeUndefined();
+  });
+
+  it('computes KPIs for the preceding period of equal length and attaches previousValue/changePercent', async () => {
+    const { service, prisma } = buildService();
+    // First call = current window (1 of 2 verified = 50%); second call = the
+    // immediately preceding window of equal length (1 of 4 verified = 25%).
+    prisma.patientActivityEvent.findMany
+      .mockResolvedValueOnce([
+        { eventName: 'otp_requested', patientId: null, anonymousVisitorId: 'p1' },
+        { eventName: 'otp_requested', patientId: null, anonymousVisitorId: 'p2' },
+        { eventName: 'otp_verify_success', patientId: null, anonymousVisitorId: 'p1' },
+      ])
+      .mockResolvedValueOnce([
+        { eventName: 'otp_requested', patientId: null, anonymousVisitorId: 'p3' },
+        { eventName: 'otp_requested', patientId: null, anonymousVisitorId: 'p4' },
+        { eventName: 'otp_requested', patientId: null, anonymousVisitorId: 'p5' },
+        { eventName: 'otp_requested', patientId: null, anonymousVisitorId: 'p6' },
+        { eventName: 'otp_verify_success', patientId: null, anonymousVisitorId: 'p3' },
+      ]);
+
+    const result = await service.getFunnelAnalytics('30d', undefined, true);
+
+    expect(prisma.patientActivityEvent.findMany).toHaveBeenCalledTimes(2);
+    const kpi = result.data.kpis.find((k) => k.key === 'otpVerificationRate')!;
+    expect(kpi.value).toBe(50);
+    expect((kpi as any).previousValue).toBe(25);
+    expect((kpi as any).changePercent).toBe(100); // 50 is a 100% increase over 25
+    expect((result.data as any).comparisonWindow.since).toBeDefined();
+    expect((result.data as any).comparisonWindow.until).toBeDefined();
+
+    // the previous window's `until` is the current window's `since` — back-to-back, no gap/overlap
+    const [currentCall, previousCall] = prisma.patientActivityEvent.findMany.mock.calls;
+    expect((previousCall[0].where.occurredAt as any).lte).toEqual((currentCall[0].where.occurredAt as any).gte);
+  });
+
+  it('reports a null changePercent when the previous period had no data to compare against', async () => {
+    const { service, prisma } = buildService();
+    prisma.patientActivityEvent.findMany
+      .mockResolvedValueOnce([
+        { eventName: 'otp_requested', patientId: null, anonymousVisitorId: 'p1' },
+        { eventName: 'otp_verify_success', patientId: null, anonymousVisitorId: 'p1' },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const result = await service.getFunnelAnalytics('7d', undefined, true);
+
+    const kpi = result.data.kpis.find((k) => k.key === 'otpVerificationRate')!;
+    expect((kpi as any).previousValue).toBeNull();
+    expect((kpi as any).changePercent).toBeNull();
+  });
+});
+
 describe('AnalyticsService.getClickstreamAnalytics (CTA impressions/clicks/CTR)', () => {
   function buildService(rows: Array<{ eventName: string; elementId: string | null; patientId: string | null; anonymousVisitorId: string | null }>) {
     const prisma = { patientActivityEvent: { findMany: jest.fn().mockResolvedValue(rows) } };

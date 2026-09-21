@@ -456,7 +456,17 @@ export interface SecurityAnalytics {
 // consistent with the step table above.
 export interface FunnelAnalytics {
   steps: Array<{ eventName: string; count: number; uniqueUsers: number; uniqueSessions: number }>
-  kpis: Array<{ key: string; label: string; numerator: number; denominator: number; value: number | null }>
+  kpis: Array<{
+    key: string
+    label: string
+    numerator: number
+    denominator: number
+    value: number | null
+    // present only when the funnel request set compare=true — spec §J date range comparison
+    previousValue?: number | null
+    changePercent?: number | null
+  }>
+  comparisonWindow?: { since: string; until: string }
 }
 
 export interface DemographicsAnalytics {
@@ -969,6 +979,7 @@ export const adminApi = {
         acquisitionSource?: string
         utmCampaign?: string
         lifecycleStage?: string
+        compare?: boolean
       },
     ) => {
       const qs = new URLSearchParams({ period })
@@ -986,6 +997,7 @@ export const adminApi = {
       if (filters?.acquisitionSource) qs.set('acquisitionSource', filters.acquisitionSource)
       if (filters?.utmCampaign) qs.set('utmCampaign', filters.utmCampaign)
       if (filters?.lifecycleStage) qs.set('lifecycleStage', filters.lifecycleStage)
+      if (filters?.compare) qs.set('compare', 'true')
       return request<{ data: FunnelAnalytics }>(`/admin/analytics/funnel?${qs}`)
     },
     demographics: () =>

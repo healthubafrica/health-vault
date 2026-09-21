@@ -324,6 +324,7 @@ export default function AnalyticsPage() {
   const [funnelAcquisitionSource, setFunnelAcquisitionSource] = useState('')
   const [funnelUtmCampaign, setFunnelUtmCampaign] = useState('')
   const [funnelLifecycleStage, setFunnelLifecycleStage] = useState('')
+  const [funnelCompare, setFunnelCompare] = useState(false)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
@@ -348,6 +349,7 @@ export default function AnalyticsPage() {
           acquisitionSource: funnelAcquisitionSource || undefined,
           utmCampaign: funnelUtmCampaign || undefined,
           lifecycleStage: funnelLifecycleStage || undefined,
+          compare: funnelCompare,
         }),
         adminApi.analytics.demographics(),
         adminApi.analytics.clickstream(period),
@@ -372,7 +374,7 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false)
     }
-  }, [period, funnelCountry, funnelContinent, funnelDevice, funnelAgeBand, funnelPlanTier, funnelGender, funnelNationality, funnelBrowser, funnelOs, funnelFeatureArea, funnelTimezone, funnelAcquisitionSource, funnelUtmCampaign, funnelLifecycleStage, mapBasis])
+  }, [period, funnelCountry, funnelContinent, funnelDevice, funnelAgeBand, funnelPlanTier, funnelGender, funnelNationality, funnelBrowser, funnelOs, funnelFeatureArea, funnelTimezone, funnelAcquisitionSource, funnelUtmCampaign, funnelLifecycleStage, funnelCompare, mapBasis])
 
   useEffect(() => {
     setLoading(true)
@@ -791,6 +793,11 @@ export default function AnalyticsPage() {
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
+              <FilterTabs
+                tabs={['Off', 'Compare']}
+                active={funnelCompare ? 'Compare' : 'Off'}
+                onChange={(t) => setFunnelCompare(t === 'Compare')}
+              />
               <ExportButton onExport={exportFunnelSteps} />
             </div>
           </div>
@@ -799,13 +806,29 @@ export default function AnalyticsPage() {
             <Card className="mb-6"><Empty>No instrumented events yet for this filter combination.</Empty></Card>
           ) : (
             <>
+              {funnelCompare && funnel?.comparisonWindow && (
+                <p className="text-[11px] mb-2" style={{ color: 'var(--color-text-faint)' }}>
+                  Comparing to the previous {period}: {new Date(funnel.comparisonWindow.since).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })} – {new Date(funnel.comparisonWindow.until).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}
+                </p>
+              )}
               <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
                 {(funnel?.kpis ?? []).map((kpi) => (
                   <Card key={kpi.key}>
                     <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>{kpi.label}</p>
-                    <p className="text-2xl font-bold mt-1" style={{ color: 'var(--color-text)' }}>{kpi.value === null ? '—' : `${kpi.value}%`}</p>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <p className="text-2xl font-bold" style={{ color: 'var(--color-text)' }}>{kpi.value === null ? '—' : `${kpi.value}%`}</p>
+                      {funnelCompare && kpi.changePercent != null && (
+                        <span
+                          className="text-xs font-semibold"
+                          style={{ color: kpi.changePercent >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}
+                        >
+                          {kpi.changePercent >= 0 ? '+' : ''}{kpi.changePercent}%
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-faint)' }}>
                       {kpi.denominator === 0 ? 'No data yet' : `${kpi.numerator} of ${kpi.denominator}`}
+                      {funnelCompare && kpi.previousValue != null ? ` · was ${kpi.previousValue}%` : ''}
                     </p>
                   </Card>
                 ))}

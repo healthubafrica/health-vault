@@ -198,6 +198,7 @@ export class AdminController {
   @ApiQuery({ name: 'acquisitionSource', required: false, description: 'Filter to a single acquisition source captured at registration — spec §J' })
   @ApiQuery({ name: 'utmCampaign', required: false, description: 'Filter to a single first-touch UTM campaign captured at registration — spec §J' })
   @ApiQuery({ name: 'lifecycleStage', required: false, enum: LIFECYCLE_STAGES, description: 'Filter to one lifecycle segment — spec §J (overlapping, evaluated within the period)' })
+  @ApiQuery({ name: 'compare', required: false, description: 'When "true", also compute KPIs for the immediately preceding period of equal length and attach previousValue/changePercent — spec §J date range comparison' })
   getFunnelAnalytics(
     @Query('period') period?: string,
     @Query('country') country?: string,
@@ -214,26 +215,31 @@ export class AdminController {
     @Query('acquisitionSource') acquisitionSource?: string,
     @Query('utmCampaign') utmCampaign?: string,
     @Query('lifecycleStage') lifecycleStage?: string,
+    @Query('compare') compare?: string,
   ) {
     if (lifecycleStage && !(LIFECYCLE_STAGES as readonly string[]).includes(lifecycleStage)) {
       throw new BadRequestException(`lifecycleStage must be one of: ${LIFECYCLE_STAGES.join(', ')}`);
     }
-    return this.adminService.getFunnelAnalytics(period, {
-      country,
-      continent,
-      device,
-      ageBand,
-      planTier,
-      os,
-      browser,
-      featureArea,
-      timezone,
-      gender,
-      nationality,
-      acquisitionSource,
-      utmCampaign,
-      lifecycleStage: lifecycleStage as LifecycleStage | undefined,
-    });
+    return this.adminService.getFunnelAnalytics(
+      period,
+      {
+        country,
+        continent,
+        device,
+        ageBand,
+        planTier,
+        os,
+        browser,
+        featureArea,
+        timezone,
+        gender,
+        nationality,
+        acquisitionSource,
+        utmCampaign,
+        lifecycleStage: lifecycleStage as LifecycleStage | undefined,
+      },
+      compare === 'true',
+    );
   }
 
   @Get('analytics/demographics')
