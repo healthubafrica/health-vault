@@ -1,6 +1,7 @@
 import {
   OpenemrProcessor,
   codeableConceptText,
+  extractEncounterId,
   mapOpenemrApptStatus,
   parseOpenemrClinicTime,
 } from './openemr.processor';
@@ -827,5 +828,141 @@ describe('OpenemrProcessor.handlePullLabResults (order matching)', () => {
     expect(prisma.labOrder.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'order-1' } }),
     );
+  });
+});
+
+describe('extractEncounterId', () => {
+  it('reads a FHIR resource id', () => {
+    expect(extractEncounterId({ resourceType: 'Encounter', id: 'fhir-1' })).toBe('fhir-1');
+  });
+
+  it('prefers the uuid over the numeric encounter number in a REST { data } response', () => {
+    expect(extractEncounterId({ data: { uuid: 'u-1', encounter: 5 } })).toBe('u-1');
+  });
+
+  it('falls back to encounter, then eid, when there is no uuid', () => {
+    expect(extractEncounterId({ data: { encounter: 5 } })).toBe('5');
+    expect(extractEncounterId({ data: { eid: 7 } })).toBe('7');
+  });
+
+  it('reads a top-level uuid and a single-element data array', () => {
+    expect(extractEncounterId({ uuid: 'top-1' })).toBe('top-1');
+    expect(extractEncounterId({ data: [{ uuid: 'arr-1' }] })).toBe('arr-1');
+  });
+
+  it('returns undefined when nothing recognisable is present', () => {
+    expect(extractEncounterId({})).toBeUndefined();
+    expect(extractEncounterId({ data: {} })).toBeUndefined();
+    expect(extractEncounterId(null)).toBeUndefined();
+    expect(extractEncounterId(undefined)).toBeUndefined();
+  });
+});
+
+describe('OpenemrProcessor.handleSyncEncounter (FHIR-first with REST fallback)', () => {
+  const appointment = {
+    id: 'appt-1',
+    status: 'requested',
+    isTelecare: false,
+    reason: 'Checkup',
+    scheduledAt: new Date('2026-07-15T13:30:00.000Z'),
+    durationMinutes: 30,
+    patient: { openemrPatientUuid: 'uuid-1' },
+    provider: null,
+    facility: { name: 'Main Clinic', openemrFacilityId: 'loc-uuid' },
+  };
+
+  function buildPrisma() {
+    return {
+      appointment: { findUnique: jest.fn().mockResolvedValue(appointment) },
+      openemrSyncQueue: {
+        create: jest.fn().mockResolvedValue({ id: 'q1' }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+    };
+  }
+
+  const job = {
+    data: { patientId: 'p1', operation: 'sync_record', payload: { appointmentId: 'appt-1' } },
+    attemptsMade: 0,
+    opts: { attempts: 3 },
+  } as any;
+
+  // OpenEMR here has no POST /fhir/Encounter (404 "Route not found") so every
+  // sync takes the REST fallback. The FHIR attempt is a probe: it must tell the
+  // shared HTTP helper that a 404 is expected, otherwise that helper writes an
+  // IntegrationError row + ERROR log on every booking for a sync that succeeds.
+  it('declares the FHIR 404 as expected, then falls back to REST', async () => {
+    const callOpenemr = jest.fn().mockImplementation(async (_t: string, method: string, path: string) => {
+      if (method === 'POST' && path === '/fhir/Encounter') {
+        throw new Error('OpenEMR 404 on POST /fhir/Encounter: Route not found');
+      }
+      if (method === 'POST' && path === '/api/patient/uuid-1/encounter') {
+        return { data: { uuid: 'enc-uuid', encounter: 42 } };
+      }
+      throw new Error(`unexpected call ${method} ${path}`);
+    });
+    const openemr = { getAccessToken: jest.fn().mockResolvedValue('token'), callOpenemr };
+    const processor = buildProcessor(buildPrisma(), openemr);
+    jest.spyOn((processor as any).logger, 'warn').mockImplementation(() => undefined);
+    jest.spyOn((processor as any).logger, 'log').mockImplementation(() => undefined);
+
+    await expect(processor.handleSyncEncounter(job)).resolves.toBeUndefined();
+
+    const fhirCall = callOpenemr.mock.calls.find((c) => c[2] === '/fhir/Encounter');
+    expect(fhirCall?.[6]).toEqual({ expectedStatuses: [404] });
+    expect(callOpenemr.mock.calls.some((c) => c[2] === '/api/patient/uuid-1/encounter')).toBe(true);
+  });
+
+  it('logs the encounter id it got back from the REST fallback', async () => {
+    const callOpenemr = jest.fn().mockImplementation(async (_t: string, _m: string, path: string) => {
+      if (path === '/fhir/Encounter') throw new Error('OpenEMR 404 on POST /fhir/Encounter: x');
+      return { data: { uuid: 'enc-uuid', encounter: 42 } };
+    });
+    const processor = buildProcessor(buildPrisma(), {
+      getAccessToken: jest.fn().mockResolvedValue('token'),
+      callOpenemr,
+    });
+    jest.spyOn((processor as any).logger, 'warn').mockImplementation(() => undefined);
+    const log = jest.spyOn((processor as any).logger, 'log').mockImplementation(() => undefined);
+
+    await processor.handleSyncEncounter(job);
+
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('openemrId=enc-uuid'));
+  });
+
+  it('warns with only the response KEYS (never values) when the REST response has no recognisable id', async () => {
+    const callOpenemr = jest.fn().mockImplementation(async (_t: string, _m: string, path: string) => {
+      if (path === '/fhir/Encounter') throw new Error('OpenEMR 404 on POST /fhir/Encounter: x');
+      return { weird: { patientName: 'Jane Doe' } };
+    });
+    const processor = buildProcessor(buildPrisma(), {
+      getAccessToken: jest.fn().mockResolvedValue('token'),
+      callOpenemr,
+    });
+    const warn = jest.spyOn((processor as any).logger, 'warn').mockImplementation(() => undefined);
+    jest.spyOn((processor as any).logger, 'log').mockImplementation(() => undefined);
+
+    await processor.handleSyncEncounter(job);
+
+    const messages = warn.mock.calls.map((c) => String(c[0]));
+    expect(messages.some((m) => m.includes('weird'))).toBe(true);
+    expect(messages.some((m) => m.includes('Jane Doe'))).toBe(false);
+  });
+
+  it('does not fall back on a non-404 error — it is a real failure and must propagate', async () => {
+    const callOpenemr = jest.fn().mockImplementation(async (_t: string, _m: string, path: string) => {
+      if (path === '/fhir/Encounter') throw new Error('OpenEMR 401 on POST /fhir/Encounter: unauthorized');
+      return { data: { uuid: 'should-not-happen' } };
+    });
+    const prisma = { ...buildPrisma() };
+    const processor = buildProcessor(prisma, {
+      getAccessToken: jest.fn().mockResolvedValue('token'),
+      callOpenemr,
+    });
+    (processor as any).failQueueItem = jest.fn().mockResolvedValue(undefined);
+
+    await expect(processor.handleSyncEncounter(job)).rejects.toThrow(/OpenEMR 401/);
+
+    expect(callOpenemr.mock.calls.some((c) => c[2].startsWith('/api/patient/'))).toBe(false);
   });
 });

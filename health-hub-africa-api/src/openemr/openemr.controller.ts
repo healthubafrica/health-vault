@@ -91,7 +91,7 @@ export class OpenemrController {
     summary: 'Re-enqueue encounter sync for all confirmed appointments (super_admin only)',
     description:
       'Use after fixing an OpenEMR auth or endpoint issue to flush the backlog of ' +
-      'appointments whose encounter sync failed. Posts via FHIR /fhir/Encounter; ' +
+      'appointments whose encounter sync failed. Tries FHIR /fhir/Encounter, falling back to REST; ' +
       'duplicates are possible if encounters already exist on the OpenEMR side.',
   })
   recoverAppointmentEncounters() {
