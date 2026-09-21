@@ -299,14 +299,19 @@ export interface RevenueDataPoint {
   gateway: string
 }
 
-export interface UsageDataPoint {
-  date: string
-  appointments: number
-  telecare: number
-  dispatch: number
-  labOrders: number
-  expertReviews: number
-}
+// One column per ServiceType (see AdminService.USAGE_KEY_BY_SERVICE_TYPE),
+// zero-filled so every row has the same shape.
+export type UsageServiceKey =
+  | 'minuteCare'
+  | 'teleCare'
+  | 'careTest'
+  | 'healthConsult'
+  | 'expertReview'
+  | 'neuroFlex'
+  | 'dispatchCare'
+  | 'travelSafe'
+
+export type UsageDataPoint = { date: string } & Record<UsageServiceKey, number>
 
 export interface MarketingAnalytics {
   totals: {
