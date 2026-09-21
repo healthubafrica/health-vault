@@ -299,14 +299,19 @@ export interface RevenueDataPoint {
   gateway: string
 }
 
-export interface UsageDataPoint {
-  date: string
-  appointments: number
-  telecare: number
-  dispatch: number
-  labOrders: number
-  expertReviews: number
-}
+// One column per ServiceType (see AdminService.USAGE_KEY_BY_SERVICE_TYPE),
+// zero-filled so every row has the same shape.
+export type UsageServiceKey =
+  | 'minuteCare'
+  | 'teleCare'
+  | 'careTest'
+  | 'healthConsult'
+  | 'expertReview'
+  | 'neuroFlex'
+  | 'dispatchCare'
+  | 'travelSafe'
+
+export type UsageDataPoint = { date: string } & Record<UsageServiceKey, number>
 
 export interface MarketingAnalytics {
   totals: {
@@ -944,11 +949,40 @@ export const adminApi = {
       request<{ data: MarketingAnalytics }>(`/admin/analytics/marketing?period=${period}`),
     traffic: (period = '30d') =>
       request<{ data: TrafficAnalytics }>(`/admin/analytics/traffic?period=${period}`),
-    funnel: (period = '30d', filters?: { country?: string; continent?: string; device?: string }) => {
+    funnel: (
+      period = '30d',
+      filters?: {
+        country?: string
+        continent?: string
+        device?: string
+        ageBand?: string
+        planTier?: string
+        os?: string
+        browser?: string
+        featureArea?: string
+        timezone?: string
+        gender?: string
+        nationality?: string
+        acquisitionSource?: string
+        utmCampaign?: string
+        lifecycleStage?: string
+      },
+    ) => {
       const qs = new URLSearchParams({ period })
       if (filters?.country) qs.set('country', filters.country)
       if (filters?.continent) qs.set('continent', filters.continent)
       if (filters?.device) qs.set('device', filters.device)
+      if (filters?.ageBand) qs.set('ageBand', filters.ageBand)
+      if (filters?.planTier) qs.set('planTier', filters.planTier)
+      if (filters?.os) qs.set('os', filters.os)
+      if (filters?.browser) qs.set('browser', filters.browser)
+      if (filters?.featureArea) qs.set('featureArea', filters.featureArea)
+      if (filters?.timezone) qs.set('timezone', filters.timezone)
+      if (filters?.gender) qs.set('gender', filters.gender)
+      if (filters?.nationality) qs.set('nationality', filters.nationality)
+      if (filters?.acquisitionSource) qs.set('acquisitionSource', filters.acquisitionSource)
+      if (filters?.utmCampaign) qs.set('utmCampaign', filters.utmCampaign)
+      if (filters?.lifecycleStage) qs.set('lifecycleStage', filters.lifecycleStage)
       return request<{ data: FunnelAnalytics }>(`/admin/analytics/funnel?${qs}`)
     },
     demographics: () =>

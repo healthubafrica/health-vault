@@ -21,6 +21,14 @@ import {
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useFeatureFlags } from '@/lib/hooks/useFeatureFlags'
+import { analytics } from '@/lib/api'
+
+// Same element_id scheme and no-impression-tracking rationale as Sidebar.tsx
+// (spec §8.2 "Navigation menu items") — this is the mobile-width equivalent
+// of the same primary nav, not a separate feature.
+function navElementId(href: string): string {
+  return `nav_${href.replace(/^\//, '').replace(/\//g, '_')}`
+}
 
 const BOTTOM_NAV = [
   { icon: LayoutDashboard, label: 'Home', href: '/dashboard' },
@@ -59,7 +67,10 @@ export function MobileBottomNav() {
             return (
               <button
                 key={label}
-                onClick={() => setIsMoreOpen(!isMoreOpen)}
+                onClick={() => {
+                  if (!isMoreOpen) analytics.track('ui_click', { element_id: 'nav_more_menu', feature_area: 'navigation' })
+                  setIsMoreOpen(!isMoreOpen)
+                }}
                 className={cn(
                   'flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-colors outline-none',
                   active ? 'text-[#6DC43F]' : 'text-[var(--color-text-muted)]'
@@ -75,7 +86,10 @@ export function MobileBottomNav() {
             <Link
               key={href}
               href={href!}
-              onClick={() => setIsMoreOpen(false)}
+              onClick={() => {
+                analytics.track('ui_click', { element_id: navElementId(href!), feature_area: 'navigation', destination: href })
+                setIsMoreOpen(false)
+              }}
               aria-label={label}
               aria-current={active ? 'page' : undefined}
               className={cn(
@@ -129,7 +143,10 @@ export function MobileBottomNav() {
                       <Link
                         key={href}
                         href={href}
-                        onClick={() => setIsMoreOpen(false)}
+                        onClick={() => {
+                          analytics.track('ui_click', { element_id: navElementId(href), feature_area: 'navigation', destination: href })
+                          setIsMoreOpen(false)
+                        }}
                         className="flex flex-col items-center gap-2 text-center group"
                       >
                         <div 

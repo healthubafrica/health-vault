@@ -103,6 +103,38 @@ export interface AccessGeo {
   geoProviderVersion?: string;
 }
 
+// Spec §J Global Dashboard Filters, as implemented on getFunnelAnalytics.
+// country/continent/device/os/browser/featureArea/timezone are direct
+// PatientActivityEvent columns; ageBand/planTier/gender/nationality live on
+// Patient; acquisitionSource/utmCampaign live on User (captured once, at
+// registration — see MarketingAttributionDto) — all four non-column filters
+// are resolved via resolvePatientIdsForSegment instead.
+// Spec §J lifecycle segments. These are overlapping predicates, not
+// mutually-exclusive buckets — a patient can be both Activated and Returning.
+// Registered/Verified/Activated/Returning are all evaluated against the
+// funnel's own time window (same simplification retention makes: "did it
+// happen in this window", not an all-time history scan), documented on
+// filterByLifecycleStage below.
+export const LIFECYCLE_STAGES = ['anonymous', 'registered', 'verified', 'activated', 'returning'] as const;
+export type LifecycleStage = (typeof LIFECYCLE_STAGES)[number];
+
+export interface FunnelFilters {
+  country?: string;
+  continent?: string;
+  device?: string;
+  os?: string;
+  browser?: string;
+  featureArea?: string;
+  timezone?: string;
+  ageBand?: string;
+  planTier?: string;
+  gender?: string;
+  nationality?: string;
+  acquisitionSource?: string;
+  utmCampaign?: string;
+  lifecycleStage?: LifecycleStage;
+}
+
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
@@ -759,9 +791,11 @@ export class AnalyticsService {
   // Step counts (raw + unique users/sessions) for every funnel event name
   // emitted via analytics.track() — not hardcoded per funnel so new event
   // names show up automatically as screens are instrumented; the dashboard
-  // groups them into named steps. Optional country/continent/device filters
-  // narrow both the steps and the KPIs computed from them.
-  async getFunnelAnalytics(period = '30d', filters?: { country?: string; continent?: string; device?: string }) {
+  // groups them into named steps. Filters implement spec §J Global Dashboard
+  // Filters: country/continent/device/os/browser/featureArea/timezone are
+  // direct columns on the event row; ageBand/planTier/gender/nationality
+  // live on Patient instead (see resolvePatientIdsForSegment below).
+  async getFunnelAnalytics(period = '30d', filters?: FunnelFilters) {
     const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
     const since = new Date();
     since.setDate(since.getDate() - days);
@@ -772,12 +806,45 @@ export class AnalyticsService {
         occurredAt: { gte: since },
         ...(filters?.country && { countryCode: filters.country }),
         ...(filters?.device && { deviceCategory: filters.device }),
+        ...(filters?.os && { os: filters.os }),
+        ...(filters?.browser && { browser: filters.browser }),
+        ...(filters?.featureArea && { featureArea: filters.featureArea }),
+        ...(filters?.timezone && { timezone: filters.timezone }),
       },
       select: { eventName: true, patientId: true, anonymousVisitorId: true, analyticsSessionId: true, countryCode: true },
     });
-    const filtered = filters?.continent
+    let filtered = filters?.continent
       ? rows.filter((r) => continentForCountry(r.countryCode) === filters.continent)
       : rows;
+
+    // Age band / plan tier / gender / nationality / acquisitionSource /
+    // utmCampaign live on Patient or User, not on the event row itself, so
+    // (unlike the direct-column filters above) this needs a second query
+    // resolving which patients currently match — only run it when actually
+    // filtering. Anonymous events have no patientId and are correctly
+    // excluded here: there's no patient record to segment them by.
+    const { ageBand, planTier, gender, nationality, acquisitionSource, utmCampaign } = filters ?? {};
+    const wantsPatientSegment = !!(ageBand || planTier || gender || nationality);
+    const wantsAttributionSegment = !!(acquisitionSource || utmCampaign);
+    if (wantsPatientSegment || wantsAttributionSegment) {
+      // Two independent facets, each resolved by its own query (Patient
+      // fields vs. raw User columns — see resolveUserAttributionPatientIds
+      // for why those aren't a normal Prisma select) — intersected when
+      // both are active, same AND semantics a real filter bar implies.
+      const [patientMatch, attributionMatch] = await Promise.all([
+        wantsPatientSegment ? this.resolvePatientIdsForSegment({ ageBand, planTier, gender, nationality }) : null,
+        wantsAttributionSegment ? this.resolveUserAttributionPatientIds(acquisitionSource, utmCampaign) : null,
+      ]);
+      const matchingPatientIds =
+        patientMatch && attributionMatch
+          ? new Set([...patientMatch].filter((id) => attributionMatch.has(id)))
+          : (patientMatch ?? attributionMatch)!;
+      filtered = filtered.filter((r) => r.patientId && matchingPatientIds.has(r.patientId));
+    }
+
+    if (filters?.lifecycleStage) {
+      filtered = await this.filterByLifecycleStage(filtered, filters.lifecycleStage);
+    }
 
     const byEvent = new Map<string, { count: number; users: Set<string>; sessions: Set<string> }>();
     for (const r of filtered) {
@@ -1094,6 +1161,114 @@ export class AnalyticsService {
 
   private static ageBandFor(age: number): string {
     return AnalyticsService.AGE_BANDS.find((b) => age >= b.minAge && (b.maxAge === null || age <= b.maxAge))?.label ?? 'Unknown';
+  }
+
+  // Backs the funnel filter's ageBand/planTier options (spec §J) — same
+  // band/tier logic as getDemographicsAnalytics, just returning matching
+  // patient ids instead of counts. Only ever called when at least one of
+  // the two filters is set, so the extra query stays out of the common
+  // unfiltered funnel-load path.
+  private async resolvePatientIdsForSegment(segment: {
+    ageBand?: string;
+    planTier?: string;
+    gender?: string;
+    nationality?: string;
+  }): Promise<Set<string>> {
+    const now = new Date();
+    const patients = await this.prisma.patient.findMany({
+      where: { user: { deletedAt: null } },
+      select: {
+        id: true,
+        dateOfBirth: true,
+        gender: true,
+        nationality: true,
+        subscriptions: { where: { status: 'active' }, select: { plan: { select: { tier: true } } }, take: 1 },
+      },
+    });
+
+    const matching = new Set<string>();
+    for (const p of patients) {
+      if (segment.ageBand && AnalyticsService.ageBandFor(AnalyticsService.calculateAge(p.dateOfBirth, now)) !== segment.ageBand) continue;
+      const tier = p.subscriptions[0]?.plan.tier ?? 'Free';
+      if (segment.planTier && tier !== segment.planTier) continue;
+      if (segment.gender && p.gender !== segment.gender) continue;
+      const nationality = p.nationality?.trim() || 'Not declared';
+      if (segment.nationality && nationality !== segment.nationality) continue;
+      matching.add(p.id);
+    }
+    return matching;
+  }
+
+  // Spec §J lifecycle stage. Keeps the events of everyone who is at the
+  // given stage, so the funnel shows that group's whole journey.
+  //   anonymous  — no patientId (only an anonymousVisitorId)
+  //   registered — has a Patient row (any authenticated event implies one)
+  //   verified   — the Patient's User.isVerified is true
+  //   activated  — fired an ACTIVATION_QUALIFYING_EVENT in this window (same
+  //                list the activation-rate KPI uses)
+  //   returning  — the event's AnalyticsSession is flagged returningVisitor
+  //                (a previous session existed); works for anonymous
+  //                visitors too since it keys off the session, not the patient
+  // ponytail: verified/activated/returning are evaluated within the funnel's
+  // window, not against all-time history — an all-time scan would need an
+  // unbounded event query for one filter; revisit if someone needs it.
+  private async filterByLifecycleStage<
+    T extends { eventName: string; patientId: string | null; analyticsSessionId: string | null },
+  >(rows: T[], stage: LifecycleStage): Promise<T[]> {
+    switch (stage) {
+      case 'anonymous':
+        return rows.filter((r) => !r.patientId);
+      case 'registered':
+        return rows.filter((r) => !!r.patientId);
+      case 'verified': {
+        const ids = [...new Set(rows.map((r) => r.patientId).filter((id): id is string => !!id))];
+        if (ids.length === 0) return [];
+        const verified = await this.prisma.patient.findMany({
+          where: { id: { in: ids }, user: { isVerified: true, deletedAt: null } },
+          select: { id: true },
+        });
+        const verifiedIds = new Set(verified.map((p) => p.id));
+        return rows.filter((r) => r.patientId && verifiedIds.has(r.patientId));
+      }
+      case 'activated': {
+        const activated = new Set(
+          rows
+            .filter((r) => r.patientId && AnalyticsService.ACTIVATION_QUALIFYING_EVENTS.includes(r.eventName))
+            .map((r) => r.patientId as string),
+        );
+        return rows.filter((r) => r.patientId && activated.has(r.patientId));
+      }
+      case 'returning': {
+        const sessionIds = [...new Set(rows.map((r) => r.analyticsSessionId).filter((id): id is string => !!id))];
+        if (sessionIds.length === 0) return [];
+        const returning = await this.prisma.analyticsSession.findMany({
+          where: { analyticsSessionId: { in: sessionIds }, returningVisitor: true },
+          select: { analyticsSessionId: true },
+        });
+        const returningIds = new Set(returning.map((x) => x.analyticsSessionId));
+        return rows.filter((r) => r.analyticsSessionId && returningIds.has(r.analyticsSessionId));
+      }
+    }
+  }
+
+  // acquisitionSource/utmCampaign live on `users.acquisition_source`/
+  // `users.utm_campaign` — real Postgres columns (added by a raw-SQL
+  // migration, see 20260901170000_add_marketing_attribution) that were
+  // never added to the User model in schema.prisma, so Prisma's query
+  // builder has no typed way to select them; AdminService.getMarketingAnalytics
+  // and AuthService.register() both already read/write them via $queryRaw/
+  // $executeRaw for the same reason — this follows that existing pattern
+  // rather than editing the shared schema for one filter.
+  private async resolveUserAttributionPatientIds(acquisitionSource?: string, utmCampaign?: string): Promise<Set<string>> {
+    const rows = await this.prisma.$queryRaw<Array<{ patientId: string }>>`
+      SELECT p."id" AS "patientId"
+      FROM "patients" p
+      INNER JOIN "users" u ON u."id" = p."user_id"
+      WHERE u."deleted_at" IS NULL
+        AND (${acquisitionSource ?? null}::text IS NULL OR u."acquisition_source"::text = ${acquisitionSource ?? null})
+        AND (${utmCampaign ?? null}::text IS NULL OR u."utm_campaign" = ${utmCampaign ?? null})
+    `;
+    return new Set(rows.map((r) => r.patientId));
   }
 
   // Spec §18 Demographics & Geography dashboard: age bands, sex/gender as

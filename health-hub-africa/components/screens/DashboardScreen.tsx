@@ -440,13 +440,29 @@ export function DashboardScreen() {
               already emit so CTR = clicks / impressions can be computed.
               Followed up (separate PRs) on Labs' "Book CareTest™" CTA, the
               primary CTAs in Appointments/TeleCare/Payments/Subscriptions,
-              the Vault upload/share CTAs, and the vitals "Save readings"
-              button — still open: per-document Download/Replace/Delete
-              (dropdown menu items with no persistent visibility, so no
-              honest impression signal to pair a click with), per-result lab
-              actions, nav menu items, profile-completion prompts, search.
-              No "device-sync" controls exist to instrument — there's no
-              wearable/device integration in this codebase. */}
+              the Vault upload/share CTAs, the vitals "Save readings" button,
+              and Sidebar/MobileBottomNav's nav links (click-only, no
+              impression wrap — persistent chrome is ~always visible, so a
+              CTR metric wouldn't mean what it means for a discretionary
+              CTA). Spec §8.2's list is now fully accounted for: the
+              remaining named categories are confirmed non-buildable rather
+              than left as open follow-ups —
+              - per-document Download/Replace/Delete and per-result lab
+                actions: flat/non-expandable list rows, no reveal
+                interaction to hang a per-item event on
+              - profile-completion prompts: ProfilePanel.tsx has a
+                read-only completeness ring with no click affordance —
+                there's no "complete your profile" CTA anywhere to
+                instrument
+              - search results/zero-result actions: Topbar.tsx's search
+                input and icon button are decorative (no onChange/onClick,
+                no query state) — there's no functioning search feature at
+                all, not just an uninstrumented one
+              - device-sync controls: no wearable/device integration
+                exists in this codebase
+              Any of these becoming real instrumentation targets depends on
+              product building the feature first, not on more analytics
+              work. */}
           <TrackImpression elementId="quick_action_telecare" featureArea="dashboard" elementType="card" className="h-full">
             <ActionChip icon={Video} name="TeleCare™" description="Virtual consult" onClick={() => trackQuickAction('telecare', '/telecare')} />
           </TrackImpression>

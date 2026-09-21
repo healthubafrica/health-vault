@@ -32,6 +32,17 @@ import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/lib/stores/authStore'
 import { useFeatureFlags } from '@/lib/hooks/useFeatureFlags'
 import { useSettingsStore } from '@/lib/settingsStore'
+import { analytics } from '@/lib/api'
+
+// element_id per nav destination, e.g. '/appointments' -> 'nav_appointments'.
+// Not wrapped in <TrackImpression>: primary nav is rendered on every
+// authenticated page, so its "impression rate" is always ~100% — a CTR
+// metric only makes sense for something a patient might or might not
+// notice, which persistent chrome isn't. Click counts alone are the useful
+// signal here (spec §8.2 "Navigation menu items").
+function navElementId(href: string): string {
+  return `nav_${href.replace(/^\//, '').replace(/\//g, '_')}`
+}
 
 const NAV_ITEMS = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
@@ -118,6 +129,7 @@ export function Sidebar() {
             <Link
               key={href}
               href={href}
+              onClick={() => analytics.track('ui_click', { element_id: navElementId(href), feature_area: 'navigation', destination: href })}
               aria-label={label}
               aria-current={active ? 'page' : undefined}
               title={isCollapsed ? label : undefined}
