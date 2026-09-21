@@ -5,13 +5,14 @@ import {
   IsEnum,
   IsArray,
   IsBoolean,
+  IsISO31661Alpha2,
   IsNumber,
   Matches,
   Max,
   Min,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Gender, BloodGroup } from '@prisma/client';
 
@@ -167,6 +168,16 @@ export class CreatePatientDto {
   @IsOptional()
   @IsString()
   country?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'ISO 3166-1 alpha-2 country the patient explicitly chose (e.g. "NG"). Only clients that actually ask the user should send this — it is what marks the country as patient-declared. When present, `country` is derived from it server-side.',
+    example: 'NG',
+  })
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
+  @IsISO31661Alpha2()
+  countryCode?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

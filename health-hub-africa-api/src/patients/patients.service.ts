@@ -22,6 +22,7 @@ import { UpdatePatientDto } from './dto/update-patient.dto';
 import { QueryPatientsDto } from './dto/query-patients.dto';
 import { RequestProfilePhotoUrlDto, ProcessProfilePhotoDto } from './dto/profile-photo-upload.dto';
 import { UpdateOnboardingProgressDto } from './dto/onboarding-progress.dto';
+import { declaredCountryFromCode } from '../common/utils/country.util';
 import { OpenemrService } from '../openemr/openemr.service';
 import { StorageService } from '../storage/storage.service';
 import { PaymentRequiredException } from '../common/exceptions/payment-required.exception';
@@ -119,8 +120,13 @@ export class PatientsService {
 
     if (dto.profilePhotoUrl) this.assertOwnPhotoUrl(dto.profilePhotoUrl, currentUser.sub);
 
-    const regionCode = dto.regionCode ?? (dto.country && REGION_MAP[dto.country]) ?? 'HHA';
-    const hhaPatientId = await this.generateHhaId(dto.country);
+    // countryCode is the only signal that the patient actually chose a
+    // country; when present the country name is derived from it (never
+    // trusted from the client), and the HHA id region follows it.
+    const declared = declaredCountryFromCode(dto.countryCode);
+    const countryName = declared?.country ?? dto.country;
+    const regionCode = dto.regionCode ?? (countryName && REGION_MAP[countryName]) ?? 'HHA';
+    const hhaPatientId = await this.generateHhaId(countryName);
 
     const allergies = dto.medicalInfo?.allergies ?? dto.allergies ?? [];
     const chronicConditions = dto.medicalInfo?.chronicConditions ?? dto.chronicConditions ?? [];
@@ -144,7 +150,8 @@ export class PatientsService {
         address: dto.address,
         city: dto.city,
         state: dto.state,
-        country: dto.country ?? 'Nigeria',
+        country: countryName ?? 'Nigeria',
+        countryCode: declared?.countryCode,
         genotype: dto.genotype,
         nextOfKinName: dto.nextOfKinName,
         nextOfKinRelationship: dto.nextOfKinRelationship,
@@ -341,6 +348,9 @@ export class PatientsService {
       medicalInfo?.notes,
     ].some(value => value !== undefined);
 
+    // Same rule as create(): only an explicit countryCode marks the country as declared.
+    const declared = declaredCountryFromCode(dto.countryCode);
+
     const updated = await this.prisma.patient.update({
       where: { id },
       data: {
@@ -356,7 +366,8 @@ export class PatientsService {
         address: dto.address,
         city: dto.city,
         state: dto.state,
-        country: dto.country,
+        country: declared?.country ?? dto.country,
+        countryCode: declared?.countryCode,
         genotype: dto.genotype,
         nextOfKinName: dto.nextOfKinName,
         nextOfKinRelationship: dto.nextOfKinRelationship,
@@ -712,6 +723,7 @@ export class PatientsService {
       city: true,
       state: true,
       country: true,
+      countryCode: true,
       nextOfKinName: true,
       nextOfKinRelationship: true,
       nextOfKinPhone: true,

@@ -325,6 +325,9 @@ export interface PatientProfile {
   city?: string
   state?: string
   country: string
+  // ISO 3166-1 alpha-2, present only when the patient actually chose a
+  // country (via onboarding/profile countryCode) — see the API's country.util.ts.
+  countryCode?: string | null
   nextOfKinName?: string | null
   nextOfKinRelationship?: string | null
   nextOfKinPhone?: string | null

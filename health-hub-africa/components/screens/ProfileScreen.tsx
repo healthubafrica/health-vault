@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { FormInput, FormSelect, FormTextarea } from '@/components/ui/FormInput'
+import { COUNTRY_OPTIONS } from '@/components/screens/OnboardingScreen'
 import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
 import { IdChip } from '@/components/ui/IdChip'
@@ -50,6 +51,8 @@ export function ProfileScreen() {
   const [dob, setDob] = useState('')
   const [gender, setGender] = useState('Female')
   const [address, setAddress] = useState('')
+  // '' = leave unchanged / not declared, same convention as onboarding.
+  const [countryCode, setCountryCode] = useState('')
   const [bloodGroup, setBloodGroup] = useState('')
   const [genotype, setGenotype] = useState('')
   const [heightCm, setHeightCm] = useState('')
@@ -91,6 +94,7 @@ export function ProfileScreen() {
     setNextOfKinRelationship(profile.nextOfKinRelationship ?? profile.emergencyContacts?.[0]?.relationship ?? '')
     setNextOfKinPhone(profile.nextOfKinPhone ?? profile.emergencyContacts?.[0]?.phone ?? '')
     setNin(profile.nin ?? '')
+    setCountryCode(profile.countryCode ?? '')
   }, [profileRes])
 
   if (isInitialLoad) return <ProfileSkeleton />
@@ -168,6 +172,7 @@ export function ProfileScreen() {
         bloodGroup: bloodGroupEnum || undefined,
         genotype: genotype.trim() || null,
         address: address.trim() || undefined,
+        ...(countryCode ? { countryCode } : {}),
         nextOfKinName: nextOfKinName.trim() || null,
         nextOfKinRelationship: nextOfKinRelationship.trim() || null,
         nextOfKinPhone: nextOfKinPhone.trim() || null,
@@ -265,6 +270,12 @@ export function ProfileScreen() {
           <FormInput label="Phone" type="tel" value={phone} readOnly />
           <FormInput label="Email" type="email" value={email} readOnly />
           <FormInput label="Address" value={address} onChange={e => setAddress(e.target.value)} />
+          <FormSelect label="Country of Residence" value={countryCode} onChange={e => setCountryCode(e.target.value)}>
+            <option value="">Prefer not to say</option>
+            {COUNTRY_OPTIONS.map(opt => (
+              <option key={opt.code} value={opt.code}>{opt.label}</option>
+            ))}
+          </FormSelect>
           <FormInput
             label="National Healthcare ID / Insurance No."
             value={nin}
