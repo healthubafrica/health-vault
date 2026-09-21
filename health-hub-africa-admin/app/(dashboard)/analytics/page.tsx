@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download, ChevronRight, ChevronDown } from 'lucide-react'
 import { useAutoRefresh } from '@/lib/hooks/useLiveData'
-import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type ClickstreamAnalytics, type GeoComparison, type GeoMapAnalytics, type GeoMapCountry, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
+import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type ClickstreamAnalytics, type GeoComparison, type GeoMapAnalytics, type GeoMapCountry, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type UsageServiceKey, type RevenueDataPoint } from '@/lib/api'
 import dynamic from 'next/dynamic'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -45,6 +45,40 @@ const CHART_OPTIONS = {
   scales: {
     x: { grid: { color: '#253525' }, ticks: { color: '#8A9A8A', font: { size: 10 } } },
     y: { grid: { color: '#253525' }, ticks: { color: '#8A9A8A', font: { size: 10 }, precision: 0 } },
+  },
+}
+
+// Spec §J lifecycle segments (mirrors LIFECYCLE_STAGES in the API). They
+// overlap — a patient can be Activated and Returning — and are evaluated
+// within the selected period.
+const LIFECYCLE_STAGE_OPTIONS = [
+  { value: 'anonymous', label: 'Anonymous' },
+  { value: 'registered', label: 'Registered' },
+  { value: 'verified', label: 'Verified' },
+  { value: 'activated', label: 'Activated' },
+  { value: 'returning', label: 'Returning' },
+]
+
+// Every service the API reports usage for. Series with no activity in the
+// visible window are dropped at render time so the legend only lists what's
+// actually on the chart.
+const USAGE_SERIES: Array<{ key: UsageServiceKey; label: string; color: string }> = [
+  { key: 'minuteCare', label: 'MinuteCare', color: '#6DC43F' },
+  { key: 'teleCare', label: 'TeleCare', color: '#3B82F6' },
+  { key: 'careTest', label: 'CareTest (labs)', color: '#E8930A' },
+  { key: 'healthConsult', label: 'HealthConsult', color: '#14B8A6' },
+  { key: 'expertReview', label: 'Expert Review', color: '#8B5CF6' },
+  { key: 'neuroFlex', label: 'STRIDE / NeuroFlex', color: '#EC4899' },
+  { key: 'dispatchCare', label: 'DispatchCare', color: '#C0392B' },
+  { key: 'travelSafe', label: 'TravelSafe', color: '#64748B' },
+]
+
+// Same look as CHART_OPTIONS, stacked so up to 8 services stay readable per day.
+const STACKED_CHART_OPTIONS = {
+  ...CHART_OPTIONS,
+  scales: {
+    x: { ...CHART_OPTIONS.scales.x, stacked: true },
+    y: { ...CHART_OPTIONS.scales.y, stacked: true },
   },
 }
 const SOURCE_LABELS: Record<string, string> = {
@@ -278,6 +312,14 @@ export default function AnalyticsPage() {
   const [funnelCountry, setFunnelCountry] = useState('')
   const [funnelContinent, setFunnelContinent] = useState('')
   const [funnelDevice, setFunnelDevice] = useState('')
+  const [funnelAgeBand, setFunnelAgeBand] = useState('')
+  const [funnelPlanTier, setFunnelPlanTier] = useState('')
+  const [funnelGender, setFunnelGender] = useState('')
+  const [funnelNationality, setFunnelNationality] = useState('')
+  const [funnelBrowser, setFunnelBrowser] = useState('')
+  const [funnelAcquisitionSource, setFunnelAcquisitionSource] = useState('')
+  const [funnelUtmCampaign, setFunnelUtmCampaign] = useState('')
+  const [funnelLifecycleStage, setFunnelLifecycleStage] = useState('')
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
@@ -291,6 +333,14 @@ export default function AnalyticsPage() {
           country: funnelCountry || undefined,
           continent: funnelContinent || undefined,
           device: funnelDevice || undefined,
+          ageBand: funnelAgeBand || undefined,
+          planTier: funnelPlanTier || undefined,
+          gender: funnelGender || undefined,
+          nationality: funnelNationality || undefined,
+          browser: funnelBrowser || undefined,
+          acquisitionSource: funnelAcquisitionSource || undefined,
+          utmCampaign: funnelUtmCampaign || undefined,
+          lifecycleStage: funnelLifecycleStage || undefined,
         }),
         adminApi.analytics.demographics(),
         adminApi.analytics.clickstream(period),
@@ -315,7 +365,7 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false)
     }
-  }, [period, funnelCountry, funnelContinent, funnelDevice])
+  }, [period, funnelCountry, funnelContinent, funnelDevice, funnelAgeBand, funnelPlanTier, funnelGender, funnelNationality, funnelBrowser, funnelAcquisitionSource, funnelUtmCampaign, funnelLifecycleStage])
 
   useEffect(() => {
     setLoading(true)
@@ -543,14 +593,13 @@ export default function AnalyticsPage() {
                   <Bar
                     data={{
                       labels: usageLabels,
-                      datasets: [
-                        { label: 'Appointments', data: usage.slice(-14).map((row) => row.appointments), backgroundColor: '#6DC43F' },
-                        { label: 'TeleCare', data: usage.slice(-14).map((row) => row.telecare), backgroundColor: '#3B82F6' },
-                        { label: 'Dispatch', data: usage.slice(-14).map((row) => row.dispatch), backgroundColor: '#C0392B' },
-                        { label: 'Labs', data: usage.slice(-14).map((row) => row.labOrders), backgroundColor: '#E8930A' },
-                      ],
+                      datasets: USAGE_SERIES.filter((series) => usage.slice(-14).some((row) => row[series.key] > 0)).map((series) => ({
+                        label: series.label,
+                        data: usage.slice(-14).map((row) => row[series.key]),
+                        backgroundColor: series.color,
+                      })),
                     }}
-                    options={CHART_OPTIONS}
+                    options={STACKED_CHART_OPTIONS}
                   />
                 </div>
               )}
@@ -601,6 +650,102 @@ export default function AnalyticsPage() {
                 <option value="">All devices</option>
                 {Array.from(new Set((traffic?.devices ?? []).map((d) => d.device))).map((device) => (
                   <option key={device} value={device}>{device}</option>
+                ))}
+              </select>
+              <select
+                value={funnelAgeBand}
+                onChange={(e) => setFunnelAgeBand(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by age band"
+              >
+                <option value="">All age bands</option>
+                {(demographics?.ageBands ?? []).map((b) => (
+                  <option key={b.label} value={b.label}>{b.label}</option>
+                ))}
+              </select>
+              <select
+                value={funnelPlanTier}
+                onChange={(e) => setFunnelPlanTier(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by plan tier"
+              >
+                <option value="">All plan tiers</option>
+                {(demographics?.planTiers ?? []).map((t) => (
+                  <option key={t.label} value={t.label}>{t.label}</option>
+                ))}
+              </select>
+              <select
+                value={funnelGender}
+                onChange={(e) => setFunnelGender(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by sex/gender"
+              >
+                <option value="">All genders</option>
+                {(demographics?.genders ?? []).map((g) => (
+                  <option key={g.label} value={g.label}>{g.label}</option>
+                ))}
+              </select>
+              <select
+                value={funnelNationality}
+                onChange={(e) => setFunnelNationality(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by nationality"
+              >
+                <option value="">All nationalities</option>
+                {(demographics?.nationalities ?? []).map((n) => (
+                  <option key={n.label} value={n.label}>{n.label}</option>
+                ))}
+              </select>
+              <select
+                value={funnelBrowser}
+                onChange={(e) => setFunnelBrowser(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by browser"
+              >
+                <option value="">All browsers</option>
+                {(digitalExperience?.browsers ?? []).map((b) => (
+                  <option key={b.browser} value={b.browser}>{b.browser}</option>
+                ))}
+              </select>
+              <select
+                value={funnelAcquisitionSource}
+                onChange={(e) => setFunnelAcquisitionSource(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by acquisition source"
+              >
+                <option value="">All acquisition sources</option>
+                {(marketing?.acquisitionSources ?? []).map((s) => (
+                  <option key={s.source} value={s.source}>{s.source}</option>
+                ))}
+              </select>
+              <select
+                value={funnelUtmCampaign}
+                onChange={(e) => setFunnelUtmCampaign(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by UTM campaign"
+              >
+                <option value="">All campaigns</option>
+                {Array.from(new Set((marketing?.campaigns ?? []).map((c) => c.campaign))).map((campaign) => (
+                  <option key={campaign} value={campaign}>{campaign}</option>
+                ))}
+              </select>
+              <select
+                value={funnelLifecycleStage}
+                onChange={(e) => setFunnelLifecycleStage(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by lifecycle stage"
+              >
+                <option value="">All lifecycle stages</option>
+                {LIFECYCLE_STAGE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
               <ExportButton onExport={exportFunnelSteps} />

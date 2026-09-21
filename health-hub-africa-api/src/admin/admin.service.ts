@@ -16,7 +16,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService, NOTIFICATIONS_QUEUE, NotificationJobData, NotificationChannel } from '../notifications/notifications.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { AuthService } from '../auth/auth.service';
-import { AnalyticsService } from '../analytics/analytics.service';
+import { AnalyticsService, FunnelFilters } from '../analytics/analytics.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { fetchLoginAttemptsSince, detectLoginLocationAnomalies } from '../analytics/login-anomaly.util';
 import {
@@ -51,6 +51,17 @@ const DEFAULT_FLAGS: Record<string, { label: string; description: string; defaul
 };
 
 const FLAGS_REDIS_KEY = 'admin:feature-flags';
+
+// Column keys of the per-day usage pivot — one per ServiceType.
+type UsageKey =
+  | 'minuteCare'
+  | 'teleCare'
+  | 'careTest'
+  | 'healthConsult'
+  | 'expertReview'
+  | 'neuroFlex'
+  | 'dispatchCare'
+  | 'travelSafe';
 
 @Injectable()
 export class AdminService {
@@ -726,32 +737,39 @@ export class AdminService {
     };
   }
 
+  // One chart column per ServiceType — no bucketing. An earlier version
+  // matched substrings of the enum value and folded several services into
+  // "appointments"; once the daily aggregation cron started writing real
+  // rows that misfiled CareTest (no "lab" in "caretest") and hid four
+  // services entirely. Typed as a full Record so adding a ServiceType is a
+  // compile error here, not a silent misfile.
+  private static readonly USAGE_KEY_BY_SERVICE_TYPE: Record<ServiceType, UsageKey> = {
+    MinuteCare: 'minuteCare',
+    TeleCare: 'teleCare',
+    CareTest: 'careTest',
+    HealthConsult: 'healthConsult',
+    ExpertReview: 'expertReview',
+    NeuroFlex: 'neuroFlex',
+    DispatchCare: 'dispatchCare',
+    TravelSafe: 'travelSafe',
+  };
+
   async getAnalyticsUsage(period = '30d') {
     const since = this.periodToDate(period);
     const records = await this.prisma.serviceUsageDaily
       .findMany({ where: { reportDate: { gte: since } }, orderBy: { reportDate: 'asc' } })
       .catch(() => []);
 
-    // Pivot: one row per date, each service type becomes a column
-    const byDate = new Map<string, { appointments: number; telecare: number; dispatch: number; labOrders: number; expertReviews: number }>();
+    // Pivot: one row per date, every service type its own column (zero-filled
+    // so each row has the same shape and charts don't have to guess).
+    const emptyRow = () =>
+      Object.fromEntries(Object.values(AdminService.USAGE_KEY_BY_SERVICE_TYPE).map((k) => [k, 0])) as Record<UsageKey, number>;
+    const byDate = new Map<string, Record<UsageKey, number>>();
     for (const r of records) {
       const date = r.reportDate.toISOString().split('T')[0];
-      if (!byDate.has(date)) {
-        byDate.set(date, { appointments: 0, telecare: 0, dispatch: 0, labOrders: 0, expertReviews: 0 });
-      }
-      const row = byDate.get(date)!;
-      const st = String(r.serviceType).toLowerCase();
-      if (st.includes('telecare') || st.includes('teleconsult')) {
-        row.telecare += r.totalSessions;
-      } else if (st.includes('dispatch') || st.includes('emergency')) {
-        row.dispatch += r.totalSessions;
-      } else if (st.includes('lab')) {
-        row.labOrders += r.totalSessions;
-      } else if (st.includes('expert')) {
-        row.expertReviews += r.totalSessions;
-      } else {
-        row.appointments += r.totalSessions;
-      }
+      const row = byDate.get(date) ?? emptyRow();
+      row[AdminService.USAGE_KEY_BY_SERVICE_TYPE[r.serviceType]] += r.totalSessions;
+      byDate.set(date, row);
     }
 
     return {
@@ -767,7 +785,7 @@ export class AdminService {
     return this.analyticsService.getTrafficAnalytics(period);
   }
 
-  getFunnelAnalytics(period = '30d', filters?: { country?: string; continent?: string; device?: string }) {
+  getFunnelAnalytics(period = '30d', filters?: FunnelFilters) {
     return this.analyticsService.getFunnelAnalytics(period, filters);
   }
 
