@@ -793,8 +793,8 @@ export class AdminService {
     return this.analyticsService.getClickstreamAnalytics(period);
   }
 
-  getGeoMapAnalytics(period = '30d') {
-    return this.analyticsService.getGeoMapAnalytics(period);
+  getGeoMapAnalytics(period = '30d', basis: 'access' | 'declared' = 'access') {
+    return this.analyticsService.getGeoMapAnalytics(period, basis);
   }
 
   getGeoComparison(period = '30d') {

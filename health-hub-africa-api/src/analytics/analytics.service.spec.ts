@@ -1163,8 +1163,19 @@ describe('AnalyticsService.getGeoMapAnalytics (access-geography metrics per coun
     countryCode,
   });
 
-  function buildService(rows: Row[]) {
-    const prisma = { patientActivityEvent: { findMany: jest.fn().mockResolvedValue(rows) } };
+  function buildService(rows: Row[], declaredCountryByPatient: Record<string, string> = {}) {
+    const prisma = {
+      patientActivityEvent: { findMany: jest.fn().mockResolvedValue(rows) },
+      patient: {
+        findMany: jest.fn().mockImplementation(({ where }: { where: { id: { in: string[] } } }) =>
+          Promise.resolve(
+            where.id.in
+              .filter((id) => declaredCountryByPatient[id])
+              .map((id) => ({ id, countryCode: declaredCountryByPatient[id] })),
+          ),
+        ),
+      },
+    };
     return { service: new AnalyticsService(prisma as any), prisma };
   }
 
@@ -1224,6 +1235,54 @@ describe('AnalyticsService.getGeoMapAnalytics (access-geography metrics per coun
       expect.objectContaining({ where: expect.objectContaining({ isTestEvent: false, countryCode: { not: null } }) }),
     );
     expect(data.countries[0].countryCode).toBe('NG');
+  });
+
+  describe("basis: 'declared'", () => {
+    it('groups by Patient.countryCode instead of the event countryCode, and does not filter countryCode server-side', async () => {
+      const { service, prisma } = buildService(
+        [ev('page_view', 'US', 'p1'), ev('page_view', 'GB', 'p2')], // access country is irrelevant for this basis
+        { p1: 'NG', p2: 'NG' },
+      );
+
+      const { data } = await service.getGeoMapAnalytics('30d', 'declared');
+
+      expect(prisma.patientActivityEvent.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.not.objectContaining({ countryCode: { not: null } }) }),
+      );
+      expect(data.countries).toEqual([
+        expect.objectContaining({ countryCode: 'NG', visitors: 2 }),
+      ]);
+      expect(data.basis).toBe('declared');
+    });
+
+    it('excludes anonymous events and patients who never declared a country', async () => {
+      const { service } = buildService(
+        [
+          ev('page_view', 'NG', 'p1'), // declared
+          ev('page_view', 'NG', 'p2'), // never declared -> excluded
+          ev('page_view', 'NG', 'anon-1'), // anonymous -> excluded, no patient to declare anything
+        ],
+        { p1: 'GH' },
+      );
+
+      const { data } = await service.getGeoMapAnalytics('30d', 'declared');
+
+      expect(data.countries).toEqual([expect.objectContaining({ countryCode: 'GH', visitors: 1 })]);
+    });
+
+    it('skips the Patient lookup entirely when there are no authenticated rows', async () => {
+      const { service, prisma } = buildService([ev('page_view', 'NG', 'anon-1')]);
+
+      await service.getGeoMapAnalytics('30d', 'declared');
+
+      expect(prisma.patient.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  it('defaults to the access basis and stamps it on the response', async () => {
+    const { service } = buildService([ev('page_view', 'NG', 'anon-1')]);
+    const { data } = await service.getGeoMapAnalytics('30d');
+    expect(data.basis).toBe('access');
   });
 
   it('returns an empty list when there is no located traffic', async () => {
