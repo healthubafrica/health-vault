@@ -109,6 +109,15 @@ export interface AccessGeo {
 // Patient; acquisitionSource/utmCampaign live on User (captured once, at
 // registration — see MarketingAttributionDto) — all four non-column filters
 // are resolved via resolvePatientIdsForSegment instead.
+// Spec §J lifecycle segments. These are overlapping predicates, not
+// mutually-exclusive buckets — a patient can be both Activated and Returning.
+// Registered/Verified/Activated/Returning are all evaluated against the
+// funnel's own time window (same simplification retention makes: "did it
+// happen in this window", not an all-time history scan), documented on
+// filterByLifecycleStage below.
+export const LIFECYCLE_STAGES = ['anonymous', 'registered', 'verified', 'activated', 'returning'] as const;
+export type LifecycleStage = (typeof LIFECYCLE_STAGES)[number];
+
 export interface FunnelFilters {
   country?: string;
   continent?: string;
@@ -123,6 +132,7 @@ export interface FunnelFilters {
   nationality?: string;
   acquisitionSource?: string;
   utmCampaign?: string;
+  lifecycleStage?: LifecycleStage;
 }
 
 @Injectable()
@@ -832,6 +842,10 @@ export class AnalyticsService {
       filtered = filtered.filter((r) => r.patientId && matchingPatientIds.has(r.patientId));
     }
 
+    if (filters?.lifecycleStage) {
+      filtered = await this.filterByLifecycleStage(filtered, filters.lifecycleStage);
+    }
+
     const byEvent = new Map<string, { count: number; users: Set<string>; sessions: Set<string> }>();
     for (const r of filtered) {
       const bucket = byEvent.get(r.eventName) ?? { count: 0, users: new Set(), sessions: new Set() };
@@ -1071,6 +1085,58 @@ export class AnalyticsService {
       matching.add(p.id);
     }
     return matching;
+  }
+
+  // Spec §J lifecycle stage. Keeps the events of everyone who is at the
+  // given stage, so the funnel shows that group's whole journey.
+  //   anonymous  — no patientId (only an anonymousVisitorId)
+  //   registered — has a Patient row (any authenticated event implies one)
+  //   verified   — the Patient's User.isVerified is true
+  //   activated  — fired an ACTIVATION_QUALIFYING_EVENT in this window (same
+  //                list the activation-rate KPI uses)
+  //   returning  — the event's AnalyticsSession is flagged returningVisitor
+  //                (a previous session existed); works for anonymous
+  //                visitors too since it keys off the session, not the patient
+  // ponytail: verified/activated/returning are evaluated within the funnel's
+  // window, not against all-time history — an all-time scan would need an
+  // unbounded event query for one filter; revisit if someone needs it.
+  private async filterByLifecycleStage<
+    T extends { eventName: string; patientId: string | null; analyticsSessionId: string | null },
+  >(rows: T[], stage: LifecycleStage): Promise<T[]> {
+    switch (stage) {
+      case 'anonymous':
+        return rows.filter((r) => !r.patientId);
+      case 'registered':
+        return rows.filter((r) => !!r.patientId);
+      case 'verified': {
+        const ids = [...new Set(rows.map((r) => r.patientId).filter((id): id is string => !!id))];
+        if (ids.length === 0) return [];
+        const verified = await this.prisma.patient.findMany({
+          where: { id: { in: ids }, user: { isVerified: true, deletedAt: null } },
+          select: { id: true },
+        });
+        const verifiedIds = new Set(verified.map((p) => p.id));
+        return rows.filter((r) => r.patientId && verifiedIds.has(r.patientId));
+      }
+      case 'activated': {
+        const activated = new Set(
+          rows
+            .filter((r) => r.patientId && AnalyticsService.ACTIVATION_QUALIFYING_EVENTS.includes(r.eventName))
+            .map((r) => r.patientId as string),
+        );
+        return rows.filter((r) => r.patientId && activated.has(r.patientId));
+      }
+      case 'returning': {
+        const sessionIds = [...new Set(rows.map((r) => r.analyticsSessionId).filter((id): id is string => !!id))];
+        if (sessionIds.length === 0) return [];
+        const returning = await this.prisma.analyticsSession.findMany({
+          where: { analyticsSessionId: { in: sessionIds }, returningVisitor: true },
+          select: { analyticsSessionId: true },
+        });
+        const returningIds = new Set(returning.map((x) => x.analyticsSessionId));
+        return rows.filter((r) => r.analyticsSessionId && returningIds.has(r.analyticsSessionId));
+      }
+    }
   }
 
   // acquisitionSource/utmCampaign live on `users.acquisition_source`/

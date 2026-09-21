@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -15,6 +16,7 @@ import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ServiceType, UserRole } from '@prisma/client';
 import { AdminService } from './admin.service';
+import { LIFECYCLE_STAGES, LifecycleStage } from '../analytics/analytics.service';
 import { UpdateUserRoleDto, UpdateUserStatusDto, UpdateUserEmailDto, CreateFacilityDto } from './dto/admin.dto';
 import { SetStorageOverrideDto } from './dto/set-storage-override.dto';
 import { UpdateSchedulingPolicyDto } from './dto/update-scheduling-policy.dto';
@@ -195,6 +197,7 @@ export class AdminController {
   @ApiQuery({ name: 'nationality', required: false, description: 'Filter to a single nationality — spec §J' })
   @ApiQuery({ name: 'acquisitionSource', required: false, description: 'Filter to a single acquisition source captured at registration — spec §J' })
   @ApiQuery({ name: 'utmCampaign', required: false, description: 'Filter to a single first-touch UTM campaign captured at registration — spec §J' })
+  @ApiQuery({ name: 'lifecycleStage', required: false, enum: LIFECYCLE_STAGES, description: 'Filter to one lifecycle segment — spec §J (overlapping, evaluated within the period)' })
   getFunnelAnalytics(
     @Query('period') period?: string,
     @Query('country') country?: string,
@@ -210,7 +213,11 @@ export class AdminController {
     @Query('nationality') nationality?: string,
     @Query('acquisitionSource') acquisitionSource?: string,
     @Query('utmCampaign') utmCampaign?: string,
+    @Query('lifecycleStage') lifecycleStage?: string,
   ) {
+    if (lifecycleStage && !(LIFECYCLE_STAGES as readonly string[]).includes(lifecycleStage)) {
+      throw new BadRequestException(`lifecycleStage must be one of: ${LIFECYCLE_STAGES.join(', ')}`);
+    }
     return this.adminService.getFunnelAnalytics(period, {
       country,
       continent,
@@ -225,6 +232,7 @@ export class AdminController {
       nationality,
       acquisitionSource,
       utmCampaign,
+      lifecycleStage: lifecycleStage as LifecycleStage | undefined,
     });
   }
 

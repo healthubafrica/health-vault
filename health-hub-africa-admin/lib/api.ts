@@ -936,6 +936,7 @@ export const adminApi = {
         nationality?: string
         acquisitionSource?: string
         utmCampaign?: string
+        lifecycleStage?: string
       },
     ) => {
       const qs = new URLSearchParams({ period })
@@ -952,6 +953,7 @@ export const adminApi = {
       if (filters?.nationality) qs.set('nationality', filters.nationality)
       if (filters?.acquisitionSource) qs.set('acquisitionSource', filters.acquisitionSource)
       if (filters?.utmCampaign) qs.set('utmCampaign', filters.utmCampaign)
+      if (filters?.lifecycleStage) qs.set('lifecycleStage', filters.lifecycleStage)
       return request<{ data: FunnelAnalytics }>(`/admin/analytics/funnel?${qs}`)
     },
     demographics: () =>
