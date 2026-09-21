@@ -423,6 +423,16 @@ export interface RetentionAnalytics {
 // Device/browser breakdown for the patient portal itself, plus client-error
 // visibility (see AnalyticsService.getDigitalExperienceAnalytics). Distinct
 // from TrafficAnalytics.devices, which covers the anonymous marketing site.
+// Spec §26's three minimum-required KPIs with no home elsewhere on the
+// dashboard. MAU is always a fixed rolling 30-day window (see
+// AnalyticsService.getCoreKpis); clicksPerSession/featureAdoption are
+// scoped to the requested period, same as every other analytics endpoint.
+export interface CoreKpis {
+  mau: { key: string; label: string; value: number; windowDays: number }
+  clicksPerSession: { key: string; label: string; numerator: number; denominator: number; value: number | null }
+  featureAdoption: Array<{ featureArea: string; activePatients: number; eligiblePatients: number; value: number | null }>
+}
+
 export interface DigitalExperienceAnalytics {
   totalEvents: number
   devices: Array<{ device: string; count: number }>
@@ -1017,6 +1027,8 @@ export const adminApi = {
       ),
     digitalExperience: (period = '30d') =>
       request<{ data: DigitalExperienceAnalytics }>(`/admin/analytics/digital-experience?period=${period}`),
+    coreKpis: (period = '30d') =>
+      request<{ data: CoreKpis }>(`/admin/analytics/core-kpis?period=${period}`),
     security: (period = '30d') =>
       request<{ data: SecurityAnalytics }>(`/admin/analytics/security?period=${period}`),
   },

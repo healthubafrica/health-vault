@@ -1039,6 +1039,84 @@ describe('AnalyticsService.getDigitalExperienceAnalytics (device/browser + clien
   });
 });
 
+describe('AnalyticsService.getCoreKpis (spec §26 MAU / Clicks per Session / Feature Adoption)', () => {
+  function buildService(opts: {
+    qualifyingEvents: Array<{ patientId: string }>;
+    featureRows: Array<{ patientId: string; featureArea: string }>;
+    sessions: Array<{ clickCount: number }>;
+  }) {
+    const prisma = {
+      patientActivityEvent: {
+        findMany: jest.fn((args: any) =>
+          Promise.resolve(args.where.featureArea ? opts.featureRows : opts.qualifyingEvents),
+        ),
+      },
+      analyticsSession: { findMany: jest.fn().mockResolvedValue(opts.sessions) },
+    };
+    const service = new AnalyticsService(prisma as any);
+    return { service, prisma };
+  }
+
+  it('computes MAU as unique patients with qualifying activity in a fixed rolling 30-day window', async () => {
+    const { service } = buildService({
+      qualifyingEvents: [{ patientId: 'p1' }, { patientId: 'p1' }, { patientId: 'p2' }],
+      featureRows: [],
+      sessions: [],
+    });
+
+    const result = await service.getCoreKpis('30d');
+
+    expect(result.data.mau).toEqual({ key: 'mau', label: 'Monthly Active Patients', value: 2, windowDays: 30 });
+  });
+
+  it('computes clicks per session over engaged, non-test sessions only', async () => {
+    const { service, prisma } = buildService({
+      qualifyingEvents: [],
+      featureRows: [],
+      sessions: [{ clickCount: 4 }, { clickCount: 6 }],
+    });
+
+    const result = await service.getCoreKpis('30d');
+
+    expect(prisma.analyticsSession.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ isTestEvent: false, engaged: true }) }),
+    );
+    expect(result.data.clicksPerSession).toEqual({
+      key: 'clicksPerSession',
+      label: 'Clicks per Session',
+      numerator: 10,
+      denominator: 2,
+      value: 5,
+    });
+  });
+
+  it('reports a null clicks-per-session value instead of dividing by zero when there are no engaged sessions', async () => {
+    const { service } = buildService({ qualifyingEvents: [], featureRows: [], sessions: [] });
+    const result = await service.getCoreKpis('30d');
+
+    expect(result.data.clicksPerSession.value).toBeNull();
+  });
+
+  it('computes feature adoption as active (qualifying) patients using the feature, over all eligible active patients', async () => {
+    const { service } = buildService({
+      qualifyingEvents: [{ patientId: 'p1' }, { patientId: 'p2' }],
+      featureRows: [
+        { patientId: 'p1', featureArea: 'vault' },
+        // p3 used the feature but never did a qualifying action, so isn't
+        // an "eligible active patient" — excluded from the numerator.
+        { patientId: 'p3', featureArea: 'vault' },
+      ],
+      sessions: [],
+    });
+
+    const result = await service.getCoreKpis('30d');
+
+    expect(result.data.featureAdoption).toEqual([
+      { featureArea: 'vault', activePatients: 1, eligiblePatients: 2, value: 50 },
+    ]);
+  });
+});
+
 describe('AnalyticsService.getGeoComparison (declared vs access geography)', () => {
   function buildService(
     events: Array<{ patientId: string; countryCode: string }>,
