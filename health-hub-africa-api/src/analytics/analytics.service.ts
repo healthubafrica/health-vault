@@ -795,15 +795,51 @@ export class AnalyticsService {
   // Filters: country/continent/device/os/browser/featureArea/timezone are
   // direct columns on the event row; ageBand/planTier/gender/nationality
   // live on Patient instead (see resolvePatientIdsForSegment below).
-  async getFunnelAnalytics(period = '30d', filters?: FunnelFilters) {
+  // spec §J "Date range and comparison period": compare=true additionally
+  // computes the same KPIs over the immediately preceding window of equal
+  // length (e.g. 30d period -> the 30 days before that) and attaches
+  // previousValue/changePercent to each KPI, so admins can see period-over-
+  // period movement without a second manual query. Steps/uniqueUsers are
+  // NOT recomputed for the previous window — only the KPI table compares,
+  // since that's the only place §J's filter bar surfaces this.
+  async getFunnelAnalytics(period = '30d', filters?: FunnelFilters, compare = false) {
     const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
-    const since = new Date();
+    const now = new Date();
+    const since = new Date(now);
     since.setDate(since.getDate() - days);
 
+    const current = await this.computeFunnelWindow(since, now, filters);
+    if (!compare) {
+      return { data: current };
+    }
+
+    const previousUntil = since;
+    const previousSince = new Date(since);
+    previousSince.setDate(previousSince.getDate() - days);
+    const previous = await this.computeFunnelWindow(previousSince, previousUntil, filters);
+    const previousValueByKey = new Map(previous.kpis.map((k) => [k.key, k.value]));
+
+    return {
+      data: {
+        ...current,
+        kpis: current.kpis.map((kpi) => {
+          const previousValue = previousValueByKey.get(kpi.key) ?? null;
+          const changePercent =
+            kpi.value != null && previousValue != null && previousValue !== 0
+              ? Math.round(((kpi.value - previousValue) / previousValue) * 1000) / 10
+              : null;
+          return { ...kpi, previousValue, changePercent };
+        }),
+        comparisonWindow: { since: previousSince.toISOString(), until: previousUntil.toISOString() },
+      },
+    };
+  }
+
+  private async computeFunnelWindow(since: Date, until: Date, filters?: FunnelFilters) {
     const rows = await this.prisma.patientActivityEvent.findMany({
       where: {
         ...AnalyticsService.PRODUCTION_EVENT_FILTER,
-        occurredAt: { gte: since },
+        occurredAt: { gte: since, lte: until },
         ...(filters?.country && { countryCode: filters.country }),
         ...(filters?.device && { deviceCategory: filters.device }),
         ...(filters?.os && { os: filters.os }),
@@ -874,25 +910,23 @@ export class AnalyticsService {
     };
 
     return {
-      data: {
-        steps: Array.from(byEvent.entries())
-          .map(([eventName, b]) => ({ eventName, count: b.count, uniqueUsers: b.users.size, uniqueSessions: b.sessions.size }))
-          .sort((a, b) => b.count - a.count),
-        kpis: [
-          ...AnalyticsService.KPI_DEFINITIONS.map((def) => {
-            const denominator = uniqueUsers(def.denominator);
-            const numerator = uniqueUsers(def.numerator);
-            return {
-              key: def.key,
-              label: def.label,
-              numerator,
-              denominator,
-              value: denominator > 0 ? Math.round((numerator / denominator) * 1000) / 10 : null,
-            };
-          }),
-          activationKpi,
-        ],
-      },
+      steps: Array.from(byEvent.entries())
+        .map(([eventName, b]) => ({ eventName, count: b.count, uniqueUsers: b.users.size, uniqueSessions: b.sessions.size }))
+        .sort((a, b) => b.count - a.count),
+      kpis: [
+        ...AnalyticsService.KPI_DEFINITIONS.map((def) => {
+          const denominator = uniqueUsers(def.denominator);
+          const numerator = uniqueUsers(def.numerator);
+          return {
+            key: def.key,
+            label: def.label,
+            numerator,
+            denominator,
+            value: denominator > 0 ? Math.round((numerator / denominator) * 1000) / 10 : null,
+          };
+        }),
+        activationKpi,
+      ],
     };
   }
 

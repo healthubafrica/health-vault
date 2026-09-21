@@ -785,8 +785,8 @@ export class AdminService {
     return this.analyticsService.getTrafficAnalytics(period);
   }
 
-  getFunnelAnalytics(period = '30d', filters?: FunnelFilters) {
-    return this.analyticsService.getFunnelAnalytics(period, filters);
+  getFunnelAnalytics(period = '30d', filters?: FunnelFilters, compare = false) {
+    return this.analyticsService.getFunnelAnalytics(period, filters, compare);
   }
 
   getClickstreamAnalytics(period = '30d') {
