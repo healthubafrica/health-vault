@@ -8,6 +8,7 @@
 // can attach it as a Bearer header, and it expires in 15 minutes.
 
 import {
+  friendlyAmbiguousResponse,
   friendlyApiError,
   friendlyNetworkError,
   friendlySessionExpired,
@@ -56,7 +57,13 @@ async function bffFetch<T>(path: string, body?: Record<string, unknown>): Promis
     throw new ApiError(res.status, friendlyApiError(res.status, (data as { message?: string }).message))
   }
   if (res.status === 204) return undefined as T
-  return res.json() as Promise<T>
+  try {
+    return (await res.json()) as T
+  } catch {
+    // res.ok was true — the server accepted the request — but the body
+    // never finished arriving. Don't claim failure; see friendlyAmbiguousResponse.
+    throw new ApiError(res.status, friendlyAmbiguousResponse())
+  }
 }
 
 // ── Core fetch wrapper ────────────────────────────────────────────────────
@@ -128,7 +135,14 @@ async function request<T>(
 
     if (res.status === 204) return undefined as T
 
-    return res.json() as Promise<T>
+    try {
+      return (await res.json()) as T
+    } catch {
+      // res.ok was true — the server accepted the request — but the body
+      // never finished arriving (e.g. connection cut mid-deploy). The write
+      // likely already happened; don't tell the caller it failed outright.
+      throw new ApiError(res.status, friendlyAmbiguousResponse())
+    }
   }
 
   if (!isGet) {
@@ -505,7 +519,7 @@ export const appointments = {
     return request<{ data: Appointment[]; meta: { total: number } }>(`/appointments${qs}`)
   },
 
-  get: (id: string) => request<{ data: Appointment }>(`/appointments/${id}`),
+  get: (id: string) => request<Appointment>(`/appointments/${id}`),
 
   // Facilities mirrored from OpenEMR — used to populate the picker on the
   // booking screen for in-person appointment types. Telecare bookings skip
@@ -525,16 +539,20 @@ export const appointments = {
   // manual retry — or a client timeout / dropped response — replays the
   // original appointment instead of creating a duplicate. See payments.initiate()
   // for the same pattern.
+  //
+  // Resolves to the bare appointment — the controller returns the service
+  // result unwrapped and no interceptor adds a { data } envelope. Only
+  // list() is enveloped ({ data, meta }).
   create: (data: CreateAppointmentPayload, idempotencyKey?: string) =>
-    request<{ data: Appointment }>('/appointments', {
+    request<Appointment>('/appointments', {
       method: 'POST',
       body: JSON.stringify(data),
       headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
     }),
 
   // Cancels via the dedicated cancel endpoint — body takes {reason}, not {cancellationNote}.
-  // Backend returns the appointment unwrapped (not {data: ...}) — unlike
-  // get/create above, which are wrapped. Typed correctly here.
+  // Backend returns the appointment unwrapped (not {data: ...}), same as
+  // get/create above.
   cancel: (id: string, reason?: string) =>
     request<Appointment>(`/appointments/${id}/cancel`, {
       method: 'POST',
@@ -873,7 +891,11 @@ export const payments = {
       const body = await res.json().catch(() => ({}))
       throw new ApiError(res.status, friendlyApiError(res.status, body.message))
     }
-    return res.text()
+    try {
+      return await res.text()
+    } catch {
+      throw new ApiError(res.status, friendlyAmbiguousResponse())
+    }
   },
 }
 

@@ -79,7 +79,7 @@ export default function BookAppointmentStep4Screen() {
       });
       analytics.track('booking_confirmed', { serviceType: params.serviceType });
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
-      setBookingRef(res.data.hhaRef);
+      setBookingRef(res.hhaRef);
       setIsConfirmed(true);
     } catch (err: unknown) {
       analytics.track('booking_error', { serviceType: params.serviceType });
