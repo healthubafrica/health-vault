@@ -5,7 +5,7 @@ Spec §32 deliverable: "Clickstream Instrumentation Map listing every tracked pa
 ## How instrumentation works
 
 - **`analytics.track(eventName, fields?)`** (`lib/analytics/client.ts`) — the only way any event reaches the server. `element_id`/`feature_area`/`page_name`/`page_path`/etc. are promoted to first-class DTO columns; anything else rides in the `properties` JSON.
-- **`<TrackImpression elementId featureArea elementType>`** (`components/analytics/TrackImpression.tsx`) — wraps a CTA in an `IntersectionObserver`, fires `cta_impression` once per mount when the element scrolls into view. Pairs with a matching `elementId` on a `ui_click` fired from the same element's `onClick`, so `AnalyticsService.getClickstreamAnalytics` can compute CTR = unique clickers ÷ unique viewers (see `docs/ANALYTICS-KPI-DICTIONARY.md` §7).
+- **`<TrackImpression elementId featureArea elementType>`** — web (`health-hub-africa/components/analytics/TrackImpression.tsx`) wraps a CTA in an `IntersectionObserver`, fires `cta_impression` once it's been ≥50% visible for a sustained 500ms. Mobile (`mobile/components/analytics/TrackImpression.tsx`) has the same props but a weaker signal — fires once per mount, since React Native has no IntersectionObserver-equivalent for an arbitrary View. Either way, it pairs with a matching `elementId` on a `ui_click` fired from the same element's press handler, so `AnalyticsService.getClickstreamAnalytics` can compute CTR = unique clickers ÷ unique viewers (see `docs/ANALYTICS-KPI-DICTIONARY.md` §7).
 - **`<PageViewTracker>`** (`components/analytics/PageViewTracker.tsx`) — fires `page_view` once per authenticated route change.
 - **`<ErrorTracker>`** (`components/analytics/ErrorTracker.tsx`) — window-level uncaught-error/unhandled-rejection listener, fires `client_error`.
 
@@ -86,7 +86,7 @@ First slice of CTA click coverage landed (`feat/mobile-clickstream-instrumentati
 
 Mobile also fires `dispatch_request_started`/`_success`/`_failure` from `emergency.tsx`'s "Request Dispatch" confirmation, matching the web `DispatchScreen.tsx` funnel exactly — no `ui_click` companion, same as web (DispatchCare has no CTA row in this table on either platform).
 
-**Still genuinely open, not yet ported:** every `<TrackImpression>`-equivalent (no IntersectionObserver-alike exists for React Native in this codebase today, so mobile CTR cannot be computed yet — click volume and Clicks per Session work, CTA CTR does not).
+**Impression tracking:** `mobile/components/analytics/TrackImpression.tsx` now exists and is wired to the Services Hub grid, so mobile CTA CTR is computable there. It's a deliberately weaker signal than the web version — fires `cta_impression` once per mount rather than on real viewport intersection, since React Native has no IntersectionObserver-equivalent for an arbitrary View in a ScrollView (only FlatList/SectionList get `onViewableItemsChanged`, and these screens don't use those). Not yet wired anywhere else: Home's quick actions were deliberately judged click-only (always-visible chrome, so an impression rate would always read ~100% — same reasoning the web Sidebar nav uses), and the remaining single-CTA screens (booking, payments, subscription, TeleCare join) haven't been assessed yet.
 
 The mobile subscription funnel gap this section previously flagged (`plan_select`/`checkout_start`/`subscription_checkout_error`/`subscription_cancelled` never firing) is now closed — mobile mirrors the web sequence exactly, including using the real gateway from the upgrade response for `checkout_start`.
 
