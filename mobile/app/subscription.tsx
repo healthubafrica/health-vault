@@ -41,17 +41,23 @@ export default function SubscriptionScreen() {
 
   const upgradeMutation = useMutation({
     mutationFn: (plan: SubscriptionPlan) => subscriptions.upgrade(plan.id, billingCycle),
-    onSuccess: async (result) => {
+    onSuccess: async (result, plan) => {
+      analytics.track('checkout_start', { plan: plan.tier, billing: billingCycle, gateway: result.gateway });
       await WebBrowser.openBrowserAsync(result.authorizationUrl);
       qc.invalidateQueries({ queryKey: ['subscription-me'] });
     },
-    onError: (err: unknown) =>
-      Alert.alert('Could not start upgrade', err instanceof ApiError ? err.message : 'Please try again.'),
+    onError: (err: unknown, plan) => {
+      analytics.track('subscription_checkout_error', { plan: plan.tier });
+      Alert.alert('Could not start upgrade', err instanceof ApiError ? err.message : 'Please try again.');
+    },
   });
 
   const cancelMutation = useMutation({
     mutationFn: (id: string) => subscriptions.cancel(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['subscription-me'] }),
+    onSuccess: () => {
+      if (current) analytics.track('subscription_cancelled', { plan: current.plan.tier });
+      qc.invalidateQueries({ queryKey: ['subscription-me'] });
+    },
     onError: (err: unknown) =>
       Alert.alert('Could not cancel', err instanceof ApiError ? err.message : 'Please try again.'),
   });
@@ -180,6 +186,7 @@ export default function SubscriptionScreen() {
                       disabled={upgradeMutation.isPending}
                       onPress={() => {
                         analytics.track('ui_click', { element_id: `subscribe_cta_${plan.tier}`, feature_area: 'subscriptions' });
+                        analytics.track('plan_select', { plan: plan.tier, billing: billingCycle, isSwitch: !!current });
                         upgradeMutation.mutate(plan);
                       }}
                       style={[styles.upgradeBtn, { backgroundColor: theme.primary, opacity: upgradeMutation.isPending ? 0.6 : 1 }]}>
