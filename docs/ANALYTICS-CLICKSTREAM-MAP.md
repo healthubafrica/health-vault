@@ -69,7 +69,23 @@ Any of these becoming real instrumentation targets depends on product building t
 
 ## Mobile app — status
 
-**Zero CTA/clickstream instrumentation exists in any mobile screen.** The mobile analytics SDK (`mobile/lib/analytics/client.ts`, ported in an earlier PR, given its first test coverage in `feat/mobile-test-runner`) is fully wired and exports `analytics.track`/`pageView` for screens to call — but no screen in `mobile/app/` currently calls it for a click or impression. The only mobile-side analytics activity today is `getAnonymousVisitorId()` being threaded into `register()`/`verifyOtp()` API calls (mirrors the web's `authStore.ts` registration/OTP server-event pattern) and the SDK's own retry/session/debounce logic (unit-tested). Porting the web portal's CTA/nav instrumentation coverage above to the equivalent mobile screens is a real, sizeable, entirely open gap — not a documentation gap, an implementation one.
+First slice of CTA click coverage landed (`feat/mobile-clickstream-instrumentation`), mirroring the web portal's `element_id` naming so the two platforms report comparably:
+
+| Screen | CTA | `element_id` |
+|---|---|---|
+| Home (tab) | "Check Vitals" quick action | `quick_action_vitals` |
+| Home (tab) | "Talk to Doctor" quick action | `quick_action_telecare` |
+| Home (tab) | "Book Care" quick action | `quick_action_bookcare` |
+| Home (tab) | Upcoming-appointment "Join Call" | `join_telecare_cta` |
+| Home (tab) | Empty-state "Book now" | `book_appointment_cta` |
+| TeleCare (tab) | "Join Call" button | `join_telecare_cta` |
+| Book Appointment (step 4) | "Pay & Confirm" | `book_appointment_cta` |
+| Make a Payment | Submit | `make_payment_cta` |
+| Subscription | Per-plan "Upgrade" | `subscribe_cta_<tier>` |
+
+**Still genuinely open, not yet ported:** Services hub's per-service booking entry points, CareTest/DispatchCare-specific CTAs, and every `<TrackImpression>`-equivalent (no IntersectionObserver-alike exists for React Native in this codebase today, so mobile CTR cannot be computed yet — click volume and Clicks per Session work, CTA CTR does not). Also surfaced while wiring this: the mobile subscription screen never emits `plan_select`/`checkout_start` at all — a funnel-instrumentation gap distinct from the CTA-click gap this section tracks, still open.
+
+The mobile analytics SDK itself (`mobile/lib/analytics/client.ts`) has had unit test coverage since `feat/mobile-test-runner`; the screens wired above have no test coverage yet — screen-level testing needs React Native Testing Library + provider mocks, a separate infra investment not yet made.
 
 ## Server-authoritative events (no UI element — see `docs/ANALYTICS-PRIVACY-GOVERNANCE.md` §4)
 
