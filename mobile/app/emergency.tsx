@@ -22,7 +22,7 @@ import {
 } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
-import { patients, dispatch, ApiError } from '@/lib/api';
+import { patients, dispatch, analytics, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useQuery } from '@tanstack/react-query';
 
@@ -59,14 +59,17 @@ export default function EmergencyScreen() {
           style: 'destructive',
           onPress: async () => {
             setIsRequesting(true);
+            analytics.track('dispatch_request_started', { emergencyType: 'medical_emergency' });
             try {
               await dispatch.create({
                 emergencyType: 'medical_emergency',
                 description: `Emergency request for ${patientName}`,
                 contactPhone: profile?.user?.phone ?? authUser?.phone ?? undefined,
               });
+              analytics.track('dispatch_request_success', { emergencyType: 'medical_emergency' });
               Alert.alert('DispatchCare Alerted', 'Ambulance dispatch unit has been notified. Live status ETA: 8 mins.');
             } catch (err: unknown) {
+              analytics.track('dispatch_request_failure', { emergencyType: 'medical_emergency' });
               const msg = err instanceof ApiError ? err.message : 'Emergency services alerted. An agent is contacting you.';
               Alert.alert('Dispatch Alerted', msg);
             } finally {

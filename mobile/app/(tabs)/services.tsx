@@ -26,6 +26,7 @@ import ServiceCard from '@/components/ServiceCard';
 import { HUB_SERVICES } from '@/lib/services';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { getScreenCardWidth } from '@/lib/layout';
+import { analytics } from '@/lib/api';
 
 export default function ServicesTabScreen() {
   const router = useRouter();
@@ -94,20 +95,24 @@ export default function ServicesTabScreen() {
           </Text>
         </View>
 
-        {/* 2-Column Grid of Services with Logos */}
+        {/* 2-Column Grid of Services with Logos. One handler covers every
+            tile (spec §8.2 "Feature/CTA" per service) since they all share
+            the same shape — element_id derived from service.id, matching
+            the per-plan subscribe_cta_<tier> pattern used elsewhere. */}
         <View style={styles.servicesGrid}>
           {HUB_SERVICES.map((service) => (
             <ServiceCard
               key={service.id}
               service={service}
               width={cardWidth}
-              onPress={() =>
+              onPress={() => {
+                analytics.track('ui_click', { element_id: `service_${service.id}_cta`, feature_area: 'services' });
                 router.push(
                   service.hubRoute === '/book-appointment-step1'
                     ? { pathname: '/book-appointment-step1', params: { preselect: service.id } }
                     : (service.hubRoute as any)
-                )
-              }
+                );
+              }}
             />
           ))}
         </View>
