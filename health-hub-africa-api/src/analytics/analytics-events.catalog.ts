@@ -88,6 +88,7 @@ export const ANALYTICS_EVENTS: Record<string, CatalogEntry> = {
   // ── Cross-cutting ───────────────────────────────────────────────────────
   page_view: { version: 1, origin: 'web' },
   ui_click: { version: 1, origin: 'web' },
+  cta_impression: { version: 1, origin: 'web' },
   client_error: { version: 1, origin: 'web' },
 };
 
