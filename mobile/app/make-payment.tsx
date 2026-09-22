@@ -90,6 +90,7 @@ export default function MakePaymentScreen() {
   });
 
   const handleSubmit = () => {
+    analytics.track('ui_click', { element_id: 'make_payment_cta', feature_area: 'payments' });
     const parsed = parseFloat(amountNaira);
     if (!description.trim() || isNaN(parsed) || parsed <= 0) {
       Alert.alert('Incomplete Form', 'Please enter a description and a valid amount.');
