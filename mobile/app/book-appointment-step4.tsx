@@ -67,6 +67,7 @@ export default function BookAppointmentStep4Screen() {
     setIsProcessing(true);
     try {
       const isTelecare = params.consultationFormat === 'virtual' || (params.serviceName || '').includes('TeleCare');
+      analytics.track('ui_click', { element_id: 'book_appointment_cta', feature_area: 'appointments' });
       analytics.track('booking_started', { serviceType: params.serviceType, hasProvider: !!params.providerId });
       const res = await appointments.create({
         appointmentType: isTelecare ? 'virtual' : 'in_person',

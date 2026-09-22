@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, Crown, CheckCircle2, Sparkles } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
-import { subscriptions, SubscriptionPlan, ApiError } from '@/lib/api';
+import { subscriptions, analytics, SubscriptionPlan, ApiError } from '@/lib/api';
 import { ListSkeleton, ErrorState } from '@/components/states';
 
 function formatNaira(kobo: number): string {
@@ -178,7 +178,10 @@ export default function SubscriptionScreen() {
                     <TouchableOpacity
                       activeOpacity={0.85}
                       disabled={upgradeMutation.isPending}
-                      onPress={() => upgradeMutation.mutate(plan)}
+                      onPress={() => {
+                        analytics.track('ui_click', { element_id: `subscribe_cta_${plan.tier}`, feature_area: 'subscriptions' });
+                        upgradeMutation.mutate(plan);
+                      }}
                       style={[styles.upgradeBtn, { backgroundColor: theme.primary, opacity: upgradeMutation.isPending ? 0.6 : 1 }]}>
                       <Text style={styles.upgradeBtnText}>
                         {upgradeMutation.isPending ? 'Starting…' : 'Upgrade'}

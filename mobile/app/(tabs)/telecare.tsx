@@ -26,7 +26,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
-import { appointments } from '@/lib/api';
+import { appointments, analytics } from '@/lib/api';
 
 export default function TeleCareWaitingRoomScreen() {
   const router = useRouter();
@@ -55,6 +55,7 @@ export default function TeleCareWaitingRoomScreen() {
 
   const handleJoinCall = () => {
     if (!nextTelecare) return;
+    analytics.track('ui_click', { element_id: 'join_telecare_cta', feature_area: 'telecare' });
     router.push({ pathname: '/telecare-call', params: { sessionId: nextTelecare.id } });
   };
 

@@ -21,7 +21,7 @@ import AppointmentCard from '@/components/AppointmentCard';
 import ActivityCard from '@/components/ActivityCard';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
 import { useAuthStore } from '@/lib/stores/authStore';
-import { vitals, appointments, payments } from '@/lib/api';
+import { vitals, appointments, payments, analytics } from '@/lib/api';
 
 function getTimeGreeting() {
   const h = new Date().getHours();
@@ -169,7 +169,14 @@ export default function HomeDashboardScreen() {
           </ImageBackground>
         </TouchableOpacity>
 
-        {/* Quick Actions */}
+        {/* Quick Actions — the mobile counterparts of the web portal's
+            Dashboard quick-action cards (see docs/ANALYTICS-CLICKSTREAM-MAP.md).
+            element_id/feature_area match the web naming convention where the
+            same action exists (quick_action_telecare); mobile-specific
+            groupings (vitals check, services hub) get their own slug. No
+            <TrackImpression> equivalent yet — these render unconditionally
+            above the fold on the home tab, so impressions would always read
+            ~100%, same reasoning the web Sidebar nav uses to skip it. */}
         <View style={styles.section}>
           <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>QUICK ACTIONS</Text>
           <View style={styles.quickActionGrid}>
@@ -178,21 +185,30 @@ export default function HomeDashboardScreen() {
               label="Check Vitals"
               sublabel="Track & record"
               backgroundImage={require('@/assets/images/qa_vitals.jpg')}
-              onPress={() => router.push('/(tabs)/vitals')}
+              onPress={() => {
+                analytics.track('ui_click', { element_id: 'quick_action_vitals', feature_area: 'dashboard' });
+                router.push('/(tabs)/vitals');
+              }}
             />
             <QuickActionButton
               icon="video"
               label="Talk to Doctor"
               sublabel="TeleCare HD"
               backgroundImage={require('@/assets/images/qa_telecare.jpg')}
-              onPress={() => router.push({ pathname: '/book-appointment-step1', params: { preselect: 'telecare' } })}
+              onPress={() => {
+                analytics.track('ui_click', { element_id: 'quick_action_telecare', feature_area: 'dashboard' });
+                router.push({ pathname: '/book-appointment-step1', params: { preselect: 'telecare' } });
+              }}
             />
             <QuickActionButton
               icon="calendar"
               label="Book Care"
               sublabel="Services Hub"
               backgroundImage={require('@/assets/images/qa_bookcare.jpg')}
-              onPress={() => router.push('/(tabs)/services')}
+              onPress={() => {
+                analytics.track('ui_click', { element_id: 'quick_action_bookcare', feature_area: 'dashboard' });
+                router.push('/(tabs)/services');
+              }}
             />
           </View>
         </View>
@@ -223,18 +239,25 @@ export default function HomeDashboardScreen() {
                   ? `${upcomingAppt.provider.firstName[0]}${upcomingAppt.provider.lastName[0]}`
                   : '?'
               }
-              onActionPress={() =>
-                upcomingAppt.isTelecare
-                  ? router.push('/(tabs)/telecare')
-                  : router.push('/appointments')
-              }
+              onActionPress={() => {
+                if (upcomingAppt.isTelecare) {
+                  analytics.track('ui_click', { element_id: 'join_telecare_cta', feature_area: 'telecare' });
+                  router.push('/(tabs)/telecare');
+                } else {
+                  router.push('/appointments');
+                }
+              }}
             />
           ) : (
             <View style={[styles.emptyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <Text style={[styles.emptyCardText, { color: theme.textMuted }]}>
                 No upcoming appointments
               </Text>
-              <TouchableOpacity onPress={() => router.push('/book-appointment-step1')}>
+              <TouchableOpacity
+                onPress={() => {
+                  analytics.track('ui_click', { element_id: 'book_appointment_cta', feature_area: 'appointments' });
+                  router.push('/book-appointment-step1');
+                }}>
                 <Text style={[styles.emptyCardAction, { color: theme.primary }]}>Book now →</Text>
               </TouchableOpacity>
             </View>
