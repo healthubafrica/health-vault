@@ -83,7 +83,9 @@ First slice of CTA click coverage landed (`feat/mobile-clickstream-instrumentati
 | Make a Payment | Submit | `make_payment_cta` |
 | Subscription | Per-plan "Upgrade" | `subscribe_cta_<tier>` |
 
-**Still genuinely open, not yet ported:** Services hub's per-service booking entry points, CareTest/DispatchCare-specific CTAs, and every `<TrackImpression>`-equivalent (no IntersectionObserver-alike exists for React Native in this codebase today, so mobile CTR cannot be computed yet — click volume and Clicks per Session work, CTA CTR does not). Also surfaced while wiring this: the mobile subscription screen never emits `plan_select`/`checkout_start` at all — a funnel-instrumentation gap distinct from the CTA-click gap this section tracks, still open.
+**Still genuinely open, not yet ported:** Services hub's per-service booking entry points, CareTest/DispatchCare-specific CTAs, and every `<TrackImpression>`-equivalent (no IntersectionObserver-alike exists for React Native in this codebase today, so mobile CTR cannot be computed yet — click volume and Clicks per Session work, CTA CTR does not).
+
+The mobile subscription funnel gap this section previously flagged (`plan_select`/`checkout_start`/`subscription_checkout_error`/`subscription_cancelled` never firing) is now closed — mobile mirrors the web sequence exactly, including using the real gateway from the upgrade response for `checkout_start`.
 
 The mobile analytics SDK itself (`mobile/lib/analytics/client.ts`) has had unit test coverage since `feat/mobile-test-runner`; the screens wired above have no test coverage yet — screen-level testing needs React Native Testing Library + provider mocks, a separate infra investment not yet made.
 
