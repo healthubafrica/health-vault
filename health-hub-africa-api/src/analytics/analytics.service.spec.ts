@@ -791,6 +791,15 @@ describe('AnalyticsService.getClickstreamAnalytics (CTA impressions/clicks/CTR)'
 
     expect(result.data.ctas.map((c) => c.elementId)).toEqual(['high_click_btn', 'low_click_btn']);
   });
+
+  it('excludes test / synthetic traffic from CTA CTR by default (spec §20/§30)', async () => {
+    const { service, prisma } = buildService([]);
+    await service.getClickstreamAnalytics('30d');
+
+    expect(prisma.patientActivityEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ isTestEvent: false }) }),
+    );
+  });
 });
 
 describe('AnalyticsService.getRetentionAnalytics (D1/D7/D30/D60/D90)', () => {
