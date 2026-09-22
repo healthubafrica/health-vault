@@ -943,6 +943,7 @@ export class AnalyticsService {
 
     const rows = await this.prisma.patientActivityEvent.findMany({
       where: {
+        ...AnalyticsService.PRODUCTION_EVENT_FILTER,
         occurredAt: { gte: since },
         eventName: { in: ['cta_impression', 'ui_click'] },
         elementId: { not: null },
