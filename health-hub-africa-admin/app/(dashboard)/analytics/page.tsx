@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download, ChevronRight, ChevronDown } from 'lucide-react'
 import { useAutoRefresh } from '@/lib/hooks/useLiveData'
-import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type ClickstreamAnalytics, type GeoComparison, type GeoMapAnalytics, type GeoMapCountry, type GeoBasis, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type UsageServiceKey, type RevenueDataPoint, type CoreKpis, type FunnelTrendDataPoint, type FunnelTrendKey } from '@/lib/api'
+import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type ClickstreamAnalytics, type GeoComparison, type GeoMapAnalytics, type GeoMapCountry, type GeoBasis, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type UsageServiceKey, type RevenueDataPoint, type CoreKpis, type FunnelTrendDataPoint, type FunnelTrendKey, type TopPageRow } from '@/lib/api'
 import dynamic from 'next/dynamic'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -337,11 +337,12 @@ export default function AnalyticsPage() {
   const [funnelCompare, setFunnelCompare] = useState(false)
   const [coreKpis, setCoreKpis] = useState<CoreKpis | null>(null)
   const [funnelTrend, setFunnelTrend] = useState<FunnelTrendDataPoint[]>([])
+  const [topPages, setTopPages] = useState<TopPageRow[]>([])
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     try {
-      const [rRes, uRes, mRes, tRes, fRes, demoRes, csRes, gRes, mapRes, retRes, deRes, secRes, ckRes, ftRes] = await Promise.all([
+      const [rRes, uRes, mRes, tRes, fRes, demoRes, csRes, gRes, mapRes, retRes, deRes, secRes, ckRes, ftRes, tpRes] = await Promise.all([
         adminApi.analytics.revenue(period),
         adminApi.analytics.usage(period),
         adminApi.analytics.marketing(period),
@@ -372,6 +373,7 @@ export default function AnalyticsPage() {
         adminApi.analytics.security(period),
         adminApi.analytics.coreKpis(period),
         adminApi.analytics.funnelTrend(period),
+        adminApi.analytics.topPages(period),
       ])
       setRevenue(rRes.data)
       setUsage(uRes.data)
@@ -387,6 +389,7 @@ export default function AnalyticsPage() {
       setSecurity(secRes.data)
       setCoreKpis(ckRes.data)
       setFunnelTrend(ftRes.data)
+      setTopPages(tpRes.data)
     } finally {
       setLoading(false)
     }
@@ -626,6 +629,35 @@ export default function AnalyticsPage() {
                     }}
                     options={STACKED_CHART_OPTIONS}
                   />
+                </div>
+              )}
+            </Card>
+          </div>
+
+          <div className="mt-6">
+            <Card>
+              <CardTitle>Top pages</CardTitle>
+              <p className="text-xs mt-0.5 mb-3" style={{ color: 'var(--color-text-faint)' }}>
+                Ranked by total page views over the period, from the pre-aggregated daily rollup
+              </p>
+              {loading ? <SkeletonBox height={180} className="rounded-xl" /> : topPages.length === 0 ? (
+                <Empty>No daily rollup yet — the aggregation cron runs once daily; check back after it's run at least once.</Empty>
+              ) : (
+                <div className="space-y-4 pt-1">
+                  {topPages.map((row) => (
+                    <div key={row.pagePath}>
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="font-medium" style={{ color: 'var(--color-text)' }}>{row.pagePath}</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>{row.count} views</span>
+                      </div>
+                      <div className="h-1.5 rounded-full" style={{ background: 'var(--color-border)' }}>
+                        <div
+                          className="h-full rounded-full bg-[#6DC43F] transition-[width] duration-300"
+                          style={{ width: `${(row.count / topPages[0].count) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </Card>

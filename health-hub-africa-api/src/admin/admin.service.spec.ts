@@ -475,3 +475,63 @@ describe('AdminService.getFunnelDailyTrend (reads the FunnelEventDaily pre-aggre
     await expect(service.getFunnelDailyTrend('30d')).resolves.toEqual({ data: [] });
   });
 });
+
+describe('AdminService.getTopPages (reads the DimensionDailyMetric pre-aggregate)', () => {
+  function buildService(opts: { rows?: unknown[] } = {}) {
+    const prisma = {
+      dimensionDailyMetric: { findMany: jest.fn().mockResolvedValue(opts.rows ?? []) },
+    };
+    const service = new AdminService(
+      prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never,
+    );
+    return { service, prisma };
+  }
+
+  const day = new Date('2026-09-10T00:00:00Z');
+  const nextDay = new Date('2026-09-11T00:00:00Z');
+
+  it('sums counts for the same page across multiple days and ranks by total views', async () => {
+    const { service } = buildService({
+      rows: [
+        { reportDate: day, dimensionValue: '/dashboard', count: 10, uniqueUsers: 4 },
+        { reportDate: nextDay, dimensionValue: '/dashboard', count: 5, uniqueUsers: 2 },
+        { reportDate: day, dimensionValue: '/appointments', count: 3, uniqueUsers: 3 },
+      ],
+    });
+
+    const { data } = await service.getTopPages('30d');
+
+    expect(data[0]).toEqual({ pagePath: '/dashboard', count: 15, dailyUniqueUsersSummed: 6 });
+    expect(data[1]).toEqual({ pagePath: '/appointments', count: 3, dailyUniqueUsersSummed: 3 });
+  });
+
+  it('only queries the "page" dimension, not element/feature_area/country rows', async () => {
+    const { service, prisma } = buildService();
+    await service.getTopPages('30d');
+
+    expect(prisma.dimensionDailyMetric.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ dimension: 'page' }) }),
+    );
+  });
+
+  it('respects the limit parameter', async () => {
+    const { service } = buildService({
+      rows: [
+        { reportDate: day, dimensionValue: '/a', count: 3, uniqueUsers: 1 },
+        { reportDate: day, dimensionValue: '/b', count: 2, uniqueUsers: 1 },
+        { reportDate: day, dimensionValue: '/c', count: 1, uniqueUsers: 1 },
+      ],
+    });
+
+    const { data } = await service.getTopPages('30d', 2);
+    expect(data).toHaveLength(2);
+    expect(data.map((r) => r.pagePath)).toEqual(['/a', '/b']);
+  });
+
+  it('returns an empty list instead of throwing when the aggregate table read fails', async () => {
+    const { service, prisma } = buildService();
+    prisma.dimensionDailyMetric.findMany.mockRejectedValue(new Error('relation does not exist'));
+
+    await expect(service.getTopPages('30d')).resolves.toEqual({ data: [] });
+  });
+});

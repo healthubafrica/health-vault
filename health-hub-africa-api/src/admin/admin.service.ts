@@ -814,6 +814,41 @@ export class AdminService {
     };
   }
 
+  // Ranks pages by total page_view count over the period, reading
+  // DimensionDailyMetric's 'page' dimension (spec §25) instead of scanning
+  // raw PatientActivityEvent — a genuinely new view, since nothing in this
+  // codebase ranks the portal's own pages by traffic today (the existing
+  // Country→Region→City tree is marketing-site traffic from SiteVisit, a
+  // different table entirely).
+  //
+  // dailyUniqueUsersSummed is deliberately NOT a period-level unique-visitor
+  // count: FunnelEventDaily/DimensionDailyMetric only track uniqueness
+  // WITHIN each day, so a patient visiting the same page on 5 different
+  // days contributes 5, not 1, to this sum. Ranking uses `count` (raw
+  // views) for that reason — summing daily-unique counts across days would
+  // silently overstate reach the more days a filter window spans.
+  async getTopPages(period = '30d', limit = 10) {
+    const since = this.periodToDate(period);
+    const records = await this.prisma.dimensionDailyMetric
+      .findMany({ where: { dimension: 'page', reportDate: { gte: since } } })
+      .catch(() => []);
+
+    const byPage = new Map<string, { count: number; dailyUniqueUsersSummed: number }>();
+    for (const r of records) {
+      const bucket = byPage.get(r.dimensionValue) ?? { count: 0, dailyUniqueUsersSummed: 0 };
+      bucket.count += r.count;
+      bucket.dailyUniqueUsersSummed += r.uniqueUsers;
+      byPage.set(r.dimensionValue, bucket);
+    }
+
+    return {
+      data: Array.from(byPage.entries())
+        .map(([pagePath, b]) => ({ pagePath, count: b.count, dailyUniqueUsersSummed: b.dailyUniqueUsersSummed }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, limit),
+    };
+  }
+
   // Thin delegate — SiteVisit and its aggregation live in AnalyticsModule
   // (which also owns the public POST /analytics/visit write path); kept
   // out of AdminService itself so the two concerns (recording a visit,
