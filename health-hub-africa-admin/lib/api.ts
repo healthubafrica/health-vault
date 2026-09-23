@@ -313,6 +313,13 @@ export type UsageServiceKey =
 
 export type UsageDataPoint = { date: string } & Record<UsageServiceKey, number>
 
+// One column per headline funnel outcome (see AdminService.FUNNEL_TREND_EVENTS),
+// zero-filled, unique-user counts sourced from the FunnelEventDaily
+// pre-aggregate (spec §25) rather than a live per-day scan.
+export type FunnelTrendKey = 'registration_complete' | 'otp_verify_success' | 'booking_confirmed' | 'payment_success'
+
+export type FunnelTrendDataPoint = { date: string } & Record<FunnelTrendKey, number>
+
 export interface MarketingAnalytics {
   totals: {
     registrations: number
@@ -968,6 +975,8 @@ export const adminApi = {
       request<{ data: RevenueDataPoint[] }>(`/admin/analytics/revenue?period=${period}`),
     usage: (period = '30d') =>
       request<{ data: UsageDataPoint[] }>(`/admin/analytics/usage?period=${period}`),
+    funnelTrend: (period = '30d') =>
+      request<{ data: FunnelTrendDataPoint[] }>(`/admin/analytics/funnel-trend?period=${period}`),
     marketing: (period = '30d') =>
       request<{ data: MarketingAnalytics }>(`/admin/analytics/marketing?period=${period}`),
     traffic: (period = '30d') =>

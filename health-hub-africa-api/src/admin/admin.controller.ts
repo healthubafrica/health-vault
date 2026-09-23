@@ -170,6 +170,12 @@ export class AdminController {
     return this.adminService.getAnalyticsUsage(period);
   }
 
+  @Get('analytics/funnel-trend')
+  @ApiOperation({ summary: 'Daily unique-user trend for the 4 headline funnel outcomes, backed by the FunnelEventDaily pre-aggregate (spec §25)' })
+  getFunnelDailyTrend(@Query('period') period?: string) {
+    return this.adminService.getFunnelDailyTrend(period);
+  }
+
   @Get('analytics/marketing')
   @ApiOperation({ summary: 'Get registration, campaign attribution, and login-location analytics' })
   getMarketingAnalytics(@Query('period') period?: string) {

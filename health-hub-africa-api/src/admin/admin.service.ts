@@ -777,6 +777,43 @@ export class AdminService {
     };
   }
 
+  // The 4 outcomes spec §26/docs/ANALYTICS-KPI-DICTIONARY.md treat as
+  // headline funnel KPIs — same curated-list reasoning USAGE_KEY_BY_SERVICE_TYPE
+  // uses above, kept short and meaningful rather than charting every
+  // catalogued event name at once. Reads FunnelEventDaily (see
+  // docs/ANALYTICS-EVENT-SCHEMA-AGGREGATION-DESIGN.md §3) instead of
+  // scanning raw PatientActivityEvent per day, which is the whole point of
+  // that table existing — a day-by-day trend over a real period would mean
+  // one live query per day otherwise.
+  private static readonly FUNNEL_TREND_EVENTS = ['registration_complete', 'otp_verify_success', 'booking_confirmed', 'payment_success'] as const;
+
+  async getFunnelDailyTrend(period = '30d') {
+    const since = this.periodToDate(period);
+    const records = await this.prisma.funnelEventDaily
+      .findMany({
+        where: { reportDate: { gte: since }, eventName: { in: [...AdminService.FUNNEL_TREND_EVENTS] } },
+        orderBy: { reportDate: 'asc' },
+      })
+      .catch(() => []);
+
+    // Same pivot shape as getAnalyticsUsage above: one row per date, one
+    // zero-filled column per tracked event so the chart never has to guess
+    // at a missing key. uniqueUsers, not raw count — matches how every KPI
+    // in this file is expressed (unique-user based, not event-volume based).
+    const emptyRow = () => Object.fromEntries(AdminService.FUNNEL_TREND_EVENTS.map((e) => [e, 0])) as Record<string, number>;
+    const byDate = new Map<string, Record<string, number>>();
+    for (const r of records) {
+      const date = r.reportDate.toISOString().split('T')[0];
+      const row = byDate.get(date) ?? emptyRow();
+      row[r.eventName] = r.uniqueUsers;
+      byDate.set(date, row);
+    }
+
+    return {
+      data: Array.from(byDate.entries()).map(([date, counts]) => ({ date, ...counts })),
+    };
+  }
+
   // Thin delegate — SiteVisit and its aggregation live in AnalyticsModule
   // (which also owns the public POST /analytics/visit write path); kept
   // out of AdminService itself so the two concerns (recording a visit,

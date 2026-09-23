@@ -414,3 +414,64 @@ describe('AdminService.getAnalyticsUsage / getAnalyticsRevenue (read the daily a
     expect(data).toEqual([{ date: '2026-09-10', amount: 800000, gateway: 'Paystack' }]);
   });
 });
+
+describe('AdminService.getFunnelDailyTrend (reads the FunnelEventDaily pre-aggregate)', () => {
+  function buildService(opts: { rows?: unknown[] } = {}) {
+    const prisma = {
+      funnelEventDaily: { findMany: jest.fn().mockResolvedValue(opts.rows ?? []) },
+    };
+    const service = new AdminService(
+      prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never,
+    );
+    return { service, prisma };
+  }
+
+  const day = new Date('2026-09-10T00:00:00Z');
+
+  it('pivots the 4 headline events into one zero-filled row per date', async () => {
+    const { service } = buildService({
+      rows: [
+        { reportDate: day, eventName: 'registration_complete', uniqueUsers: 12 },
+        { reportDate: day, eventName: 'payment_success', uniqueUsers: 4 },
+      ],
+    });
+
+    const { data } = await service.getFunnelDailyTrend('30d');
+
+    expect(data).toEqual([
+      {
+        date: '2026-09-10',
+        registration_complete: 12,
+        otp_verify_success: 0,
+        booking_confirmed: 0,
+        payment_success: 4,
+      },
+    ]);
+  });
+
+  it('only queries the 4 headline event names, not every catalogued event', async () => {
+    const { service, prisma } = buildService();
+    await service.getFunnelDailyTrend('30d');
+
+    const call = prisma.funnelEventDaily.findMany.mock.calls[0][0];
+    expect(call.where.eventName.in.sort()).toEqual(
+      ['booking_confirmed', 'otp_verify_success', 'payment_success', 'registration_complete'].sort(),
+    );
+  });
+
+  it('uses uniqueUsers, not raw event count, matching every other KPI in this codebase', async () => {
+    const { service } = buildService({
+      rows: [{ reportDate: day, eventName: 'booking_confirmed', uniqueUsers: 3 }],
+    });
+
+    const { data } = await service.getFunnelDailyTrend('30d');
+    expect((data[0] as unknown as Record<string, number>).booking_confirmed).toBe(3);
+  });
+
+  it('returns an empty series instead of throwing when the aggregate table read fails', async () => {
+    const { service, prisma } = buildService();
+    prisma.funnelEventDaily.findMany.mockRejectedValue(new Error('relation does not exist'));
+
+    await expect(service.getFunnelDailyTrend('30d')).resolves.toEqual({ data: [] });
+  });
+});
