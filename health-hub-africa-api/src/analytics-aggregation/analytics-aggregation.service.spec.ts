@@ -6,13 +6,16 @@ function buildService(overrides: {
   dispatches?: Array<{ patientId: string; status: string; createdAt: Date; closedAt: Date | null }>;
   travelSafeTrips?: Array<{ patientId: string; status: string }>;
   payments?: Array<{ gateway: PaymentGateway; status: string; amountKobo: number; refundAmountKobo: number | null }>;
+  funnelEvents?: Array<{ eventName: string; patientId: string | null; anonymousVisitorId: string | null; analyticsSessionId: string | null }>;
 } = {}) {
   const prisma = {
     appointment: { findMany: jest.fn().mockResolvedValue(overrides.appointments ?? []) },
     dispatchRequest: { findMany: jest.fn().mockResolvedValue(overrides.dispatches ?? []) },
     travelSafeTrip: { findMany: jest.fn().mockResolvedValue(overrides.travelSafeTrips ?? []) },
     payment: { findMany: jest.fn().mockResolvedValue(overrides.payments ?? []) },
+    patientActivityEvent: { findMany: jest.fn().mockResolvedValue(overrides.funnelEvents ?? []) },
     serviceUsageDaily: { upsert: jest.fn().mockResolvedValue({}) },
+    funnelEventDaily: { upsert: jest.fn().mockResolvedValue({}) },
     revenueSummary: {
       findFirst: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockResolvedValue({}),
@@ -100,6 +103,33 @@ describe('AnalyticsAggregationService.runDailyAggregation', () => {
     expect(prisma.revenueSummary.create).not.toHaveBeenCalled();
     expect(prisma.revenueSummary.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'existing-id' } }),
+    );
+  });
+
+  it('upserts a FunnelEventDaily row per distinct event name with unique-user/session counts', async () => {
+    const { service, prisma } = buildService({
+      funnelEvents: [
+        { eventName: 'otp_requested', patientId: null, anonymousVisitorId: 'v1', analyticsSessionId: 's1' },
+        { eventName: 'otp_requested', patientId: null, anonymousVisitorId: 'v2', analyticsSessionId: 's2' },
+        { eventName: 'otp_verify_success', patientId: 'p1', anonymousVisitorId: null, analyticsSessionId: 's1' },
+      ],
+    });
+
+    await service.runDailyAggregation(new Date('2026-01-02T00:00:00Z'));
+
+    expect(prisma.funnelEventDaily.upsert).toHaveBeenCalledTimes(2);
+    const otpRequestedCall = prisma.funnelEventDaily.upsert.mock.calls.find(
+      (call: any) => call[0].create.eventName === 'otp_requested',
+    );
+    expect(otpRequestedCall[0].create).toMatchObject({ count: 2, uniqueUsers: 2, uniqueSessions: 2 });
+  });
+
+  it('excludes test events from the funnel aggregate query, same as every other dashboard', async () => {
+    const { service, prisma } = buildService();
+    await service.runDailyAggregation(new Date('2026-01-02T00:00:00Z'));
+
+    expect(prisma.patientActivityEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ isTestEvent: false }) }),
     );
   });
 
