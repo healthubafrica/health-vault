@@ -34,7 +34,7 @@ const LOGIN_ANOMALY_WINDOW_MIN = 60;
 // every 15 minutes for one ongoing issue trains people to ignore it.
 const DEDUPE_WINDOW_HOURS = 2;
 
-interface RaiseAlertInput {
+export interface RaiseAlertInput {
   type: string;
   severity: AlertSeverity;
   title: string;
@@ -189,7 +189,8 @@ export class AlertsService implements OnModuleInit {
     });
   }
 
-  private async recentlyAlerted(type: string): Promise<boolean> {
+  // Public for the same reason `raise` is — see above.
+  async recentlyAlerted(type: string): Promise<boolean> {
     const since = new Date(Date.now() - DEDUPE_WINDOW_HOURS * 60 * 60_000);
     const existing = await this.prisma.adminAlert.findFirst({
       where: { type, createdAt: { gte: since } },
@@ -198,7 +199,10 @@ export class AlertsService implements OnModuleInit {
     return !!existing;
   }
 
-  private async raise(alert: RaiseAlertInput): Promise<void> {
+  // Public so other services (e.g. AnalyticsReconciliationService) can reuse
+  // the same alert-delivery mechanism instead of inventing a parallel one —
+  // see docs/ANALYTICS-DATA-RECONCILIATION-PLAN.md.
+  async raise(alert: RaiseAlertInput): Promise<void> {
     await this.prisma.adminAlert.create({
       data: {
         type: alert.type,
