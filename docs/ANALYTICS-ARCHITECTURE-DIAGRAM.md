@@ -29,6 +29,8 @@ flowchart TB
         SiteVisits[("SiteVisit\nmarketing-site pageviews")]
         Usage[("ServiceUsageDaily")]
         Revenue[("RevenueSummary")]
+        Funnel[("FunnelEventDaily\nper reportDate + eventName")]
+        Dimension[("DimensionDailyMetric\nper reportDate + dimension + value\n(page/element/feature_area/country)")]
     end
 
     subgraph Dashboards["Dashboard read layer"]
@@ -57,8 +59,10 @@ flowchart TB
     EmitServer --> RollUp
     RollUp --> Sessions
 
-    Cron -- "reads Appointment,\nDispatchRequest, TravelSafeTrip,\nPayment — NOT PatientActivityEvent" --> Usage
+    Cron -- "reads Appointment,\nDispatchRequest, TravelSafeTrip,\nPayment (transactional)" --> Usage
     Cron --> Revenue
+    Cron -- "reads PatientActivityEvent\n(clickstream)" --> Funnel
+    Cron --> Dimension
 
     PAE --> AnalyticsSvc
     Sessions --> AnalyticsSvc
@@ -73,8 +77,8 @@ flowchart TB
 ## Reading the diagram
 
 - **Three ingestion paths, one shared geo resolver.** `trackEvent` (client beacons), `emitServerEvent` (called directly from service code, no HTTP round-trip — see `docs/ANALYTICS-IDENTITY-SESSIONIZATION-DESIGN.md` §6), and `recordVisit` (the separate marketing-site pageview table) all funnel through the same `resolveAccessGeo()`, so every write gets geo-resolved the same way regardless of entry point.
-- **The cron is an island.** `AnalyticsAggregationService` never reads `PatientActivityEvent` — it aggregates from the transactional tables (`Appointment`, `DispatchRequest`, `TravelSafeTrip`, `Payment`) that already exist for other reasons. This is the finding documented in full in `docs/ANALYTICS-EVENT-SCHEMA-AGGREGATION-DESIGN.md` §3: there is no clickstream/funnel pre-aggregation pipeline today.
-- **Almost every dashboard reads live.** The `AnalyticsSvc` box represents the bulk of `AnalyticsService`'s public methods, all of which query `PatientActivityEvent`/`AnalyticsSession`/`SiteVisit` directly on every admin-dashboard request — no caching layer, no materialized view. Only `getAnalyticsUsage`/`getAnalyticsRevenue` (in `AdminService`, not `AnalyticsService`) read a pre-aggregated table.
+- **The cron now spans both transactional and clickstream tables.** `AnalyticsAggregationService` aggregates `ServiceUsageDaily`/`RevenueSummary` from the transactional tables (`Appointment`, `DispatchRequest`, `TravelSafeTrip`, `Payment`) and, separately, `FunnelEventDaily`/`DimensionDailyMetric` from `PatientActivityEvent` itself — closing the "cron is an island" gap this diagram originally documented. See `docs/ANALYTICS-EVENT-SCHEMA-AGGREGATION-DESIGN.md` §3 for what's aggregated and why the new tables aren't wired into any dashboard yet.
+- **Almost every dashboard still reads live**, despite the aggregates above existing. The `AnalyticsSvc` box represents the bulk of `AnalyticsService`'s public methods, all of which query `PatientActivityEvent`/`AnalyticsSession`/`SiteVisit` directly on every admin-dashboard request — no caching layer, no materialized view. Only `getAnalyticsUsage`/`getAnalyticsRevenue` (in `AdminService`, not `AnalyticsService`) read a pre-aggregated table today; `FunnelEventDaily`/`DimensionDailyMetric` are populated but not yet read by anything, since an unfiltered daily rollup can't simply replace a live query built to support spec §J's arbitrary filter combinations.
 - **Identity resolution happens inside `trackEvent`/`emitServerEvent`, not in the diagram's boxes above.** See `docs/ANALYTICS-IDENTITY-SESSIONIZATION-DESIGN.md` for the full patientId/anonymousVisitorId/analyticsSessionId design — this diagram shows data flow, not identity logic.
 - **Consent and test-traffic filtering happen inline in `trackEvent`**, before the row is ever written or session-rolled-up (not shown as separate boxes since they're conditionals inside the same function, not separate services) — see `docs/ANALYTICS-PRIVACY-GOVERNANCE.md` §5.
 
@@ -86,5 +90,5 @@ flowchart TB
 | `docs/ANALYTICS-KPI-DICTIONARY.md` | Every KPI's formula, exclusions, and refresh interval |
 | `docs/ANALYTICS-CLICKSTREAM-MAP.md` | Every tracked page/CTA/element, web and mobile |
 | `docs/ANALYTICS-IDENTITY-SESSIONIZATION-DESIGN.md` | How `patientId`/`anonymousVisitorId`/`analyticsSessionId` resolve and stitch |
-| `docs/ANALYTICS-EVENT-SCHEMA-AGGREGATION-DESIGN.md` | Full event schema mapping and the aggregation gaps this diagram's "Cron is an island" note summarizes |
+| `docs/ANALYTICS-EVENT-SCHEMA-AGGREGATION-DESIGN.md` | Full event schema mapping and what each aggregate table covers |
 | `geoip/README.md` | GeoIP provider, licensing, and update configuration |

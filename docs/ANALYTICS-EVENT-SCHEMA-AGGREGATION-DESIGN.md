@@ -38,14 +38,14 @@ Every dashboard in `AnalyticsService` counts unique users the same way, without 
 
 ## 3. What is and isn't pre-aggregated
 
-Spec §25 asks for "hourly/daily aggregate tables for page, click, feature, geography and funnel metrics." **Only two of those exist as pre-aggregated tables today: service usage and revenue** — everything else (funnels, demographics, geography, CTA CTR, retention, engagement score, Core KPIs) is computed **live, per API request**, directly from `PatientActivityEvent`/`AnalyticsSession` (see `docs/ANALYTICS-KPI-DICTIONARY.md`'s "global refresh interval" note). This is a real, current limitation, not an oversight to gloss over: it means every clickstream/funnel dashboard re-scans the raw event table on every load, and cost/latency will grow with event volume until page/click/feature/funnel aggregates are built.
-
-`AnalyticsAggregationService.runDailyAggregation()` (Bull cron, `15 1 * * *`, i.e. 01:15 UTC daily) is the only aggregation job that exists, and it only populates:
+Spec §25 asks for "hourly/daily aggregate tables for page, click, feature, geography and funnel metrics." All 5 categories now exist as pre-aggregated tables, populated by `AnalyticsAggregationService.runDailyAggregation()` (Bull cron, `15 1 * * *`, i.e. 01:15 UTC daily):
 
 - **`ServiceUsageDaily`** — one row per `(reportDate, serviceType)`, sourced from `Appointment`/`DispatchRequest`/`TravelSafeTrip` (transactional tables, not the clickstream event stream)
 - **`RevenueSummary`** — one row per `(reportDate, serviceType, gateway)`, sourced from `Payment` (also transactional, not clickstream)
+- **`FunnelEventDaily`** — one row per `(reportDate, eventName)`, sourced from `PatientActivityEvent`, covering every distinct event name that occurred that day (not a fixed list)
+- **`DimensionDailyMetric`** — one row per `(reportDate, dimension, dimensionValue)`, covering the remaining 4 named categories (page/click/feature/geography) via a single flexible table rather than 4 near-identical ones — `dimension` is one of `page`/`element`/`feature_area`/`country`
 
-Both are read back by `AdminService.getAnalyticsUsage()`/`getAnalyticsRevenue()` — the only two dashboard queries in the whole codebase that read a pre-aggregated table instead of scanning raw data.
+**These are deliberately not yet read by any dashboard.** `AdminService.getAnalyticsUsage()`/`getAnalyticsRevenue()` remain the only two dashboard queries reading a pre-aggregated table — every funnel/demographics/geography/CTA-CTR/retention/engagement/Core-KPI dashboard still computes **live, per API request** from raw `PatientActivityEvent`/`AnalyticsSession` (see `docs/ANALYTICS-KPI-DICTIONARY.md`'s "global refresh interval" note). The reason isn't that the new tables are unfinished — it's that an unfiltered daily rollup can't simply replace a live query that supports spec §J's 14 arbitrary filter dimensions; the new tables serve the *unfiltered* "how many total X happened today" case, which is the more urgent cost problem as raw event volume grows, not a drop-in replacement for filtered dashboard queries. Wiring any specific dashboard over to read these where it can (e.g. an unfiltered default view before a filter is applied) remains open follow-up work.
 
 ## 4. Late-arriving events
 
