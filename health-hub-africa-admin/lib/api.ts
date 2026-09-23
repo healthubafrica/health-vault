@@ -320,6 +320,15 @@ export type FunnelTrendKey = 'registration_complete' | 'otp_verify_success' | 'b
 
 export type FunnelTrendDataPoint = { date: string } & Record<FunnelTrendKey, number>
 
+// dailyUniqueUsersSummed is NOT a period-unique-visitor count — see
+// AdminService.getTopPages for why (daily-granularity aggregates can only
+// track uniqueness within one day, not across the whole requested period).
+export interface TopPageRow {
+  pagePath: string
+  count: number
+  dailyUniqueUsersSummed: number
+}
+
 export interface MarketingAnalytics {
   totals: {
     registrations: number
@@ -977,6 +986,8 @@ export const adminApi = {
       request<{ data: UsageDataPoint[] }>(`/admin/analytics/usage?period=${period}`),
     funnelTrend: (period = '30d') =>
       request<{ data: FunnelTrendDataPoint[] }>(`/admin/analytics/funnel-trend?period=${period}`),
+    topPages: (period = '30d', limit = 10) =>
+      request<{ data: TopPageRow[] }>(`/admin/analytics/top-pages?period=${period}&limit=${limit}`),
     marketing: (period = '30d') =>
       request<{ data: MarketingAnalytics }>(`/admin/analytics/marketing?period=${period}`),
     traffic: (period = '30d') =>

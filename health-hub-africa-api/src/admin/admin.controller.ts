@@ -176,6 +176,14 @@ export class AdminController {
     return this.adminService.getFunnelDailyTrend(period);
   }
 
+  @Get('analytics/top-pages')
+  @ApiOperation({ summary: 'Top portal pages by page_view count over a period, backed by the DimensionDailyMetric pre-aggregate (spec §25)' })
+  @ApiQuery({ name: 'period', required: false, description: "e.g. '7d', '30d', '90d' (default 30d)" })
+  @ApiQuery({ name: 'limit', required: false, description: 'Max rows to return (default 10)' })
+  getTopPages(@Query('period') period?: string, @Query('limit') limit?: string) {
+    return this.adminService.getTopPages(period, limit ? parseInt(limit, 10) : undefined);
+  }
+
   @Get('analytics/marketing')
   @ApiOperation({ summary: 'Get registration, campaign attribution, and login-location analytics' })
   getMarketingAnalytics(@Query('period') period?: string) {
