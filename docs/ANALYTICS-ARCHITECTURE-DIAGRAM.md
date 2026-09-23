@@ -44,7 +44,6 @@ flowchart TB
 
     Controller --> TrackEvent
     Controller --> RecordVisit
-    EmitServer -. "server-side call,\nno HTTP hop" .-> TrackEvent
 
     TrackEvent --> GeoResolve
     EmitServer --> GeoResolve
