@@ -11,6 +11,7 @@ import {
 } from './service-usage-aggregation.util';
 import { aggregateRevenueRows, fetchPaymentRowsForDay } from './revenue-aggregation.util';
 import { aggregateFunnelEventRows, fetchFunnelEventRowsForDay } from './funnel-aggregation.util';
+import { aggregateDimensionEventRows, fetchDimensionEventRowsForDay } from './dimension-aggregation.util';
 
 export const ANALYTICS_AGGREGATION_QUEUE = 'analytics-aggregation';
 
@@ -54,6 +55,7 @@ export class AnalyticsAggregationService implements OnModuleInit {
       await this.aggregateServiceUsage(start, end, reportDate);
       await this.aggregateRevenue(start, end, reportDate);
       await this.aggregateFunnelMetrics(start, end, reportDate);
+      await this.aggregateDimensionMetrics(start, end, reportDate);
     } catch (err) {
       this.logger.error(
         `Daily analytics aggregation failed for ${reportDate.toISOString().slice(0, 10)}: ${err instanceof Error ? err.message : String(err)}`,
@@ -149,6 +151,36 @@ export class AnalyticsAggregationService implements OnModuleInit {
         create: {
           reportDate,
           eventName: bucket.eventName,
+          count: bucket.count,
+          uniqueUsers: bucket.uniqueUsers,
+          uniqueSessions: bucket.uniqueSessions,
+        },
+        update: {
+          count: bucket.count,
+          uniqueUsers: bucket.uniqueUsers,
+          uniqueSessions: bucket.uniqueSessions,
+        },
+      });
+    }
+  }
+
+  // Spec §25's page/click/feature/geography daily aggregates — the other 3
+  // of the 4 categories named alongside funnel metrics (see
+  // dimension-aggregation.util.ts for why one flexible table replaces 3
+  // near-identical ones). dimensionValue is non-nullable on the unique key,
+  // same reasoning as aggregateFunnelMetrics above — compound-unique upsert
+  // works directly.
+  private async aggregateDimensionMetrics(start: Date, end: Date, reportDate: Date): Promise<void> {
+    const rows = await fetchDimensionEventRowsForDay(this.prisma, start, end);
+    const buckets = aggregateDimensionEventRows(rows);
+
+    for (const bucket of buckets) {
+      await this.prisma.dimensionDailyMetric.upsert({
+        where: { reportDate_dimension_dimensionValue: { reportDate, dimension: bucket.dimension, dimensionValue: bucket.dimensionValue } },
+        create: {
+          reportDate,
+          dimension: bucket.dimension,
+          dimensionValue: bucket.dimensionValue,
           count: bucket.count,
           uniqueUsers: bucket.uniqueUsers,
           uniqueSessions: bucket.uniqueSessions,
