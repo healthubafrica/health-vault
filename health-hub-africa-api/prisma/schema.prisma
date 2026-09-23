@@ -1767,6 +1767,31 @@ model SiteVisit {
   @@map("site_visits")
 }
 
+// Spec §25's "funnel metrics" daily aggregate — the first of the still-
+// missing page/click/feature/geography/funnel pre-aggregation categories
+// (see docs/ANALYTICS-EVENT-SCHEMA-AGGREGATION-DESIGN.md §3, "cron is an
+// island"). One row per (reportDate, eventName), populated by
+// AnalyticsAggregationService alongside ServiceUsageDaily/RevenueSummary.
+// Deliberately not yet read by any dashboard — see the same doc's
+// discussion of why an unfiltered rollup can't simply replace the live,
+// arbitrarily-filtered §J funnel queries; this exists so an unfiltered
+// "how many total X happened today" question stops requiring a full table
+// scan, which is the more urgent cost problem as event volume grows.
+model FunnelEventDaily {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reportDate     DateTime @map("report_date") @db.Date
+  eventName      String   @map("event_name")
+  count          Int      @default(0)
+  uniqueUsers    Int      @default(0) @map("unique_users")
+  uniqueSessions Int      @default(0) @map("unique_sessions")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([reportDate, eventName])
+  @@index([reportDate(sort: Desc)])
+  @@map("funnel_event_daily")
+}
+
 model ServiceUsageDaily {
   id                   String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   reportDate           DateTime    @map("report_date") @db.Date

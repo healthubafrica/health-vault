@@ -10,6 +10,7 @@ import {
   UsageBucket,
 } from './service-usage-aggregation.util';
 import { aggregateRevenueRows, fetchPaymentRowsForDay } from './revenue-aggregation.util';
+import { aggregateFunnelEventRows, fetchFunnelEventRowsForDay } from './funnel-aggregation.util';
 
 export const ANALYTICS_AGGREGATION_QUEUE = 'analytics-aggregation';
 
@@ -52,6 +53,7 @@ export class AnalyticsAggregationService implements OnModuleInit {
     try {
       await this.aggregateServiceUsage(start, end, reportDate);
       await this.aggregateRevenue(start, end, reportDate);
+      await this.aggregateFunnelMetrics(start, end, reportDate);
     } catch (err) {
       this.logger.error(
         `Daily analytics aggregation failed for ${reportDate.toISOString().slice(0, 10)}: ${err instanceof Error ? err.message : String(err)}`,
@@ -128,6 +130,35 @@ export class AnalyticsAggregationService implements OnModuleInit {
       } else {
         await this.prisma.revenueSummary.create({ data: { reportDate, serviceType: null, gateway: bucket.gateway, ...fields } });
       }
+    }
+  }
+
+  // Spec §25's funnel-metrics daily aggregate — the first of the still-
+  // missing page/click/feature/geography/funnel pre-aggregation categories
+  // (see docs/ANALYTICS-EVENT-SCHEMA-AGGREGATION-DESIGN.md §3). eventName
+  // is non-nullable on FunnelEventDaily's unique key, so (unlike
+  // aggregateRevenue above) the compound-unique upsert shorthand works
+  // directly — no findFirst/branch workaround needed here.
+  private async aggregateFunnelMetrics(start: Date, end: Date, reportDate: Date): Promise<void> {
+    const rows = await fetchFunnelEventRowsForDay(this.prisma, start, end);
+    const buckets = aggregateFunnelEventRows(rows);
+
+    for (const bucket of buckets) {
+      await this.prisma.funnelEventDaily.upsert({
+        where: { reportDate_eventName: { reportDate, eventName: bucket.eventName } },
+        create: {
+          reportDate,
+          eventName: bucket.eventName,
+          count: bucket.count,
+          uniqueUsers: bucket.uniqueUsers,
+          uniqueSessions: bucket.uniqueSessions,
+        },
+        update: {
+          count: bucket.count,
+          uniqueUsers: bucket.uniqueUsers,
+          uniqueSessions: bucket.uniqueSessions,
+        },
+      });
     }
   }
 }
