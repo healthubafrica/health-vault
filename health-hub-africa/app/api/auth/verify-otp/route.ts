@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
         referrer: body.referrer,
         landingPage: body.landingPage,
         timezone: body.timezone,
+        anonymousVisitorId: body.anonymousVisitorId,
       }),
     })
   } catch {

@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download, ChevronRight, ChevronDown } from 'lucide-react'
 import { useAutoRefresh } from '@/lib/hooks/useLiveData'
-import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type GeoComparison, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type RevenueDataPoint } from '@/lib/api'
+import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type ClickstreamAnalytics, type GeoComparison, type GeoMapAnalytics, type GeoMapCountry, type GeoBasis, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type UsageServiceKey, type RevenueDataPoint, type CoreKpis, type FunnelTrendDataPoint, type FunnelTrendKey, type TopPageRow } from '@/lib/api'
+import dynamic from 'next/dynamic'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { FilterTabs } from '@/components/ui/FilterTabs'
@@ -25,7 +26,7 @@ import { Bar, Line } from 'react-chartjs-2'
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Tooltip, Legend, Filler)
 
 const PERIODS = ['7d', '30d', '90d']
-const SECTIONS = ['Overview', 'Funnels', 'Acquisition', 'Geography', 'Digital Experience', 'Security'] as const
+const SECTIONS = ['Overview', 'Funnels', 'Acquisition', 'Geography', 'Demographics', 'Digital Experience', 'Security'] as const
 type Section = (typeof SECTIONS)[number]
 
 const CHART_OPTIONS = {
@@ -46,6 +47,50 @@ const CHART_OPTIONS = {
     y: { grid: { color: '#253525' }, ticks: { color: '#8A9A8A', font: { size: 10 }, precision: 0 } },
   },
 }
+
+// Spec §J lifecycle segments (mirrors LIFECYCLE_STAGES in the API). They
+// overlap — a patient can be Activated and Returning — and are evaluated
+// within the selected period.
+const LIFECYCLE_STAGE_OPTIONS = [
+  { value: 'anonymous', label: 'Anonymous' },
+  { value: 'registered', label: 'Registered' },
+  { value: 'verified', label: 'Verified' },
+  { value: 'activated', label: 'Activated' },
+  { value: 'returning', label: 'Returning' },
+]
+
+// Every service the API reports usage for. Series with no activity in the
+// visible window are dropped at render time so the legend only lists what's
+// actually on the chart.
+const USAGE_SERIES: Array<{ key: UsageServiceKey; label: string; color: string }> = [
+  { key: 'minuteCare', label: 'MinuteCare', color: '#6DC43F' },
+  { key: 'teleCare', label: 'TeleCare', color: '#3B82F6' },
+  { key: 'careTest', label: 'CareTest (labs)', color: '#E8930A' },
+  { key: 'healthConsult', label: 'HealthConsult', color: '#14B8A6' },
+  { key: 'expertReview', label: 'Expert Review', color: '#8B5CF6' },
+  { key: 'neuroFlex', label: 'STRIDE / NeuroFlex', color: '#EC4899' },
+  { key: 'dispatchCare', label: 'DispatchCare', color: '#C0392B' },
+  { key: 'travelSafe', label: 'TravelSafe', color: '#64748B' },
+]
+
+// Matches AdminService.FUNNEL_TREND_EVENTS exactly — the 4 headline funnel
+// outcomes, backed by the FunnelEventDaily pre-aggregate (spec §25) instead
+// of a live per-day scan.
+const FUNNEL_TREND_SERIES: Array<{ key: FunnelTrendKey; label: string; color: string }> = [
+  { key: 'registration_complete', label: 'Registrations', color: '#6DC43F' },
+  { key: 'otp_verify_success', label: 'OTP verified', color: '#3B82F6' },
+  { key: 'booking_confirmed', label: 'Bookings confirmed', color: '#E8930A' },
+  { key: 'payment_success', label: 'Payments', color: '#8B5CF6' },
+]
+
+// Same look as CHART_OPTIONS, stacked so up to 8 services stay readable per day.
+const STACKED_CHART_OPTIONS = {
+  ...CHART_OPTIONS,
+  scales: {
+    x: { ...CHART_OPTIONS.scales.x, stacked: true },
+    y: { ...CHART_OPTIONS.scales.y, stacked: true },
+  },
+}
 const SOURCE_LABELS: Record<string, string> = {
   social_media: 'Social media',
   friend: 'Friend',
@@ -62,6 +107,26 @@ function countryName(code: string) {
     return code
   }
 }
+
+// Chart.js + the ~100KB world atlas only load when the Geography tab renders the map.
+const WorldMap = dynamic(() => import('@/components/analytics/WorldMap'), {
+  ssr: false,
+  loading: () => <SkeletonBox height={360} className="rounded-xl" />,
+})
+
+// Spec §F maps that rest on IP-derived ACCESS geography. The two declared-
+// geography maps (Patient Distribution, and "declared vs access") are not
+// here on purpose: Patient.country is a hard-coded "Nigeria" default in web
+// onboarding, mobile signup and the API, so it isn't real data yet.
+const MAP_METRICS: Array<{ key: keyof GeoMapCountry; label: string; kind: 'count' | 'rate'; unit: string }> = [
+  { key: 'visitors', label: 'Portal access (unique visitors)', kind: 'count', unit: '' },
+  { key: 'sessions', label: 'Engagement (sessions)', kind: 'count', unit: '' },
+  { key: 'clicks', label: 'Engagement (clicks)', kind: 'count', unit: '' },
+  { key: 'registrations', label: 'Registrations', kind: 'count', unit: '' },
+  { key: 'activationRate', label: 'Activation rate', kind: 'rate', unit: '%' },
+  { key: 'bookingConversionRate', label: 'Booking conversion', kind: 'rate', unit: '%' },
+  { key: 'paymentSuccessRate', label: 'Payment success', kind: 'rate', unit: '%' },
+]
 
 function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
@@ -129,19 +194,27 @@ function CardHeader({ title, subtitle, onExport }: { title: string; subtitle?: s
   )
 }
 
-// Country -> admin-1 region -> city drill-down (TrafficAnalytics.hierarchy).
-// Two-level expand state (country, and "country|region" for its city list)
-// rather than a generic recursive tree — the hierarchy is exactly 3 levels
-// deep, always, so a generic tree component would be more code for the same
-// result.
+// World -> Continent -> Country -> Region -> City (spec §B levels 0-5;
+// World is this component's implicit root — the array itself). Three-level
+// expand state (continent, "continent|country", "continent|country|region"
+// for the city list) rather than a generic recursive tree — the hierarchy
+// is exactly 4 levels deep, always, so a generic tree component would be
+// more code for the same result.
 function GeoHierarchyTree({ hierarchy }: { hierarchy: TrafficAnalytics['hierarchy'] }) {
+  const [openContinents, setOpenContinents] = useState<Set<string>>(new Set())
   const [openCountries, setOpenCountries] = useState<Set<string>>(new Set())
   const [openRegions, setOpenRegions] = useState<Set<string>>(new Set())
 
-  const toggleCountry = (code: string) =>
-    setOpenCountries((prev) => {
+  const toggleContinent = (code: string) =>
+    setOpenContinents((prev) => {
       const next = new Set(prev)
       next.has(code) ? next.delete(code) : next.add(code)
+      return next
+    })
+  const toggleCountry = (key: string) =>
+    setOpenCountries((prev) => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
       return next
     })
   const toggleRegion = (key: string) =>
@@ -153,46 +226,69 @@ function GeoHierarchyTree({ hierarchy }: { hierarchy: TrafficAnalytics['hierarch
 
   return (
     <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
-      {hierarchy.map((country) => {
-        const isOpen = openCountries.has(country.countryCode)
+      {hierarchy.map((continent) => {
+        const continentOpen = openContinents.has(continent.continentCode)
         return (
-          <div key={country.countryCode}>
+          <div key={continent.continentCode}>
             <button
-              onClick={() => toggleCountry(country.countryCode)}
+              onClick={() => toggleContinent(continent.continentCode)}
               className="w-full flex items-center justify-between gap-3 px-5 py-3 text-left hover:opacity-80 transition-opacity"
             >
               <span className="flex items-center gap-2 min-w-0">
-                {isOpen ? <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />}
-                <span className="font-medium truncate" style={{ color: 'var(--color-text)' }}>{countryName(country.countryCode)}</span>
-                <span className="text-[11px] flex-shrink-0" style={{ color: 'var(--color-text-faint)' }}>{country.continent} · {country.regions.length} region{country.regions.length === 1 ? '' : 's'}</span>
+                {continentOpen ? <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />}
+                <span className="font-semibold truncate" style={{ color: 'var(--color-text)' }}>{continent.continent}</span>
+                <span className="text-[11px] flex-shrink-0" style={{ color: 'var(--color-text-faint)' }}>{continent.countries.length} countr{continent.countries.length === 1 ? 'y' : 'ies'}</span>
               </span>
-              <span className="tabular-nums text-sm flex-shrink-0" style={{ color: 'var(--color-text)' }}>{country.visits}</span>
+              <span className="tabular-nums text-sm flex-shrink-0" style={{ color: 'var(--color-text)' }}>{continent.visits}</span>
             </button>
-            {isOpen && (
+            {continentOpen && (
               <div className="pb-2">
-                {country.regions.map((region) => {
-                  const regionKey = `${country.countryCode}|${region.region}`
-                  const regionOpen = openRegions.has(regionKey)
+                {continent.countries.map((country) => {
+                  const countryKey = `${continent.continentCode}|${country.countryCode}`
+                  const countryOpen = openCountries.has(countryKey)
                   return (
-                    <div key={regionKey}>
+                    <div key={countryKey}>
                       <button
-                        onClick={() => toggleRegion(regionKey)}
-                        className="w-full flex items-center justify-between gap-3 pl-10 pr-5 py-2 text-left hover:opacity-80 transition-opacity"
+                        onClick={() => toggleCountry(countryKey)}
+                        className="w-full flex items-center justify-between gap-3 pl-10 pr-5 py-2.5 text-left hover:opacity-80 transition-opacity"
                       >
                         <span className="flex items-center gap-2 min-w-0">
-                          {regionOpen ? <ChevronDown className="w-3 h-3 flex-shrink-0" /> : <ChevronRight className="w-3 h-3 flex-shrink-0" />}
-                          <span className="text-sm truncate" style={{ color: 'var(--color-text-muted)' }}>{region.region}</span>
+                          {countryOpen ? <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />}
+                          <span className="font-medium truncate" style={{ color: 'var(--color-text)' }}>{countryName(country.countryCode)}</span>
+                          <span className="text-[11px] flex-shrink-0" style={{ color: 'var(--color-text-faint)' }}>{country.regions.length} region{country.regions.length === 1 ? '' : 's'}</span>
                         </span>
-                        <span className="tabular-nums text-xs flex-shrink-0" style={{ color: 'var(--color-text-muted)' }}>{region.visits}</span>
+                        <span className="tabular-nums text-sm flex-shrink-0" style={{ color: 'var(--color-text)' }}>{country.visits}</span>
                       </button>
-                      {regionOpen && (
-                        <div className="pl-16 pr-5 pb-1 flex flex-col gap-1">
-                          {region.cities.map((c) => (
-                            <div key={c.city} className="flex items-center justify-between gap-3 py-0.5">
-                              <span className="text-xs truncate" style={{ color: 'var(--color-text-faint)' }}>{c.city}</span>
-                              <span className="tabular-nums text-xs flex-shrink-0" style={{ color: 'var(--color-text-faint)' }}>{c.visits}</span>
-                            </div>
-                          ))}
+                      {countryOpen && (
+                        <div className="pb-2">
+                          {country.regions.map((region) => {
+                            const regionKey = `${countryKey}|${region.region}`
+                            const regionOpen = openRegions.has(regionKey)
+                            return (
+                              <div key={regionKey}>
+                                <button
+                                  onClick={() => toggleRegion(regionKey)}
+                                  className="w-full flex items-center justify-between gap-3 pl-16 pr-5 py-2 text-left hover:opacity-80 transition-opacity"
+                                >
+                                  <span className="flex items-center gap-2 min-w-0">
+                                    {regionOpen ? <ChevronDown className="w-3 h-3 flex-shrink-0" /> : <ChevronRight className="w-3 h-3 flex-shrink-0" />}
+                                    <span className="text-sm truncate" style={{ color: 'var(--color-text-muted)' }}>{region.region}</span>
+                                  </span>
+                                  <span className="tabular-nums text-xs flex-shrink-0" style={{ color: 'var(--color-text-muted)' }}>{region.visits}</span>
+                                </button>
+                                {regionOpen && (
+                                  <div className="pl-24 pr-5 pb-1 flex flex-col gap-1">
+                                    {region.cities.map((c) => (
+                                      <div key={c.city} className="flex items-center justify-between gap-3 py-0.5">
+                                        <span className="text-xs truncate" style={{ color: 'var(--color-text-faint)' }}>{c.city}</span>
+                                        <span className="tabular-nums text-xs flex-shrink-0" style={{ color: 'var(--color-text-faint)' }}>{c.visits}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
                       )}
                     </div>
@@ -215,18 +311,38 @@ export default function AnalyticsPage() {
   const [marketing, setMarketing] = useState<MarketingAnalytics | null>(null)
   const [traffic, setTraffic] = useState<TrafficAnalytics | null>(null)
   const [funnel, setFunnel] = useState<FunnelAnalytics | null>(null)
+  const [demographics, setDemographics] = useState<DemographicsAnalytics | null>(null)
+  const [clickstream, setClickstream] = useState<ClickstreamAnalytics | null>(null)
   const [geoComparison, setGeoComparison] = useState<GeoComparison | null>(null)
+  const [geoMap, setGeoMap] = useState<GeoMapAnalytics | null>(null)
+  const [mapMetricKey, setMapMetricKey] = useState<keyof GeoMapCountry>('visitors')
+  const [mapBasis, setMapBasis] = useState<GeoBasis>('access')
   const [retention, setRetention] = useState<RetentionAnalytics | null>(null)
   const [digitalExperience, setDigitalExperience] = useState<DigitalExperienceAnalytics | null>(null)
   const [security, setSecurity] = useState<SecurityAnalytics | null>(null)
   const [funnelCountry, setFunnelCountry] = useState('')
   const [funnelContinent, setFunnelContinent] = useState('')
   const [funnelDevice, setFunnelDevice] = useState('')
+  const [funnelAgeBand, setFunnelAgeBand] = useState('')
+  const [funnelPlanTier, setFunnelPlanTier] = useState('')
+  const [funnelGender, setFunnelGender] = useState('')
+  const [funnelNationality, setFunnelNationality] = useState('')
+  const [funnelBrowser, setFunnelBrowser] = useState('')
+  const [funnelOs, setFunnelOs] = useState('')
+  const [funnelFeatureArea, setFunnelFeatureArea] = useState('')
+  const [funnelTimezone, setFunnelTimezone] = useState('')
+  const [funnelAcquisitionSource, setFunnelAcquisitionSource] = useState('')
+  const [funnelUtmCampaign, setFunnelUtmCampaign] = useState('')
+  const [funnelLifecycleStage, setFunnelLifecycleStage] = useState('')
+  const [funnelCompare, setFunnelCompare] = useState(false)
+  const [coreKpis, setCoreKpis] = useState<CoreKpis | null>(null)
+  const [funnelTrend, setFunnelTrend] = useState<FunnelTrendDataPoint[]>([])
+  const [topPages, setTopPages] = useState<TopPageRow[]>([])
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     try {
-      const [rRes, uRes, mRes, tRes, fRes, gRes, retRes, deRes, secRes] = await Promise.all([
+      const [rRes, uRes, mRes, tRes, fRes, demoRes, csRes, gRes, mapRes, retRes, deRes, secRes, ckRes, ftRes, tpRes] = await Promise.all([
         adminApi.analytics.revenue(period),
         adminApi.analytics.usage(period),
         adminApi.analytics.marketing(period),
@@ -235,25 +351,49 @@ export default function AnalyticsPage() {
           country: funnelCountry || undefined,
           continent: funnelContinent || undefined,
           device: funnelDevice || undefined,
+          ageBand: funnelAgeBand || undefined,
+          planTier: funnelPlanTier || undefined,
+          gender: funnelGender || undefined,
+          nationality: funnelNationality || undefined,
+          browser: funnelBrowser || undefined,
+          os: funnelOs || undefined,
+          featureArea: funnelFeatureArea || undefined,
+          timezone: funnelTimezone || undefined,
+          acquisitionSource: funnelAcquisitionSource || undefined,
+          utmCampaign: funnelUtmCampaign || undefined,
+          lifecycleStage: funnelLifecycleStage || undefined,
+          compare: funnelCompare,
         }),
+        adminApi.analytics.demographics(),
+        adminApi.analytics.clickstream(period),
         adminApi.analytics.geoComparison(period),
+        adminApi.analytics.geoMap(period, mapBasis),
         adminApi.analytics.retention(),
         adminApi.analytics.digitalExperience(period),
         adminApi.analytics.security(period),
+        adminApi.analytics.coreKpis(period),
+        adminApi.analytics.funnelTrend(period),
+        adminApi.analytics.topPages(period),
       ])
       setRevenue(rRes.data)
       setUsage(uRes.data)
       setMarketing(mRes.data)
       setTraffic(tRes.data)
       setFunnel(fRes.data)
+      setDemographics(demoRes.data)
+      setClickstream(csRes.data)
       setGeoComparison(gRes.data)
+      setGeoMap(mapRes.data)
       setRetention(retRes.data)
       setDigitalExperience(deRes.data)
       setSecurity(secRes.data)
+      setCoreKpis(ckRes.data)
+      setFunnelTrend(ftRes.data)
+      setTopPages(tpRes.data)
     } finally {
       setLoading(false)
     }
-  }, [period, funnelCountry, funnelContinent, funnelDevice])
+  }, [period, funnelCountry, funnelContinent, funnelDevice, funnelAgeBand, funnelPlanTier, funnelGender, funnelNationality, funnelBrowser, funnelOs, funnelFeatureArea, funnelTimezone, funnelAcquisitionSource, funnelUtmCampaign, funnelLifecycleStage, funnelCompare, mapBasis])
 
   useEffect(() => {
     setLoading(true)
@@ -295,6 +435,12 @@ export default function AnalyticsPage() {
   )
   const groupedEventNames = new Set(Object.values(FUNNEL_GROUPS).flat())
   const otherEvents = (funnel?.steps ?? []).filter((s) => !groupedEventNames.has(s.eventName))
+  const mapMetric = MAP_METRICS.find((m) => m.key === mapMetricKey) ?? MAP_METRICS[0]
+  // Accessible text alternative to the canvas map; also lists countries the atlas can't draw.
+  const topMapCountries = (geoMap?.countries ?? [])
+    .filter((c) => typeof c[mapMetric.key] === 'number' && (c[mapMetric.key] as number) > 0)
+    .sort((a, b) => (b[mapMetric.key] as number) - (a[mapMetric.key] as number))
+    .slice(0, 10)
   const topTrafficLocation = traffic?.locations[0]
   const maxTrafficDeviceCount = useMemo(
     () => Math.max(1, ...(traffic?.devices.map((row) => row.count) ?? [1])),
@@ -308,6 +454,22 @@ export default function AnalyticsPage() {
     () => Math.max(1, ...(digitalExperience?.browsers.map((row) => row.count) ?? [1])),
     [digitalExperience],
   )
+  const maxAgeBandCount = useMemo(
+    () => Math.max(1, ...(demographics?.ageBands.map((row) => row.count) ?? [1])),
+    [demographics],
+  )
+  const maxGenderCount = useMemo(
+    () => Math.max(1, ...(demographics?.genders.map((row) => row.count) ?? [1])),
+    [demographics],
+  )
+  const maxNationalityCount = useMemo(
+    () => Math.max(1, ...(demographics?.nationalities.map((row) => row.count) ?? [1])),
+    [demographics],
+  )
+  const maxPlanTierCount = useMemo(
+    () => Math.max(1, ...(demographics?.planTiers.map((row) => row.count) ?? [1])),
+    [demographics],
+  )
 
   const exportFunnelSteps = () =>
     downloadCsv(
@@ -315,11 +477,28 @@ export default function AnalyticsPage() {
       ['Event', 'Count', 'Unique users', 'Unique sessions'],
       (funnel?.steps ?? []).map((s) => [s.eventName, s.count, s.uniqueUsers, s.uniqueSessions]),
     )
+  const exportClickstream = () =>
+    downloadCsv(
+      `cta-clickstream-${period}.csv`,
+      ['Element', 'Impressions', 'Unique impressions', 'Clicks', 'Unique clicks', 'CTR %'],
+      (clickstream?.ctas ?? []).map((c) => [c.elementId, c.impressions, c.uniqueImpressions, c.clicks, c.uniqueClicks, c.ctr ?? '']),
+    )
   const exportGeoComparison = () =>
     downloadCsv(
       `declared-vs-access-geography-${period}.csv`,
       ['Declared country', 'Access country', 'Patients', 'Diaspora'],
       (geoComparison?.comparisons ?? []).map((c) => [c.declaredCountry, c.accessCountry, c.patients, c.matches ? 'No' : 'Yes']),
+    )
+  const exportDemographics = () =>
+    downloadCsv(
+      'demographics.csv',
+      ['Dimension', 'Value', 'Patients'],
+      [
+        ...(demographics?.ageBands ?? []).map((r) => ['Age band', r.label, r.count]),
+        ...(demographics?.genders ?? []).map((r) => ['Gender', r.label, r.count]),
+        ...(demographics?.nationalities ?? []).map((r) => ['Nationality', r.label, r.count]),
+        ...(demographics?.planTiers ?? []).map((r) => ['Plan tier', r.label, r.count]),
+      ] as Array<[string, string, number]>,
     )
   const exportCampaigns = () =>
     downloadCsv(
@@ -395,19 +574,25 @@ export default function AnalyticsPage() {
           </Card>
 
           <Card className="mb-6" padding={false}>
-            <CardHeader title="Retention" subtitle={`Registered patients who returned N+ days later, out of ${retention?.cohortSize ?? 0} registered in the last 90 days`} />
+            <CardHeader
+              title="Retention"
+              subtitle={`Registered patients who returned N+ days later, out of ${retention?.cohortSize ?? 0} registered in the last ${retention?.lookbackDays ?? 120} days (cohort definition v${retention?.cohortDefinitionVersion ?? 1})`}
+            />
             {!loading && !retention?.windows.some((w) => w.eligibleCohortSize > 0) ? (
               <Empty>No cohort has reached a retention window yet — check back once patients have been registered for a few days.</Empty>
             ) : (
-              <div className="grid grid-cols-3 divide-x" style={{ borderColor: 'var(--color-border)' }}>
+              // grid-cols-2/md:5 rather than divide-x: 5 windows (D1/D7/D30/D60/D90)
+              // don't all fit on one row below md, and divide-x's border-left
+              // approach draws a stray line on whichever cell wraps to a new
+              // row — Metric's own border-r per-cell doesn't have that problem.
+              <div className="grid grid-cols-2 md:grid-cols-5 border-y" style={{ borderColor: 'var(--color-border)' }}>
                 {(retention?.windows ?? []).map((w) => (
-                  <div key={w.days} className="px-5 py-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>D{w.days}</p>
-                    <p className="text-2xl font-bold mt-1" style={{ color: 'var(--color-text)' }}>{w.rate === null ? '—' : `${w.rate}%`}</p>
-                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-faint)' }}>
-                      {w.eligibleCohortSize === 0 ? 'No eligible cohort yet' : `${w.retainedUsers} of ${w.eligibleCohortSize}`}
-                    </p>
-                  </div>
+                  <Metric
+                    key={w.days}
+                    label={`D${w.days}`}
+                    value={w.rate === null ? '—' : `${w.rate}%`}
+                    detail={w.eligibleCohortSize === 0 ? 'No eligible cohort yet' : `${w.retainedUsers} of ${w.eligibleCohortSize}`}
+                  />
                 ))}
               </div>
             )}
@@ -436,15 +621,43 @@ export default function AnalyticsPage() {
                   <Bar
                     data={{
                       labels: usageLabels,
-                      datasets: [
-                        { label: 'Appointments', data: usage.slice(-14).map((row) => row.appointments), backgroundColor: '#6DC43F' },
-                        { label: 'TeleCare', data: usage.slice(-14).map((row) => row.telecare), backgroundColor: '#3B82F6' },
-                        { label: 'Dispatch', data: usage.slice(-14).map((row) => row.dispatch), backgroundColor: '#C0392B' },
-                        { label: 'Labs', data: usage.slice(-14).map((row) => row.labOrders), backgroundColor: '#E8930A' },
-                      ],
+                      datasets: USAGE_SERIES.filter((series) => usage.slice(-14).some((row) => row[series.key] > 0)).map((series) => ({
+                        label: series.label,
+                        data: usage.slice(-14).map((row) => row[series.key]),
+                        backgroundColor: series.color,
+                      })),
                     }}
-                    options={CHART_OPTIONS}
+                    options={STACKED_CHART_OPTIONS}
                   />
+                </div>
+              )}
+            </Card>
+          </div>
+
+          <div className="mt-6">
+            <Card>
+              <CardTitle>Top pages</CardTitle>
+              <p className="text-xs mt-0.5 mb-3" style={{ color: 'var(--color-text-faint)' }}>
+                Ranked by total page views over the period, from the pre-aggregated daily rollup
+              </p>
+              {loading ? <SkeletonBox height={180} className="rounded-xl" /> : topPages.length === 0 ? (
+                <Empty>No daily rollup yet — the aggregation cron runs once daily; check back after it's run at least once.</Empty>
+              ) : (
+                <div className="space-y-4 pt-1">
+                  {topPages.map((row) => (
+                    <div key={row.pagePath}>
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="font-medium" style={{ color: 'var(--color-text)' }}>{row.pagePath}</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>{row.count} views</span>
+                      </div>
+                      <div className="h-1.5 rounded-full" style={{ background: 'var(--color-border)' }}>
+                        <div
+                          className="h-full rounded-full bg-[#6DC43F] transition-[width] duration-300"
+                          style={{ width: `${(row.count / topPages[0].count) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </Card>
@@ -496,6 +709,143 @@ export default function AnalyticsPage() {
                   <option key={device} value={device}>{device}</option>
                 ))}
               </select>
+              <select
+                value={funnelAgeBand}
+                onChange={(e) => setFunnelAgeBand(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by age band"
+              >
+                <option value="">All age bands</option>
+                {(demographics?.ageBands ?? []).map((b) => (
+                  <option key={b.label} value={b.label}>{b.label}</option>
+                ))}
+              </select>
+              <select
+                value={funnelPlanTier}
+                onChange={(e) => setFunnelPlanTier(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by plan tier"
+              >
+                <option value="">All plan tiers</option>
+                {(demographics?.planTiers ?? []).map((t) => (
+                  <option key={t.label} value={t.label}>{t.label}</option>
+                ))}
+              </select>
+              <select
+                value={funnelGender}
+                onChange={(e) => setFunnelGender(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by sex/gender"
+              >
+                <option value="">All genders</option>
+                {(demographics?.genders ?? []).map((g) => (
+                  <option key={g.label} value={g.label}>{g.label}</option>
+                ))}
+              </select>
+              <select
+                value={funnelNationality}
+                onChange={(e) => setFunnelNationality(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by nationality"
+              >
+                <option value="">All nationalities</option>
+                {(demographics?.nationalities ?? []).map((n) => (
+                  <option key={n.label} value={n.label}>{n.label}</option>
+                ))}
+              </select>
+              <select
+                value={funnelBrowser}
+                onChange={(e) => setFunnelBrowser(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by browser"
+              >
+                <option value="">All browsers</option>
+                {(digitalExperience?.browsers ?? []).map((b) => (
+                  <option key={b.browser} value={b.browser}>{b.browser}</option>
+                ))}
+              </select>
+              <select
+                value={funnelOs}
+                onChange={(e) => setFunnelOs(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by operating system"
+              >
+                <option value="">All operating systems</option>
+                {(digitalExperience?.operatingSystems ?? []).map((o) => (
+                  <option key={o.os} value={o.os}>{o.os}</option>
+                ))}
+              </select>
+              <select
+                value={funnelFeatureArea}
+                onChange={(e) => setFunnelFeatureArea(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by feature area"
+              >
+                <option value="">All feature areas</option>
+                {(digitalExperience?.featureAreas ?? []).map((f) => (
+                  <option key={f.featureArea} value={f.featureArea}>{f.featureArea}</option>
+                ))}
+              </select>
+              <select
+                value={funnelTimezone}
+                onChange={(e) => setFunnelTimezone(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by timezone"
+              >
+                <option value="">All timezones</option>
+                {(digitalExperience?.timezones ?? []).map((t) => (
+                  <option key={t.timezone} value={t.timezone}>{t.timezone}</option>
+                ))}
+              </select>
+              <select
+                value={funnelAcquisitionSource}
+                onChange={(e) => setFunnelAcquisitionSource(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by acquisition source"
+              >
+                <option value="">All acquisition sources</option>
+                {(marketing?.acquisitionSources ?? []).map((s) => (
+                  <option key={s.source} value={s.source}>{s.source}</option>
+                ))}
+              </select>
+              <select
+                value={funnelUtmCampaign}
+                onChange={(e) => setFunnelUtmCampaign(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by UTM campaign"
+              >
+                <option value="">All campaigns</option>
+                {Array.from(new Set((marketing?.campaigns ?? []).map((c) => c.campaign))).map((campaign) => (
+                  <option key={campaign} value={campaign}>{campaign}</option>
+                ))}
+              </select>
+              <select
+                value={funnelLifecycleStage}
+                onChange={(e) => setFunnelLifecycleStage(e.target.value)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Filter funnels by lifecycle stage"
+              >
+                <option value="">All lifecycle stages</option>
+                {LIFECYCLE_STAGE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <FilterTabs
+                tabs={['Off', 'Compare']}
+                active={funnelCompare ? 'Compare' : 'Off'}
+                onChange={(t) => setFunnelCompare(t === 'Compare')}
+              />
               <ExportButton onExport={exportFunnelSteps} />
             </div>
           </div>
@@ -504,13 +854,62 @@ export default function AnalyticsPage() {
             <Card className="mb-6"><Empty>No instrumented events yet for this filter combination.</Empty></Card>
           ) : (
             <>
+              {funnelCompare && funnel?.comparisonWindow && (
+                <p className="text-[11px] mb-2" style={{ color: 'var(--color-text-faint)' }}>
+                  Comparing to the previous {period}: {new Date(funnel.comparisonWindow.since).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })} – {new Date(funnel.comparisonWindow.until).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}
+                </p>
+              )}
+              {coreKpis && (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  <Card>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>{coreKpis.mau.label}</p>
+                    <p className="text-2xl font-bold mt-1" style={{ color: 'var(--color-text)' }}>{coreKpis.mau.value}</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-faint)' }}>Rolling {coreKpis.mau.windowDays}d, not the period filter above</p>
+                  </Card>
+                  <Card>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>{coreKpis.clicksPerSession.label}</p>
+                    <p className="text-2xl font-bold mt-1" style={{ color: 'var(--color-text)' }}>{coreKpis.clicksPerSession.value === null ? '—' : coreKpis.clicksPerSession.value}</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-faint)' }}>
+                      {coreKpis.clicksPerSession.denominator === 0 ? 'No engaged sessions yet' : `${coreKpis.clicksPerSession.numerator} clicks / ${coreKpis.clicksPerSession.denominator} sessions`}
+                    </p>
+                  </Card>
+                  <Card className="sm:col-span-2 lg:col-span-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-text-muted)' }}>Feature Adoption</p>
+                    {coreKpis.featureAdoption.length === 0 ? (
+                      <p className="text-xs" style={{ color: 'var(--color-text-faint)' }}>No featureArea-tagged activity yet.</p>
+                    ) : (
+                      <div className="flex flex-col gap-1">
+                        {coreKpis.featureAdoption.slice(0, 4).map((f) => (
+                          <div key={f.featureArea} className="flex items-center justify-between text-sm">
+                            <span style={{ color: 'var(--color-text-muted)' }}>{f.featureArea}</span>
+                            <span className="tabular-nums font-medium" style={{ color: 'var(--color-text)' }}>
+                              {f.value === null ? '—' : `${f.value}%`} ({f.activePatients}/{f.eligiblePatients})
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Card>
+                </div>
+              )}
               <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
                 {(funnel?.kpis ?? []).map((kpi) => (
                   <Card key={kpi.key}>
                     <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>{kpi.label}</p>
-                    <p className="text-2xl font-bold mt-1" style={{ color: 'var(--color-text)' }}>{kpi.value === null ? '—' : `${kpi.value}%`}</p>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <p className="text-2xl font-bold" style={{ color: 'var(--color-text)' }}>{kpi.value === null ? '—' : `${kpi.value}%`}</p>
+                      {funnelCompare && kpi.changePercent != null && (
+                        <span
+                          className="text-xs font-semibold"
+                          style={{ color: kpi.changePercent >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}
+                        >
+                          {kpi.changePercent >= 0 ? '+' : ''}{kpi.changePercent}%
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-text-faint)' }}>
                       {kpi.denominator === 0 ? 'No data yet' : `${kpi.numerator} of ${kpi.denominator}`}
+                      {funnelCompare && kpi.previousValue != null ? ` · was ${kpi.previousValue}%` : ''}
                     </p>
                   </Card>
                 ))}
@@ -544,6 +943,69 @@ export default function AnalyticsPage() {
                   )
                 })}
               </div>
+
+              <Card className="mb-6">
+                <CardTitle>Daily funnel trend</CardTitle>
+                <p className="text-xs mt-0.5 mb-3" style={{ color: 'var(--color-text-faint)' }}>
+                  Unique-user counts per day for the 4 headline outcomes, from the pre-aggregated daily rollup — not affected by the filters above
+                </p>
+                {loading ? <SkeletonBox height={220} className="rounded-xl" /> : funnelTrend.length === 0 ? (
+                  <Empty>No daily rollup yet — the aggregation cron runs once daily; check back after it's run at least once.</Empty>
+                ) : (
+                  <div style={{ height: 220 }}>
+                    <Line
+                      data={{
+                        labels: funnelTrend.map((row) => new Date(row.date).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })),
+                        datasets: FUNNEL_TREND_SERIES.map((series) => ({
+                          label: series.label,
+                          data: funnelTrend.map((row) => row[series.key]),
+                          borderColor: series.color,
+                          backgroundColor: 'transparent',
+                          tension: 0.35,
+                          pointRadius: 2,
+                        })),
+                      }}
+                      options={CHART_OPTIONS}
+                    />
+                  </div>
+                )}
+              </Card>
+
+              <Card className="mb-6" padding={false}>
+                <CardHeader
+                  title="Top CTAs — impressions, clicks & CTR"
+                  subtitle="CTR = unique clickers ÷ unique viewers. Only elements wrapped in <TrackImpression> report impressions today."
+                  onExport={clickstream?.ctas.length ? exportClickstream : undefined}
+                />
+                {!loading && !clickstream?.ctas.length ? (
+                  <Empty>No instrumented CTAs have been seen yet.</Empty>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-y text-left text-[11px] uppercase tracking-wider" style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                          <th className="px-5 py-2.5 font-semibold">Element</th>
+                          <th className="px-5 py-2.5 font-semibold text-right">Impressions</th>
+                          <th className="px-5 py-2.5 font-semibold text-right">Clicks</th>
+                          <th className="px-5 py-2.5 font-semibold text-right">CTR</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(clickstream?.ctas ?? []).map((row) => (
+                          <tr key={row.elementId} className="border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                            <td className="px-5 py-3 font-medium" style={{ color: 'var(--color-text)' }}>{row.elementId}</td>
+                            <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.uniqueImpressions}</td>
+                            <td className="px-5 py-3 text-right tabular-nums" style={{ color: 'var(--color-text)' }}>{row.uniqueClicks}</td>
+                            <td className="px-5 py-3 text-right tabular-nums font-semibold" style={{ color: 'var(--color-text)' }}>
+                              {row.ctr === null ? '—' : `${row.ctr}%`}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </Card>
 
               {otherEvents.length > 0 && (
                 <Card className="mb-6" padding={false}>
@@ -711,6 +1173,69 @@ export default function AnalyticsPage() {
 
       {section === 'Geography' && (
         <>
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Global portal map</h2>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                {mapBasis === 'access'
+                  ? 'Where portal sessions connect from — approximate, IP-derived, aggregated by country. This is access geography, not where patients say they live.'
+                  : "Where patients say they live — only patients who were actually asked (see Profile/onboarding) have a value, so this is likely sparse until adoption grows."}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <FilterTabs
+                tabs={['Access', 'Declared']}
+                active={mapBasis === 'access' ? 'Access' : 'Declared'}
+                onChange={(t) => setMapBasis(t === 'Access' ? 'access' : 'declared')}
+              />
+              <select
+                value={mapMetricKey}
+                onChange={(e) => setMapMetricKey(e.target.value as keyof GeoMapCountry)}
+                className="h-8 px-2 text-xs rounded-lg border outline-none cursor-pointer"
+                style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                aria-label="Map metric"
+              >
+                {MAP_METRICS.map((m) => (
+                  <option key={m.key} value={m.key}>{m.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <Card className="mb-6">
+            {loading && !geoMap ? (
+              <SkeletonBox height={360} className="rounded-xl" />
+            ) : !geoMap?.countries.length ? (
+              <Empty>
+                {mapBasis === 'access'
+                  ? 'No located portal activity in this period yet.'
+                  : 'No patients have declared a country yet — add it from Profile or during onboarding.'}
+              </Empty>
+            ) : (
+              <div className="grid lg:grid-cols-[1.8fr_1fr] gap-5">
+                <WorldMap
+                  countries={geoMap.countries.map((c) => ({ countryCode: c.countryCode, value: c[mapMetric.key] as number | null }))}
+                  metricLabel={mapMetric.label}
+                  kind={mapMetric.kind}
+                  unit={mapMetric.unit}
+                />
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--color-text-muted)' }}>
+                    Top countries — {mapMetric.label}
+                  </p>
+                  <ol className="text-xs">
+                    {topMapCountries.map((c) => (
+                      <li key={c.countryCode} className="flex items-center justify-between py-1.5 border-b last:border-b-0" style={{ borderColor: 'var(--color-border)' }}>
+                        <span style={{ color: 'var(--color-text)' }}>{countryName(c.countryCode)} <span style={{ color: 'var(--color-text-faint)' }}>· {c.continent}</span></span>
+                        <span className="font-semibold" style={{ color: 'var(--color-text)' }}>{(c[mapMetric.key] as number).toLocaleString()}{mapMetric.unit}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              </div>
+            )}
+          </Card>
+
           <div className="mb-3">
             <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Site traffic</h2>
             <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
@@ -869,7 +1394,7 @@ export default function AnalyticsPage() {
           <Card padding={false}>
             <CardHeader
               title="Declared vs. access geography"
-              subtitle={`Where patients say they live vs. where their sessions actually originate${geoComparison ? ` — ${geoComparison.diasporaPatients} of ${geoComparison.totalPatients} patients access from a different country than declared` : ''}`}
+              subtitle={`Where patients say they live vs. where their sessions actually originate${geoComparison ? ` — ${geoComparison.diasporaPatients} of ${geoComparison.declaredPatients} patients who declared a country access from a different one (${geoComparison.undeclaredPatients} haven't declared one yet)` : ''}`}
               onExport={geoComparison?.comparisons.length ? exportGeoComparison : undefined}
             />
             {!loading && !geoComparison?.comparisons.length ? (
@@ -899,6 +1424,117 @@ export default function AnalyticsPage() {
               </div>
             )}
           </Card>
+        </>
+      )}
+
+      {section === 'Demographics' && (
+        <>
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Demographics</h2>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                Age band, sex/gender, nationality, and plan tier — a population snapshot of the current active patient base, not time-windowed like the other tabs
+              </p>
+            </div>
+            <ExportButton onExport={exportDemographics} />
+          </div>
+
+          {loading && !demographics ? (
+            <SkeletonBox height={88} className="rounded-xl mb-4" />
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 mb-4 border-y" style={{ borderColor: 'var(--color-border)' }}>
+              <Metric label="Active patients" value={String(demographics?.totalPatients ?? 0)} detail="Accounts, not soft-deleted" />
+              <Metric label="Top age band" value={demographics?.ageBands.slice().sort((a, b) => b.count - a.count)[0]?.label ?? '—'} detail={demographics?.ageBands.length ? `${demographics.ageBands.length} bands represented` : 'No data yet'} />
+              <Metric label="Top nationality" value={demographics?.nationalities[0]?.label ?? '—'} detail={demographics?.nationalities[0] ? `${demographics.nationalities[0].count} patients` : 'No data yet'} />
+              <Metric label="Top plan" value={demographics?.planTiers[0]?.label ?? '—'} detail={demographics?.planTiers[0] ? `${demographics.planTiers[0].count} patients` : 'No data yet'} />
+            </div>
+          )}
+
+          <div className="grid lg:grid-cols-2 gap-4 mb-4">
+            <Card>
+              <CardTitle>Age bands</CardTitle>
+              {!loading && !demographics?.ageBands.length ? (
+                <Empty>No patients yet.</Empty>
+              ) : (
+                <div className="space-y-4 pt-1">
+                  {(demographics?.ageBands ?? []).map((row) => (
+                    <div key={row.label}>
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="font-medium" style={{ color: 'var(--color-text)' }}>{row.label}</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>{row.count}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full" style={{ background: 'var(--color-border)' }}>
+                        <div className="h-full rounded-full bg-[#6DC43F] transition-[width] duration-300" style={{ width: `${(row.count / maxAgeBandCount) * 100}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <Card>
+              <CardTitle>Sex / gender (as collected)</CardTitle>
+              {!loading && !demographics?.genders.length ? (
+                <Empty>No patients yet.</Empty>
+              ) : (
+                <div className="space-y-4 pt-1">
+                  {(demographics?.genders ?? []).map((row) => (
+                    <div key={row.label}>
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="font-medium" style={{ color: 'var(--color-text)' }}>{row.label}</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>{row.count}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full" style={{ background: 'var(--color-border)' }}>
+                        <div className="h-full rounded-full bg-[#3B82F6] transition-[width] duration-300" style={{ width: `${(row.count / maxGenderCount) * 100}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <Card>
+              <CardTitle>Nationality</CardTitle>
+              {!loading && !demographics?.nationalities.length ? (
+                <Empty>No patients yet.</Empty>
+              ) : (
+                <div className="space-y-4 pt-1">
+                  {(demographics?.nationalities ?? []).slice(0, 10).map((row) => (
+                    <div key={row.label}>
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="font-medium" style={{ color: 'var(--color-text)' }}>{row.label}</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>{row.count}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full" style={{ background: 'var(--color-border)' }}>
+                        <div className="h-full rounded-full bg-[#E8930A] transition-[width] duration-300" style={{ width: `${(row.count / maxNationalityCount) * 100}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <Card>
+              <CardTitle>Subscription plan tier</CardTitle>
+              {!loading && !demographics?.planTiers.length ? (
+                <Empty>No patients yet.</Empty>
+              ) : (
+                <div className="space-y-4 pt-1">
+                  {(demographics?.planTiers ?? []).map((row) => (
+                    <div key={row.label}>
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="font-medium" style={{ color: 'var(--color-text)' }}>{row.label}</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>{row.count}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full" style={{ background: 'var(--color-border)' }}>
+                        <div className="h-full rounded-full bg-[#C0392B] transition-[width] duration-300" style={{ width: `${(row.count / maxPlanTierCount) * 100}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
         </>
       )}
 

@@ -31,6 +31,8 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { ConsentsModule } from './consents/consents.module';
 import { SupportModule } from './support/support.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { AnalyticsAggregationModule } from './analytics-aggregation/analytics-aggregation.module';
+import { AnalyticsReconciliationModule } from './analytics-reconciliation/analytics-reconciliation.module';
 import { StrideModule } from './stride/stride.module';
 import { AdminModule } from './admin/admin.module';
 import { CmsModule } from './cms/cms.module';
@@ -116,6 +118,8 @@ import { AppController } from './app.controller';
     ConsentsModule,
     SupportModule,
     AnalyticsModule,
+    AnalyticsAggregationModule,
+    AnalyticsReconciliationModule,
     StrideModule,
     AdminModule,
     CmsModule,

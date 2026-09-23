@@ -5,6 +5,7 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
+import * as analyticsClient from './analytics/client';
 
 export const API_BASE =
   (process.env.EXPO_PUBLIC_API_URL ?? 'https://api.myvaultplus.com') + '/api/v1';
@@ -356,17 +357,33 @@ export const auth = {
       false
     ),
 
-  register: (email: string, password: string, phoneNumber: string | undefined, fullName: string, acquisitionSource: AcquisitionSource) =>
+  register: async (email: string, password: string, phoneNumber: string | undefined, fullName: string, acquisitionSource: AcquisitionSource) =>
     apiRequest<{ message: string }>(
       '/auth/register',
-      { method: 'POST', body: JSON.stringify({ email, password, phoneNumber, fullName, acquisitionSource }) },
+      {
+        method: 'POST',
+        // No Patient row exists until onboarding, so the server can only
+        // attribute registration_complete (spec §23) via this id.
+        body: JSON.stringify({
+          email, password, phoneNumber, fullName, acquisitionSource,
+          anonymousVisitorId: await analyticsClient.getAnonymousVisitorId(),
+        }),
+      },
       false
     ),
 
-  verifyOtp: (email: string, otp: string, type = 'email') =>
+  verifyOtp: async (email: string, otp: string, type = 'email') =>
     apiRequest<{ accessToken: string; refreshToken: string }>(
       '/auth/verify-otp',
-      { method: 'POST', body: JSON.stringify({ email, otp, type }) },
+      {
+        method: 'POST',
+        // Same reasoning as register() — otp_verify_success (spec §23) has
+        // no Patient row to attribute to yet either.
+        body: JSON.stringify({
+          email, otp, type,
+          anonymousVisitorId: await analyticsClient.getAnonymousVisitorId(),
+        }),
+      },
       false
     ),
 
@@ -457,40 +474,15 @@ export const appointments = {
 };
 
 // ── Analytics (fire-and-forget) ───────────────────────────────────────────
-// Mirrors health-hub-africa/lib/api.ts's analytics.track() — same backend
-// endpoint (POST /analytics/events, public + throttled), same identity
-// model. SecureStore instead of localStorage for the persisted anonymous
-// id since that's what's already available here (no encryption need, just reuse).
-
-const VISITOR_ID_KEY = 'hha_mobile_anon_visitor_id';
-let cachedVisitorId: string | null = null;
-
-async function getAnonymousVisitorId(): Promise<string | undefined> {
-  if (cachedVisitorId) return cachedVisitorId;
-  try {
-    let id = await SecureStore.getItemAsync(VISITOR_ID_KEY);
-    if (!id) {
-      id = generateIdempotencyKey();
-      await SecureStore.setItemAsync(VISITOR_ID_KEY, id);
-    }
-    cachedVisitorId = id;
-    return id;
-  } catch {
-    return undefined;
-  }
-}
+//
+// Delegates to lib/analytics/client.ts, the central SDK wrapper (spec §22)
+// shared in spirit with health-hub-africa/lib/api.ts's portal client. That
+// module owns identity (SecureStore-backed anonymous visitor id + an
+// in-memory, idle-timeout-rotating session id), eventId dedup, duplicate-
+// tap debouncing, and a bounded retry queue.
 
 export const analytics = {
-  track: (eventType: string, metadata?: Record<string, unknown>) => {
-    getAnonymousVisitorId()
-      .then((anonymousVisitorId) =>
-        apiRequest<void>('/analytics/events', {
-          method: 'POST',
-          body: JSON.stringify({ eventType, metadata, anonymousVisitorId }),
-        })
-      )
-      .catch(() => undefined);
-  },
+  track: analyticsClient.track,
 };
 
 export const records = {

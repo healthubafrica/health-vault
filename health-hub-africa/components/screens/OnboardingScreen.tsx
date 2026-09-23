@@ -42,6 +42,20 @@ function getPriceKobo(plan: SubscriptionPlan, cycle: 'monthly' | 'annually'): nu
   return plan.priceKobo
 }
 
+// Same set REGION_MAP on the API uses for HHA patient-id regions — kept in
+// sync there. A short curated list, not a full 195-country picker: the goal
+// is letting a real answer replace the old hard-coded default, not building
+// a combobox. "Prefer not to say" leaves countryCode unset.
+export const COUNTRY_OPTIONS = [
+  { code: 'NG', label: 'Nigeria' },
+  { code: 'GH', label: 'Ghana' },
+  { code: 'KE', label: 'Kenya' },
+  { code: 'ZA', label: 'South Africa' },
+  { code: 'CA', label: 'Canada' },
+  { code: 'GB', label: 'United Kingdom' },
+  { code: 'US', label: 'United States' },
+]
+
 export function OnboardingScreen() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -116,6 +130,9 @@ export function OnboardingScreen() {
   // Step 3: Medical Background
   const [chronicConditions, setChronicConditions] = useState<string[]>([])
   const [disabilityStatus, setDisabilityStatus] = useState('None')
+  // '' = not declared -> server keeps its existing default rather than
+  // recording a choice the patient never actually made.
+  const [countryCode, setCountryCode] = useState('')
   const [emergencyName, setEmergencyName] = useState('')
   const [emergencyPhone, setEmergencyPhone] = useState('')
   const [healthId, setHealthId] = useState('')
@@ -473,6 +490,17 @@ export function OnboardingScreen() {
                     >
                       {['None', 'Physical', 'Visual', 'Hearing', 'Cognitive', 'Multiple', 'Other'].map(value => (
                         <option key={value}>{value}</option>
+                      ))}
+                    </FormSelect>
+
+                    <FormSelect
+                      label="Country of Residence"
+                      value={countryCode}
+                      onChange={e => setCountryCode(e.target.value)}
+                    >
+                      <option value="">Prefer not to say</option>
+                      {COUNTRY_OPTIONS.map(opt => (
+                        <option key={opt.code} value={opt.code}>{opt.label}</option>
                       ))}
                     </FormSelect>
 
@@ -891,6 +919,7 @@ export function OnboardingScreen() {
                       try {
                         const [firstName, ...rest] = name.trim().split(' ')
                         await patients.create({
+                          ...(countryCode ? { countryCode } : {}),
                           firstName: firstName || name,
                           lastName: rest.join(' ') || 'Patient',
                           dateOfBirth: dob || '1990-01-01',

@@ -16,8 +16,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService, NOTIFICATIONS_QUEUE, NotificationJobData, NotificationChannel } from '../notifications/notifications.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { AuthService } from '../auth/auth.service';
-import { AnalyticsService } from '../analytics/analytics.service';
+import { AnalyticsService, FunnelFilters } from '../analytics/analytics.service';
 import { AlertsService } from '../alerts/alerts.service';
+import { fetchLoginAttemptsSince, detectLoginLocationAnomalies } from '../analytics/login-anomaly.util';
 import {
   UpdateUserRoleDto,
   UpdateUserStatusDto,
@@ -50,6 +51,17 @@ const DEFAULT_FLAGS: Record<string, { label: string; description: string; defaul
 };
 
 const FLAGS_REDIS_KEY = 'admin:feature-flags';
+
+// Column keys of the per-day usage pivot — one per ServiceType.
+type UsageKey =
+  | 'minuteCare'
+  | 'teleCare'
+  | 'careTest'
+  | 'healthConsult'
+  | 'expertReview'
+  | 'neuroFlex'
+  | 'dispatchCare'
+  | 'travelSafe';
 
 @Injectable()
 export class AdminService {
@@ -725,36 +737,115 @@ export class AdminService {
     };
   }
 
+  // One chart column per ServiceType — no bucketing. An earlier version
+  // matched substrings of the enum value and folded several services into
+  // "appointments"; once the daily aggregation cron started writing real
+  // rows that misfiled CareTest (no "lab" in "caretest") and hid four
+  // services entirely. Typed as a full Record so adding a ServiceType is a
+  // compile error here, not a silent misfile.
+  private static readonly USAGE_KEY_BY_SERVICE_TYPE: Record<ServiceType, UsageKey> = {
+    MinuteCare: 'minuteCare',
+    TeleCare: 'teleCare',
+    CareTest: 'careTest',
+    HealthConsult: 'healthConsult',
+    ExpertReview: 'expertReview',
+    NeuroFlex: 'neuroFlex',
+    DispatchCare: 'dispatchCare',
+    TravelSafe: 'travelSafe',
+  };
+
   async getAnalyticsUsage(period = '30d') {
     const since = this.periodToDate(period);
     const records = await this.prisma.serviceUsageDaily
       .findMany({ where: { reportDate: { gte: since } }, orderBy: { reportDate: 'asc' } })
       .catch(() => []);
 
-    // Pivot: one row per date, each service type becomes a column
-    const byDate = new Map<string, { appointments: number; telecare: number; dispatch: number; labOrders: number; expertReviews: number }>();
+    // Pivot: one row per date, every service type its own column (zero-filled
+    // so each row has the same shape and charts don't have to guess).
+    const emptyRow = () =>
+      Object.fromEntries(Object.values(AdminService.USAGE_KEY_BY_SERVICE_TYPE).map((k) => [k, 0])) as Record<UsageKey, number>;
+    const byDate = new Map<string, Record<UsageKey, number>>();
     for (const r of records) {
       const date = r.reportDate.toISOString().split('T')[0];
-      if (!byDate.has(date)) {
-        byDate.set(date, { appointments: 0, telecare: 0, dispatch: 0, labOrders: 0, expertReviews: 0 });
-      }
-      const row = byDate.get(date)!;
-      const st = String(r.serviceType).toLowerCase();
-      if (st.includes('telecare') || st.includes('teleconsult')) {
-        row.telecare += r.totalSessions;
-      } else if (st.includes('dispatch') || st.includes('emergency')) {
-        row.dispatch += r.totalSessions;
-      } else if (st.includes('lab')) {
-        row.labOrders += r.totalSessions;
-      } else if (st.includes('expert')) {
-        row.expertReviews += r.totalSessions;
-      } else {
-        row.appointments += r.totalSessions;
-      }
+      const row = byDate.get(date) ?? emptyRow();
+      row[AdminService.USAGE_KEY_BY_SERVICE_TYPE[r.serviceType]] += r.totalSessions;
+      byDate.set(date, row);
     }
 
     return {
       data: Array.from(byDate.entries()).map(([date, counts]) => ({ date, ...counts })),
+    };
+  }
+
+  // The 4 outcomes spec §26/docs/ANALYTICS-KPI-DICTIONARY.md treat as
+  // headline funnel KPIs — same curated-list reasoning USAGE_KEY_BY_SERVICE_TYPE
+  // uses above, kept short and meaningful rather than charting every
+  // catalogued event name at once. Reads FunnelEventDaily (see
+  // docs/ANALYTICS-EVENT-SCHEMA-AGGREGATION-DESIGN.md §3) instead of
+  // scanning raw PatientActivityEvent per day, which is the whole point of
+  // that table existing — a day-by-day trend over a real period would mean
+  // one live query per day otherwise.
+  private static readonly FUNNEL_TREND_EVENTS = ['registration_complete', 'otp_verify_success', 'booking_confirmed', 'payment_success'] as const;
+
+  async getFunnelDailyTrend(period = '30d') {
+    const since = this.periodToDate(period);
+    const records = await this.prisma.funnelEventDaily
+      .findMany({
+        where: { reportDate: { gte: since }, eventName: { in: [...AdminService.FUNNEL_TREND_EVENTS] } },
+        orderBy: { reportDate: 'asc' },
+      })
+      .catch(() => []);
+
+    // Same pivot shape as getAnalyticsUsage above: one row per date, one
+    // zero-filled column per tracked event so the chart never has to guess
+    // at a missing key. uniqueUsers, not raw count — matches how every KPI
+    // in this file is expressed (unique-user based, not event-volume based).
+    const emptyRow = () => Object.fromEntries(AdminService.FUNNEL_TREND_EVENTS.map((e) => [e, 0])) as Record<string, number>;
+    const byDate = new Map<string, Record<string, number>>();
+    for (const r of records) {
+      const date = r.reportDate.toISOString().split('T')[0];
+      const row = byDate.get(date) ?? emptyRow();
+      row[r.eventName] = r.uniqueUsers;
+      byDate.set(date, row);
+    }
+
+    return {
+      data: Array.from(byDate.entries()).map(([date, counts]) => ({ date, ...counts })),
+    };
+  }
+
+  // Ranks pages by total page_view count over the period, reading
+  // DimensionDailyMetric's 'page' dimension (spec §25) instead of scanning
+  // raw PatientActivityEvent — a genuinely new view, since nothing in this
+  // codebase ranks the portal's own pages by traffic today (the existing
+  // Country→Region→City tree is marketing-site traffic from SiteVisit, a
+  // different table entirely).
+  //
+  // dailyUniqueUsersSummed is deliberately NOT a period-level unique-visitor
+  // count: FunnelEventDaily/DimensionDailyMetric only track uniqueness
+  // WITHIN each day, so a patient visiting the same page on 5 different
+  // days contributes 5, not 1, to this sum. Ranking uses `count` (raw
+  // views) for that reason — summing daily-unique counts across days would
+  // silently overstate reach the more days a filter window spans.
+  async getTopPages(period = '30d', limit = 10) {
+    const since = this.periodToDate(period);
+    const records = await this.prisma.dimensionDailyMetric
+      .findMany({ where: { dimension: 'page', reportDate: { gte: since } } })
+      .catch(() => []);
+
+    const byPage = new Map<string, { count: number; dailyUniqueUsersSummed: number }>();
+    for (const r of records) {
+      const bucket = byPage.get(r.dimensionValue) ?? { count: 0, dailyUniqueUsersSummed: 0 };
+      bucket.count += r.count;
+      bucket.dailyUniqueUsersSummed += r.uniqueUsers;
+      byPage.set(r.dimensionValue, bucket);
+    }
+
+    return {
+      data: Array.from(byPage.entries())
+        .map(([pagePath, b]) => ({ pagePath, count: b.count, dailyUniqueUsersSummed: b.dailyUniqueUsersSummed }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, limit),
     };
   }
 
@@ -766,20 +857,39 @@ export class AdminService {
     return this.analyticsService.getTrafficAnalytics(period);
   }
 
-  getFunnelAnalytics(period = '30d', filters?: { country?: string; continent?: string; device?: string }) {
-    return this.analyticsService.getFunnelAnalytics(period, filters);
+  getFunnelAnalytics(period = '30d', filters?: FunnelFilters, compare = false) {
+    return this.analyticsService.getFunnelAnalytics(period, filters, compare);
+  }
+
+  getClickstreamAnalytics(period = '30d') {
+    return this.analyticsService.getClickstreamAnalytics(period);
+  }
+
+  getGeoMapAnalytics(period = '30d', basis: 'access' | 'declared' = 'access') {
+    return this.analyticsService.getGeoMapAnalytics(period, basis);
   }
 
   getGeoComparison(period = '30d') {
     return this.analyticsService.getGeoComparison(period);
   }
 
-  getRetentionAnalytics(lookbackDays = 90) {
+  getDemographicsAnalytics() {
+    return this.analyticsService.getDemographicsAnalytics();
+  }
+
+  // No default hardcoded here — forwards straight through so
+  // AnalyticsService's own default (kept in sync with RETENTION_WINDOWS)
+  // stays the single source of truth instead of two constants drifting apart.
+  getRetentionAnalytics(lookbackDays?: number) {
     return this.analyticsService.getRetentionAnalytics(lookbackDays);
   }
 
   getDigitalExperienceAnalytics(period = '30d') {
     return this.analyticsService.getDigitalExperienceAnalytics(period);
+  }
+
+  getCoreKpis(period = '30d') {
+    return this.analyticsService.getCoreKpis(period);
   }
 
   // Thin delegates — detection, dedup, and email delivery live in
@@ -1004,23 +1114,9 @@ export class AdminService {
   async getSecurityAnalytics(period = '30d') {
     const since = this.periodToDate(period);
 
-    type LoginAttemptRow = {
-      userId: string;
-      email: string;
-      occurredAt: Date;
-      countryCode: string | null;
-      success: boolean;
-    };
-
-    const attempts = await this.prisma.$queryRaw<LoginAttemptRow[]>`
-      SELECT le."user_id" AS "userId", u."email", le."occurred_at" AS "occurredAt",
-        le."country_code" AS "countryCode", le."success"
-      FROM "login_events" le
-      INNER JOIN "users" u ON u."id" = le."user_id"
-      WHERE le."occurred_at" >= ${since}
-        AND u."deleted_at" IS NULL
-      ORDER BY le."user_id", le."occurred_at" ASC
-    `;
+    // Shared with AlertsService's cross-country login alert — see
+    // analytics/login-anomaly.util.ts for why.
+    const attempts = await fetchLoginAttemptsSince(this.prisma, since);
 
     const dayMap = new Map<string, number>();
     const cursor = new Date(since);
@@ -1033,38 +1129,17 @@ export class AdminService {
     }
 
     const failedLocationMap = new Map<string, number>();
-    type Anomaly = { userId: string; email: string; fromCountry: string; toCountry: string; occurredAt: Date };
-    const anomalies: Anomaly[] = [];
-    // Rows arrive user-then-time ordered (see ORDER BY above), so the
-    // previous row is the previous chronological login for the same user
-    // exactly when userId is unchanged — no grouping pass needed.
-    let prevUserId: string | null = null;
-    let prevCountry: string | null = null;
-
     for (const a of attempts) {
-      if (!a.success) {
-        const day = a.occurredAt.toISOString().slice(0, 10);
-        const row = dayMap.get(day);
-        if (row !== undefined) dayMap.set(day, row + 1);
+      if (a.success) continue;
+      const day = a.occurredAt.toISOString().slice(0, 10);
+      const row = dayMap.get(day);
+      if (row !== undefined) dayMap.set(day, row + 1);
 
-        const country = a.countryCode?.toUpperCase() ?? 'Unknown';
-        failedLocationMap.set(country, (failedLocationMap.get(country) ?? 0) + 1);
-      }
-
-      // Anomaly = a successful login from a different country than this
-      // same user's immediately preceding successful login. Failed attempts
-      // don't update prevCountry — a wrong password from a new country
-      // isn't "the account's new normal location," and would otherwise mask
-      // the very next successful login's anomaly.
-      if (a.success) {
-        const country = a.countryCode?.toUpperCase() ?? null;
-        if (a.userId === prevUserId && prevCountry && country && country !== prevCountry) {
-          anomalies.push({ userId: a.userId, email: a.email, fromCountry: prevCountry, toCountry: country, occurredAt: a.occurredAt });
-        }
-        prevUserId = a.userId;
-        if (country) prevCountry = country;
-      }
+      const country = a.countryCode?.toUpperCase() ?? 'Unknown';
+      failedLocationMap.set(country, (failedLocationMap.get(country) ?? 0) + 1);
     }
+
+    const anomalies = detectLoginLocationAnomalies(attempts);
 
     const successCount = attempts.filter((a) => a.success).length;
     const failureCount = attempts.length - successCount;

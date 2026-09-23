@@ -324,6 +324,13 @@ model Patient {
   city        String?
   state       String?
   country     String     @default("Nigeria")
+  // ISO 3166-1 alpha-2, set ONLY when the patient explicitly chose their
+  // country (web onboarding/profile via countryCode). Legacy rows and old
+  // clients leave it null on purpose: `country` above is NOT NULL with a
+  // "Nigeria" default and several clients hard-coded it, so `country` alone
+  // can't distinguish "declared Nigeria" from "never asked". Declared-
+  // geography analytics must key on this column, not on `country`.
+  countryCode String?    @map("country_code") @db.Char(2)
   bloodGroup  BloodGroup? @map("blood_group")
   nextOfKinName        String? @map("next_of_kin_name")
   nextOfKinRelationship String? @map("next_of_kin_relationship")
@@ -370,6 +377,7 @@ model Patient {
   consents              PatientConsent[]
   supportTickets        SupportTicket[]
   activityEvents        PatientActivityEvent[]
+  analyticsSessions     AnalyticsSession[]
   providerAssignments   PatientProviderAssignment[]
   strideLogs            StrideTriage[]
   expertReviewCases     ExpertReviewCase[]
@@ -1617,6 +1625,11 @@ model RecordShareAccess {
 
 model PatientActivityEvent {
   id                  String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Client-generated idempotency/dedup key (spec §20). Nullable so legacy
+  // rows and any emitter that doesn't supply one still insert; when present,
+  // trackEvent upserts on it so a retried beacon can't double-count.
+  eventId             String?     @unique @map("event_id")
+  eventVersion        Int         @default(1) @map("event_version")
   patientId           String?     @map("patient_id") @db.Uuid
   anonymousVisitorId  String?     @map("anonymous_visitor_id")
   sessionId           String?     @map("session_id") @db.Uuid
@@ -1625,22 +1638,106 @@ model PatientActivityEvent {
   properties          Json?
   ipAddress           String?     @map("ip_address")
   userAgent           String?     @map("user_agent")
-  countryCode         String?     @map("country_code")
   deviceCategory      String?     @map("device_category")
+  browser             String?
+  os                  String?
+  // Structured interaction context (spec §8.1 / §20) — first-class columns
+  // instead of being buried in `properties` so dashboards can group/filter
+  // on them without JSON extraction.
+  featureArea         String?     @map("feature_area")
+  pageName            String?     @map("page_name")
+  pagePath            String?     @map("page_path")
+  elementId           String?     @map("element_id")
+  elementType         String?     @map("element_type")
+  action              String?
+  outcome             String?
+  // Access geography (spec §4.2 / §H). Resolved server-side only — never
+  // trusted from the client. geoSource/geoProvider/geoProviderVersion make
+  // a row reproducible; geoAccuracy communicates uncertainty.
+  countryCode         String?     @map("country_code")
+  regionCode          String?     @map("region_code")
+  regionName          String?     @map("region_name")
+  city                String?
+  continentCode       String?     @map("continent_code")
+  timezone            String?
+  latitude            Float?
+  longitude           Float?
+  geoAccuracy         String?     @map("geo_accuracy")
+  geoSource           String?     @map("geo_source")
+  geoProvider         String?     @map("geo_provider")
+  geoProviderVersion  String?     @map("geo_provider_version")
+  asn                 String?
   // Pseudonymous, client-generated per browser-tab-session — deliberately
   // NOT the sessionId/UserSession FK above (that's the auth session; spec
   // Appendix B warns against reusing a raw auth session identifier for
   // analytics correlation).
   analyticsSessionId  String?     @map("analytics_session_id")
+  // web | mobile | server — server-authoritative outcomes (spec §23) are
+  // tagged 'server' so double-counting against a browser echo is detectable.
+  ingestionSource     String?     @map("ingestion_source")
   environment         String?     @map("environment")
+  // Staging / synthetic-monitoring traffic. Dashboards exclude these by
+  // default (spec §20) while QA can still query them explicitly.
+  isTestEvent         Boolean     @default(false) @map("is_test_event")
   occurredAt          DateTime    @default(now()) @map("occurred_at")
+  // Server receive time, distinct from client-reported occurredAt — lets the
+  // pipeline reason about late-arriving events (spec §25).
+  receivedAt          DateTime?   @map("received_at")
 
   patient Patient?     @relation(fields: [patientId], references: [id])
   session UserSession? @relation(fields: [sessionId], references: [id])
 
   @@index([patientId, occurredAt(sort: Desc)])
   @@index([eventName, occurredAt(sort: Desc)])
+  @@index([analyticsSessionId])
+  @@index([isTestEvent, occurredAt(sort: Desc)])
   @@map("patient_activity_events")
+}
+
+// A visit — events grouped by the client-generated analytics_session_id
+// (spec §7). Deliberately NOT UserSession: that's the auth session, and
+// Appendix B warns against reusing a raw auth identifier for analytics
+// correlation. Rows are rolled up incrementally by trackEvent as events
+// arrive; session_end / duration are inferred later from last_event_at +
+// the inactivity timeout.
+model AnalyticsSession {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  analyticsSessionId  String    @unique @map("analytics_session_id")
+  patientId           String?   @map("patient_id") @db.Uuid
+  anonymousVisitorId  String?   @map("anonymous_visitor_id")
+
+  startedAt           DateTime  @default(now()) @map("started_at")
+  lastEventAt         DateTime  @map("last_event_at")
+  // Set by the sessionization sweep once last_event_at is older than the
+  // inactivity timeout (a later branch); null while the visit looks live.
+  endedAt             DateTime? @map("ended_at")
+
+  entryPage           String?   @map("entry_page")
+  exitPage            String?   @map("exit_page")
+  pageViewCount       Int       @default(0) @map("page_view_count")
+  clickCount          Int       @default(0) @map("click_count")
+  eventCount          Int       @default(0) @map("event_count")
+  // Meaningful activity happened, or >= 2 events — spec §7 "engaged_session".
+  engaged             Boolean   @default(false)
+  // A previous session existed for this patient / anonymous visitor.
+  returningVisitor    Boolean   @default(false) @map("returning_visitor")
+
+  deviceCategory      String?   @map("device_category")
+  browser             String?
+  os                  String?
+  countryCode         String?   @map("country_code")
+  continentCode       String?   @map("continent_code")
+  ingestionSource     String?   @map("ingestion_source")
+  environment         String?
+  isTestEvent         Boolean   @default(false) @map("is_test_event")
+  userAgent           String?   @map("user_agent")
+
+  patient Patient? @relation(fields: [patientId], references: [id])
+
+  @@index([patientId, startedAt(sort: Desc)])
+  @@index([anonymousVisitorId, startedAt(sort: Desc)])
+  @@index([startedAt(sort: Desc)])
+  @@map("analytics_sessions")
 }
 
 // Anonymous site visits on the public marketing site (myvaultplus-web), for
@@ -1668,6 +1765,57 @@ model SiteVisit {
   @@index([occurredAt(sort: Desc)])
   @@index([utmCampaign, occurredAt(sort: Desc)])
   @@map("site_visits")
+}
+
+// Spec §25's "funnel metrics" daily aggregate — the first of the still-
+// missing page/click/feature/geography/funnel pre-aggregation categories
+// (see docs/ANALYTICS-EVENT-SCHEMA-AGGREGATION-DESIGN.md §3, "cron is an
+// island"). One row per (reportDate, eventName), populated by
+// AnalyticsAggregationService alongside ServiceUsageDaily/RevenueSummary.
+// Deliberately not yet read by any dashboard — see the same doc's
+// discussion of why an unfiltered rollup can't simply replace the live,
+// arbitrarily-filtered §J funnel queries; this exists so an unfiltered
+// "how many total X happened today" question stops requiring a full table
+// scan, which is the more urgent cost problem as event volume grows.
+// Spec §25's page/click/feature/geography daily aggregates — the other 3 of
+// the 4 categories FunnelEventDaily's comment names (funnel done there,
+// this covers the rest). One flexible table rather than 3 near-identical
+// ones: page/click/feature-area/country are all "count + unique users +
+// unique sessions, grouped by one column's value" with the only real
+// difference being which column and which eventName (if any) scopes it —
+// real repetition once there were 3+ near-identical cases, not speculative
+// generality (see ~/.claude/rules DRY guidance). `dimension` names which
+// column this row summarizes ('page', 'element', 'feature_area',
+// 'country'); `dimensionValue` is that column's actual value that day.
+model DimensionDailyMetric {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reportDate     DateTime @map("report_date") @db.Date
+  dimension      String
+  dimensionValue String   @map("dimension_value")
+  count          Int      @default(0)
+  uniqueUsers    Int      @default(0) @map("unique_users")
+  uniqueSessions Int      @default(0) @map("unique_sessions")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([reportDate, dimension, dimensionValue])
+  @@index([reportDate(sort: Desc), dimension])
+  @@map("dimension_daily_metric")
+}
+
+model FunnelEventDaily {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reportDate     DateTime @map("report_date") @db.Date
+  eventName      String   @map("event_name")
+  count          Int      @default(0)
+  uniqueUsers    Int      @default(0) @map("unique_users")
+  uniqueSessions Int      @default(0) @map("unique_sessions")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([reportDate, eventName])
+  @@index([reportDate(sort: Desc)])
+  @@map("funnel_event_daily")
 }
 
 model ServiceUsageDaily {

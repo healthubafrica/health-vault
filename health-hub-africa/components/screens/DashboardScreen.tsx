@@ -31,6 +31,7 @@ import { DashboardSkeleton } from '@/components/skeletons/DashboardSkeleton'
 import { LogVitalsModal } from '@/components/vitals/LogVitalsModal'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { buildProviderDisplayName } from '@/lib/providerName'
+import { TrackImpression } from '@/components/analytics/TrackImpression'
 
 const HeartRateChart = dynamic(() => import('@/components/charts/HeartRateChart').then(m => ({ default: m.HeartRateChart })), { ssr: false })
 const SleepChart = dynamic(() => import('@/components/charts/SleepChart').then(m => ({ default: m.SleepChart })), { ssr: false })
@@ -143,9 +144,10 @@ export function DashboardScreen() {
   const lastRbcReading = [...chronological].reverse().find((v) => v.rbc != null)
 
   // Quick Actions are the highest-traffic CTAs on the app — the ones the
-  // clickstream spec calls out by name (§8.2). element_id/feature_area/
-  // destination live in the properties JSON (see trackEvent()); no first-
-  // class columns for them yet, same tradeoff as every other event here.
+  // clickstream spec calls out by name (§8.2). element_id/feature_area are
+  // promoted to first-class columns by the analytics client (lib/analytics/
+  // client.ts); destination has no dedicated column yet, so it still rides
+  // in the properties JSON.
   function trackQuickAction(elementId: string, destination: string) {
     analytics.track('ui_click', { element_id: `quick_action_${elementId}`, feature_area: 'dashboard', destination })
     router.push(destination)
@@ -434,11 +436,48 @@ export function DashboardScreen() {
       <Card className="rounded-[24px]">
         <CardTitle className="text-xs font-extrabold text-[var(--color-text-muted)] uppercase tracking-wider mb-4">Quick Actions</CardTitle>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <ActionChip icon={Video} name="TeleCare™" description="Virtual consult" onClick={() => trackQuickAction('telecare', '/telecare')} />
-          <ActionChip icon={FlaskConical} name="CareTest™" description="Book a lab test" onClick={() => trackQuickAction('caretest', '/labs')} />
-          <ActionChip icon={CalendarPlus} name="Appointment" description="Schedule a visit" onClick={() => trackQuickAction('appointment', '/appointments')} />
-          <ActionChip icon={HeartPulse} name="Log Vitals" description="Record readings" onClick={() => { analytics.track('ui_click', { element_id: 'quick_action_log_vitals', feature_area: 'dashboard' }); setShowLogVitals(true) }} />
-          <ActionChip icon={Truck} name="DispatchCare™" description="Emergency" emergency onClick={() => trackQuickAction('dispatch', '/dispatch')} />
+          {/* CTA impressions (spec §8.3) — pairs with the ui_click these chips
+              already emit so CTR = clicks / impressions can be computed.
+              Followed up (separate PRs) on Labs' "Book CareTest™" CTA, the
+              primary CTAs in Appointments/TeleCare/Payments/Subscriptions,
+              the Vault upload/share CTAs, the vitals "Save readings" button,
+              and Sidebar/MobileBottomNav's nav links (click-only, no
+              impression wrap — persistent chrome is ~always visible, so a
+              CTR metric wouldn't mean what it means for a discretionary
+              CTA). Spec §8.2's list is now fully accounted for: the
+              remaining named categories are confirmed non-buildable rather
+              than left as open follow-ups —
+              - per-document Download/Replace/Delete and per-result lab
+                actions: flat/non-expandable list rows, no reveal
+                interaction to hang a per-item event on
+              - profile-completion prompts: ProfilePanel.tsx has a
+                read-only completeness ring with no click affordance —
+                there's no "complete your profile" CTA anywhere to
+                instrument
+              - search results/zero-result actions: Topbar.tsx's search
+                input and icon button are decorative (no onChange/onClick,
+                no query state) — there's no functioning search feature at
+                all, not just an uninstrumented one
+              - device-sync controls: no wearable/device integration
+                exists in this codebase
+              Any of these becoming real instrumentation targets depends on
+              product building the feature first, not on more analytics
+              work. */}
+          <TrackImpression elementId="quick_action_telecare" featureArea="dashboard" elementType="card" className="h-full">
+            <ActionChip icon={Video} name="TeleCare™" description="Virtual consult" onClick={() => trackQuickAction('telecare', '/telecare')} />
+          </TrackImpression>
+          <TrackImpression elementId="quick_action_caretest" featureArea="dashboard" elementType="card" className="h-full">
+            <ActionChip icon={FlaskConical} name="CareTest™" description="Book a lab test" onClick={() => trackQuickAction('caretest', '/labs')} />
+          </TrackImpression>
+          <TrackImpression elementId="quick_action_appointment" featureArea="dashboard" elementType="card" className="h-full">
+            <ActionChip icon={CalendarPlus} name="Appointment" description="Schedule a visit" onClick={() => trackQuickAction('appointment', '/appointments')} />
+          </TrackImpression>
+          <TrackImpression elementId="quick_action_log_vitals" featureArea="dashboard" elementType="card" className="h-full">
+            <ActionChip icon={HeartPulse} name="Log Vitals" description="Record readings" onClick={() => { analytics.track('ui_click', { element_id: 'quick_action_log_vitals', feature_area: 'dashboard' }); setShowLogVitals(true) }} />
+          </TrackImpression>
+          <TrackImpression elementId="quick_action_dispatch" featureArea="dashboard" elementType="card" className="h-full">
+            <ActionChip icon={Truck} name="DispatchCare™" description="Emergency" emergency onClick={() => trackQuickAction('dispatch', '/dispatch')} />
+          </TrackImpression>
         </div>
       </Card>
 

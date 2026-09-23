@@ -9,8 +9,8 @@ Companion doc to the MyHealth Vault+ Patient Portal Analytics Implementation & C
 | **Identity** | `email`, `phone`, `fullName`, `firstName`/`lastName`, `dateOfBirth`, `nin` (national ID), `nextOfKin*` | `User`, `Patient` | **Restricted** — direct PII | Never logged in plaintext outside `AuditLog.metadata`; never included in analytics `properties` JSON |
 | **Clinical / health** | Vitals, lab orders, clinical notes, prescriptions, `bloodGroup`, `genotype` | `LabOrder`, `ClinicalRecord`, vitals tables, `Patient.bloodGroup`/`genotype` | **Restricted** — PHI | Provider/admin/coordinator access only (see §3); never referenced in analytics events beyond a boolean "did an action happen" |
 | **Financial** | `Payment`, `PatientSubscription`, gateway references | `Payment`, `PatientSubscription` | **Restricted** | No card/bank data stored — gateway tokens only; amounts in `amountKobo` are internal-only in reporting |
-| **Location / device** | `ipAddress`, `userAgent`, `countryCode`, `region`, `city`, `deviceCategory` | `PatientActivityEvent`, `SiteVisit`, `UserSession`, `AuditLog` | **Sensitive** — indirectly identifying | Never exposed to other patients; admin dashboards show it aggregated (counts, breakdowns), row-level access requires an admin role |
-| **Behavioral / analytics** | `eventName`, `properties` (JSON), `analyticsSessionId`, `anonymousVisitorId` | `PatientActivityEvent` | **Internal** | `properties` must never carry identity/clinical/financial fields — see the event catalog in §4 for what's actually captured |
+| **Location / device** | `ipAddress`, `userAgent`, `countryCode`, `regionCode`/`regionName`, `city`, `continentCode`, `timezone`, `latitude`/`longitude` (approx. IP centroid — never GPS), `asn`, `deviceCategory`/`browser`/`os`, `geoAccuracy`/`geoSource`/`geoProvider`/`geoProviderVersion` | `PatientActivityEvent`, `SiteVisit`, `UserSession`, `AuditLog` | **Sensitive** — indirectly identifying | Never exposed to other patients; admin dashboards show it aggregated (counts, breakdowns), row-level access requires an admin role. `latitude`/`longitude` are a coarse IP centroid with `geoAccuracy` stating the precision — do not present as a patient's location |
+| **Behavioral / analytics** | `eventName`, `eventVersion`, `eventId` (dedup key), `properties` (JSON), `featureArea`/`pageName`/`pagePath`/`elementId`/`elementType`/`action`/`outcome`, `analyticsSessionId`, `anonymousVisitorId`, `ingestionSource`, `isTestEvent`; session rollups (`entryPage`/`exitPage`, `pageViewCount`/`clickCount`/`eventCount`, `engaged`, `returningVisitor`) | `PatientActivityEvent`, `AnalyticsSession` | **Internal** | `properties` and `pagePath` must never carry identity/clinical/financial fields or tokens — see the event catalog in §4 (and `src/analytics/analytics-events.catalog.ts`) for what's actually captured. `AnalyticsSession` is keyed off the pseudonymous client `analyticsSessionId`, never the auth session |
 | **System / audit** | `action`, `resourceType`, `ipAddress`, `metadata` | `AuditLog` | **Restricted** | Write-only from the app's perspective; read access is `super_admin`-gated (see §3) |
 | **Credentials** | `passwordHash`, `refreshToken`, OTP `VerificationToken.token` | `User`, `UserSession`, `VerificationToken` | **Critical** | Hashed/opaque at rest; never included in any API response, log line, or analytics payload |
 
@@ -24,6 +24,7 @@ Companion doc to the MyHealth Vault+ Patient Portal Analytics Implementation & C
 | Sessions | `UserSession` | Until `expiresAt` or explicit revoke; rows are not currently purged after expiry | **Gap**: add a periodic purge of `expiresAt < now() - 90d` rows — cheap win, no data-loss risk since these are pure bearer tokens |
 | OTP / verification tokens | `VerificationToken` | Single-use, `expiresAt` typically minutes | **Gap**: same as sessions — expired/used rows accumulate with no purge job |
 | Analytics events (funnel) | `PatientActivityEvent` | No enforced cap today | Recommend 24 months rolling (covers YoY comparison, the longest lookback any dashboard in this codebase uses is 90d) then archive-or-drop older rows |
+| Analytics sessions | `AnalyticsSession` | No enforced cap today | Same 24-month rolling window as `PatientActivityEvent` — one row per visit, rolled up from those events; purge in lockstep |
 | Anonymous site visits | `SiteVisit` | No enforced cap today | Same 24-month recommendation — lower sensitivity than `PatientActivityEvent` (no `patientId`) but still IP/UA-bearing |
 | Audit logs | `AuditLog` | No enforced cap today | Recommend 7 years for anything touching PHI/financial actions (typical healthcare compliance baseline) — do not shorten this without legal sign-off, it's the only record of who-did-what-when |
 | Notification deliveries | `NotificationDelivery` | No enforced cap today | Recommend 12 months — operational/debugging value drops off fast after that |
@@ -60,6 +61,8 @@ Two things worth calling out explicitly since they're easy to get wrong by readi
 
 Every event name currently emitted via `analytics.track()` (patient portal) into `PatientActivityEvent.eventName`, grouped the same way the admin Funnels tab groups them (`FUNNEL_GROUPS` in `health-hub-africa-admin/app/(dashboard)/analytics/page.tsx`). None of these carry direct PII in `properties` — see §1's rule of thumb.
 
+The machine-readable companion to this table is `health-hub-africa-api/src/analytics/analytics-events.catalog.ts`. It also lists events that are *planned but not yet wired* (e.g. `landing_view`, `registration_start`, `otp_delivery_*`, `login_success`, `first_meaningful_action`) and marks which ones must be emitted server-side (`origin: 'server'`) so a browser echo can't be trusted as the authoritative count. `trackEvent` logs a warning when a well-formed event name shows up that isn't in that file — that's the signal to add it here and there together.
+
 | Group | Event name | Fired when |
 |---|---|---|
 | Registration & OTP | `registration_complete` | Registration form submitted successfully |
@@ -81,11 +84,40 @@ Every event name currently emitted via `analytics.track()` (patient portal) into
 | Vitals | `manual_entry_success` | A vital sign logged manually (also an Engagement Score signal — see `AnalyticsService.getEngagementScore`) |
 | Support | `ticket_created` | Support ticket submitted |
 | Records | `download` | Clinical record or vault document downloaded |
+| Records | `records_view` | Records screen loaded with real data (fires once per mount, carries the record count) |
+| Results | `result_view` | Labs screen loaded with real data (fires once per mount, carries the result count) |
+| Notifications | `notification_clicked` | Any notification item clicked, across every category (appointment/lab/payment/record/telecare/alert/system) |
 | Profile | `profile_completed` | Onboarding profile step finished |
 | Digital Experience | `client_error` | Uncaught JS error or unhandled promise rejection (`ErrorTracker` — window-level, not a React boundary) |
 | Navigation | `page_view` | Route change (`PageViewTracker`, authenticated area only) |
 | Generic UI | `ui_click` | Ad-hoc CTA click instrumentation (dashboard quick actions) |
+| Auth (server) | `login_success` / `login_failure` | Every call to `AuthService.recordLoginEvent` — `ingestion_source = 'server'`, authoritative, mirrors the `login_events` row |
+| Booking (server) | `booking_confirmed` | `AppointmentsService.create` success (`ingestion_source = 'server'`) — fires alongside the portal's own client beacon; dedupe by `ingestion_source` when counting |
 
-**Two events not in `PatientActivityEvent` at all** (worth knowing when reading this catalog alongside the code): `SiteVisit` rows (anonymous marketing-site pageviews, `recordVisit()`) are a separate table entirely, and there is currently **no distinct login-failure event** — `User.failedLoginAttempts`/`lockedUntil` exist on the schema but aren't mirrored into an analytics event, which is why the Security/Telemetry dashboard item needs new instrumentation before it can report login-failure trends.
+**Server-authoritative events (spec §23):** `AnalyticsService.emitServerEvent()` writes `PatientActivityEvent` rows with `ingestion_source = 'server'` for outcomes a closed browser tab could otherwise drop. Wired so far: `login_success` / `login_failure` (`recordLoginEvent`), `booking_confirmed` (appointment `create`). Still client-only and pending a server hook: `payment_success` / `payment_failure` (needs a focused pass over the payments webhook) and `registration_complete` / `otp_verify_success` (need the client `anonymousVisitorId` plumbed through the auth DTOs — no Patient row exists yet at that stage). When both a client and a server event exist for the same outcome, count one `ingestion_source` only.
+
+**One event not in `PatientActivityEvent` at all:** `SiteVisit` rows (anonymous marketing-site pageviews, `recordVisit()`) are a separate table entirely. Login failures now have both a `login_events.success = false` row (Security dashboard) and a `login_failure` analytics event.
 
 **Adding a new event:** no backend change is required — `getFunnelAnalytics` groups by whatever `eventName` values exist in the table, and the admin dashboard's "Other events" table (in the Funnels tab) automatically shows anything not yet added to `FUNNEL_GROUPS`. Only that frontend grouping map needs a deliberate update to categorize a new event nicely; the pipeline itself needs nothing.
+
+## 5. Consent Gate & Test-Traffic Exclusion
+
+**Consent (spec §28).** `AnalyticsService.trackEvent` looks up the patient's
+`PatientConsent` row for `consent_type = 'analytics'`. If it exists and
+`granted = false`, the event is dropped before any write. **Absence of a row =
+not yet decided = allowed** (opt-out model) — flip `analyticsConsentDenied` to
+default-deny if a lawful-basis review calls for opt-in. Anonymous (pre-login)
+events are not consent-checked here; the marketing-site cookie banner gates that
+beacon client-side. `emitServerEvent` is intentionally **not** consent-gated:
+its events (`login_success` / `login_failure`) double as account-protection
+records, and §28 requires that a product-analytics opt-out never disables
+security logging.
+
+**Test / synthetic traffic (spec §20 / §30).** Rows carry `is_test_event`.
+Every admin dashboard query spreads `AnalyticsService.PRODUCTION_EVENT_FILTER`
+(`{ isTestEvent: false }`) into its `where`, so staging and synthetic-monitor
+traffic is excluded by default while QA can still query it explicitly. A row is
+marked test when the same-origin staging/monitoring BFF sends
+`x-hha-analytics-test: 1` (trusted like `x-hha-client-ip`), or — outside
+production only — when the client sets `isTestEvent` on the payload. `SiteVisit`
+has no such column yet; it relies on the existing bot-UA filter.

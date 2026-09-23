@@ -299,13 +299,34 @@ export interface RevenueDataPoint {
   gateway: string
 }
 
-export interface UsageDataPoint {
-  date: string
-  appointments: number
-  telecare: number
-  dispatch: number
-  labOrders: number
-  expertReviews: number
+// One column per ServiceType (see AdminService.USAGE_KEY_BY_SERVICE_TYPE),
+// zero-filled so every row has the same shape.
+export type UsageServiceKey =
+  | 'minuteCare'
+  | 'teleCare'
+  | 'careTest'
+  | 'healthConsult'
+  | 'expertReview'
+  | 'neuroFlex'
+  | 'dispatchCare'
+  | 'travelSafe'
+
+export type UsageDataPoint = { date: string } & Record<UsageServiceKey, number>
+
+// One column per headline funnel outcome (see AdminService.FUNNEL_TREND_EVENTS),
+// zero-filled, unique-user counts sourced from the FunnelEventDaily
+// pre-aggregate (spec §25) rather than a live per-day scan.
+export type FunnelTrendKey = 'registration_complete' | 'otp_verify_success' | 'booking_confirmed' | 'payment_success'
+
+export type FunnelTrendDataPoint = { date: string } & Record<FunnelTrendKey, number>
+
+// dailyUniqueUsersSummed is NOT a period-unique-visitor count — see
+// AdminService.getTopPages for why (daily-granularity aggregates can only
+// track uniqueness within one day, not across the whole requested period).
+export interface TopPageRow {
+  pagePath: string
+  count: number
+  dailyUniqueUsersSummed: number
 }
 
 export interface MarketingAnalytics {
@@ -347,40 +368,94 @@ export interface TrafficAnalytics {
   devices: Array<{ device: string; count: number }>
   referrers: Array<{ referrer: string; count: number }>
   campaigns: Array<{ campaign: string; source: string; medium: string; visits: number }>
-  // Country -> admin-1 region -> city, nested from the same rows as
-  // `locations` above (no extra request). Admin-2 (LGA/county) isn't
-  // included — city is the ceiling without a paid GeoIP vendor.
+  // World (this object's array root, aggregate = totalVisits above) ->
+  // Continent -> Country -> admin-1 region -> city (spec §B levels 0-5),
+  // nested from the same rows as `locations` above (no extra request).
+  // Admin-2 (LGA/county) isn't included — city is the ceiling without a
+  // paid GeoIP vendor.
   hierarchy: Array<{
-    countryCode: string
     continent: string
+    continentCode: string
     visits: number
-    regions: Array<{ region: string; visits: number; cities: Array<{ city: string; visits: number }> }>
+    countries: Array<{
+      countryCode: string
+      visits: number
+      regions: Array<{ region: string; visits: number; cities: Array<{ city: string; visits: number }> }>
+    }>
   }>
 }
 
 // Patient-declared country (Patient.country, entered at onboarding) vs where
 // their sessions actually originate (IP-derived) — spec §4.4. Read-only:
 // declared values are never overwritten by this comparison.
+// Per-country ACCESS-geography metrics (IP-derived, approximate) for the global
+// maps — see AnalyticsService.getGeoMapAnalytics. Not patient-declared geography.
+export interface GeoMapCountry {
+  countryCode: string
+  continent: string
+  continentCode: string
+  visitors: number
+  sessions: number
+  clicks: number
+  registrations: number
+  activatedUsers: number
+  /** null = denominator step never fired in that country */
+  activationRate: number | null
+  bookingConversionRate: number | null
+  paymentSuccessRate: number | null
+}
+
+// spec §D: 'access' (IP-derived, default) or 'declared' (Patient.countryCode
+// — thin/empty until enough patients have one; see feat/patient-declared-country).
+export type GeoBasis = 'access' | 'declared'
+
+export interface GeoMapAnalytics {
+  countries: GeoMapCountry[]
+  period: string
+  basis: GeoBasis
+}
+
 export interface GeoComparison {
   comparisons: Array<{ declaredCountry: string; accessCountry: string; patients: number; matches: boolean }>
   totalPatients: number
+  declaredPatients: number
+  undeclaredPatients: number
   diasporaPatients: number
 }
 
-// D1/D7/D30 retention — "returned at least once N+ days after registering",
-// not a strict single-day cohort curve (see AnalyticsService.getRetentionAnalytics).
+// D1/D7/D30/D60/D90 retention — "returned at least once N+ days after
+// registering", not a strict single-day cohort curve (see
+// AnalyticsService.getRetentionAnalytics). cohortDefinitionVersion changes
+// only when the window list or eligibility rule changes server-side — spec
+// §16 requires cohort definitions to be versioned so historical reports
+// can be told apart from ones generated under a later rule change.
 export interface RetentionAnalytics {
   windows: Array<{ days: number; eligibleCohortSize: number; retainedUsers: number; rate: number | null }>
   cohortSize: number
+  lookbackDays: number
+  cohortDefinitionVersion: number
 }
 
 // Device/browser breakdown for the patient portal itself, plus client-error
 // visibility (see AnalyticsService.getDigitalExperienceAnalytics). Distinct
 // from TrafficAnalytics.devices, which covers the anonymous marketing site.
+// Spec §26's three minimum-required KPIs with no home elsewhere on the
+// dashboard. MAU is always a fixed rolling 30-day window (see
+// AnalyticsService.getCoreKpis); clicksPerSession/featureAdoption are
+// scoped to the requested period, same as every other analytics endpoint.
+export interface CoreKpis {
+  mau: { key: string; label: string; value: number; windowDays: number }
+  clicksPerSession: { key: string; label: string; numerator: number; denominator: number; value: number | null }
+  featureAdoption: Array<{ featureArea: string; activePatients: number; eligiblePatients: number; value: number | null }>
+}
+
 export interface DigitalExperienceAnalytics {
   totalEvents: number
   devices: Array<{ device: string; count: number }>
   browsers: Array<{ browser: string; count: number }>
+  operatingSystems: Array<{ os: string; count: number }>
+  featureAreas: Array<{ featureArea: string; count: number }>
+  timezones: Array<{ timezone: string; count: number }>
   errorCount: number
   errorRate: number | null
   topErrors: Array<{ message: string; count: number }>
@@ -407,7 +482,36 @@ export interface SecurityAnalytics {
 // consistent with the step table above.
 export interface FunnelAnalytics {
   steps: Array<{ eventName: string; count: number; uniqueUsers: number; uniqueSessions: number }>
-  kpis: Array<{ key: string; label: string; numerator: number; denominator: number; value: number | null }>
+  kpis: Array<{
+    key: string
+    label: string
+    numerator: number
+    denominator: number
+    value: number | null
+    // present only when the funnel request set compare=true — spec §J date range comparison
+    previousValue?: number | null
+    changePercent?: number | null
+  }>
+  comparisonWindow?: { since: string; until: string }
+}
+
+export interface DemographicsAnalytics {
+  totalPatients: number
+  ageBands: Array<{ label: string; count: number }>
+  genders: Array<{ label: string; count: number }>
+  nationalities: Array<{ label: string; count: number }>
+  planTiers: Array<{ label: string; count: number }>
+}
+
+export interface ClickstreamAnalytics {
+  ctas: Array<{
+    elementId: string
+    impressions: number
+    uniqueImpressions: number
+    clicks: number
+    uniqueClicks: number
+    ctr: number | null
+  }>
 }
 
 // ── Admin: Dispatch ───────────────────────────────────────────────────────
@@ -880,23 +984,71 @@ export const adminApi = {
       request<{ data: RevenueDataPoint[] }>(`/admin/analytics/revenue?period=${period}`),
     usage: (period = '30d') =>
       request<{ data: UsageDataPoint[] }>(`/admin/analytics/usage?period=${period}`),
+    funnelTrend: (period = '30d') =>
+      request<{ data: FunnelTrendDataPoint[] }>(`/admin/analytics/funnel-trend?period=${period}`),
+    topPages: (period = '30d', limit = 10) =>
+      request<{ data: TopPageRow[] }>(`/admin/analytics/top-pages?period=${period}&limit=${limit}`),
     marketing: (period = '30d') =>
       request<{ data: MarketingAnalytics }>(`/admin/analytics/marketing?period=${period}`),
     traffic: (period = '30d') =>
       request<{ data: TrafficAnalytics }>(`/admin/analytics/traffic?period=${period}`),
-    funnel: (period = '30d', filters?: { country?: string; continent?: string; device?: string }) => {
+    funnel: (
+      period = '30d',
+      filters?: {
+        country?: string
+        continent?: string
+        device?: string
+        ageBand?: string
+        planTier?: string
+        os?: string
+        browser?: string
+        featureArea?: string
+        timezone?: string
+        gender?: string
+        nationality?: string
+        acquisitionSource?: string
+        utmCampaign?: string
+        lifecycleStage?: string
+        compare?: boolean
+      },
+    ) => {
       const qs = new URLSearchParams({ period })
       if (filters?.country) qs.set('country', filters.country)
       if (filters?.continent) qs.set('continent', filters.continent)
       if (filters?.device) qs.set('device', filters.device)
+      if (filters?.ageBand) qs.set('ageBand', filters.ageBand)
+      if (filters?.planTier) qs.set('planTier', filters.planTier)
+      if (filters?.os) qs.set('os', filters.os)
+      if (filters?.browser) qs.set('browser', filters.browser)
+      if (filters?.featureArea) qs.set('featureArea', filters.featureArea)
+      if (filters?.timezone) qs.set('timezone', filters.timezone)
+      if (filters?.gender) qs.set('gender', filters.gender)
+      if (filters?.nationality) qs.set('nationality', filters.nationality)
+      if (filters?.acquisitionSource) qs.set('acquisitionSource', filters.acquisitionSource)
+      if (filters?.utmCampaign) qs.set('utmCampaign', filters.utmCampaign)
+      if (filters?.lifecycleStage) qs.set('lifecycleStage', filters.lifecycleStage)
+      if (filters?.compare) qs.set('compare', 'true')
       return request<{ data: FunnelAnalytics }>(`/admin/analytics/funnel?${qs}`)
     },
+    demographics: () =>
+      request<{ data: DemographicsAnalytics }>('/admin/analytics/demographics'),
+    clickstream: (period = '30d') =>
+      request<{ data: ClickstreamAnalytics }>(`/admin/analytics/clickstream?period=${period}`),
+    geoMap: (period = '30d', basis: GeoBasis = 'access') =>
+      request<{ data: GeoMapAnalytics }>(`/admin/analytics/geo-map?period=${period}&basis=${basis}`),
     geoComparison: (period = '30d') =>
       request<{ data: GeoComparison }>(`/admin/analytics/geo-comparison?period=${period}`),
-    retention: (lookbackDays = 90) =>
-      request<{ data: RetentionAnalytics }>(`/admin/analytics/retention?lookbackDays=${lookbackDays}`),
+    // No default here — an unset lookbackDays lets the API fall back to its
+    // own default (kept in sync with its RETENTION_WINDOWS), rather than
+    // this client silently pinning an old value the backend has moved past.
+    retention: (lookbackDays?: number) =>
+      request<{ data: RetentionAnalytics }>(
+        `/admin/analytics/retention${lookbackDays ? `?lookbackDays=${lookbackDays}` : ''}`,
+      ),
     digitalExperience: (period = '30d') =>
       request<{ data: DigitalExperienceAnalytics }>(`/admin/analytics/digital-experience?period=${period}`),
+    coreKpis: (period = '30d') =>
+      request<{ data: CoreKpis }>(`/admin/analytics/core-kpis?period=${period}`),
     security: (period = '30d') =>
       request<{ data: SecurityAnalytics }>(`/admin/analytics/security?period=${period}`),
   },

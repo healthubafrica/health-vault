@@ -5,7 +5,8 @@ import { X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { FormInput } from '@/components/ui/FormInput'
-import { vitals as vitalsApi, type CreateVitalsPayload } from '@/lib/api'
+import { TrackImpression } from '@/components/analytics/TrackImpression'
+import { vitals as vitalsApi, analytics, type CreateVitalsPayload } from '@/lib/api'
 
 interface LogVitalsModalProps {
   open: boolean
@@ -46,6 +47,7 @@ export function LogVitalsModal({ open, onClose, onLogged }: LogVitalsModalProps)
     setValues(prev => ({ ...prev, [key]: value }))
 
   const handleSave = async () => {
+    analytics.track('ui_click', { element_id: 'save_vitals_cta', feature_area: 'vitals' })
     const payload: CreateVitalsPayload = {}
     for (const field of FIELDS) {
       const raw = values[field.key]?.trim()
@@ -65,6 +67,12 @@ export function LogVitalsModal({ open, onClose, onLogged }: LogVitalsModalProps)
     setSaving(true)
     try {
       await vitalsApi.create(payload)
+      // Spec §17 (Engagement Score) reads this event to credit the
+      // "hasVitals" component — it was catalogued (analytics-events.
+      // catalog.ts) but never actually emitted from anywhere, so every
+      // patient's engagement score silently scored 0 here regardless of
+      // real vitals-logging activity. This fixes that gap.
+      analytics.track('manual_entry_success', { fieldsLogged: Object.keys(payload) })
       toast.success('Vitals logged')
       setValues({})
       onLogged()
@@ -120,9 +128,11 @@ export function LogVitalsModal({ open, onClose, onLogged }: LogVitalsModalProps)
           <Button variant="secondary" size="sm" onClick={onClose}>
             Cancel
           </Button>
-          <Button size="sm" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : 'Save readings'}
-          </Button>
+          <TrackImpression elementId="save_vitals_cta" featureArea="vitals" elementType="button">
+            <Button size="sm" onClick={handleSave} disabled={saving}>
+              {saving ? 'Saving…' : 'Save readings'}
+            </Button>
+          </TrackImpression>
         </div>
       </div>
     </div>

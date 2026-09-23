@@ -26,6 +26,8 @@ import ServiceCard from '@/components/ServiceCard';
 import { HUB_SERVICES } from '@/lib/services';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { getScreenCardWidth } from '@/lib/layout';
+import { analytics } from '@/lib/api';
+import { TrackImpression } from '@/components/analytics/TrackImpression';
 
 export default function ServicesTabScreen() {
   const router = useRouter();
@@ -94,21 +96,35 @@ export default function ServicesTabScreen() {
           </Text>
         </View>
 
-        {/* 2-Column Grid of Services with Logos */}
+        {/* 2-Column Grid of Services with Logos. One handler covers every
+            tile (spec §8.2 "Feature/CTA" per service) since they all share
+            the same shape — element_id derived from service.id, matching
+            the per-plan subscribe_cta_<tier> pattern used elsewhere.
+            Wrapped in <TrackImpression> so CTA CTR (clicks/impressions) is
+            computable for mobile too — the first CTA grid to get this on
+            mobile; see TrackImpression.tsx for why it's mount-based rather
+            than true-viewport-based. */}
         <View style={styles.servicesGrid}>
           {HUB_SERVICES.map((service) => (
-            <ServiceCard
+            <TrackImpression
               key={service.id}
-              service={service}
-              width={cardWidth}
-              onPress={() =>
-                router.push(
-                  service.hubRoute === '/book-appointment-step1'
-                    ? { pathname: '/book-appointment-step1', params: { preselect: service.id } }
-                    : (service.hubRoute as any)
-                )
-              }
-            />
+              elementId={`service_${service.id}_cta`}
+              featureArea="services"
+              elementType="card"
+              style={{ width: cardWidth }}>
+              <ServiceCard
+                service={service}
+                width={cardWidth}
+                onPress={() => {
+                  analytics.track('ui_click', { element_id: `service_${service.id}_cta`, feature_area: 'services' });
+                  router.push(
+                    service.hubRoute === '/book-appointment-step1'
+                      ? { pathname: '/book-appointment-step1', params: { preselect: service.id } }
+                      : (service.hubRoute as any)
+                  );
+                }}
+              />
+            </TrackImpression>
           ))}
         </View>
 

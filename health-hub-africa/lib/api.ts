@@ -14,6 +14,7 @@ import {
   friendlySessionExpired,
 } from './errorMessages'
 import type { AcquisitionSource, MarketingAttribution } from '@/lib/marketingAttribution'
+import * as analyticsClient from '@/lib/analytics/client'
 
 const BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000') + '/api/v1'
 
@@ -230,7 +231,12 @@ export const auth = {
   ) =>
     request<{ message: string }>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password, phoneNumber, fullName, newsletterOptIn, acquisitionSource, ...attribution }),
+      body: JSON.stringify({
+        email, password, phoneNumber, fullName, newsletterOptIn, acquisitionSource, ...attribution,
+        // No Patient row exists until onboarding, so the server can only
+        // attribute registration_complete (spec §23) via this id.
+        anonymousVisitorId: analyticsClient.getAnonymousVisitorId(),
+      }),
     }),
 
   // Read-only pre-registration check — never assigns a partner, just powers
@@ -251,7 +257,12 @@ export const auth = {
     ),
 
   verifyOtp: (email: string, otp: string, type = 'email', attribution: MarketingAttribution = {}) =>
-    bffFetch<{ accessToken: string }>('/api/auth/verify-otp', { email, otp, type, ...attribution }),
+    bffFetch<{ accessToken: string }>('/api/auth/verify-otp', {
+      email, otp, type, ...attribution,
+      // Same reasoning as register() — otp_verify_success (spec §23) has no
+      // Patient row to attribute to yet either.
+      anonymousVisitorId: analyticsClient.getAnonymousVisitorId(),
+    }),
 
   requestSmsOtp: (email: string, phone?: string) =>
     request<{ message: string }>('/auth/request-sms-otp', {
@@ -314,6 +325,9 @@ export interface PatientProfile {
   city?: string
   state?: string
   country: string
+  // ISO 3166-1 alpha-2, present only when the patient actually chose a
+  // country (via onboarding/profile countryCode) — see the API's country.util.ts.
+  countryCode?: string | null
   nextOfKinName?: string | null
   nextOfKinRelationship?: string | null
   nextOfKinPhone?: string | null
@@ -1333,61 +1347,15 @@ export const expertReview = {
 }
 
 // ── Analytics (fire-and-forget) ───────────────────────────────────────────
-
-const VISITOR_ID_KEY = 'hha-anonymous-visitor-id'
-
-// Persists across sessions (localStorage, not sessionStorage) so the same
-// pre-login visitor can be correlated across repeat visits before they ever
-// register. Ignored server-side once a real patient is resolved from the
-// access token.
-function getAnonymousVisitorId(): string | undefined {
-  if (typeof window === 'undefined') return undefined
-  try {
-    let id = localStorage.getItem(VISITOR_ID_KEY)
-    if (!id) {
-      id = generateIdempotencyKey()
-      localStorage.setItem(VISITOR_ID_KEY, id)
-    }
-    return id
-  } catch {
-    return undefined
-  }
-}
-
-const SESSION_ID_KEY = 'hha-analytics-session-id'
-
-// sessionStorage (not localStorage): resets on tab close, groups events into
-// one visit. Deliberately separate from both the anonymous visitor id above
-// (that one persists across visits) and the auth session (spec Appendix B —
-// never reuse a raw auth session identifier for analytics correlation).
-function getAnalyticsSessionId(): string | undefined {
-  if (typeof window === 'undefined') return undefined
-  try {
-    let id = sessionStorage.getItem(SESSION_ID_KEY)
-    if (!id) {
-      id = generateIdempotencyKey()
-      sessionStorage.setItem(SESSION_ID_KEY, id)
-    }
-    return id
-  } catch {
-    return undefined
-  }
-}
+//
+// Delegates to lib/analytics/client.ts, the central SDK wrapper (spec §22).
+// That module owns identity (anonymous visitor + session id, with idle-
+// timeout rotation), eventId dedup, duplicate-click debouncing, and a
+// bounded retry queue — none of which the ~40 existing analytics.track()
+// call sites need to know about or change for.
 
 export const analytics = {
-  // Never awaited by callers and never surfaces errors — product telemetry
-  // must not affect the user experience.
-  track: (eventType: string, metadata?: Record<string, unknown>) => {
-    request<void>('/analytics/events', {
-      method: 'POST',
-      body: JSON.stringify({
-        eventType,
-        metadata,
-        anonymousVisitorId: getAnonymousVisitorId(),
-        analyticsSessionId: getAnalyticsSessionId(),
-      }),
-    }).catch(() => undefined)
-  },
+  track: analyticsClient.track,
 }
 
 // ── Support Tickets ───────────────────────────────────────────────────────

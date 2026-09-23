@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -15,6 +16,7 @@ import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ServiceType, UserRole } from '@prisma/client';
 import { AdminService } from './admin.service';
+import { LIFECYCLE_STAGES, LifecycleStage } from '../analytics/analytics.service';
 import { UpdateUserRoleDto, UpdateUserStatusDto, UpdateUserEmailDto, CreateFacilityDto } from './dto/admin.dto';
 import { SetStorageOverrideDto } from './dto/set-storage-override.dto';
 import { UpdateSchedulingPolicyDto } from './dto/update-scheduling-policy.dto';
@@ -168,6 +170,20 @@ export class AdminController {
     return this.adminService.getAnalyticsUsage(period);
   }
 
+  @Get('analytics/funnel-trend')
+  @ApiOperation({ summary: 'Daily unique-user trend for the 4 headline funnel outcomes, backed by the FunnelEventDaily pre-aggregate (spec §25)' })
+  getFunnelDailyTrend(@Query('period') period?: string) {
+    return this.adminService.getFunnelDailyTrend(period);
+  }
+
+  @Get('analytics/top-pages')
+  @ApiOperation({ summary: 'Top portal pages by page_view count over a period, backed by the DimensionDailyMetric pre-aggregate (spec §25)' })
+  @ApiQuery({ name: 'period', required: false, description: "e.g. '7d', '30d', '90d' (default 30d)" })
+  @ApiQuery({ name: 'limit', required: false, description: 'Max rows to return (default 10)' })
+  getTopPages(@Query('period') period?: string, @Query('limit') limit?: string) {
+    return this.adminService.getTopPages(period, limit ? parseInt(limit, 10) : undefined);
+  }
+
   @Get('analytics/marketing')
   @ApiOperation({ summary: 'Get registration, campaign attribution, and login-location analytics' })
   getMarketingAnalytics(@Query('period') period?: string) {
@@ -185,13 +201,83 @@ export class AdminController {
   @ApiQuery({ name: 'country', required: false, description: 'Filter to a single ISO country code' })
   @ApiQuery({ name: 'continent', required: false, description: 'Filter to a single continent' })
   @ApiQuery({ name: 'device', required: false, description: 'Filter to a single device category (Desktop/Mobile/Tablet)' })
+  @ApiQuery({ name: 'ageBand', required: false, description: 'Filter to a single age band (e.g. "25–34") — spec §J' })
+  @ApiQuery({ name: 'planTier', required: false, description: 'Filter to a single subscription plan tier — spec §J' })
+  @ApiQuery({ name: 'os', required: false, description: 'Filter to a single OS — spec §J' })
+  @ApiQuery({ name: 'browser', required: false, description: 'Filter to a single browser — spec §J' })
+  @ApiQuery({ name: 'featureArea', required: false, description: 'Filter to a single feature area — spec §J' })
+  @ApiQuery({ name: 'timezone', required: false, description: 'Filter to a single IANA timezone — spec §J' })
+  @ApiQuery({ name: 'gender', required: false, description: 'Filter to a single sex/gender as collected — spec §J' })
+  @ApiQuery({ name: 'nationality', required: false, description: 'Filter to a single nationality — spec §J' })
+  @ApiQuery({ name: 'acquisitionSource', required: false, description: 'Filter to a single acquisition source captured at registration — spec §J' })
+  @ApiQuery({ name: 'utmCampaign', required: false, description: 'Filter to a single first-touch UTM campaign captured at registration — spec §J' })
+  @ApiQuery({ name: 'lifecycleStage', required: false, enum: LIFECYCLE_STAGES, description: 'Filter to one lifecycle segment — spec §J (overlapping, evaluated within the period)' })
+  @ApiQuery({ name: 'compare', required: false, description: 'When "true", also compute KPIs for the immediately preceding period of equal length and attach previousValue/changePercent — spec §J date range comparison' })
   getFunnelAnalytics(
     @Query('period') period?: string,
     @Query('country') country?: string,
     @Query('continent') continent?: string,
     @Query('device') device?: string,
+    @Query('ageBand') ageBand?: string,
+    @Query('planTier') planTier?: string,
+    @Query('os') os?: string,
+    @Query('browser') browser?: string,
+    @Query('featureArea') featureArea?: string,
+    @Query('timezone') timezone?: string,
+    @Query('gender') gender?: string,
+    @Query('nationality') nationality?: string,
+    @Query('acquisitionSource') acquisitionSource?: string,
+    @Query('utmCampaign') utmCampaign?: string,
+    @Query('lifecycleStage') lifecycleStage?: string,
+    @Query('compare') compare?: string,
   ) {
-    return this.adminService.getFunnelAnalytics(period, { country, continent, device });
+    if (lifecycleStage && !(LIFECYCLE_STAGES as readonly string[]).includes(lifecycleStage)) {
+      throw new BadRequestException(`lifecycleStage must be one of: ${LIFECYCLE_STAGES.join(', ')}`);
+    }
+    return this.adminService.getFunnelAnalytics(
+      period,
+      {
+        country,
+        continent,
+        device,
+        ageBand,
+        planTier,
+        os,
+        browser,
+        featureArea,
+        timezone,
+        gender,
+        nationality,
+        acquisitionSource,
+        utmCampaign,
+        lifecycleStage: lifecycleStage as LifecycleStage | undefined,
+      },
+      compare === 'true',
+    );
+  }
+
+  @Get('analytics/demographics')
+  @ApiOperation({ summary: 'Get age band, sex/gender, nationality, and plan-tier breakdown of the active patient base (spec §18)' })
+  getDemographicsAnalytics() {
+    return this.adminService.getDemographicsAnalytics();
+  }
+
+  @Get('analytics/clickstream')
+  @ApiOperation({ summary: 'Get per-CTA impressions, clicks, and CTR (spec §8.3)' })
+  @ApiQuery({ name: 'period', required: false, description: "e.g. '7d', '30d', '90d' (default 30d)" })
+  getClickstreamAnalytics(@Query('period') period?: string) {
+    return this.adminService.getClickstreamAnalytics(period);
+  }
+
+  @Get('analytics/geo-map')
+  @ApiOperation({ summary: 'Per-country geography metrics for the global maps (spec §F) — access (IP-derived) or declared (Patient.countryCode)' })
+  @ApiQuery({ name: 'period', required: false, description: "e.g. '7d', '30d', '90d' (default 30d)" })
+  @ApiQuery({ name: 'basis', required: false, enum: ['access', 'declared'], description: 'Geography dimension — spec §D (default access)' })
+  getGeoMapAnalytics(@Query('period') period?: string, @Query('basis') basis?: string) {
+    if (basis && basis !== 'access' && basis !== 'declared') {
+      throw new BadRequestException('basis must be one of: access, declared');
+    }
+    return this.adminService.getGeoMapAnalytics(period, basis as 'access' | 'declared' | undefined);
   }
 
   @Get('analytics/geo-comparison')
@@ -201,8 +287,8 @@ export class AdminController {
   }
 
   @Get('analytics/retention')
-  @ApiOperation({ summary: 'Get D1/D7/D30 patient retention (spec §16)' })
-  @ApiQuery({ name: 'lookbackDays', required: false, description: 'How far back to search for eligible cohort members (default 90)' })
+  @ApiOperation({ summary: 'Get D1/D7/D30/D60/D90 patient retention (spec §16)' })
+  @ApiQuery({ name: 'lookbackDays', required: false, description: 'How far back to search for eligible cohort members (default 120 — 30 days past the largest D90 window)' })
   getRetentionAnalytics(@Query('lookbackDays') lookbackDays?: string) {
     return this.adminService.getRetentionAnalytics(lookbackDays ? parseInt(lookbackDays, 10) : undefined);
   }
@@ -212,6 +298,13 @@ export class AdminController {
   @ApiQuery({ name: 'period', required: false, description: "e.g. '7d', '30d', '90d' (default 30d)" })
   getDigitalExperienceAnalytics(@Query('period') period?: string) {
     return this.adminService.getDigitalExperienceAnalytics(period);
+  }
+
+  @Get('analytics/core-kpis')
+  @ApiOperation({ summary: 'MAU, Clicks per Session, and Feature Adoption — spec §26 minimum-required KPIs (default 30d; MAU is always a fixed rolling 30-day window)' })
+  @ApiQuery({ name: 'period', required: false, description: "Scopes Clicks per Session and Feature Adoption; e.g. '7d', '30d', '90d' (default 30d)" })
+  getCoreKpis(@Query('period') period?: string) {
+    return this.adminService.getCoreKpis(period);
   }
 
   @Get('analytics/security')
