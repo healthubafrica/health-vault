@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download, ChevronRight, ChevronDown } from 'lucide-react'
 import { useAutoRefresh } from '@/lib/hooks/useLiveData'
-import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type ClickstreamAnalytics, type GeoComparison, type GeoMapAnalytics, type GeoMapCountry, type GeoBasis, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type UsageServiceKey, type RevenueDataPoint, type CoreKpis } from '@/lib/api'
+import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type ClickstreamAnalytics, type GeoComparison, type GeoMapAnalytics, type GeoMapCountry, type GeoBasis, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type UsageServiceKey, type RevenueDataPoint, type CoreKpis, type FunnelTrendDataPoint, type FunnelTrendKey } from '@/lib/api'
 import dynamic from 'next/dynamic'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -71,6 +71,16 @@ const USAGE_SERIES: Array<{ key: UsageServiceKey; label: string; color: string }
   { key: 'neuroFlex', label: 'STRIDE / NeuroFlex', color: '#EC4899' },
   { key: 'dispatchCare', label: 'DispatchCare', color: '#C0392B' },
   { key: 'travelSafe', label: 'TravelSafe', color: '#64748B' },
+]
+
+// Matches AdminService.FUNNEL_TREND_EVENTS exactly — the 4 headline funnel
+// outcomes, backed by the FunnelEventDaily pre-aggregate (spec §25) instead
+// of a live per-day scan.
+const FUNNEL_TREND_SERIES: Array<{ key: FunnelTrendKey; label: string; color: string }> = [
+  { key: 'registration_complete', label: 'Registrations', color: '#6DC43F' },
+  { key: 'otp_verify_success', label: 'OTP verified', color: '#3B82F6' },
+  { key: 'booking_confirmed', label: 'Bookings confirmed', color: '#E8930A' },
+  { key: 'payment_success', label: 'Payments', color: '#8B5CF6' },
 ]
 
 // Same look as CHART_OPTIONS, stacked so up to 8 services stay readable per day.
@@ -326,11 +336,12 @@ export default function AnalyticsPage() {
   const [funnelLifecycleStage, setFunnelLifecycleStage] = useState('')
   const [funnelCompare, setFunnelCompare] = useState(false)
   const [coreKpis, setCoreKpis] = useState<CoreKpis | null>(null)
+  const [funnelTrend, setFunnelTrend] = useState<FunnelTrendDataPoint[]>([])
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     try {
-      const [rRes, uRes, mRes, tRes, fRes, demoRes, csRes, gRes, mapRes, retRes, deRes, secRes, ckRes] = await Promise.all([
+      const [rRes, uRes, mRes, tRes, fRes, demoRes, csRes, gRes, mapRes, retRes, deRes, secRes, ckRes, ftRes] = await Promise.all([
         adminApi.analytics.revenue(period),
         adminApi.analytics.usage(period),
         adminApi.analytics.marketing(period),
@@ -360,6 +371,7 @@ export default function AnalyticsPage() {
         adminApi.analytics.digitalExperience(period),
         adminApi.analytics.security(period),
         adminApi.analytics.coreKpis(period),
+        adminApi.analytics.funnelTrend(period),
       ])
       setRevenue(rRes.data)
       setUsage(uRes.data)
@@ -374,6 +386,7 @@ export default function AnalyticsPage() {
       setDigitalExperience(deRes.data)
       setSecurity(secRes.data)
       setCoreKpis(ckRes.data)
+      setFunnelTrend(ftRes.data)
     } finally {
       setLoading(false)
     }
@@ -898,6 +911,33 @@ export default function AnalyticsPage() {
                   )
                 })}
               </div>
+
+              <Card className="mb-6">
+                <CardTitle>Daily funnel trend</CardTitle>
+                <p className="text-xs mt-0.5 mb-3" style={{ color: 'var(--color-text-faint)' }}>
+                  Unique-user counts per day for the 4 headline outcomes, from the pre-aggregated daily rollup — not affected by the filters above
+                </p>
+                {loading ? <SkeletonBox height={220} className="rounded-xl" /> : funnelTrend.length === 0 ? (
+                  <Empty>No daily rollup yet — the aggregation cron runs once daily; check back after it's run at least once.</Empty>
+                ) : (
+                  <div style={{ height: 220 }}>
+                    <Line
+                      data={{
+                        labels: funnelTrend.map((row) => new Date(row.date).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })),
+                        datasets: FUNNEL_TREND_SERIES.map((series) => ({
+                          label: series.label,
+                          data: funnelTrend.map((row) => row[series.key]),
+                          borderColor: series.color,
+                          backgroundColor: 'transparent',
+                          tension: 0.35,
+                          pointRadius: 2,
+                        })),
+                      }}
+                      options={CHART_OPTIONS}
+                    />
+                  </div>
+                )}
+              </Card>
 
               <Card className="mb-6" padding={false}>
                 <CardHeader
