@@ -1777,6 +1777,32 @@ model SiteVisit {
 // arbitrarily-filtered §J funnel queries; this exists so an unfiltered
 // "how many total X happened today" question stops requiring a full table
 // scan, which is the more urgent cost problem as event volume grows.
+// Spec §25's page/click/feature/geography daily aggregates — the other 3 of
+// the 4 categories FunnelEventDaily's comment names (funnel done there,
+// this covers the rest). One flexible table rather than 3 near-identical
+// ones: page/click/feature-area/country are all "count + unique users +
+// unique sessions, grouped by one column's value" with the only real
+// difference being which column and which eventName (if any) scopes it —
+// real repetition once there were 3+ near-identical cases, not speculative
+// generality (see ~/.claude/rules DRY guidance). `dimension` names which
+// column this row summarizes ('page', 'element', 'feature_area',
+// 'country'); `dimensionValue` is that column's actual value that day.
+model DimensionDailyMetric {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reportDate     DateTime @map("report_date") @db.Date
+  dimension      String
+  dimensionValue String   @map("dimension_value")
+  count          Int      @default(0)
+  uniqueUsers    Int      @default(0) @map("unique_users")
+  uniqueSessions Int      @default(0) @map("unique_sessions")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([reportDate, dimension, dimensionValue])
+  @@index([reportDate(sort: Desc), dimension])
+  @@map("dimension_daily_metric")
+}
+
 model FunnelEventDaily {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   reportDate     DateTime @map("report_date") @db.Date
