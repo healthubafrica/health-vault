@@ -161,3 +161,35 @@ describe('OpenemrService.callOpenemr (error recording)', () => {
     expect(prisma.integrationError.create).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('OpenemrService.fetchDocumentBytes', () => {
+  it('returns the raw bytes and content-type for a successful fetch, bypassing JSON parsing', async () => {
+    const service = buildService();
+    jest.spyOn(service, 'getAccessToken').mockResolvedValue('token');
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      headers: { get: (name: string) => (name === 'content-type' ? 'application/pdf' : null) },
+      arrayBuffer: async () => new TextEncoder().encode('%PDF-1.4 fake').buffer,
+    }) as unknown as typeof fetch;
+
+    const { buffer, contentType } = await service.fetchDocumentBytes('/apis/default/fhir/Binary/abc123');
+
+    expect(contentType).toBe('application/pdf');
+    expect(buffer.toString()).toContain('%PDF');
+  });
+
+  it('records an IntegrationError and throws on a non-2xx response', async () => {
+    const prisma = { integrationError: { create: jest.fn().mockResolvedValue({}) } };
+    const service = buildService(prisma);
+    jest.spyOn(service, 'getAccessToken').mockResolvedValue('token');
+    jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      text: async () => 'not found',
+    }) as unknown as typeof fetch;
+
+    await expect(service.fetchDocumentBytes('/apis/default/fhir/Binary/missing')).rejects.toThrow('OpenEMR 404');
+    expect(prisma.integrationError.create).toHaveBeenCalledTimes(1);
+  });
+});

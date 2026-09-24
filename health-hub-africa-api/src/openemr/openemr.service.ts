@@ -1184,4 +1184,40 @@ export class OpenemrService implements OnModuleInit {
     const token = await this.getAccessToken();
     return this.callOpenemr(token, method, path, body, patientId);
   }
+
+  // Fetches a document's raw bytes from OpenEMR (never proxied via
+  // callOpenemr, which always parses the response as JSON). `path` must
+  // already be normalized to an OpenEMR-API-relative path — see
+  // normalizeOpenemrAttachmentPath() in openemr.processor.ts. Used exclusively
+  // by RecordsService.getOpenemrDocument() to stream a referral/document
+  // attachment back to an already-authorized patient without ever exposing
+  // this OpenEMR URL to the client.
+  async fetchDocumentBytes(path: string, patientId?: string): Promise<{ buffer: Buffer; contentType: string }> {
+    const token = await this.getAccessToken();
+    const url = `${this.openemrBase}${path}`;
+
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      this.logger.error(`OpenEMR GET ${path} (binary) → ${res.status}: ${text.slice(0, 300)}`);
+      await this.prisma.integrationError.create({
+        data: {
+          service: 'OpenEMR',
+          endpoint: path,
+          method: 'GET',
+          errorCode: String(res.status),
+          errorMessage: text.slice(0, 500),
+          patientId: patientId ?? null,
+        },
+      });
+      throw new Error(`OpenEMR ${res.status} on GET ${path}: ${text.slice(0, 200)}`);
+    }
+
+    const buffer = Buffer.from(await res.arrayBuffer());
+    const contentType = res.headers.get('content-type') ?? 'application/octet-stream';
+    return { buffer, contentType };
+  }
 }
