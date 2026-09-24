@@ -84,6 +84,38 @@ export class RecordsService {
     return { downloadUrl, expiresIn: 300 };
   }
 
+  // Streams the bytes of an OpenEMR-sourced record's attachment (e.g. a
+  // provider-uploaded referral letter) through this authenticated endpoint.
+  // Never hands back OpenEMR's own URL — the ownership check is the same
+  // assertReadAccess() every other record read goes through, and the record
+  // is looked up by our internal id, never by the caller's own OpenEMR/file
+  // reference. Records created by patients/providers through requestUploadUrl
+  // (S3-backed) don't have openemrResourceId set and are rejected here —
+  // requestDownloadUrl/presignGet remains their path.
+  async getOpenemrDocument(id: string, currentUser: JwtPayload) {
+    const record = await this.prisma.clinicalRecord.findUnique({
+      where: { id },
+      select: {
+        patientId: true,
+        isDownloadable: true,
+        deletedAt: true,
+        openemrResourceId: true,
+        fileUrl: true,
+        fileMimeType: true,
+        title: true,
+        patient: { select: { userId: true } },
+      },
+    });
+
+    if (!record || record.deletedAt || !record.openemrResourceId || !record.fileUrl) {
+      throw new NotFoundException('Document not found');
+    }
+    await this.assertReadAccess(record, currentUser);
+
+    const { buffer, contentType } = await this.openemrService.fetchDocumentBytes(record.fileUrl, record.patientId);
+    return { buffer, contentType: record.fileMimeType ?? contentType, title: record.title };
+  }
+
   // ── Clinical Records ───────────────────────────────────────────────────────
 
   async createRecord(dto: CreateRecordDto, currentUser: JwtPayload) {
@@ -158,7 +190,7 @@ export class RecordsService {
         ? { NOT: { source: DocumentSource.patient_upload, providerVisibility: false } }
         : {};
 
-    return this.prisma.clinicalRecord.findMany({
+    const records = await this.prisma.clinicalRecord.findMany({
       where: {
         patientId: resolvedPatientId,
         deletedAt: null,
@@ -168,6 +200,8 @@ export class RecordsService {
       orderBy: { createdAt: 'desc' },
       select: this.recordSelect(),
     });
+
+    return records.map(r => this.redactOpenemrFileUrl(r));
   }
 
   async findRecord(id: string, currentUser: JwtPayload) {
@@ -182,7 +216,19 @@ export class RecordsService {
     if (!record) throw new NotFoundException('Record not found');
     await this.assertReadAccess(record, currentUser);
 
-    return record;
+    return this.redactOpenemrFileUrl(record);
+  }
+
+  // OpenEMR-sourced records store an OpenEMR-API-relative path in `fileUrl`
+  // (see normalizeOpenemrAttachmentPath in openemr.processor.ts) purely so
+  // getOpenemrDocument() can re-fetch the bytes server-side. That path must
+  // never reach the client — only openemrResourceId (a presence signal) is
+  // exposed, which the frontend uses to route the download through
+  // GET /records/:id/document instead of the S3 presign flow.
+  private redactOpenemrFileUrl<T extends { fileUrl: string | null; openemrResourceId: string | null }>(
+    record: T,
+  ): T {
+    return record.openemrResourceId ? { ...record, fileUrl: null } : record;
   }
 
   // ── Prescriptions ──────────────────────────────────────────────────────────
@@ -297,6 +343,10 @@ export class RecordsService {
       recordedAt: true,
       createdAt: true,
       updatedAt: true,
+      // Non-sensitive (an OpenEMR-internal document id) — exposed so the
+      // client can pick the right download path (getOpenemrDocumentBlob vs
+      // getDownloadUrl). Never used as an access-control signal server-side.
+      openemrResourceId: true,
     };
   }
 

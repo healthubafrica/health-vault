@@ -3,6 +3,8 @@ import {
   codeableConceptText,
   extractEncounterId,
   mapOpenemrApptStatus,
+  matchRecordTypeFromCategory,
+  normalizeOpenemrAttachmentPath,
   parseOpenemrClinicTime,
 } from './openemr.processor';
 
@@ -178,6 +180,112 @@ describe('codeableConceptText', () => {
     expect(codeableConceptText({ coding: [{ code: '91936005', display: 'Penicillin' }] })).toBe('Penicillin');
     expect(codeableConceptText({ coding: [{ code: '91936005' }] })).toBe('91936005');
     expect(codeableConceptText(undefined)).toBe('');
+  });
+});
+
+describe('matchRecordTypeFromCategory', () => {
+  it('matches a known OpenEMR document category name case-insensitively', () => {
+    expect(matchRecordTypeFromCategory([{ text: 'Referral Letters' }])).toBe('referral');
+    expect(matchRecordTypeFromCategory([{ text: 'referral letters' }])).toBe('referral');
+    expect(matchRecordTypeFromCategory([{ coding: [{ display: 'Referrals' }] }])).toBe('referral');
+  });
+
+  it('returns undefined for an unrecognized category or a missing category', () => {
+    expect(matchRecordTypeFromCategory([{ text: 'Lab Reports' }])).toBeUndefined();
+    expect(matchRecordTypeFromCategory([])).toBeUndefined();
+    expect(matchRecordTypeFromCategory(undefined)).toBeUndefined();
+  });
+});
+
+describe('normalizeOpenemrAttachmentPath', () => {
+  it('strips the host from an absolute OpenEMR URL, keeping only the API-relative path', () => {
+    expect(normalizeOpenemrAttachmentPath('https://clinic.example.com/apis/default/fhir/Binary/abc123'))
+      .toBe('/apis/default/fhir/Binary/abc123');
+  });
+
+  it('routes a bare FHIR relative reference through the FHIR API root', () => {
+    expect(normalizeOpenemrAttachmentPath('Binary/abc123')).toBe('/apis/default/fhir/Binary/abc123');
+  });
+
+  it('leaves an already-API-relative path untouched', () => {
+    expect(normalizeOpenemrAttachmentPath('/apis/default/fhir/Binary/abc123'))
+      .toBe('/apis/default/fhir/Binary/abc123');
+  });
+
+  it('prefixes an unrecognized relative path with a leading slash', () => {
+    expect(normalizeOpenemrAttachmentPath('some/weird/path')).toBe('/some/weird/path');
+  });
+});
+
+describe('OpenemrProcessor.upsertDocumentFromFhir (recordType classification)', () => {
+  function buildPrisma(existing: unknown = null) {
+    return {
+      clinicalRecord: {
+        findUnique: jest.fn().mockResolvedValue(existing),
+        create: jest.fn().mockResolvedValue({}),
+      },
+      patient: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'patient-1' }),
+      },
+    };
+  }
+
+  const baseDoc = {
+    resourceType: 'DocumentReference',
+    id: 'doc-1',
+    subject: { reference: 'Patient/oe-uuid-1' },
+    content: [{ attachment: { url: 'https://clinic.example.com/apis/default/fhir/Binary/abc', contentType: 'application/pdf' } }],
+  };
+
+  it('classifies a document uploaded under the "Referral Letters" OpenEMR category as recordType=referral', async () => {
+    const prisma = buildPrisma();
+    const processor = buildProcessor(prisma, buildOpenemrService([]));
+
+    await (processor as any).upsertDocumentFromFhir({ ...baseDoc, category: [{ text: 'Referral Letters' }] });
+
+    expect(prisma.clinicalRecord.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          recordType: 'referral',
+          fileUrl: '/apis/default/fhir/Binary/abc',
+        }),
+      }),
+    );
+  });
+
+  it('falls back to the LOINC-based type when no category matches', async () => {
+    const prisma = buildPrisma();
+    const processor = buildProcessor(prisma, buildOpenemrService([]));
+
+    await (processor as any).upsertDocumentFromFhir({
+      ...baseDoc,
+      type: { coding: [{ system: 'http://loinc.org', code: '57133-1' }] },
+    });
+
+    expect(prisma.clinicalRecord.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ recordType: 'referral' }) }),
+    );
+  });
+
+  it('falls back to recordType=document when neither category nor LOINC match', async () => {
+    const prisma = buildPrisma();
+    const processor = buildProcessor(prisma, buildOpenemrService([]));
+
+    await (processor as any).upsertDocumentFromFhir({ ...baseDoc, category: [{ text: 'Lab Reports' }] });
+
+    expect(prisma.clinicalRecord.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ recordType: 'document' }) }),
+    );
+  });
+
+  it('skips a DocumentReference already synced (idempotency by openemrResourceId)', async () => {
+    const prisma = buildPrisma({ id: 'existing-record' });
+    const processor = buildProcessor(prisma, buildOpenemrService([]));
+
+    const result = await (processor as any).upsertDocumentFromFhir({ ...baseDoc, category: [{ text: 'Referral Letters' }] });
+
+    expect(result).toBe('skipped');
+    expect(prisma.clinicalRecord.create).not.toHaveBeenCalled();
   });
 });
 

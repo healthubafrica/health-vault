@@ -68,9 +68,19 @@ const ORDER_STATUS_PILL: Record<string, 'success' | 'info' | 'neutral' | 'warnin
 }
 
 async function handleDownload(record: ClinicalRecord) {
-  if (!record.fileUrl || !record.isDownloadable) return
+  if (!record.isDownloadable || (!record.fileUrl && !record.openemrResourceId)) return
   try {
-    const objectKey = new URL(record.fileUrl).pathname.slice(1)
+    if (record.openemrResourceId) {
+      // OpenEMR-sourced (e.g. a referral letter uploaded in OpenEMR) — the
+      // file is proxied through our backend, never linked directly.
+      const blob = await recordsApi.getOpenemrDocumentBlob(record.id)
+      const blobUrl = URL.createObjectURL(blob)
+      analytics.track('download', { recordType: record.recordType })
+      window.open(blobUrl, '_blank')
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
+      return
+    }
+    const objectKey = new URL(record.fileUrl!).pathname.slice(1)
     const res = await recordsApi.getDownloadUrl(objectKey)
     analytics.track('download', { recordType: record.recordType })
     window.open(res.data.downloadUrl, '_blank')
@@ -330,7 +340,7 @@ export function RecordsScreen() {
                       )
                     )}
                   </div>
-                  {record.isDownloadable && record.fileUrl && (
+                  {record.isDownloadable && (record.fileUrl || record.openemrResourceId) && (
                     <button
                       aria-label={`Download ${record.title}`}
                       title="Download this record as a file"

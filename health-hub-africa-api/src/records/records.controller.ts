@@ -5,7 +5,9 @@ import {
   Param,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { UserRole } from '@prisma/client';
@@ -93,6 +95,41 @@ export class RecordsController {
   @ApiOperation({ summary: 'Get a clinical record by ID' })
   async findRecord(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return { data: await this.recordsService.findRecord(id, user) };
+  }
+
+  // Content-types OpenEMR is expected to actually store for this category
+  // (referral letters, scanned documents). Anything else is served as an
+  // opaque download rather than rendered inline, so a mislabeled or
+  // malicious content-type (e.g. text/html, image/svg+xml) can't execute in
+  // the browser via this endpoint.
+  private static readonly INLINE_SAFE_CONTENT_TYPES = new Set([
+    'application/pdf',
+    'image/png',
+    'image/jpeg',
+    'image/webp',
+  ]);
+
+  // Streams the file for an OpenEMR-sourced record (e.g. a referral letter
+  // uploaded in OpenEMR's Documents module) through this backend — the
+  // client never sees an OpenEMR URL. Own throttle tier: this proxies a
+  // live upstream fetch per call, unlike the S3 flow's cheap presign mint.
+  @Get(':id/document')
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  @ApiOperation({ summary: 'Download an OpenEMR-sourced record file (e.g. a referral letter) via an authenticated proxy' })
+  async getOpenemrDocument(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @Res() res: Response,
+  ) {
+    const { buffer, contentType, title } = await this.recordsService.getOpenemrDocument(id, user);
+    const isSafeInline = RecordsController.INLINE_SAFE_CONTENT_TYPES.has(contentType);
+    const safeFilename = title.replace(/[^\w.-]+/g, '_');
+
+    res.setHeader('Content-Type', isSafeInline ? contentType : 'application/octet-stream');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox; frame-ancestors 'none'");
+    res.setHeader('Content-Disposition', `${isSafeInline ? 'inline' : 'attachment'}; filename="${safeFilename}"`);
+    res.send(buffer);
   }
 
   @Post('prescriptions')
