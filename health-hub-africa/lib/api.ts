@@ -609,6 +609,12 @@ export interface ClinicalRecord {
   isDownloadable: boolean
   recordedAt: string
   provider?: { firstName: string; lastName: string; title: string }
+  // Set only for records synced in from OpenEMR (e.g. a referral letter
+  // uploaded in OpenEMR's Documents module) — signals the client should
+  // fetch the file via records.getOpenemrDocumentBlob() (authenticated
+  // proxy) rather than records.getDownloadUrl() (S3 presign, for records
+  // uploaded directly through the portal).
+  openemrResourceId?: string
 }
 
 export const records = {
@@ -631,6 +637,19 @@ export const records = {
 
   getDownloadUrl: (objectKey: string) =>
     request<{ data: { downloadUrl: string } }>(`/records/download-url/${encodeURIComponent(objectKey)}`),
+
+  // OpenEMR-sourced records (e.g. a referral letter uploaded in OpenEMR's
+  // Documents module) don't have an S3 objectKey — the backend proxies the
+  // file from OpenEMR instead, so this bypasses the JSON-only `request()`
+  // helper to fetch the raw bytes directly with the same auth header.
+  getOpenemrDocumentBlob: async (recordId: string): Promise<Blob> => {
+    const token = getCookie(ACCESS_COOKIE)
+    const res = await fetch(`${BASE}/records/${recordId}/document`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!res.ok) throw new ApiError(res.status, 'Could not load this document')
+    return res.blob()
+  },
 
   getStorageUsage: () =>
     request<{ data: StorageUsage | null }>('/records/storage'),

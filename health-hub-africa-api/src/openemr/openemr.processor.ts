@@ -70,6 +70,11 @@ interface FhirDocumentReference {
   id?: string;
   status?: string;
   type?: FhirCodeableConcept;
+  // OpenEMR's Documents module category (e.g. the "Referral Letters"
+  // category used by the provider-side upload workflow) — distinct from
+  // `type`, which is only populated with a LOINC code for a handful of
+  // built-in document types. Custom categories only ever show up here.
+  category?: FhirCodeableConcept[];
   subject?: { reference?: string };
   date?: string;
   description?: string;
@@ -213,6 +218,21 @@ const LOINC_TO_RECORD_TYPE: Record<string, RecordType> = (() => {
   return out;
 })();
 
+// OpenEMR document *category* names (Patient → Documents → <category> in the
+// OpenEMR UI) that should classify a pulled DocumentReference as a specific
+// RecordType. Unlike LOINC codes, these are OpenEMR-local free-text category
+// names — no coding system involved — so matching is case-insensitive on the
+// category's display/text. Checked before the LOINC-based lookup, since a
+// clinic uploading into a named category (e.g. "Referral Letters") is a
+// stronger, more specific signal than the type-level LOINC code, which is
+// rarely populated at all for anything other than built-in OpenEMR document
+// types.
+const DOCUMENT_CATEGORY_TO_RECORD_TYPE: Record<string, RecordType> = {
+  'referral letters': RecordType.referral,
+  'referral letter': RecordType.referral,
+  referrals: RecordType.referral,
+};
+
 // Numeric vitals columns are SmallInts on Prisma — round before insert.
 const VITALS_INT_FIELDS = new Set<keyof typeof VITALS_LOINC>([
   'heartRate', 'systolicBp', 'diastolicBp', 'platelets',
@@ -272,6 +292,47 @@ export function codeableConceptText(concept: FhirCodeableConcept | undefined): s
     ?? concept?.coding?.[0]?.code
     ?? ''
   ).trim();
+}
+
+// Matches a DocumentReference's category display text against the known
+// category→RecordType table. Returns undefined when no category is present
+// or none of its codings match — callers fall back to LOINC, then 'document'.
+export function matchRecordTypeFromCategory(
+  category: FhirCodeableConcept[] | undefined,
+): RecordType | undefined {
+  for (const concept of category ?? []) {
+    const text = codeableConceptText(concept).toLowerCase();
+    if (text && DOCUMENT_CATEGORY_TO_RECORD_TYPE[text]) {
+      return DOCUMENT_CATEGORY_TO_RECORD_TYPE[text];
+    }
+  }
+  return undefined;
+}
+
+// A DocumentReference attachment's `url` is either an absolute link into
+// OpenEMR's own web root (observed shape) or a bare FHIR relative reference
+// like "Binary/abc123" (spec-compliant shape) — the exact form has not been
+// confirmed against a live OpenEMR response for a custom-category document,
+// so both are normalized down to a path relative to the OpenEMR API root.
+// This is what gets stored as ClinicalRecord.fileUrl: never the live
+// OpenEMR hostname, and never handed to the client directly — only used
+// server-side by OpenemrService.fetchDocumentBytes() to re-fetch the file
+// through an authenticated proxy.
+export function normalizeOpenemrAttachmentPath(url: string): string {
+  let path = url;
+  if (/^https?:\/\//i.test(url)) {
+    try {
+      const parsed = new URL(url);
+      path = `${parsed.pathname}${parsed.search}`;
+    } catch {
+      path = url;
+    }
+  }
+  if (/^\/apis\//.test(path)) return path;
+  // Bare FHIR relative reference (e.g. "Binary/abc123") — route through the
+  // FHIR API root, matching every other resource fetch in this integration.
+  if (/^[A-Za-z]+\/[\w.-]+$/.test(path)) return `/apis/default/fhir/${path}`;
+  return path.startsWith('/') ? path : `/${path}`;
 }
 
 // Best-effort id from an OpenEMR create response. FHIR returns the resource
@@ -2115,8 +2176,8 @@ export class OpenemrProcessor {
 
     const attachment = doc.content?.[0]?.attachment;
     const loinc = doc.type?.coding?.find(c => c.system === 'http://loinc.org')?.code;
-    const mapped = loinc ? LOINC_TO_RECORD_TYPE[loinc] : undefined;
-    const recordType: RecordType = mapped ?? RecordType.document;
+    const recordType: RecordType =
+      matchRecordTypeFromCategory(doc.category) ?? (loinc ? LOINC_TO_RECORD_TYPE[loinc] : undefined) ?? RecordType.document;
     const title = attachment?.title ?? doc.description ?? doc.type?.text ?? 'Clinical document';
     const recordedAt = doc.date ? new Date(doc.date) : new Date();
 
@@ -2127,7 +2188,11 @@ export class OpenemrProcessor {
         recordType,
         title,
         description: doc.description ?? null,
-        fileUrl: attachment?.url ?? null,
+        // Normalized to an OpenEMR-API-relative path, never the raw
+        // hostname-bearing URL — RecordsService.getOpenemrDocument() is the
+        // only thing that ever reads this for an OpenEMR-sourced record, and
+        // it re-fetches the bytes server-side rather than exposing this path.
+        fileUrl: attachment?.url ? normalizeOpenemrAttachmentPath(attachment.url) : null,
         fileMimeType: attachment?.contentType ?? null,
         fileSizeBytes: attachment?.size ?? null,
         recordedAt,
