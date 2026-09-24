@@ -30,9 +30,9 @@ function buildService(overrides: {
         Promise.resolve('pagePath' in select ? (overrides.dimensionEvents ?? []) : (overrides.funnelEvents ?? [])),
       ),
     },
-    serviceUsageDaily: { upsert: jest.fn().mockResolvedValue({}) },
-    funnelEventDaily: { upsert: jest.fn().mockResolvedValue({}) },
-    dimensionDailyMetric: { upsert: jest.fn().mockResolvedValue({}) },
+    serviceUsageDaily: { upsert: jest.fn().mockResolvedValue({}), findFirst: jest.fn().mockResolvedValue(null) },
+    funnelEventDaily: { upsert: jest.fn().mockResolvedValue({}), findFirst: jest.fn().mockResolvedValue(null) },
+    dimensionDailyMetric: { upsert: jest.fn().mockResolvedValue({}), findFirst: jest.fn().mockResolvedValue(null) },
     revenueSummary: {
       findFirst: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockResolvedValue({}),
@@ -177,5 +177,109 @@ describe('AnalyticsAggregationService.runDailyAggregation', () => {
     prisma.appointment.findMany.mockRejectedValue(new Error('db down'));
 
     await expect(service.runDailyAggregation(new Date('2026-01-02T00:00:00Z'))).rejects.toThrow('db down');
+  });
+});
+
+describe('AnalyticsAggregationService.runBackfill', () => {
+  it('runs runDailyAggregation once per day in the inclusive range, offset by one day', async () => {
+    const { service } = buildService();
+    const spy = jest.spyOn(service, 'runDailyAggregation');
+
+    const results = await service.runBackfill(new Date('2026-01-01T00:00:00Z'), new Date('2026-01-03T00:00:00Z'));
+
+    expect(spy.mock.calls.map((call) => call[0]?.toISOString())).toEqual([
+      new Date('2026-01-02T00:00:00Z').toISOString(),
+      new Date('2026-01-03T00:00:00Z').toISOString(),
+      new Date('2026-01-04T00:00:00Z').toISOString(),
+    ]);
+    expect(results).toEqual([
+      { reportDate: '2026-01-01', status: 'ok' },
+      { reportDate: '2026-01-02', status: 'ok' },
+      { reportDate: '2026-01-03', status: 'ok' },
+    ]);
+  });
+
+  it('records a day as errored without aborting the rest of the range', async () => {
+    const { service } = buildService();
+    jest.spyOn(service, 'runDailyAggregation').mockImplementation(async (forDate?: Date) => {
+      if (forDate?.toISOString() === new Date('2026-01-03T00:00:00Z').toISOString()) {
+        throw new Error('relation does not exist');
+      }
+    });
+
+    const results = await service.runBackfill(new Date('2026-01-01T00:00:00Z'), new Date('2026-01-03T00:00:00Z'));
+
+    expect(results).toEqual([
+      { reportDate: '2026-01-01', status: 'ok' },
+      { reportDate: '2026-01-02', status: 'error', error: 'relation does not exist' },
+      { reportDate: '2026-01-03', status: 'ok' },
+    ]);
+  });
+
+  it('rejects a range where "from" is after "to"', async () => {
+    const { service } = buildService();
+    await expect(
+      service.runBackfill(new Date('2026-01-03T00:00:00Z'), new Date('2026-01-01T00:00:00Z')),
+    ).rejects.toThrow('must not be after');
+  });
+
+  it('rejects a range wider than the max backfill window without running anything', async () => {
+    const { service } = buildService();
+    const spy = jest.spyOn(service, 'runDailyAggregation');
+
+    await expect(
+      service.runBackfill(new Date('2026-01-01T00:00:00Z'), new Date('2026-06-01T00:00:00Z')),
+    ).rejects.toThrow('too large');
+    expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe('AnalyticsAggregationService.getPipelineHealth', () => {
+  it('reports the most recent updatedAt across the 4 pre-aggregate tables', async () => {
+    const { service, prisma } = buildService();
+    prisma.serviceUsageDaily.findFirst.mockResolvedValue({
+      updatedAt: new Date('2026-09-20T01:16:00Z'),
+      reportDate: new Date('2026-09-19T00:00:00Z'),
+    });
+    prisma.dimensionDailyMetric.findFirst.mockResolvedValue({
+      updatedAt: new Date('2026-09-21T01:16:00Z'), // the latest of the 4
+      reportDate: new Date('2026-09-20T00:00:00Z'),
+    });
+
+    const health = await service.getPipelineHealth();
+
+    expect(health).toEqual({
+      lastRunAt: '2026-09-21T01:16:00.000Z',
+      lastReportDate: '2026-09-20',
+      isStale: expect.any(Boolean),
+    });
+  });
+
+  it('is not stale when the most recent run is within the last 30 hours', async () => {
+    const { service, prisma } = buildService();
+    prisma.funnelEventDaily.findFirst.mockResolvedValue({
+      updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      reportDate: new Date(),
+    });
+
+    const health = await service.getPipelineHealth();
+    expect(health.isStale).toBe(false);
+  });
+
+  it('is stale when the most recent run is more than 30 hours old', async () => {
+    const { service, prisma } = buildService();
+    prisma.funnelEventDaily.findFirst.mockResolvedValue({
+      updatedAt: new Date(Date.now() - 40 * 60 * 60 * 1000),
+      reportDate: new Date(),
+    });
+
+    const health = await service.getPipelineHealth();
+    expect(health.isStale).toBe(true);
+  });
+
+  it('reports stale with null timestamps when no pre-aggregate table has any rows yet', async () => {
+    const { service } = buildService();
+    const health = await service.getPipelineHealth();
+    expect(health).toEqual({ lastRunAt: null, lastReportDate: null, isStale: true });
   });
 });

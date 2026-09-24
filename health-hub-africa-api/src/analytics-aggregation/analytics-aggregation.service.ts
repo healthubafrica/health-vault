@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { PrismaService } from '../prisma/prisma.service';
@@ -14,6 +14,26 @@ import { aggregateFunnelEventRows, fetchFunnelEventRowsForDay } from './funnel-a
 import { aggregateDimensionEventRows, fetchDimensionEventRowsForDay } from './dimension-aggregation.util';
 
 export const ANALYTICS_AGGREGATION_QUEUE = 'analytics-aggregation';
+
+// ~3 months per request — enough for any real gap (a redeploy pause, a
+// pipeline bug caught late) without one request silently churning years of
+// history against production Postgres.
+const MAX_BACKFILL_DAYS = 92;
+
+export interface BackfillDayResult {
+  reportDate: string;
+  status: 'ok' | 'error';
+  error?: string;
+}
+
+// Cron runs once every 24h — see getPipelineHealth.
+const STALE_AFTER_HOURS = 30;
+
+export interface PipelineHealth {
+  lastRunAt: string | null;
+  lastReportDate: string | null;
+  isStale: boolean;
+}
 
 /**
  * Spec §25 (Data Warehouse / Aggregation Configuration) — populates the
@@ -62,6 +82,78 @@ export class AnalyticsAggregationService implements OnModuleInit {
       );
       throw err;
     }
+  }
+
+  /** Re-runs runDailyAggregation for every calendar day in [fromReportDate,
+   * toReportDate] (inclusive, UTC) — the operational backfill/reprocessing
+   * path spec §25 calls for, so a gap (a redeploy pause, a pipeline bug
+   * caught late) doesn't require a one-off script. Sequential rather than
+   * Promise.all: a wide range hitting Postgres concurrently would contend
+   * with the live cron job and dashboard reads, and this is an operational
+   * action, not a latency-sensitive one. Runs every day even after one
+   * fails, returning one result per day, so a bad day in the middle of a
+   * range doesn't hide whether the rest succeeded. */
+  async runBackfill(fromReportDate: Date, toReportDate: Date): Promise<BackfillDayResult[]> {
+    const cursor = new Date(Date.UTC(fromReportDate.getUTCFullYear(), fromReportDate.getUTCMonth(), fromReportDate.getUTCDate()));
+    const last = new Date(Date.UTC(toReportDate.getUTCFullYear(), toReportDate.getUTCMonth(), toReportDate.getUTCDate()));
+    if (cursor.getTime() > last.getTime()) {
+      throw new BadRequestException('fromReportDate must not be after toReportDate');
+    }
+    const spanDays = Math.round((last.getTime() - cursor.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+    if (spanDays > MAX_BACKFILL_DAYS) {
+      throw new BadRequestException(`Backfill range too large (${spanDays} days) — max ${MAX_BACKFILL_DAYS} days per request`);
+    }
+
+    const results: BackfillDayResult[] = [];
+    while (cursor.getTime() <= last.getTime()) {
+      const reportDate = cursor.toISOString().slice(0, 10);
+      // runDailyAggregation aggregates the day BEFORE its `forDate` arg
+      // (see dayWindow below) — pass the day after the target report date.
+      const forDate = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
+      try {
+        await this.runDailyAggregation(forDate);
+        results.push({ reportDate, status: 'ok' });
+      } catch (err) {
+        results.push({ reportDate, status: 'error', error: err instanceof Error ? err.message : String(err) });
+      }
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+    return results;
+  }
+
+  /** Data-freshness signal for the admin dashboard (spec §25) — the most
+   * recent `updatedAt` across the 4 pre-aggregate tables, since there's no
+   * dedicated job-run log and the cron processor already swallows per-run
+   * errors (logs, doesn't rethrow), so Bull's own job-completion history
+   * wouldn't reliably distinguish a real success from a silent failure
+   * either. Whichever table a run actually wrote to is a fine proxy for
+   * "the pipeline ran" in practice, since a real production day almost
+   * always produces at least a page_view row. */
+  async getPipelineHealth(): Promise<PipelineHealth> {
+    const [usage, revenue, funnel, dimension] = await Promise.all([
+      this.prisma.serviceUsageDaily.findFirst({ orderBy: { updatedAt: 'desc' }, select: { updatedAt: true, reportDate: true } }),
+      this.prisma.revenueSummary.findFirst({ orderBy: { updatedAt: 'desc' }, select: { updatedAt: true, reportDate: true } }),
+      this.prisma.funnelEventDaily.findFirst({ orderBy: { updatedAt: 'desc' }, select: { updatedAt: true, reportDate: true } }),
+      this.prisma.dimensionDailyMetric.findFirst({ orderBy: { updatedAt: 'desc' }, select: { updatedAt: true, reportDate: true } }),
+    ]);
+
+    const candidates = [usage, revenue, funnel, dimension].filter(
+      (row): row is { updatedAt: Date; reportDate: Date } => row !== null,
+    );
+    if (candidates.length === 0) {
+      return { lastRunAt: null, lastReportDate: null, isStale: true };
+    }
+
+    const latest = candidates.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a));
+    const ageHours = (Date.now() - latest.updatedAt.getTime()) / (60 * 60 * 1000);
+
+    return {
+      lastRunAt: latest.updatedAt.toISOString(),
+      lastReportDate: latest.reportDate.toISOString().slice(0, 10),
+      // Cron runs once every 24h — 30h tolerates normal jitter without
+      // false-positiving, while still catching a genuinely missed run.
+      isStale: ageHours > STALE_AFTER_HOURS,
+    };
   }
 
   private dayWindow(referenceDate: Date): { start: Date; end: Date; reportDate: Date } {
