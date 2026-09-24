@@ -48,6 +48,9 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null })
         try {
           await auth.register(email, password, phoneNumber, fullName, newsletterOptIn, acquisitionSource, attribution)
+          // Single-step sign-up form today (see LoginScreen's registration_start) —
+          // step_complete and registration_complete fire together here for that reason.
+          analytics.track('registration_step_complete', { step: 'account_details' })
           analytics.track('registration_complete', { acquisitionSource })
           analytics.track('otp_requested', { channel: 'email' })
           set({ isLoading: false })

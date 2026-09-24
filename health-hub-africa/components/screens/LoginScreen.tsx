@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { FormInput, FormSelect } from '@/components/ui/FormInput'
 import { Button } from '@/components/ui/Button'
 import { Eye, EyeOff, Shield, Activity, Cpu } from 'lucide-react'
 import { useAuthStore } from '@/lib/stores/authStore'
+import { analytics } from '@/lib/api'
 import { captureMarketingAttribution, type AcquisitionSource } from '@/lib/marketingAttribution'
 
 // OTP verification step shown after registration
@@ -153,6 +154,26 @@ export function LoginScreen() {
   const [showConfirmNewPass, setShowConfirmNewPass] = useState(false)
 
   const displayError = localError || error
+
+  // Fires once per visit, not once per toggle — switching back and forth
+  // between sign-in/sign-up is exploration, not a fresh registration
+  // attempt, so re-toggling into sign-up shouldn't inflate the funnel's
+  // denominator. The sign-up form has no wizard steps today (see
+  // ANALYTICS-CLICKSTREAM-MAP.md), so registration_step_view/terms_viewed
+  // fire alongside registration_start rather than at separate moments —
+  // they're genuinely simultaneous in this single-page form, not padded.
+  const hasTrackedRegistrationStartRef = useRef(false)
+  const enterSignUp = () => {
+    if (!hasTrackedRegistrationStartRef.current) {
+      hasTrackedRegistrationStartRef.current = true
+      analytics.track('registration_start')
+      analytics.track('registration_step_view', { step: 'account_details' })
+      analytics.track('terms_viewed')
+    }
+    setIsSignUp(true)
+    setLocalError('')
+    clearError()
+  }
 
   useEffect(() => {
     captureMarketingAttribution()
@@ -694,7 +715,10 @@ export function LoginScreen() {
                       type="checkbox"
                       className="mt-1 accent-[#6DC43F] rounded cursor-pointer"
                       checked={agreeTerms}
-                      onChange={e => setAgreeTerms(e.target.checked)}
+                      onChange={e => {
+                        setAgreeTerms(e.target.checked)
+                        if (e.target.checked) analytics.track('terms_accepted')
+                      }}
                     />
                     <span className="text-[11px] leading-tight text-white/70">
                       I agree to the{' '}
@@ -728,9 +752,13 @@ export function LoginScreen() {
                 {isSignUp ? 'Already have an account? ' : 'New to MyHealth Vault+™? '}
                 <button
                   onClick={() => {
-                    setIsSignUp(!isSignUp)
-                    setLocalError('')
-                    clearError()
+                    if (isSignUp) {
+                      setIsSignUp(false)
+                      setLocalError('')
+                      clearError()
+                    } else {
+                      enterSignUp()
+                    }
                   }}
                   className="font-medium hover:underline focus:outline-none text-[#6DC43F]"
                 >
