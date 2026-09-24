@@ -58,16 +58,17 @@ export class AnalyticsAggregationService implements OnModuleInit {
     for (const r of repeatables.filter((j) => j.name === 'aggregate-daily')) {
       await this.queue.removeRepeatableByKey(r.key);
     }
-    // Runs once a day, well after midnight UTC, aggregating the prior UTC
-    // day — gives every timezone's "yesterday" activity time to settle
-    // rather than racing still-in-flight late-night rows.
+    // Runs once a day at 01:15 UTC — 2h15m after the prior WAT business day
+    // ends (WAT midnight = UTC 23:00, see dayWindow()), giving it time to
+    // settle rather than racing still-in-flight late-night rows.
     await this.queue.add('aggregate-daily', {}, { repeat: { cron: '15 1 * * *' }, removeOnComplete: 10 });
   }
 
-  /** Aggregates the previous UTC calendar day. Idempotent — safe to re-run
-   * for the same day (upserts on the tables' unique keys), which is what
-   * lets a redeploy or manual retrigger recompute a day without duplicating
-   * rows. */
+  /** Aggregates the previous WAT (Africa/Lagos, UTC+1) business day — see
+   * dayWindow() for why that's not the same as a UTC calendar day.
+   * Idempotent — safe to re-run for the same day (upserts on the tables'
+   * unique keys), which is what lets a redeploy or manual retrigger
+   * recompute a day without duplicating rows. */
   async runDailyAggregation(forDate?: Date): Promise<void> {
     const { start, end, reportDate } = this.dayWindow(forDate ?? new Date());
 
@@ -156,10 +157,29 @@ export class AnalyticsAggregationService implements OnModuleInit {
     };
   }
 
+  // Business timezone alignment (spec §25 gap): Africa/Lagos (WAT) is a
+  // fixed UTC+1 offset with no DST, so a WAT calendar day is a UTC calendar
+  // day shifted by exactly 1 hour — no timezone-library complexity needed.
+  // Deliberately scoped to just this daily cron's day boundaries; the many
+  // "last Nd" rolling-window API endpoints (getFunnelAnalytics, etc.) stay
+  // UTC-relative, since a 1-hour shift barely moves a 30-day window's edge.
+  private static readonly WAT_OFFSET_MS = 60 * 60 * 1000;
+
   private dayWindow(referenceDate: Date): { start: Date; end: Date; reportDate: Date } {
-    const end = new Date(Date.UTC(referenceDate.getUTCFullYear(), referenceDate.getUTCMonth(), referenceDate.getUTCDate()));
-    const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
-    return { start, end, reportDate: start };
+    // Shift into WAT wall-clock time (still a UTC-labeled Date) so
+    // getUTC*() below reads back the WAT calendar date, not the UTC one.
+    const watReference = new Date(referenceDate.getTime() + AnalyticsAggregationService.WAT_OFFSET_MS);
+    const watToday = Date.UTC(watReference.getUTCFullYear(), watReference.getUTCMonth(), watReference.getUTCDate());
+    const watYesterday = watToday - 24 * 60 * 60 * 1000;
+
+    // reportDate is a pure calendar-date label (WAT's "yesterday") — not
+    // shifted back into a UTC instant, since @db.Date only stores Y/M/D.
+    const reportDate = new Date(watYesterday);
+    // start/end ARE true UTC instants, offset by the WAT gap, so the
+    // event-window query lines up with real WAT midnight-to-midnight.
+    const start = new Date(watYesterday - AnalyticsAggregationService.WAT_OFFSET_MS);
+    const end = new Date(watToday - AnalyticsAggregationService.WAT_OFFSET_MS);
+    return { start, end, reportDate };
   }
 
   private async aggregateServiceUsage(start: Date, end: Date, reportDate: Date): Promise<void> {
