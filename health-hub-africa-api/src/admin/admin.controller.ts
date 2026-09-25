@@ -184,6 +184,30 @@ export class AdminController {
     return this.adminService.getTopPages(period, limit ? parseInt(limit, 10) : undefined);
   }
 
+  @Get('analytics/top-elements')
+  @ApiOperation({ summary: 'Top UI elements by ui_click count over a period, backed by the DimensionDailyMetric pre-aggregate (spec §25)' })
+  @ApiQuery({ name: 'period', required: false, description: "e.g. '7d', '30d', '90d' (default 30d)" })
+  @ApiQuery({ name: 'limit', required: false, description: 'Max rows to return (default 10)' })
+  getTopElements(@Query('period') period?: string, @Query('limit') limit?: string) {
+    return this.adminService.getTopElements(period, limit ? parseInt(limit, 10) : undefined);
+  }
+
+  @Get('analytics/top-feature-areas')
+  @ApiOperation({ summary: 'Top portal feature areas by activity over a period, backed by the DimensionDailyMetric pre-aggregate (spec §25)' })
+  @ApiQuery({ name: 'period', required: false, description: "e.g. '7d', '30d', '90d' (default 30d)" })
+  @ApiQuery({ name: 'limit', required: false, description: 'Max rows to return (default 10)' })
+  getTopFeatureAreas(@Query('period') period?: string, @Query('limit') limit?: string) {
+    return this.adminService.getTopFeatureAreas(period, limit ? parseInt(limit, 10) : undefined);
+  }
+
+  @Get('analytics/activity-by-country')
+  @ApiOperation({ summary: 'Portal activity volume by country over a period, backed by the DimensionDailyMetric pre-aggregate (spec §25)' })
+  @ApiQuery({ name: 'period', required: false, description: "e.g. '7d', '30d', '90d' (default 30d)" })
+  @ApiQuery({ name: 'limit', required: false, description: 'Max rows to return (default 10)' })
+  getActivityByCountry(@Query('period') period?: string, @Query('limit') limit?: string) {
+    return this.adminService.getActivityByCountry(period, limit ? parseInt(limit, 10) : undefined);
+  }
+
   @Get('analytics/marketing')
   @ApiOperation({ summary: 'Get registration, campaign attribution, and login-location analytics' })
   getMarketingAnalytics(@Query('period') period?: string) {

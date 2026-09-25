@@ -329,6 +329,21 @@ export interface TopPageRow {
   dailyUniqueUsersSummed: number
 }
 
+// Shared shape for the element/feature_area/country DimensionDailyMetric
+// rankings — see TopPageRow above for why dailyUniqueUsersSummed isn't a
+// period-unique count.
+export interface DimensionRankRow {
+  dimensionValue: string
+  count: number
+  dailyUniqueUsersSummed: number
+}
+
+export interface PipelineHealth {
+  lastRunAt: string | null
+  lastReportDate: string | null
+  isStale: boolean
+}
+
 export interface MarketingAnalytics {
   totals: {
     registrations: number
@@ -988,6 +1003,12 @@ export const adminApi = {
       request<{ data: FunnelTrendDataPoint[] }>(`/admin/analytics/funnel-trend?period=${period}`),
     topPages: (period = '30d', limit = 10) =>
       request<{ data: TopPageRow[] }>(`/admin/analytics/top-pages?period=${period}&limit=${limit}`),
+    topElements: (period = '30d', limit = 10) =>
+      request<{ data: DimensionRankRow[] }>(`/admin/analytics/top-elements?period=${period}&limit=${limit}`),
+    topFeatureAreas: (period = '30d', limit = 10) =>
+      request<{ data: DimensionRankRow[] }>(`/admin/analytics/top-feature-areas?period=${period}&limit=${limit}`),
+    activityByCountry: (period = '30d', limit = 10) =>
+      request<{ data: DimensionRankRow[] }>(`/admin/analytics/activity-by-country?period=${period}&limit=${limit}`),
     marketing: (period = '30d') =>
       request<{ data: MarketingAnalytics }>(`/admin/analytics/marketing?period=${period}`),
     traffic: (period = '30d') =>
@@ -1595,6 +1616,15 @@ export const adminApi = {
           body: JSON.stringify(dto),
         }),
     },
+  },
+
+  analyticsAggregation: {
+    health: () => request<{ data: PipelineHealth }>('/admin/analytics-aggregation/health'),
+    backfill: (from: string, to: string) =>
+      request<{ data: { reportDate: string; status: 'ok' | 'error'; error?: string }[] }>(
+        `/admin/analytics-aggregation/backfill?from=${from}&to=${to}`,
+        { method: 'POST' },
+      ),
   },
 }
 

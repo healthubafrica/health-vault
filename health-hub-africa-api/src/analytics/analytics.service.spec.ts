@@ -410,6 +410,28 @@ describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {
     expect(kpi).toEqual({ key: 'otpVerificationRate', label: 'OTP Verification Rate', numerator: 1, denominator: 2, value: 50 });
   });
 
+  it('computes registrationConversionRate from registration_start/registration_complete now that both fire', async () => {
+    const { service } = buildService([
+      // 3 unique visitors enter sign-up (registration_start), only 2 complete it.
+      { eventName: 'registration_start', patientId: null, anonymousVisitorId: 'v1' },
+      { eventName: 'registration_start', patientId: null, anonymousVisitorId: 'v2' },
+      { eventName: 'registration_start', patientId: null, anonymousVisitorId: 'v3' },
+      { eventName: 'registration_complete', patientId: null, anonymousVisitorId: 'v1' },
+      { eventName: 'registration_complete', patientId: null, anonymousVisitorId: 'v2' },
+    ]);
+
+    const result = await service.getFunnelAnalytics('30d');
+
+    const kpi = result.data.kpis.find((k) => k.key === 'registrationConversionRate');
+    expect(kpi).toEqual({
+      key: 'registrationConversionRate',
+      label: 'Registration Conversion',
+      numerator: 2,
+      denominator: 3,
+      value: 66.7,
+    });
+  });
+
   it('reports a null KPI value instead of dividing by zero when the denominator step never fired', async () => {
     const { service } = buildService([]);
     const result = await service.getFunnelAnalytics('30d');

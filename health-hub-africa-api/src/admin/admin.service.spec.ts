@@ -535,3 +535,51 @@ describe('AdminService.getTopPages (reads the DimensionDailyMetric pre-aggregate
     await expect(service.getTopPages('30d')).resolves.toEqual({ data: [] });
   });
 });
+
+describe('AdminService element/feature_area/country dimension rankings (shared rankDimensionValues helper)', () => {
+  function buildService(opts: { rows?: unknown[] } = {}) {
+    const prisma = {
+      dimensionDailyMetric: { findMany: jest.fn().mockResolvedValue(opts.rows ?? []) },
+    };
+    const service = new AdminService(
+      prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never,
+    );
+    return { service, prisma };
+  }
+
+  const day = new Date('2026-09-10T00:00:00Z');
+
+  it.each([
+    ['getTopElements', 'element'],
+    ['getTopFeatureAreas', 'feature_area'],
+    ['getActivityByCountry', 'country'],
+  ] as const)('%s only queries the "%s" dimension and ranks by total count', async (method, dimension) => {
+    const { service, prisma } = buildService({
+      rows: [
+        { reportDate: day, dimensionValue: 'a', count: 2, uniqueUsers: 1 },
+        { reportDate: day, dimensionValue: 'b', count: 5, uniqueUsers: 3 },
+      ],
+    });
+
+    const { data } = await service[method]('30d');
+
+    expect(prisma.dimensionDailyMetric.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ dimension }) }),
+    );
+    expect(data).toEqual([
+      { dimensionValue: 'b', count: 5, dailyUniqueUsersSummed: 3 },
+      { dimensionValue: 'a', count: 2, dailyUniqueUsersSummed: 1 },
+    ]);
+  });
+
+  it.each([
+    ['getTopElements'],
+    ['getTopFeatureAreas'],
+    ['getActivityByCountry'],
+  ] as const)('%s returns an empty list instead of throwing when the aggregate table read fails', async (method) => {
+    const { service, prisma } = buildService();
+    prisma.dimensionDailyMetric.findMany.mockRejectedValue(new Error('relation does not exist'));
+
+    await expect(service[method]('30d')).resolves.toEqual({ data: [] });
+  });
+});

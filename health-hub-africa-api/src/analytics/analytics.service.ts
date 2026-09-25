@@ -760,18 +760,19 @@ export class AnalyticsService {
     };
   }
 
-  // KPI formulas per the analytics spec (§26), adapted to this app's actual
-  // event order rather than the spec's idealized one — e.g. registration_complete
-  // fires when the account is created (pre-verification), not after OTP, so
-  // "registration conversion" here means completed accounts that go on to
-  // verify, not landing-to-signup (no registration_start event exists; see
-  // FUNNEL_GROUPS in the admin dashboard for why that was skipped).
+  // KPI formulas per the analytics spec (§26). registrationConversionRate is
+  // the true landing-to-signup denominator (registration_start, fired from
+  // LoginScreen's sign-up toggle) — registrationToVerifiedRate stays
+  // separate since registration_complete fires pre-verification, so it
+  // measures a genuinely different step (verified ÷ account-created, not
+  // account-created ÷ started).
   private static readonly KPI_DEFINITIONS: Array<{
     key: string;
     label: string;
     numerator: string;
     denominator: string;
   }> = [
+    { key: 'registrationConversionRate', label: 'Registration Conversion', numerator: 'registration_complete', denominator: 'registration_start' },
     { key: 'otpVerificationRate', label: 'OTP Verification Rate', numerator: 'otp_verify_success', denominator: 'otp_requested' },
     { key: 'registrationToVerifiedRate', label: 'Registered → Verified', numerator: 'otp_verify_success', denominator: 'registration_complete' },
     { key: 'bookingConversionRate', label: 'Booking Conversion', numerator: 'booking_confirmed', denominator: 'booking_started' },
