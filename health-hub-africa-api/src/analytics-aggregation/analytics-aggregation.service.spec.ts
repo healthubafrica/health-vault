@@ -85,13 +85,25 @@ describe('AnalyticsAggregationService.runDailyAggregation', () => {
     expect(prisma.serviceUsageDaily.upsert).not.toHaveBeenCalled();
   });
 
-  it('aggregates the prior UTC day, not the reference date itself', async () => {
+  it('aggregates the prior WAT (UTC+1) business day, not a UTC calendar day', async () => {
     const { service, prisma } = buildService();
     await service.runDailyAggregation(new Date('2026-03-10T09:30:00Z'));
 
+    // WAT midnight is UTC 23:00 the previous day, so the window is offset
+    // by 1h from a plain UTC calendar day — see dayWindow().
     const appointmentsCallArgs = prisma.appointment.findMany.mock.calls[0][0];
-    expect(appointmentsCallArgs.where.createdAt.gte).toEqual(new Date('2026-03-09T00:00:00Z'));
-    expect(appointmentsCallArgs.where.createdAt.lt).toEqual(new Date('2026-03-10T00:00:00Z'));
+    expect(appointmentsCallArgs.where.createdAt.gte).toEqual(new Date('2026-03-08T23:00:00Z'));
+    expect(appointmentsCallArgs.where.createdAt.lt).toEqual(new Date('2026-03-09T23:00:00Z'));
+  });
+
+  it('labels reportDate with the WAT calendar date, unaffected by the 1h instant-window shift', async () => {
+    const { service, prisma } = buildService({
+      appointments: [{ serviceType: ServiceType.MinuteCare, patientId: 'p1', status: 'completed', durationMinutes: 20 }],
+    });
+    await service.runDailyAggregation(new Date('2026-03-10T09:30:00Z'));
+
+    const call = prisma.serviceUsageDaily.upsert.mock.calls[0][0];
+    expect(call.where.reportDate_serviceType.reportDate).toEqual(new Date('2026-03-09T00:00:00Z'));
   });
 
   it('creates a RevenueSummary row per gateway with serviceType null when none exists yet', async () => {
