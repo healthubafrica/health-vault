@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download, ChevronRight, ChevronDown } from 'lucide-react'
 import { useAutoRefresh } from '@/lib/hooks/useLiveData'
-import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type ClickstreamAnalytics, type GeoComparison, type GeoMapAnalytics, type GeoMapCountry, type GeoBasis, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type UsageServiceKey, type RevenueDataPoint, type CoreKpis, type FunnelTrendDataPoint, type FunnelTrendKey, type TopPageRow } from '@/lib/api'
+import { adminApi, type MarketingAnalytics, type TrafficAnalytics, type FunnelAnalytics, type DemographicsAnalytics, type ClickstreamAnalytics, type GeoComparison, type GeoMapAnalytics, type GeoMapCountry, type GeoBasis, type RetentionAnalytics, type DigitalExperienceAnalytics, type SecurityAnalytics, type UsageDataPoint, type UsageServiceKey, type RevenueDataPoint, type CoreKpis, type FunnelTrendDataPoint, type FunnelTrendKey, type TopPageRow, type DimensionRankRow, type PipelineHealth } from '@/lib/api'
 import dynamic from 'next/dynamic'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -150,6 +150,74 @@ const FUNNEL_GROUPS: Record<string, string[]> = {
 
 function Empty({ children }: { children: React.ReactNode }) {
   return <div className="h-40 flex items-center justify-center text-sm text-center px-4" style={{ color: 'var(--color-text-muted)' }}>{children}</div>
+}
+
+function formatRelativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime()
+  const minutes = Math.round(diffMs / 60_000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.round(hours / 24)}d ago`
+}
+
+// Spec §25's data-freshness indicator — surfaces when the daily aggregation
+// pipeline last actually wrote a row, so a silently-broken cron doesn't go
+// unnoticed while every pre-aggregate-backed card on this page (Top pages,
+// funnel trend, etc.) keeps quietly showing stale data.
+function PipelineHealthBadge({ health }: { health: PipelineHealth | null }) {
+  if (!health || !health.lastRunAt) return null
+  const color = health.isStale ? '#F59E0B' : '#6DC43F'
+  return (
+    <div
+      className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border"
+      style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}
+      title={`Last report date aggregated: ${health.lastReportDate}`}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
+      {health.isStale ? 'Data pipeline stale — ' : 'Data refreshed '}
+      {formatRelativeTime(health.lastRunAt)}
+    </div>
+  )
+}
+
+// Shared ranked-bar-list rendering for the element/feature_area/country
+// DimensionDailyMetric breakdowns — same shape and empty/loading states as
+// the "Top pages" card, just parameterized on title/description/unit.
+function DimensionRankCard({ title, description, unit, rows, loading }: {
+  title: string
+  description: string
+  unit: string
+  rows: DimensionRankRow[]
+  loading: boolean
+}) {
+  return (
+    <Card>
+      <CardTitle>{title}</CardTitle>
+      <p className="text-xs mt-0.5 mb-3" style={{ color: 'var(--color-text-faint)' }}>{description}</p>
+      {loading ? <SkeletonBox height={180} className="rounded-xl" /> : rows.length === 0 ? (
+        <Empty>No daily rollup yet — the aggregation cron runs once daily; check back after it's run at least once.</Empty>
+      ) : (
+        <div className="space-y-4 pt-1">
+          {rows.map((row) => (
+            <div key={row.dimensionValue}>
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="font-medium" style={{ color: 'var(--color-text)' }}>{row.dimensionValue}</span>
+                <span style={{ color: 'var(--color-text-muted)' }}>{row.count} {unit}</span>
+              </div>
+              <div className="h-1.5 rounded-full" style={{ background: 'var(--color-border)' }}>
+                <div
+                  className="h-full rounded-full bg-[#6DC43F] transition-[width] duration-300"
+                  style={{ width: `${(row.count / rows[0].count) * 100}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  )
 }
 
 // ── CSV export ────────────────────────────────────────────────────────────
@@ -338,11 +406,26 @@ export default function AnalyticsPage() {
   const [coreKpis, setCoreKpis] = useState<CoreKpis | null>(null)
   const [funnelTrend, setFunnelTrend] = useState<FunnelTrendDataPoint[]>([])
   const [topPages, setTopPages] = useState<TopPageRow[]>([])
+  const [topElements, setTopElements] = useState<DimensionRankRow[]>([])
+  const [topFeatureAreas, setTopFeatureAreas] = useState<DimensionRankRow[]>([])
+  const [activityByCountry, setActivityByCountry] = useState<DimensionRankRow[]>([])
+  const [pipelineHealth, setPipelineHealth] = useState<PipelineHealth | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // Not period-scoped, unlike everything else on this page — a global
+  // pipeline-freshness signal, so it's fetched on its own cadence instead of
+  // inside `load()` (would otherwise re-fetch on every period change for no
+  // reason). Failure is silent: this is a nice-to-have badge, not something
+  // that should break the rest of the dashboard if the request fails.
+  const loadPipelineHealth = useCallback(() => {
+    adminApi.analyticsAggregation.health().then((res) => setPipelineHealth(res.data)).catch(() => {})
+  }, [])
+  useEffect(() => { loadPipelineHealth() }, [loadPipelineHealth])
+  useAutoRefresh(loadPipelineHealth, 60_000)
 
   const load = useCallback(async () => {
     try {
-      const [rRes, uRes, mRes, tRes, fRes, demoRes, csRes, gRes, mapRes, retRes, deRes, secRes, ckRes, ftRes, tpRes] = await Promise.all([
+      const [rRes, uRes, mRes, tRes, fRes, demoRes, csRes, gRes, mapRes, retRes, deRes, secRes, ckRes, ftRes, tpRes, teRes, tfaRes, abcRes] = await Promise.all([
         adminApi.analytics.revenue(period),
         adminApi.analytics.usage(period),
         adminApi.analytics.marketing(period),
@@ -374,6 +457,9 @@ export default function AnalyticsPage() {
         adminApi.analytics.coreKpis(period),
         adminApi.analytics.funnelTrend(period),
         adminApi.analytics.topPages(period),
+        adminApi.analytics.topElements(period),
+        adminApi.analytics.topFeatureAreas(period),
+        adminApi.analytics.activityByCountry(period),
       ])
       setRevenue(rRes.data)
       setUsage(uRes.data)
@@ -390,6 +476,9 @@ export default function AnalyticsPage() {
       setCoreKpis(ckRes.data)
       setFunnelTrend(ftRes.data)
       setTopPages(tpRes.data)
+      setTopElements(teRes.data)
+      setTopFeatureAreas(tfaRes.data)
+      setActivityByCountry(abcRes.data)
     } finally {
       setLoading(false)
     }
@@ -529,7 +618,10 @@ export default function AnalyticsPage() {
     <div className="max-w-[1200px] pb-8">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>Analytics</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>Analytics</h1>
+            <PipelineHealthBadge health={pipelineHealth} />
+          </div>
           <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
             Acquisition, funnels, geography, revenue, and service usage
           </p>
@@ -661,6 +753,30 @@ export default function AnalyticsPage() {
                 </div>
               )}
             </Card>
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <DimensionRankCard
+              title="Top elements"
+              description="Ranked by UI click count over the period, from the pre-aggregated daily rollup"
+              unit="clicks"
+              rows={topElements}
+              loading={loading}
+            />
+            <DimensionRankCard
+              title="Top feature areas"
+              description="Ranked by total activity over the period, from the pre-aggregated daily rollup"
+              unit="events"
+              rows={topFeatureAreas}
+              loading={loading}
+            />
+            <DimensionRankCard
+              title="Activity by country"
+              description="Portal activity volume by country over the period, from the pre-aggregated daily rollup"
+              unit="events"
+              rows={activityByCountry}
+              loading={loading}
+            />
           </div>
         </>
       )}
