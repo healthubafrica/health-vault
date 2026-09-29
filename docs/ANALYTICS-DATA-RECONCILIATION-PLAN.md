@@ -10,7 +10,7 @@ Every "critical outcome" event in this pipeline has a **dual-write risk**: a cli
 
 | # | Analytics side | Transactional source | Match key | Notes |
 |---|---|---|---|---|
-| 1 | `payment_success` events (`ingestionSource: 'server'`) | `Payment` rows with `status: 'paid'` | Count in the same UTC day window | The authoritative pair — `PaymentsService.handleChargeSuccess` emits the event and updates the row from the same webhook handler, so any drift here means that handler itself is failing partway through, not a client-beacon problem |
+| 1 | `payment_success` events (`ingestionSource: 'server'`) | `Payment` rows with `status: 'paid'` and `paidAt` in the reporting day | Match stable `paymentId` identities | The authoritative pair — `PaymentsService.handleChargeSuccess` emits the event and updates the row from the same webhook handler; identity matching covers attempts created before settlement day |
 | 2 | `payment_failure` events (`ingestionSource: 'server'`) | `Payment` rows with a failed/declined status | Count in the same window | Same source method as #1 |
 | 3 | `booking_confirmed` events (`ingestionSource: 'server'`) | `Appointment` rows created via `AppointmentsService.create` | Count in the same window | |
 | 4 | `registration_complete` events | `User`/`Patient` rows created (excluding admin-created and OpenEMR-synced patients, which never fire this event) | Count in the same window | Client-only today (spec §23 flags this as still-deferred to server-side — see `docs/ANALYTICS-PRIVACY-GOVERNANCE.md` §4) — reconciliation here is partly *validating that deferral is still acceptable*, not just catching drift |
@@ -21,7 +21,7 @@ Every "critical outcome" event in this pipeline has a **dual-write risk**: a cli
 
 ## Method
 
-For each pair above, for a given UTC day:
+For each pair above, use the shared Africa/Lagos reporting window from `analytics/reporting-window.ts` (`23:00Z` to `23:00Z` while Lagos remains UTC+1):
 
 1. Count (or sum) the analytics side.
 2. Count (or sum) the transactional side, filtered to `isTestEvent`-equivalent exclusion (staging/synthetic Payment/Appointment rows — see whatever test-account marking those tables already use, e.g. a known staging user ID range).
@@ -31,7 +31,7 @@ For each pair above, for a given UTC day:
 
 ## Cadence and timing
 
-Run once daily, **after** `AnalyticsAggregationService.runDailyAggregation()` completes (it runs at 01:15 UTC) — the reconciliation job depends on that day's aggregates existing for checks #5–#6, and depends on the raw event/transactional tables having settled for #1–#4 (same reasoning `runDailyAggregation` itself uses for aggregating "yesterday" rather than "today": late-night activity needs time to land). A reasonable schedule is `30 2 * * *` (02:30 UTC), 75 minutes after the aggregation cron.
+Run once daily, **after** `AnalyticsAggregationService.runDailyAggregation()` completes. The aggregation schedule replays the previous three reporting days to absorb late arrivals; reconciliation then evaluates the prior Lagos reporting day. The Bull processors rethrow failures so configured retries and failed-job monitoring remain effective.
 
 ## Response when a mismatch is found
 

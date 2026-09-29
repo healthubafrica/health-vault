@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
+import { previousReportingDay } from '../analytics/reporting-window';
 import { AlertSeverity, ServiceType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AlertsService } from '../alerts/alerts.service';
@@ -82,34 +83,43 @@ export class AnalyticsReconciliationService implements OnModuleInit {
   }
 
   private dayWindow(referenceDate: Date): { start: Date; end: Date; reportDate: Date } {
-    const end = new Date(Date.UTC(referenceDate.getUTCFullYear(), referenceDate.getUTCMonth(), referenceDate.getUTCDate()));
-    const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
-    return { start, end, reportDate: start };
+    return previousReportingDay(referenceDate);
   }
 
   // ── Event-vs-transactional pairs ────────────────────────────────────────
 
   private async reconcilePaymentSuccess(start: Date, end: Date): Promise<ReconciliationResult> {
-    const [analyticsCount, transactionalCount] = await Promise.all([
-      this.prisma.patientActivityEvent.count({
-        where: { eventName: 'payment_success', ingestionSource: 'server', isTestEvent: false, occurredAt: { gte: start, lt: end } },
-      }),
-      // Same createdAt-window convention revenue-aggregation.util.ts uses —
-      // consistent day-bucketing with the aggregate this pair is meant to
-      // corroborate.
-      this.prisma.payment.count({ where: { status: 'paid', createdAt: { gte: start, lt: end } } }),
-    ]);
-    return compareCounts('payment_success_vs_paid_payments', analyticsCount, transactionalCount);
+    return this.reconcilePaymentIds('paid', 'payment_success', 'payment_success_vs_paid_payments', start, end);
   }
 
   private async reconcilePaymentFailure(start: Date, end: Date): Promise<ReconciliationResult> {
-    const [analyticsCount, transactionalCount] = await Promise.all([
-      this.prisma.patientActivityEvent.count({
-        where: { eventName: 'payment_failure', ingestionSource: 'server', isTestEvent: false, occurredAt: { gte: start, lt: end } },
-      }),
-      this.prisma.payment.count({ where: { status: 'failed', createdAt: { gte: start, lt: end } } }),
-    ]);
-    return compareCounts('payment_failure_vs_failed_payments', analyticsCount, transactionalCount);
+    return this.reconcilePaymentIds('failed', 'payment_failure', 'payment_failure_vs_failed_payments', start, end);
+  }
+
+  private async reconcilePaymentIds(status: 'paid' | 'failed', eventName: string, pair: string, start: Date, end: Date) {
+    // A payment created yesterday can settle today. Assign paid outcomes by
+    // paidAt and failed outcomes by their last status update, then match the
+    // stable ID without imposing an unrelated event-ingestion date cutoff.
+    const outcomeTimestamp = status === 'paid' ? 'paidAt' : 'updatedAt';
+    const payments = await this.prisma.payment.findMany({
+      where: { status, [outcomeTimestamp]: { gte: start, lt: end } },
+      select: { id: true },
+    });
+    const matched = new Set<string>();
+    for (let offset = 0; offset < payments.length; offset += 250) {
+      const batch = payments.slice(offset, offset + 250);
+      const rows = await this.prisma.patientActivityEvent.findMany({
+        where: { eventName, ingestionSource: 'server', isTestEvent: false,
+          OR: batch.map(({ id }) => ({ properties: { path: ['paymentId'], equals: id } })) },
+        select: { properties: true },
+      });
+      const expected = new Set(batch.map(({ id }) => id));
+      for (const row of rows) {
+        const id = (row.properties as { paymentId?: string } | null)?.paymentId;
+        if (id && expected.has(id)) matched.add(id);
+      }
+    }
+    return compareCounts(pair, matched.size, payments.length);
   }
 
   private async reconcileBookingConfirmed(start: Date, end: Date): Promise<ReconciliationResult> {

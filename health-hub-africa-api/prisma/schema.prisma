@@ -1623,6 +1623,18 @@ model RecordShareAccess {
 
 // ─── Analytics ────────────────────────────────────────────────────────────────
 
+model AnalyticsPipelineRun {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  source       String
+  status       String
+  reportDate   DateTime  @map("report_date") @db.Date
+  startedAt    DateTime  @default(now()) @map("started_at")
+  completedAt  DateTime? @map("completed_at")
+
+  @@index([source, startedAt(sort: Desc)])
+  @@map("analytics_pipeline_runs")
+}
+
 model PatientActivityEvent {
   id                  String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   // Client-generated idempotency/dedup key (spec §20). Nullable so legacy

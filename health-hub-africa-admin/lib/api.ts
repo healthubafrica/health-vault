@@ -446,6 +446,15 @@ export interface GeoComparison {
 // can be told apart from ones generated under a later rule change.
 export interface RetentionAnalytics {
   windows: Array<{ days: number; eligibleCohortSize: number; retainedUsers: number; rate: number | null }>
+  groupBy: 'registrationMonth' | 'country' | 'device' | 'source' | 'plan' | 'firstFeature'
+  cohorts: Array<{
+    segment: string
+    cohortSize: number
+    windows: Array<{ days: number; eligibleCohortSize: number; retainedUsers: number; rate: number | null }>
+    medianSecondsToSecondSession: number | null
+    medianSecondsToSecondAction: number | null
+    medianSecondsToSecondBooking: number | null
+  }>
   cohortSize: number
   lookbackDays: number
   cohortDefinitionVersion: number
@@ -496,6 +505,13 @@ export interface SecurityAnalytics {
 // AnalyticsService.KPI_DEFINITIONS) so numerator/denominator/value stay
 // consistent with the step table above.
 export interface FunnelAnalytics {
+  journeys?: {
+    definitionVersion: number
+    medianStepsToConversion: number | null
+    topPaths: Array<{ path: string; count: number; converted: number; abandoned: number }>
+    exits: Array<{ page: string; count: number }>
+    funnels: Array<{ name: string; stages: Array<{ eventName: string; users: number; conversionRate: number | null; abandonmentRate: number | null; medianElapsedSeconds: number | null; retryCount: number; errorCount: number }> }>
+  }
   steps: Array<{ eventName: string; count: number; uniqueUsers: number; uniqueSessions: number }>
   kpis: Array<{
     key: string
@@ -1016,6 +1032,9 @@ export const adminApi = {
     funnel: (
       period = '30d',
       filters?: {
+        region?: string
+        city?: string
+        serviceType?: string
         country?: string
         continent?: string
         device?: string
@@ -1034,6 +1053,9 @@ export const adminApi = {
       },
     ) => {
       const qs = new URLSearchParams({ period })
+      if (filters?.region) qs.set('region', filters.region)
+      if (filters?.city) qs.set('city', filters.city)
+      if (filters?.serviceType) qs.set('serviceType', filters.serviceType)
       if (filters?.country) qs.set('country', filters.country)
       if (filters?.continent) qs.set('continent', filters.continent)
       if (filters?.device) qs.set('device', filters.device)
@@ -1062,9 +1084,9 @@ export const adminApi = {
     // No default here — an unset lookbackDays lets the API fall back to its
     // own default (kept in sync with its RETENTION_WINDOWS), rather than
     // this client silently pinning an old value the backend has moved past.
-    retention: (lookbackDays?: number) =>
+    retention: (lookbackDays?: number, groupBy = 'registrationMonth') =>
       request<{ data: RetentionAnalytics }>(
-        `/admin/analytics/retention${lookbackDays ? `?lookbackDays=${lookbackDays}` : ''}`,
+        `/admin/analytics/retention?groupBy=${groupBy}${lookbackDays ? `&lookbackDays=${lookbackDays}` : ''}`,
       ),
     digitalExperience: (period = '30d') =>
       request<{ data: DigitalExperienceAnalytics }>(`/admin/analytics/digital-experience?period=${period}`),

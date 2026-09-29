@@ -7,6 +7,7 @@ describe('AnalyticsService.trackEvent (anonymous + authenticated identity)', () 
       patientActivityEvent: {
         create: jest.fn().mockResolvedValue({}),
         upsert: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       analyticsSession: {
         findUnique: jest.fn().mockResolvedValue(null),
@@ -96,7 +97,12 @@ describe('AnalyticsService.trackEvent (anonymous + authenticated identity)', () 
   it('prefers a GeoLite2 lookup over the edge-header geo when the resolver returns a hit', async () => {
     const prisma = {
       patient: { findUnique: jest.fn().mockResolvedValue({ id: 'patient-1' }) },
-      patientActivityEvent: { create: jest.fn().mockResolvedValue({}), upsert: jest.fn().mockResolvedValue({}) },
+      patientActivityEvent: {
+        create: jest.fn().mockResolvedValue({}),
+        upsert: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      patientConsent: { findUnique: jest.fn().mockResolvedValue(null) },
     };
     const geoResolver = {
       resolve: jest.fn().mockReturnValue({
@@ -382,7 +388,7 @@ describe('AnalyticsService.getFunnelAnalytics (unique-user KPIs)', () => {
     returningSessionIds: string[] = [],
   ) {
     const prisma = {
-      patientActivityEvent: { findMany: jest.fn().mockResolvedValue(rows) },
+      patientActivityEvent: { findMany: jest.fn().mockResolvedValue(rows.map((row, index) => ({ ...row, occurredAt: new Date(Date.now() - 100000 + index * 1000) }))) },
       patient: { findMany: jest.fn().mockResolvedValue(patients) },
       $queryRaw: jest.fn().mockResolvedValue(attributionPatientIds.map((patientId) => ({ patientId }))),
       analyticsSession: { findMany: jest.fn().mockResolvedValue(returningSessionIds.map((analyticsSessionId) => ({ analyticsSessionId }))) },
@@ -744,7 +750,7 @@ describe('AnalyticsService.getFunnelAnalytics compare=true (spec §J date range 
 
     // the previous window's `until` is the current window's `since` — back-to-back, no gap/overlap
     const [currentCall, previousCall] = prisma.patientActivityEvent.findMany.mock.calls;
-    expect((previousCall[0].where.occurredAt as any).lte).toEqual((currentCall[0].where.occurredAt as any).gte);
+    expect((previousCall[0].where.occurredAt as any).lt).toEqual((currentCall[0].where.occurredAt as any).gte);
   });
 
   it('reports a null changePercent when the previous period had no data to compare against', async () => {
@@ -1057,7 +1063,7 @@ describe('AnalyticsService.getDigitalExperienceAnalytics (device/browser + clien
     const result = await service.getDigitalExperienceAnalytics('30d');
 
     expect(result.data.errorCount).toBe(3);
-    expect(result.data.errorRate).toBe(75); // 3 of 4 total events
+    expect(result.data.errorRate).toBeNull(); // JS exceptions are not qualifying action attempts
     expect(result.data.topErrors[0]).toEqual({ message: 'TypeError: x is undefined', count: 2 });
   });
 
@@ -1419,7 +1425,7 @@ describe('AnalyticsService.getGeoMapAnalytics (access-geography metrics per coun
     expect(ng.registrations).toBe(2);
     expect(ng.activatedUsers).toBe(1);
     expect(ng.activationRate).toBe(50);
-    expect(data.countries.find((c) => c.countryCode === 'GH')!.paymentSuccessRate).toBe(0);
+    expect(data.countries.find((c) => c.countryCode === 'GH')!.paymentSuccessRate).toBeNull(); // checkout views are not payment attempts
   });
 
   it('reports null (not 0, not NaN) when a denominator step never fired in that country', async () => {

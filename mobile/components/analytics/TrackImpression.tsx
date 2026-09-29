@@ -1,44 +1,47 @@
-import { ReactNode, useEffect, useRef } from 'react';
-import { View, ViewStyle, StyleProp } from 'react-native';
+import { ReactNode, useCallback, useRef } from 'react';
+import { AppState, View, ViewStyle, StyleProp, useWindowDimensions } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { analytics } from '@/lib/api';
 
 interface TrackImpressionProps {
-  elementId: string;
-  featureArea?: string;
-  elementType?: string;
-  children: ReactNode;
-  // ServiceCard/QuickActionButton size themselves via flex/explicit width
-  // props from their parent grid — pass the same sizing here so wrapping
-  // them in this View doesn't change the grid's layout.
-  style?: StyleProp<ViewStyle>;
+  elementId: string; featureArea?: string; elementType?: string;
+  children: ReactNode; style?: StyleProp<ViewStyle>;
+}
+export function visibleFraction(x: number, y: number, width: number, height: number, screenWidth: number, screenHeight: number) {
+  if (width <= 0 || height <= 0) return 0;
+  const visibleWidth = Math.max(0, Math.min(x + width, screenWidth) - Math.max(0, x));
+  const visibleHeight = Math.max(0, Math.min(y + height, screenHeight) - Math.max(0, y));
+  return visibleWidth * visibleHeight / (width * height);
 }
 
-// Mobile counterpart of health-hub-africa/components/analytics/TrackImpression.tsx
-// — but a deliberately WEAKER signal than the web version's real
-// IntersectionObserver-based check (>=50% visible for a sustained 500ms).
-// React Native has no built-in viewport-intersection primitive for an
-// arbitrary View inside a ScrollView (only FlatList/SectionList get
-// onViewableItemsChanged, and these screens don't use those); a real
-// equivalent would mean adding a native module (e.g.
-// react-native-intersection-observer) and validating it against this app's
-// Expo dev-client build — a bigger infra decision than this component.
-//
-// So this fires cta_impression once per mount instead of once actually
-// visible. That's an honest overcount risk for anything below the fold on
-// a long scroll, which is why it's only wired to CTAs that render at or
-// near the top of a phone-sized viewport today (Home tab quick actions,
-// Services Hub grid). Swapping in a real visibility signal later only
-// changes the trigger condition here, not the event shape or any
-// downstream CTA CTR math.
+export function qualifiesImpression(fraction: number, visibleForMs: number) {
+  return fraction >= 0.5 && visibleForMs >= 500;
+}
+/** Same qualification as web: >=50% visible for 500ms on a focused foreground screen. */
 export function TrackImpression({ elementId, featureArea, elementType, children, style }: TrackImpressionProps) {
-  const firedRef = useRef(false);
-
-  useEffect(() => {
-    if (firedRef.current) return;
-    firedRef.current = true;
-    analytics.track('cta_impression', { element_id: elementId, feature_area: featureArea, element_type: elementType });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return <View style={style}>{children}</View>;
+  const view = useRef<View>(null);
+  const fired = useRef(new Set<string>());
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  useFocusEffect(useCallback(() => {
+    let alive = true;
+    let visibleSince: number | null = null;
+    const sample = () => {
+      if (fired.current.has(elementId) || !alive) return;
+      if (AppState.currentState !== 'active') { visibleSince = null; return; }
+      view.current?.measureInWindow((x, y, width, height) => {
+        if (!alive) return;
+        if (visibleFraction(x, y, width, height, screenWidth, screenHeight) < 0.5) { visibleSince = null; return; }
+        const now = Date.now();
+        visibleSince ??= now;
+        if (!qualifiesImpression(visibleFraction(x, y, width, height, screenWidth, screenHeight), now - visibleSince)) return;
+        fired.current.add(elementId);
+        analytics.track('cta_impression', { element_id: elementId, feature_area: featureArea, element_type: elementType });
+      });
+    };
+    const subscription = AppState.addEventListener('change', () => { visibleSince = null; });
+    const timer = setInterval(sample, 100);
+    sample();
+    return () => { alive = false; clearInterval(timer); subscription.remove(); };
+  }, [elementId, featureArea, elementType, screenWidth, screenHeight]));
+  return <View ref={view} collapsable={false} style={style}>{children}</View>;
 }

@@ -1,3 +1,4 @@
+import { COHORT_DIMENSIONS, CohortDimension } from '../analytics/cohort-metrics';
 import {
   BadRequestException,
   Body,
@@ -254,7 +255,11 @@ export class AdminController {
     @Query('utmCampaign') utmCampaign?: string,
     @Query('lifecycleStage') lifecycleStage?: string,
     @Query('compare') compare?: string,
+    @Query('region') region?: string,
+    @Query('city') city?: string,
+    @Query('serviceType') serviceType?: string,
   ) {
+    if (serviceType && !Object.values(ServiceType).includes(serviceType as ServiceType)) throw new BadRequestException('Invalid serviceType');
     if (lifecycleStage && !(LIFECYCLE_STAGES as readonly string[]).includes(lifecycleStage)) {
       throw new BadRequestException(`lifecycleStage must be one of: ${LIFECYCLE_STAGES.join(', ')}`);
     }
@@ -262,6 +267,7 @@ export class AdminController {
       period,
       {
         country,
+        region, city, serviceType,
         continent,
         device,
         ageBand,
@@ -313,8 +319,12 @@ export class AdminController {
   @Get('analytics/retention')
   @ApiOperation({ summary: 'Get D1/D7/D30/D60/D90 patient retention (spec §16)' })
   @ApiQuery({ name: 'lookbackDays', required: false, description: 'How far back to search for eligible cohort members (default 120 — 30 days past the largest D90 window)' })
-  getRetentionAnalytics(@Query('lookbackDays') lookbackDays?: string) {
-    return this.adminService.getRetentionAnalytics(lookbackDays ? parseInt(lookbackDays, 10) : undefined);
+  @ApiQuery({ name: 'groupBy', required: false, enum: COHORT_DIMENSIONS })
+  getRetentionAnalytics(@Query('lookbackDays') lookbackDays?: string, @Query('groupBy') groupBy?: string) {
+    if (groupBy && !COHORT_DIMENSIONS.includes(groupBy as CohortDimension)) throw new BadRequestException('Invalid cohort dimension');
+    const days = lookbackDays ? Number(lookbackDays) : 120;
+    if (!Number.isInteger(days) || days < 1 || days > 366) throw new BadRequestException('lookbackDays must be 1–366');
+    return this.adminService.getRetentionAnalytics(days, groupBy as CohortDimension);
   }
 
   @Get('analytics/digital-experience')

@@ -58,6 +58,10 @@ export const ANALYTICS_EVENTS: Record<string, CatalogEntry> = {
   // ── Payments & subscriptions ────────────────────────────────────────────
   checkout_started: { version: 1, origin: 'web' },
   checkout_start: { version: 1, origin: 'web' },
+  payment_attempted: { version: 1, origin: 'server' },
+  slot_search: { version: 1, origin: 'web' },
+  slot_impression: { version: 1, origin: 'web' },
+  slot_selected: { version: 1, origin: 'web' },
   payment_pending: { version: 1, origin: 'web' },
   payment_success: { version: 1, origin: 'server' },
   payment_failure: { version: 1, origin: 'server' },
@@ -67,7 +71,7 @@ export const ANALYTICS_EVENTS: Record<string, CatalogEntry> = {
 
   // ── Features ────────────────────────────────────────────────────────────
   upload_start: { version: 1, origin: 'web' },
-  upload_success: { version: 1, origin: 'web' },
+  upload_success: { version: 2, origin: 'server' },
   upload_failure: { version: 1, origin: 'web' },
   share_start: { version: 1, origin: 'web' },
   share_success: { version: 1, origin: 'web' },
@@ -83,6 +87,7 @@ export const ANALYTICS_EVENTS: Record<string, CatalogEntry> = {
   download: { version: 1, origin: 'web' },
   records_view: { version: 1, origin: 'web' },
   result_view: { version: 1, origin: 'web' },
+  result_available: { version: 1, origin: 'server' },
   notification_clicked: { version: 1, origin: 'web' },
 
   // ── Cross-cutting ───────────────────────────────────────────────────────

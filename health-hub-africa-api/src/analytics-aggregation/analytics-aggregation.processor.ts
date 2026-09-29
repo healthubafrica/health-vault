@@ -13,6 +13,7 @@ export class AnalyticsAggregationProcessor {
       await this.aggregation.runDailyAggregation();
     } catch (err) {
       this.logger.error(`Daily aggregation job failed: ${err instanceof Error ? err.message : String(err)}`);
+      throw err;
     }
   }
 }

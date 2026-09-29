@@ -183,6 +183,11 @@ export class PaymentsService {
   ): Promise<{ payment: Awaited<ReturnType<typeof this.prisma.payment.create>>; conflicted: boolean }> {
     try {
       const payment = await this.prisma.payment.create({ data });
+      void this.analytics.emitServerEvent('payment_attempted', {
+        eventId: `payment-attempt:${payment.id}`, patientId: payment.patientId,
+        occurredAt: payment.createdAt,
+        properties: { paymentId: payment.id, gateway: payment.gateway },
+      });
       return { payment, conflicted: false };
     } catch (err) {
       const target = (err as { meta?: { target?: unknown } })?.meta?.target;
@@ -945,6 +950,7 @@ export class PaymentsService {
     // charge) funnels through this one already-`claimed`-guarded method, so
     // one call site covers all of them without double-counting a replay.
     void this.analytics.emitServerEvent('payment_success', {
+      eventId: `payment-success:${payment.id}`, occurredAt: paidAt,
       patientId: payment.patientId,
       properties: {
         paymentId: payment.id,

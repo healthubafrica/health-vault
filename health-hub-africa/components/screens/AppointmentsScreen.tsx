@@ -200,7 +200,6 @@ export function AppointmentsScreen() {
         return
       }
 
-      analytics.track('booking_started', { serviceType, hasProvider: !!selectedProviderId })
       const res = await apptApi.create({
         appointmentType: selectedService.appointmentType,
         serviceType,
@@ -395,7 +394,8 @@ export function AppointmentsScreen() {
             label="Date &amp; Time"
             type="datetime-local"
             value={scheduledAt}
-            onChange={e => setScheduledAt(e.target.value)}
+            onFocus={() => analytics.track('booking_started', { serviceType, feature_area: 'appointments' })}
+            onChange={e => { setScheduledAt(e.target.value); if (e.target.value) analytics.track('slot_selected', { serviceType, selection_mode: 'requested_time', feature_area: 'appointments' }) }}
           />
 
           {/* Facility picker — required for in-person services, hidden for telecare */}
