@@ -1,3 +1,7 @@
+import { cohortMetrics, CohortDimension } from './cohort-metrics';
+import { activationMetric, activationPolicy, DEFAULT_ACTIVATION_EVENTS } from './activation-policy';
+import { reportingRange } from './reporting-window';
+import { journeyMetrics, paymentAttemptRate, actionErrorRate } from './journey-metrics';
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -120,6 +124,9 @@ export type LifecycleStage = (typeof LIFECYCLE_STAGES)[number];
 
 export interface FunnelFilters {
   country?: string;
+  region?: string;
+  city?: string;
+  serviceType?: string;
   continent?: string;
   device?: string;
   os?: string;
@@ -216,6 +223,13 @@ export class AnalyticsService {
         ? (await this.prisma.patient.findUnique({ where: { userId: currentUser.sub }, select: { id: true } }))?.id
         : undefined;
 
+      if (patientId && currentUser) {
+        await this.prisma.patientActivityEvent.updateMany({
+          where: { patientId: null, ingestionSource: 'server', properties: { path: ['registeredUserId'], equals: currentUser.sub } },
+          data: { patientId },
+        });
+      }
+
       // Nothing to key the row on — drop rather than write an orphan event.
       if (!patientId && !dto.anonymousVisitorId) return;
 
@@ -233,7 +247,7 @@ export class AnalyticsService {
         eventId: dto.eventId,
         eventVersion: dto.eventVersion ?? catalog?.version ?? 1,
         patientId,
-        anonymousVisitorId: patientId ? undefined : dto.anonymousVisitorId,
+        anonymousVisitorId: dto.anonymousVisitorId,
         analyticsSessionId: dto.analyticsSessionId,
         // Clients may only claim 'mobile'; anything else (incl. a spoofed
         // 'server') collapses to 'web'. True server events use emitServerEvent().
@@ -289,6 +303,7 @@ export class AnalyticsService {
         await this.prisma.patientActivityEvent.create({ data });
       }
 
+      await this.recordFirstMeaningfulAction(patientId, eventName, dto.analyticsSessionId);
       await this.rollUpSession({
         analyticsSessionId: dto.analyticsSessionId,
         patientId,
@@ -320,6 +335,8 @@ export class AnalyticsService {
   async emitServerEvent(
     eventName: string,
     opts: {
+      eventId?: string;
+      occurredAt?: Date;
       userId?: string;
       patientId?: string;
       anonymousVisitorId?: string;
@@ -350,11 +367,12 @@ export class AnalyticsService {
       const os = osFromUserAgent(ua);
       const environment = process.env.NODE_ENV ?? 'development';
 
-      await this.prisma.patientActivityEvent.create({
-        data: {
+      const eventData = {
+          eventId: opts.eventId,
+          occurredAt: opts.occurredAt,
           eventVersion: catalog?.version ?? 1,
           patientId,
-          anonymousVisitorId: patientId ? undefined : opts.anonymousVisitorId,
+          anonymousVisitorId: opts.anonymousVisitorId,
           analyticsSessionId: opts.analyticsSessionId,
           ingestionSource: 'server',
           environment,
@@ -377,9 +395,14 @@ export class AnalyticsService {
           os,
           userAgent: ua?.slice(0, 1000),
           receivedAt: new Date(),
-          properties: (opts.properties ?? {}) as Prisma.InputJsonValue,
-        },
-      });
+          properties: { ...(opts.properties ?? {}), ...(opts.userId ? { registeredUserId: opts.userId } : {}) } as Prisma.InputJsonValue,
+      };
+      if (opts.eventId) {
+        await this.prisma.patientActivityEvent.upsert({ where: { eventId: opts.eventId }, create: eventData, update: {} });
+      } else {
+        await this.prisma.patientActivityEvent.create({ data: eventData });
+      }
+      await this.recordFirstMeaningfulAction(patientId, eventName, opts.analyticsSessionId);
 
       // Rolls up only when the caller had a client session id to pass
       // through (most webhooks won't) — rollUpSession no-ops otherwise.
@@ -400,6 +423,17 @@ export class AnalyticsService {
     } catch (err) {
       this.logger.error(`emitServerEvent(${eventName}) failed`, err);
     }
+  }
+
+  private async recordFirstMeaningfulAction(patientId: string | undefined, eventName: string, analyticsSessionId?: string) {
+    if (!patientId || !AnalyticsService.ACTIVATION_QUALIFYING_EVENTS.includes(eventName)) return;
+    await this.prisma.patientActivityEvent.upsert({
+      where: { eventId: `first-meaningful:${patientId}` },
+      create: { eventId: `first-meaningful:${patientId}`, patientId, eventName: 'first_meaningful_action',
+        analyticsSessionId, ingestionSource: 'server', environment: process.env.NODE_ENV ?? 'development',
+        eventVersion: 1, receivedAt: new Date(), properties: { qualifyingEvent: eventName } },
+      update: {},
+    });
   }
 
   // Meaningful health actions (spec §7 "engaged_session" / §13 activation
@@ -624,12 +658,11 @@ export class AnalyticsService {
   }
 
   async getTrafficAnalytics(period = '30d') {
-    const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
-    const since = new Date();
-    since.setDate(since.getDate() - days);
+    const { since, until } = reportingRange(period);
+    const days = Math.ceil((+until - +since) / 86400000);
 
     const visits = await this.prisma.siteVisit.findMany({
-      where: { occurredAt: { gte: since } },
+      where: { occurredAt: { gte: since, lt: until } },
       select: {
         occurredAt: true, countryCode: true, region: true, city: true,
         userAgent: true, referrer: true, utmSource: true, utmMedium: true, utmCampaign: true,
@@ -639,7 +672,7 @@ export class AnalyticsService {
     const dayMap = new Map<string, number>();
     const cursor = new Date(since);
     cursor.setUTCHours(0, 0, 0, 0);
-    const today = new Date();
+    const today = new Date(until);
     today.setUTCHours(0, 0, 0, 0);
     while (cursor <= today) {
       dayMap.set(cursor.toISOString().slice(0, 10), 0);
@@ -776,7 +809,6 @@ export class AnalyticsService {
     { key: 'otpVerificationRate', label: 'OTP Verification Rate', numerator: 'otp_verify_success', denominator: 'otp_requested' },
     { key: 'registrationToVerifiedRate', label: 'Registered → Verified', numerator: 'otp_verify_success', denominator: 'registration_complete' },
     { key: 'bookingConversionRate', label: 'Booking Conversion', numerator: 'booking_confirmed', denominator: 'booking_started' },
-    { key: 'paymentSuccessRate', label: 'Payment Success Rate', numerator: 'payment_success', denominator: 'checkout_started' },
   ];
 
   // Spec §13: activation = a completed registration followed by at least one
@@ -785,9 +817,7 @@ export class AnalyticsService {
   // actual registration date — a correct unbounded version needs per-user
   // registration timestamps carried forward across periods, which nothing
   // here tracks yet. Extend if the business needs the stricter definition.
-  private static readonly ACTIVATION_QUALIFYING_EVENTS = [
-    'booking_confirmed', 'payment_success', 'upload_success', 'manual_entry_success', 'ticket_created',
-  ];
+  private static readonly ACTIVATION_QUALIFYING_EVENTS = DEFAULT_ACTIVATION_EVENTS;
 
   // Step counts (raw + unique users/sessions) for every funnel event name
   // emitted via analytics.track() — not hardcoded per funnel so new event
@@ -804,10 +834,8 @@ export class AnalyticsService {
   // NOT recomputed for the previous window — only the KPI table compares,
   // since that's the only place §J's filter bar surfaces this.
   async getFunnelAnalytics(period = '30d', filters?: FunnelFilters, compare = false) {
-    const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
-    const now = new Date();
-    const since = new Date(now);
-    since.setDate(since.getDate() - days);
+    const { since, until: now } = reportingRange(period);
+    const days = (+now - +since) / 86400000;
 
     const current = await this.computeFunnelWindow(since, now, filters);
     if (!compare) {
@@ -840,15 +868,18 @@ export class AnalyticsService {
     const rows = await this.prisma.patientActivityEvent.findMany({
       where: {
         ...AnalyticsService.PRODUCTION_EVENT_FILTER,
-        occurredAt: { gte: since, lte: until },
+        occurredAt: { gte: since, lt: until },
         ...(filters?.country && { countryCode: filters.country }),
+        ...(filters?.region && { regionName: filters.region }),
+        ...(filters?.city && { city: filters.city }),
+        ...(filters?.serviceType && { serviceType: filters.serviceType as any }),
         ...(filters?.device && { deviceCategory: filters.device }),
         ...(filters?.os && { os: filters.os }),
         ...(filters?.browser && { browser: filters.browser }),
         ...(filters?.featureArea && { featureArea: filters.featureArea }),
         ...(filters?.timezone && { timezone: filters.timezone }),
       },
-      select: { eventName: true, patientId: true, anonymousVisitorId: true, analyticsSessionId: true, countryCode: true },
+      select: { eventName: true, patientId: true, anonymousVisitorId: true, analyticsSessionId: true, countryCode: true, occurredAt: true, pagePath: true, properties: true },
     });
     let filtered = filters?.continent
       ? rows.filter((r) => continentForCountry(r.countryCode) === filters.continent)
@@ -869,7 +900,7 @@ export class AnalyticsService {
       // for why those aren't a normal Prisma select) — intersected when
       // both are active, same AND semantics a real filter bar implies.
       const [patientMatch, attributionMatch] = await Promise.all([
-        wantsPatientSegment ? this.resolvePatientIdsForSegment({ ageBand, planTier, gender, nationality }) : null,
+        wantsPatientSegment ? this.resolvePatientIdsForSegment({ ageBand, planTier, gender, nationality }, until) : null,
         wantsAttributionSegment ? this.resolveUserAttributionPatientIds(acquisitionSource, utmCampaign) : null,
       ]);
       const matchingPatientIds =
@@ -895,22 +926,22 @@ export class AnalyticsService {
 
     const uniqueUsers = (eventName: string) => byEvent.get(eventName)?.users.size ?? 0;
 
-    const registeredUsers = byEvent.get('registration_complete')?.users ?? new Set<string>();
-    const activatedUsers = new Set<string>();
-    for (const eventName of AnalyticsService.ACTIVATION_QUALIFYING_EVENTS) {
-      for (const user of byEvent.get(eventName)?.users ?? []) {
-        if (registeredUsers.has(user)) activatedUsers.add(user);
-      }
-    }
-    const activationKpi = {
-      key: 'activationRate',
-      label: 'Activation Rate',
-      numerator: activatedUsers.size,
-      denominator: registeredUsers.size,
-      value: registeredUsers.size > 0 ? Math.round((activatedUsers.size / registeredUsers.size) * 1000) / 10 : null,
-    };
+    const policy = activationPolicy();
+    const registrations = filtered.filter(row => row.eventName === 'registration_complete');
+    const patientIds = [...new Set(registrations.map(row => row.patientId).filter((id): id is string => !!id))];
+    const anonymousIds = [...new Set(registrations.map(row => row.anonymousVisitorId).filter((id): id is string => !!id))];
+    const qualifying = registrations.length ? await this.prisma.patientActivityEvent.findMany({
+      where: { ...AnalyticsService.PRODUCTION_EVENT_FILTER, eventName: { in: policy.events },
+        occurredAt: { gte: since, lt: new Date(Math.min(Date.now(), +until + policy.days * 86400000)) },
+        OR: [{ patientId: { in: patientIds } }, { anonymousVisitorId: { in: anonymousIds } }] },
+      select: { eventName: true, patientId: true, anonymousVisitorId: true, occurredAt: true },
+    }) : [];
+    const activationKpi = activationMetric(registrations, qualifying, policy);
 
     return {
+      definitionVersion: 2,
+      activationDefinition: policy,
+      journeys: journeyMetrics(filtered),
       steps: Array.from(byEvent.entries())
         .map(([eventName, b]) => ({ eventName, count: b.count, uniqueUsers: b.users.size, uniqueSessions: b.sessions.size }))
         .sort((a, b) => b.count - a.count),
@@ -926,6 +957,7 @@ export class AnalyticsService {
             value: denominator > 0 ? Math.round((numerator / denominator) * 1000) / 10 : null,
           };
         }),
+        { key: 'paymentSuccessRate', label: 'Payment Success Rate', ...paymentAttemptRate(filtered) },
         activationKpi,
       ],
     };
@@ -938,14 +970,13 @@ export class AnalyticsService {
   // an element seen twice by the same visitor across two page loads should
   // count as one qualified impression, not two.
   async getClickstreamAnalytics(period = '30d') {
-    const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
-    const since = new Date();
-    since.setDate(since.getDate() - days);
+    const { since, until } = reportingRange(period);
+    const days = Math.ceil((+until - +since) / 86400000);
 
     const rows = await this.prisma.patientActivityEvent.findMany({
       where: {
         ...AnalyticsService.PRODUCTION_EVENT_FILTER,
-        occurredAt: { gte: since },
+        occurredAt: { gte: since, lt: until },
         eventName: { in: ['cta_impression', 'ui_click'] },
         elementId: { not: null },
       },
@@ -1017,20 +1048,19 @@ export class AnalyticsService {
   // (unique-user based, same as the Funnels tab) so "booking conversion in
   // Ghana" means the same thing as the funnel KPI filtered to Ghana.
   async getGeoMapAnalytics(period = '30d', basis: 'access' | 'declared' = 'access') {
-    const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
-    const since = new Date();
-    since.setDate(since.getDate() - days);
+    const { since, until } = reportingRange(period);
+    const days = Math.ceil((+until - +since) / 86400000);
 
     const rows = await this.prisma.patientActivityEvent.findMany({
       where: {
         ...AnalyticsService.PRODUCTION_EVENT_FILTER,
-        occurredAt: { gte: since },
+        occurredAt: { gte: since, lt: until },
         // Access basis can filter server-side (countryCode is a column);
         // declared basis needs every authenticated row first, then resolves
         // each patientId's declared country below.
         ...(basis === 'access' ? { countryCode: { not: null } } : {}),
       },
-      select: { eventName: true, patientId: true, anonymousVisitorId: true, analyticsSessionId: true, countryCode: true },
+      select: { eventName: true, patientId: true, anonymousVisitorId: true, analyticsSessionId: true, countryCode: true, occurredAt: true, properties: true },
     });
 
     let countryOf: (r: (typeof rows)[number]) => string | undefined;
@@ -1093,7 +1123,7 @@ export class AnalyticsService {
           activatedUsers: activated.size,
           activationRate: rate(activated.size, registered.size),
           bookingConversionRate: kpi('bookingConversionRate'),
-          paymentSuccessRate: kpi('paymentSuccessRate'),
+          paymentSuccessRate: paymentAttemptRate(rows.filter((row) => countryOf(row) === countryCode)).value,
         };
       })
       .sort((a, b) => b.visitors - a.visitors);
@@ -1113,14 +1143,13 @@ export class AnalyticsService {
   // visitors have no declared location to compare against). Declared
   // values never get overwritten by this — it's a read-only report.
   async getGeoComparison(period = '30d') {
-    const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
-    const since = new Date();
-    since.setDate(since.getDate() - days);
+    const { since, until } = reportingRange(period);
+    const days = Math.ceil((+until - +since) / 86400000);
 
     const rows = await this.prisma.patientActivityEvent.findMany({
       where: {
         ...AnalyticsService.PRODUCTION_EVENT_FILTER,
-        occurredAt: { gte: since },
+        occurredAt: { gte: since, lt: until },
         patientId: { not: null },
         countryCode: { not: null },
       },
@@ -1209,8 +1238,8 @@ export class AnalyticsService {
     planTier?: string;
     gender?: string;
     nationality?: string;
-  }): Promise<Set<string>> {
-    const now = new Date();
+  }, asOf = new Date()): Promise<Set<string>> {
+    const now = asOf;
     const patients = await this.prisma.patient.findMany({
       where: { user: { deletedAt: null } },
       select: {
@@ -1396,7 +1425,7 @@ export class AnalyticsService {
   // numbers silently drifting between two runs of the "same" report.
   private static readonly RETENTION_COHORT_DEFINITION_VERSION = 1;
 
-  async getRetentionAnalytics(lookbackDays = AnalyticsService.RETENTION_DEFAULT_LOOKBACK_DAYS) {
+  async getRetentionAnalytics(lookbackDays = AnalyticsService.RETENTION_DEFAULT_LOOKBACK_DAYS, groupBy: CohortDimension = 'registrationMonth') {
     const since = new Date();
     since.setDate(since.getDate() - lookbackDays);
     const now = new Date();
@@ -1409,7 +1438,7 @@ export class AnalyticsService {
           patientId: { not: null },
           occurredAt: { gte: since },
         },
-        select: { patientId: true, occurredAt: true },
+        select: { patientId: true, anonymousVisitorId: true, occurredAt: true, eventName: true, analyticsSessionId: true, properties: true, countryCode: true, deviceCategory: true, featureArea: true },
       }),
       this.prisma.patientActivityEvent.findMany({
         where: {
@@ -1417,7 +1446,7 @@ export class AnalyticsService {
           patientId: { not: null },
           occurredAt: { gte: since },
         },
-        select: { patientId: true, occurredAt: true },
+        select: { patientId: true, anonymousVisitorId: true, occurredAt: true, eventName: true, analyticsSessionId: true, properties: true, countryCode: true, deviceCategory: true, featureArea: true },
       }),
     ]);
 
@@ -1461,8 +1490,15 @@ export class AnalyticsService {
       };
     });
 
+    const patients = groupBy === 'plan' ? await this.prisma.patient.findMany({
+      where: { id: { in: [...registeredAt.keys()] } },
+      select: { id: true, subscriptions: { where: { status: 'active' }, select: { plan: { select: { tier: true } } }, take: 1 } },
+    }) : [];
+    const plans = new Map(patients.map(patient => [patient.id, patient.subscriptions[0]?.plan.tier ?? 'Free']));
     return {
       data: {
+        groupBy,
+        cohorts: cohortMetrics(registrations, activity, groupBy, plans, now),
         windows,
         cohortSize: registeredAt.size,
         lookbackDays,
@@ -1560,12 +1596,11 @@ export class AnalyticsService {
   // portal) via the same trackEvent()/PatientActivityEvent pipeline as every
   // other funnel event — no new table, no new ingestion endpoint.
   async getDigitalExperienceAnalytics(period = '30d') {
-    const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
-    const since = new Date();
-    since.setDate(since.getDate() - days);
+    const { since, until } = reportingRange(period);
+    const days = Math.ceil((+until - +since) / 86400000);
 
     const events = await this.prisma.patientActivityEvent.findMany({
-      where: { ...AnalyticsService.PRODUCTION_EVENT_FILTER, occurredAt: { gte: since } },
+      where: { ...AnalyticsService.PRODUCTION_EVENT_FILTER, occurredAt: { gte: since, lt: until } },
       select: {
         eventName: true,
         deviceCategory: true,
@@ -1635,7 +1670,10 @@ export class AnalyticsService {
         errorCount,
         // null (not 0) when there's simply no traffic to divide by — same
         // convention as every other KPI in this file.
-        errorRate: events.length > 0 ? Math.round((errorCount / events.length) * 1000) / 10 : null,
+        errorRate: actionErrorRate(events).value,
+        actionAttempts: actionErrorRate(events).denominator,
+        failedActions: actionErrorRate(events).numerator,
+        definitionVersion: 2,
         topErrors: Array.from(errorMessageMap.entries())
           .map(([message, count]) => ({ message, count }))
           .sort((a, b) => b.count - a.count)
@@ -1663,17 +1701,16 @@ export class AnalyticsService {
     });
     const mau = new Set(mauRows.map((r) => r.patientId as string)).size;
 
-    const days = parseInt(period.replace(/\D/g, ''), 10) || 30;
-    const since = new Date();
-    since.setDate(since.getDate() - days);
+    const { since, until } = reportingRange(period);
+    const days = Math.ceil((+until - +since) / 86400000);
 
     const [sessions, featureRows, eligibleRows] = await Promise.all([
       this.prisma.analyticsSession.findMany({
-        where: { isTestEvent: false, startedAt: { gte: since }, engaged: true },
+        where: { isTestEvent: false, startedAt: { gte: since, lt: until }, engaged: true },
         select: { clickCount: true },
       }),
       this.prisma.patientActivityEvent.findMany({
-        where: { ...AnalyticsService.PRODUCTION_EVENT_FILTER, occurredAt: { gte: since }, patientId: { not: null }, featureArea: { not: null } },
+        where: { ...AnalyticsService.PRODUCTION_EVENT_FILTER, occurredAt: { gte: since, lt: until }, patientId: { not: null }, featureArea: { not: null } },
         select: { patientId: true, featureArea: true },
       }),
       // "Eligible active patients" — the denominator for feature adoption —
@@ -1683,7 +1720,7 @@ export class AnalyticsService {
       this.prisma.patientActivityEvent.findMany({
         where: {
           ...AnalyticsService.PRODUCTION_EVENT_FILTER,
-          occurredAt: { gte: since },
+          occurredAt: { gte: since, lt: until },
           patientId: { not: null },
           eventName: { in: AnalyticsService.ACTIVATION_QUALIFYING_EVENTS },
         },

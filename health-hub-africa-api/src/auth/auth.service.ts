@@ -115,8 +115,8 @@ export class AuthService {
 
       await this.saveRegistrationAttribution(existingEmail.id, dto);
 
-      await this.sendEmailOtp(existingEmail.email, existingEmail.id, 'email');
-      this.emitRegistrationComplete(dto, context);
+      await this.sendEmailOtp(existingEmail.email, existingEmail.id, 'email', undefined, context);
+      this.emitRegistrationComplete(dto, context, existingEmail.id);
       return { message: 'Registration successful. Check your email for OTP.' };
     }
 
@@ -164,8 +164,8 @@ export class AuthService {
 
     await this.saveRegistrationAttribution(user.id, dto);
 
-    await this.sendEmailOtp(user.email, user.id, 'email');
-    this.emitRegistrationComplete(dto, context);
+    await this.sendEmailOtp(user.email, user.id, 'email', undefined, context);
+    this.emitRegistrationComplete(dto, context, user.id);
 
     return { message: 'Registration successful. Check your email for OTP.' };
   }
@@ -178,8 +178,9 @@ export class AuthService {
   // a no-op if an older client build didn't send one. Fires for both
   // branches above (new account and resend-to-unverified-account), matching
   // what the client-side event already counts as a completed registration.
-  private emitRegistrationComplete(dto: RegisterDto, context: LoginContext): void {
+  private emitRegistrationComplete(dto: RegisterDto, context: LoginContext, userId: string): void {
     void this.analytics.emitServerEvent('registration_complete', {
+      eventId: `registration:${userId}`, userId,
       anonymousVisitorId: context.anonymousVisitorId,
       geo: context,
       properties: { acquisitionSource: dto.acquisitionSource, source: 'server' },
@@ -226,7 +227,7 @@ export class AuthService {
 
     // 2FA: send a one-time code and defer token issuance until verified.
     if (user.twoFactorEnabled) {
-      await this.sendEmailOtp(user.email, user.id, 'two_factor');
+      await this.sendEmailOtp(user.email, user.id, 'two_factor', undefined, context);
       return { requiresTwoFactor: true as const, userId: user.id };
     }
 
@@ -599,6 +600,7 @@ export class AuthService {
     userId: string,
     type: 'email' | 'password_reset' | 'two_factor',
     role?: UserRole,
+    context: LoginContext = {},
   ) {
     await this.prisma.verificationToken.updateMany({
       where: { userId, type, usedAt: null },
@@ -645,7 +647,7 @@ export class AuthService {
         ? `Your login verification code is: ${otp}\n\nIt expires in 10 minutes. If you did not attempt to log in, change your password immediately.`
         : `Your email verification OTP is: ${otp}\n\nIt expires in 10 minutes.`;
 
-    await this.notifications.sendEmail(email, subject, body, userId);
+    await this.notifications.sendEmail(email, subject, body, userId, { anonymousVisitorId: context.anonymousVisitorId, purpose: type });
   }
 
   // ── Two-Factor Verification ───────────────────────────────────────────────

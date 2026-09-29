@@ -1,3 +1,4 @@
+import { AnalyticsService } from '../analytics/analytics.service';
 import { Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -14,6 +15,7 @@ export class NotificationsProcessor {
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly analytics?: AnalyticsService,
   ) {
     this.isProd = config.get('NODE_ENV') === 'production';
   }
@@ -112,13 +114,28 @@ export class NotificationsProcessor {
       const result = await this.doSendEmail(to, subject, html, text);
       if (result.skipped) {
         await this.markSkipped(deliveryId, result.skipped);
+        await this.trackOtpOutcome(job, false, 'unconfigured');
         return;
       }
       await this.markSent(deliveryId, result.providerRef);
+      await this.trackOtpOutcome(job, true, 'provider_accepted');
     } catch (err) {
       await this.markFailed(deliveryId, job, err);
+      if (job.attemptsMade + 1 >= (job.opts.attempts ?? 1)) await this.trackOtpOutcome(job, false, 'provider_failure');
       throw err;
     }
+  }
+
+  private async trackOtpOutcome(job: Job<NotificationJobData>, success: boolean, code: string) {
+    const context = job.data.otpAnalytics;
+    if (!context || !this.analytics) return;
+    await this.analytics.emitServerEvent(success ? 'otp_delivery_success' : 'otp_delivery_failure', {
+      eventId: `otp-delivery:${job.data.deliveryId}:${success ? 'success' : 'failure'}`,
+      userId: job.data.userId, anonymousVisitorId: context.anonymousVisitorId,
+      analyticsSessionId: context.analyticsSessionId,
+      properties: { channel: 'email', purpose: context.purpose, provider: 'resend', providerCode: code,
+        latencyMs: Math.max(0, Date.now() - job.timestamp), attemptNumber: job.attemptsMade + 1 },
+    });
   }
 
   // Returns a skip reason when the provider isn't configured, or the

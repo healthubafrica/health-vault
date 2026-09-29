@@ -109,7 +109,6 @@ export function useDocumentUpload(options?: {
         })
 
         patch(entry.id, { status: 'done', document: created.data })
-        analytics.track('upload_success', { category: entry.category })
         optionsRef.current?.onEntryDone?.(created.data)
       } catch (err) {
         analytics.track('upload_failure', { category: entry.category })

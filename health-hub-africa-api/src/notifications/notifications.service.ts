@@ -29,6 +29,7 @@ export interface NotificationJobData {
   // sent/failed). Created before enqueueing so the admin panel has a
   // durable record even if the job is still sitting in the queue.
   deliveryId: string;
+  otpAnalytics?: { anonymousVisitorId?: string; analyticsSessionId?: string; purpose: string };
 }
 
 // Structured data for the post-registration welcome email. Sent exactly once,
@@ -146,12 +147,12 @@ export class NotificationsService {
   // — UX-facing callers (e.g. "resend OTP") get the same response they always
   // do, so an attacker who triggers the throttle can't tell their target's
   // inbox is being protected.
-  async sendEmail(to: string, subject: string, body: string, userId?: string) {
+  async sendEmail(to: string, subject: string, body: string, userId?: string, otpAnalytics?: NotificationJobData['otpAnalytics']) {
     if (!(await this.rateLimiter.allow('email', to))) return;
     const deliveryId = await this.createDelivery(userId, 'email', to, subject, body);
     await this.queue.add(
       'send-email',
-      { userId, channel: 'email', to, subject, body, deliveryId },
+      { userId, channel: 'email', to, subject, body, deliveryId, ...(otpAnalytics ? { otpAnalytics } : {}) },
       { attempts: 3, backoff: { type: 'exponential', delay: 3000 } },
     );
   }

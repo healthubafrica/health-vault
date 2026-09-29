@@ -722,9 +722,9 @@ export function LoginScreen() {
                     />
                     <span className="text-[11px] leading-tight text-white/70">
                       I agree to the{' '}
-                      <a href="#" className="font-semibold hover:underline text-[#6DC43F]">Terms of Service</a>
+                      <a href="https://myvaultplus.com/terms" target="_blank" rel="noopener noreferrer" onClick={() => analytics.track('terms_viewed', { version: 1 })} className="font-semibold hover:underline text-[#6DC43F]">Terms of Service</a>
                       {' '}and{' '}
-                      <a href="#" className="font-semibold hover:underline text-[#6DC43F]">Privacy Policy</a>.
+                      <a href="https://myvaultplus.com/privacy" target="_blank" rel="noopener noreferrer" onClick={() => analytics.track('privacy_notice_viewed', { version: 1 })} className="font-semibold hover:underline text-[#6DC43F]">Privacy Policy</a>.
                     </span>
                   </label>
                 )}

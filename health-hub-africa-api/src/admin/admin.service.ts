@@ -1,3 +1,5 @@
+import { CohortDimension } from '../analytics/cohort-metrics';
+import { reportingRange } from '../analytics/reporting-window';
 import {
   BadRequestException,
   ForbiddenException,
@@ -723,9 +725,9 @@ export class AdminService {
   }
 
   async getAnalyticsRevenue(period = '30d') {
-    const since = this.periodToDate(period);
+    const { since, until } = reportingRange(period);
     const records = await this.prisma.revenueSummary
-      .findMany({ where: { reportDate: { gte: since } }, orderBy: { reportDate: 'asc' } })
+      .findMany({ where: { reportDate: { gte: new Date(+since + 3600000), lt: new Date(+until + 3600000) } }, orderBy: { reportDate: 'asc' } })
       .catch(() => []);
 
     return {
@@ -755,9 +757,9 @@ export class AdminService {
   };
 
   async getAnalyticsUsage(period = '30d') {
-    const since = this.periodToDate(period);
+    const { since, until } = reportingRange(period);
     const records = await this.prisma.serviceUsageDaily
-      .findMany({ where: { reportDate: { gte: since } }, orderBy: { reportDate: 'asc' } })
+      .findMany({ where: { reportDate: { gte: new Date(+since + 3600000), lt: new Date(+until + 3600000) } }, orderBy: { reportDate: 'asc' } })
       .catch(() => []);
 
     // Pivot: one row per date, every service type its own column (zero-filled
@@ -788,10 +790,10 @@ export class AdminService {
   private static readonly FUNNEL_TREND_EVENTS = ['registration_complete', 'otp_verify_success', 'booking_confirmed', 'payment_success'] as const;
 
   async getFunnelDailyTrend(period = '30d') {
-    const since = this.periodToDate(period);
+    const { since, until } = reportingRange(period);
     const records = await this.prisma.funnelEventDaily
       .findMany({
-        where: { reportDate: { gte: since }, eventName: { in: [...AdminService.FUNNEL_TREND_EVENTS] } },
+        where: { reportDate: { gte: new Date(+since + 3600000), lt: new Date(+until + 3600000) }, eventName: { in: [...AdminService.FUNNEL_TREND_EVENTS] } },
         orderBy: { reportDate: 'asc' },
       })
       .catch(() => []);
@@ -826,9 +828,9 @@ export class AdminService {
   // views) for that reason — summing daily-unique counts across days would
   // silently overstate reach the more days a filter window spans.
   private async rankDimensionValues(dimension: string, period: string, limit: number) {
-    const since = this.periodToDate(period);
+    const { since, until } = reportingRange(period);
     const records = await this.prisma.dimensionDailyMetric
-      .findMany({ where: { dimension, reportDate: { gte: since } } })
+      .findMany({ where: { dimension, reportDate: { gte: new Date(+since + 3600000), lt: new Date(+until + 3600000) } } })
       .catch(() => []);
 
     const byValue = new Map<string, { count: number; dailyUniqueUsersSummed: number }>();
@@ -904,8 +906,8 @@ export class AdminService {
   // No default hardcoded here — forwards straight through so
   // AnalyticsService's own default (kept in sync with RETENTION_WINDOWS)
   // stays the single source of truth instead of two constants drifting apart.
-  getRetentionAnalytics(lookbackDays?: number) {
-    return this.analyticsService.getRetentionAnalytics(lookbackDays);
+  getRetentionAnalytics(lookbackDays?: number, groupBy?: CohortDimension) {
+    return this.analyticsService.getRetentionAnalytics(lookbackDays, groupBy);
   }
 
   getDigitalExperienceAnalytics(period = '30d') {
@@ -929,7 +931,7 @@ export class AdminService {
   }
 
   async getMarketingAnalytics(period = '30d') {
-    const since = this.periodToDate(period);
+    const { since, until } = reportingRange(period);
 
     type RegistrationRow = {
       id: string;
@@ -964,7 +966,7 @@ export class AdminService {
           "registration_referrer" AS "registrationReferrer"
         FROM "users"
         WHERE "role"::text = 'patient'
-          AND "created_at" >= ${since}
+          AND "created_at" >= ${since} AND "created_at" < ${until}
           AND "deleted_at" IS NULL
       `,
       this.prisma.$queryRaw<LoginRow[]>`
@@ -975,7 +977,7 @@ export class AdminService {
           le."utm_medium" AS "utmMedium", le."utm_campaign" AS "utmCampaign"
         FROM "login_events" le
         INNER JOIN "users" u ON u."id" = le."user_id"
-        WHERE le."occurred_at" >= ${since}
+        WHERE le."occurred_at" >= ${since} AND le."occurred_at" < ${until}
           AND le."success" = true
           AND u."role"::text = 'patient'
           AND u."deleted_at" IS NULL
@@ -985,7 +987,7 @@ export class AdminService {
     const dayMap = new Map<string, { registrations: number; logins: number }>();
     const cursor = new Date(since);
     cursor.setUTCHours(0, 0, 0, 0);
-    const today = new Date();
+    const today = new Date(until);
     today.setUTCHours(0, 0, 0, 0);
     while (cursor <= today) {
       dayMap.set(cursor.toISOString().slice(0, 10), { registrations: 0, logins: 0 });
@@ -1136,16 +1138,16 @@ export class AdminService {
   // admin/provider accounts is exactly the kind of thing this dashboard
   // exists to surface.
   async getSecurityAnalytics(period = '30d') {
-    const since = this.periodToDate(period);
+    const { since, until } = reportingRange(period);
 
     // Shared with AlertsService's cross-country login alert — see
     // analytics/login-anomaly.util.ts for why.
-    const attempts = await fetchLoginAttemptsSince(this.prisma, since);
+    const attempts = (await fetchLoginAttemptsSince(this.prisma, since)).filter(row => row.occurredAt < until);
 
     const dayMap = new Map<string, number>();
     const cursor = new Date(since);
     cursor.setUTCHours(0, 0, 0, 0);
-    const today = new Date();
+    const today = new Date(until);
     today.setUTCHours(0, 0, 0, 0);
     while (cursor <= today) {
       dayMap.set(cursor.toISOString().slice(0, 10), 0);
