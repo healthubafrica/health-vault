@@ -74,7 +74,8 @@
           "icon": "./assets/images/android-icon-monochrome.png",
           "color": "#137333"
         }
-      ]
+      ],
+      "@sentry/react-native/expo"
     ],
     "experiments": {
       "typedRoutes": true

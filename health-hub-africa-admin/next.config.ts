@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next'
+import { withSentryConfig } from '@sentry/nextjs'
 
 const isDev = process.env.NODE_ENV !== 'production'
 
@@ -36,9 +37,11 @@ const sharedHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self'",
+      // Allow API calls + Sentry ingestion + direct S3 uploads (presigned URLs)
+      // + LiveKit WebSocket signalling for telecare calls.
       "connect-src 'self' " +
         (process.env.NEXT_PUBLIC_API_URL ?? '') +
-        ' https://*.amazonaws.com ' +
+        ' https://*.sentry.io https://*.amazonaws.com ' +
         LIVEKIT_ORIGINS,
       "worker-src 'self' blob:",
       "frame-ancestors 'none'",
@@ -75,4 +78,17 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default nextConfig
+export default withSentryConfig(nextConfig, {
+  // Sentry organisation + project (set in CI / Vercel env vars for source maps)
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+
+  // Upload source maps only in CI to keep local builds fast
+  silent: !process.env.CI,
+
+  // Disable the default Sentry tunnel route (/monitoring) — we send directly
+  disableLogger: true,
+
+  // Automatically tree-shake Sentry debug code in production bundles
+  widenClientFileUpload: true,
+})
