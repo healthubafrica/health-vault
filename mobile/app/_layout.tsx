@@ -3,6 +3,7 @@ import { Stack, useRouter } from 'expo-router';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Notifications from 'expo-notifications';
+import * as Sentry from '@sentry/react-native';
 import { useEffect } from 'react';
 import { Platform, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -25,6 +26,16 @@ export const unstable_settings = {
 
 SplashScreen.preventAutoHideAsync();
 
+// Must run once, at module scope, before the app renders. Disabled (no-op)
+// in local dev builds without a DSN configured — same pattern as the API
+// and portal's Sentry setup.
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+  enabled: !!process.env.EXPO_PUBLIC_SENTRY_DSN,
+  environment: __DEV__ ? 'development' : 'production',
+  tracesSampleRate: __DEV__ ? 1.0 : 0.1,
+});
+
 // Must run once, before any LiveKit room is used. @livekit/react-native-webrtc
 // has no web implementation, so this is native-only — `expo start --web`
 // never touches TeleCare video.
@@ -36,7 +47,7 @@ if (Platform.OS !== 'web') {
 
 
 
-export default function RootLayout() {
+function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
@@ -364,3 +375,5 @@ function RootLayoutNav() {
     </ThemeProvider>
   );
 }
+
+export default Sentry.wrap(RootLayout);

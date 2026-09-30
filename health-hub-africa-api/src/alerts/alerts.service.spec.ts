@@ -10,6 +10,7 @@ function buildService(overrides: {
   repeatedFailedLoginRows?: Array<{ userId: string; email: string; count: number | bigint }>;
   credentialStuffingAccounts?: number;
   loginAttempts?: Array<{ userId: string; email: string; occurredAt: Date; countryCode: string | null; success: boolean }>;
+  pipelineHealth?: { lastRunAt: string | null; lastReportDate: string | null; isStale: boolean };
 } = {}) {
   const counts = overrides.eventCounts ?? {};
   const queryRaw = jest.fn().mockImplementation((strings: TemplateStringsArray) => {
@@ -38,8 +39,13 @@ function buildService(overrides: {
   };
   const notifications = { sendEmail: jest.fn().mockResolvedValue(undefined) };
   const queue = { getRepeatableJobs: jest.fn().mockResolvedValue([]), removeRepeatableByKey: jest.fn(), add: jest.fn() };
-  const service = new AlertsService(prisma as any, notifications as any, queue as any);
-  return { service, prisma, notifications };
+  const aggregation = {
+    getPipelineHealth: jest.fn().mockResolvedValue(
+      overrides.pipelineHealth ?? { lastRunAt: null, lastReportDate: null, isStale: false },
+    ),
+  };
+  const service = new AlertsService(prisma as any, notifications as any, queue as any, aggregation as any);
+  return { service, prisma, notifications, aggregation };
 }
 
 describe('AlertsService.runChecks (OTP failure spike)', () => {
@@ -190,5 +196,61 @@ describe('AlertsService.runChecks (login location anomaly)', () => {
     expect(prisma.adminAlert.create).not.toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ type: 'login_location_anomaly' }) }),
     );
+  });
+});
+
+describe('AlertsService.runChecks (analytics pipeline health)', () => {
+  it('raises when the pipeline health check reports stale', async () => {
+    const { service, prisma, notifications } = buildService({
+      pipelineHealth: { lastRunAt: '2026-09-27T02:00:00.000Z', lastReportDate: '2026-09-26', isStale: true },
+    });
+
+    await service.runChecks();
+
+    expect(prisma.adminAlert.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ type: 'analytics_pipeline_stale', severity: 'warning' }) }),
+    );
+    expect(notifications.sendEmail).toHaveBeenCalledWith(
+      'ops@example.com',
+      expect.stringContaining('Analytics aggregation pipeline is stale'),
+      expect.any(String),
+    );
+  });
+
+  it('raises a distinct message when no scheduled run has ever succeeded', async () => {
+    const { service, prisma } = buildService({
+      pipelineHealth: { lastRunAt: null, lastReportDate: null, isStale: true },
+    });
+
+    await service.runChecks();
+
+    expect(prisma.adminAlert.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ title: 'Analytics aggregation pipeline has never completed a scheduled run' }),
+      }),
+    );
+  });
+
+  it('does not raise when the pipeline is fresh', async () => {
+    const { service, prisma } = buildService({
+      pipelineHealth: { lastRunAt: '2026-09-30T02:00:00.000Z', lastReportDate: '2026-09-29', isStale: false },
+    });
+
+    await service.runChecks();
+
+    expect(prisma.adminAlert.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ type: 'analytics_pipeline_stale' }) }),
+    );
+  });
+
+  it('does not re-raise within the dedupe window', async () => {
+    const { service, prisma } = buildService({
+      pipelineHealth: { lastRunAt: null, lastReportDate: null, isStale: true },
+      recentAlert: { id: 'existing-alert' },
+    });
+
+    await service.runChecks();
+
+    expect(prisma.adminAlert.create).not.toHaveBeenCalled();
   });
 });
