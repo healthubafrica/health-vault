@@ -662,6 +662,9 @@ export const payments = {
       headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
     }),
 
+  getGatewayStatus: () =>
+    apiRequest<{ gateway: string; name: string; active: boolean }[]>('/payments/gateways/status'),
+
   validateCharge: (data: { paymentId: string; flwRef: string; otp: string }) =>
     apiRequest<{ status: string; paymentId: string }>('/payments/validate-charge', {
       method: 'POST',
@@ -877,7 +880,7 @@ export const subscriptions = {
 
   // Patient-facing paid upgrade. Returns a gateway authorization URL to open;
   // the subscription activates via payment webhook once the gateway confirms.
-  upgrade: (planId: string, billingCycle: string, gateway: 'Flutterwave' = 'Flutterwave') =>
+  upgrade: (planId: string, billingCycle: string, gateway: 'Flutterwave' | 'Paystack' = 'Flutterwave') =>
     apiRequest<SubscriptionUpgradeResponse>('/subscriptions/upgrade', {
       method: 'POST',
       body: JSON.stringify({ planId, billingCycle, gateway }),

@@ -22,11 +22,18 @@ jest.mock('@/lib/api', () => {
       upgrade: jest.fn(),
       cancel: jest.fn(),
     },
+    payments: { getGatewayStatus: jest.fn() },
   };
 });
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { analytics, subscriptions } = require('@/lib/api');
+const { analytics, subscriptions, payments } = require('@/lib/api');
+
+const gatewaysWithPaystack = (paystackActive: boolean) => [
+  { gateway: 'flutterwave', name: 'Flutterwave', active: true },
+  { gateway: 'paystack', name: 'Paystack', active: paystackActive },
+  { gateway: 'bank_transfer', name: 'Bank Transfer', active: true },
+];
 
 const freePlan = { id: 'p0', slug: 'free', tier: 'free', name: 'Free', priceKobo: 0, billingPeriod: 'monthly', features: ['Basic access'] };
 const proPlan = {
@@ -53,6 +60,7 @@ describe('SubscriptionScreen', () => {
     subscriptions.listPlans.mockReset().mockResolvedValue({ data: [freePlan, proPlan] });
     subscriptions.upgrade.mockReset();
     subscriptions.cancel.mockReset().mockResolvedValue({});
+    payments.getGatewayStatus.mockReset().mockResolvedValue(gatewaysWithPaystack(false));
     jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   });
 
@@ -79,8 +87,44 @@ describe('SubscriptionScreen', () => {
 
     expect(analytics.track).toHaveBeenCalledWith('ui_click', { element_id: 'subscribe_cta_pro', feature_area: 'subscriptions' });
     expect(analytics.track).toHaveBeenCalledWith('plan_select', { plan: 'pro', billing: 'monthly', isSwitch: true });
-    await waitFor(() => expect(subscriptions.upgrade).toHaveBeenCalledWith('p1', 'monthly'));
+    await waitFor(() => expect(subscriptions.upgrade).toHaveBeenCalledWith('p1', 'monthly', 'Flutterwave'));
     await waitFor(() => expect(mockOpenBrowserAsync).toHaveBeenCalledWith('https://pay.example/checkout'));
+  });
+
+  it('does not offer a gateway choice while Paystack is not live', async () => {
+    const { findByText, queryByText } = renderScreen();
+    await findByText('Pro');
+
+    expect(queryByText('Paystack')).toBeNull();
+  });
+
+  it('lets the patient pay with Paystack once it is live', async () => {
+    payments.getGatewayStatus.mockResolvedValue(gatewaysWithPaystack(true));
+    subscriptions.upgrade.mockResolvedValue({
+      requiresPayment: true, paymentId: 'pay2', gateway: 'Paystack',
+      authorizationUrl: 'https://checkout.paystack.com/abc', amountKobo: 500000, currency: 'NGN',
+    });
+
+    const { findByText } = renderScreen();
+    fireEvent.press(await findByText('Paystack'));
+    fireEvent.press(await findByText('Upgrade'));
+
+    await waitFor(() => expect(subscriptions.upgrade).toHaveBeenCalledWith('p1', 'monthly', 'Paystack'));
+    await waitFor(() => expect(mockOpenBrowserAsync).toHaveBeenCalledWith('https://checkout.paystack.com/abc'));
+  });
+
+  it('keeps Flutterwave as the default when Paystack is live but not chosen', async () => {
+    payments.getGatewayStatus.mockResolvedValue(gatewaysWithPaystack(true));
+    subscriptions.upgrade.mockResolvedValue({
+      requiresPayment: true, paymentId: 'pay3', gateway: 'Flutterwave',
+      authorizationUrl: 'https://pay.example/checkout', amountKobo: 500000, currency: 'NGN',
+    });
+
+    const { findByText } = renderScreen();
+    await findByText('Paystack');
+    fireEvent.press(await findByText('Upgrade'));
+
+    await waitFor(() => expect(subscriptions.upgrade).toHaveBeenCalledWith('p1', 'monthly', 'Flutterwave'));
   });
 
   it('shows an alert instead of crashing when checkout fails to start', async () => {
