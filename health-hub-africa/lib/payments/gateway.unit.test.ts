@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { effectiveGateway, isPaystackActive } from './gateway'
+import { CARD_GATEWAYS, DEFAULT_GATEWAY, effectiveGateway, isPaystackActive } from './gateway'
+
+describe('gateway defaults', () => {
+  it('defaults to Paystack', () => {
+    expect(DEFAULT_GATEWAY).toBe('Paystack')
+  })
+
+  it('lists Paystack first, then Flutterwave', () => {
+    expect([...CARD_GATEWAYS]).toEqual(['Paystack', 'Flutterwave'])
+  })
+})
 
 describe('isPaystackActive', () => {
   it('is true only when the API lists Paystack as active', () => {

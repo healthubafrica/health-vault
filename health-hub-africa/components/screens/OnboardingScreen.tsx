@@ -6,8 +6,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { FormInput, FormSelect } from '@/components/ui/FormInput'
 import { Button } from '@/components/ui/Button'
 import { patients, subscriptions, auth, type SubscriptionPlan } from '@/lib/api'
-import { useGatewayChoice } from '@/lib/hooks/useGatewayChoice'
-import { CARD_GATEWAYS } from '@/lib/payments/gateway'
+import { useGatewayAvailability } from '@/lib/hooks/useGatewayAvailability'
+import { GatewayPickerDialog } from '@/components/payments/GatewayPickerDialog'
+import type { CardGateway } from '@/lib/payments/gateway'
 import { formatCurrency } from '@/lib/utils'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { useAuthStore } from '@/lib/stores/authStore'
@@ -179,11 +180,30 @@ export function OnboardingScreen() {
   const [plansError, setPlansError] = useState('')
   const [selectedPlanId, setSelectedPlanId] = useState('')
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annually'>('monthly')
-  // Paystack is only offered once the API reports it live; statuses are
-  // re-read on reaching the plan step, when the user is certainly signed in.
-  const { gateway, setGateway, paystackActive } = useGatewayChoice(step === 5)
+  // The payment-method popup only opens once the API reports Paystack live;
+  // statuses are re-read on reaching the plan step, when the user is certainly
+  // signed in. Otherwise paid plans go straight to Flutterwave.
+  const { paystackActive } = useGatewayAvailability(step === 5)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [planSubmitting, setPlanSubmitting] = useState(false)
   const [planError, setPlanError] = useState('')
+
+  async function submitPlan(plan: SubscriptionPlan, gateway: CardGateway) {
+    setPlanSubmitting(true)
+    setPlanError('')
+    try {
+      if (plan.tier === 'Free') {
+        await subscriptions.subscribe(plan.id, 'monthly')
+        setStep(6)
+      } else {
+        const res = await subscriptions.upgrade(plan.id, billingCycle, gateway)
+        window.location.href = res.authorizationUrl
+      }
+    } catch (e: unknown) {
+      setPlanError(e instanceof Error ? e.message : 'Could not process. Please try again.')
+      setPlanSubmitting(false)
+    }
+  }
 
   const handleChronicToggle = (condition: string) => {
     if (chronicConditions.includes(condition)) {
@@ -703,30 +723,6 @@ export function OnboardingScreen() {
                         ))}
                       </div>
 
-                      {/* Payment method — only when Paystack is live alongside Flutterwave */}
-                      {paystackActive && (
-                        <div className="flex items-center gap-2 mb-4" role="group" aria-label="Payment method">
-                          <span className="text-[11px] font-medium text-white/50">Pay with</span>
-                          <div className="flex gap-1 p-1 rounded-full bg-white/5 border border-white/10">
-                            {CARD_GATEWAYS.map(g => (
-                              <button
-                                key={g}
-                                type="button"
-                                onClick={() => setGateway(g)}
-                                aria-pressed={gateway === g}
-                                className={`text-[11px] font-bold px-3.5 py-1.5 rounded-full transition-all cursor-pointer ${
-                                  gateway === g
-                                    ? 'bg-white text-[#0d1f11]'
-                                    : 'bg-transparent text-white/50 hover:text-white/80'
-                                }`}
-                              >
-                                {g}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
                       {/* Plan cards */}
                       <div className="flex flex-col gap-2.5 overflow-y-auto max-h-[260px] pr-1">
                         {plans.map(plan => {
@@ -813,24 +809,15 @@ export function OnboardingScreen() {
                             variant="primary"
                             size="sm"
                             disabled={!selectedPlanId || planSubmitting}
-                            onClick={async () => {
+                            onClick={() => {
                               const plan = plans.find(p => p.id === selectedPlanId)
                               if (!plan) return
-                              const isFree = plan.tier === 'Free'
-                              setPlanSubmitting(true)
-                              setPlanError('')
-                              try {
-                                if (isFree) {
-                                  await subscriptions.subscribe(plan.id, 'monthly')
-                                  setStep(6)
-                                } else {
-                                  const res = await subscriptions.upgrade(plan.id, billingCycle, gateway)
-                                  window.location.href = res.authorizationUrl
-                                }
-                              } catch (e: unknown) {
-                                setPlanError(e instanceof Error ? e.message : 'Could not process. Please try again.')
-                                setPlanSubmitting(false)
+                              // Paid plan with Paystack live: let the patient pick the gateway first.
+                              if (plan.tier !== 'Free' && paystackActive) {
+                                setPickerOpen(true)
+                                return
                               }
+                              void submitPlan(plan, 'Flutterwave')
                             }}
                             className="flex items-center gap-1 text-xs flex-1"
                           >
@@ -844,6 +831,16 @@ export function OnboardingScreen() {
                               <><span>Proceed to Payment</span><ArrowRight size={13} /></>
                             )}
                           </Button>
+                          <GatewayPickerDialog
+                            open={pickerOpen}
+                            summary={`${plans.find(p => p.id === selectedPlanId)?.name ?? ''} (${billingCycle})`}
+                            busy={planSubmitting}
+                            onClose={() => setPickerOpen(false)}
+                            onConfirm={(gateway) => {
+                              const plan = plans.find(p => p.id === selectedPlanId)
+                              if (plan) void submitPlan(plan, gateway)
+                            }}
+                          />
                         </div>
                         {/* Escape hatch — always available */}
                         {plans.some(p => p.tier === 'Free') && (

@@ -7,8 +7,9 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { Check } from 'lucide-react'
 import { subscriptions, analytics, type SubscriptionPlan } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
-import { useGatewayChoice } from '@/lib/hooks/useGatewayChoice'
-import { CARD_GATEWAYS } from '@/lib/payments/gateway'
+import { useGatewayAvailability } from '@/lib/hooks/useGatewayAvailability'
+import { GatewayPickerDialog } from '@/components/payments/GatewayPickerDialog'
+import type { CardGateway } from '@/lib/payments/gateway'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { TrackImpression } from '@/components/analytics/TrackImpression'
@@ -31,9 +32,10 @@ export function SubscriptionsScreen() {
   const { data: plansRes, isInitialLoad: plansLoading } = useApi(() => subscriptions.listPlans())
   const [saving, setSaving] = useState<string | null>(null)
   const [billing, setBilling] = useState<'monthly' | 'annually'>('monthly')
-  // The chooser only appears once the API reports Paystack as live, so a
-  // missing/misconfigured key never shows patients an option that would fail.
-  const { gateway, setGateway, paystackActive } = useGatewayChoice()
+  // The payment-method popup only opens once the API reports Paystack as live,
+  // so a missing/misconfigured key never shows patients an option that would fail.
+  const { paystackActive } = useGatewayAvailability()
+  const [pickingPlan, setPickingPlan] = useState<SubscriptionPlan | null>(null)
   const [expandedPlans, setExpandedPlans] = useState<Set<string>>(new Set())
 
   const toggleExpanded = (planId: string) => {
@@ -56,15 +58,25 @@ export function SubscriptionsScreen() {
   // currentPlanId includes Free (when no active sub)
   const currentPlanId = activeSub?.plan.id ?? freePlan?.id
 
-  async function handleSubscribe(plan: SubscriptionPlan) {
+  function handleSubscribe(plan: SubscriptionPlan) {
     const isSwitch = !!activeSub
     const label = `${plan.name} (${billing})`
+    analytics.track('ui_click', { element_id: `subscribe_cta_${plan.tier}`, feature_area: 'subscriptions' })
+    analytics.track('plan_select', { plan: plan.tier, billing, isSwitch })
+    // With Paystack live the popup asks which gateway to use and doubles as
+    // the confirmation; otherwise keep the plain confirm and use Flutterwave.
+    if (paystackActive) {
+      setPickingPlan(plan)
+      return
+    }
     const confirmMsg = isSwitch
       ? `Switch to ${label}? You'll be taken to a secure payment page.`
       : `Subscribe to ${label}? You'll be taken to a secure payment page.`
-    analytics.track('ui_click', { element_id: `subscribe_cta_${plan.tier}`, feature_area: 'subscriptions' })
-    analytics.track('plan_select', { plan: plan.tier, billing, isSwitch })
     if (!window.confirm(confirmMsg)) return
+    void startCheckout(plan, 'Flutterwave')
+  }
+
+  async function startCheckout(plan: SubscriptionPlan, gateway: CardGateway) {
     try {
       setSaving(plan.id)
       const res = await subscriptions.upgrade(plan.id, billing, gateway)
@@ -177,34 +189,6 @@ export function SubscriptionsScreen() {
               </button>
             ))}
           </div>
-
-          {/* ── Payment method (only when more than one card gateway is live) ── */}
-          {paystackActive && (
-            <div className="flex items-center gap-2" role="group" aria-label="Payment method">
-              <span className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>Pay with</span>
-              <div
-                className="flex gap-1 p-1 rounded-full"
-                style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}
-              >
-                {CARD_GATEWAYS.map((g) => (
-                  <button
-                    key={g}
-                    onClick={() => setGateway(g)}
-                    aria-pressed={gateway === g}
-                    className="text-xs font-bold px-4 py-2 rounded-full transition-all"
-                    style={{
-                      background: gateway === g ? 'var(--color-text)' : 'transparent',
-                      color: gateway === g ? 'var(--color-bg)' : 'var(--color-text-muted)',
-                      border: 'none',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {g}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* ── Plan cards ── */}
           <div className="flex flex-col gap-3">
@@ -336,6 +320,14 @@ export function SubscriptionsScreen() {
           )}
         </>
       )}
+
+      <GatewayPickerDialog
+        open={pickingPlan !== null}
+        summary={pickingPlan ? `${pickingPlan.name} (${billing})` : ''}
+        busy={saving !== null}
+        onClose={() => setPickingPlan(null)}
+        onConfirm={(gateway) => { if (pickingPlan) void startCheckout(pickingPlan, gateway) }}
+      />
     </div>
   )
 }
