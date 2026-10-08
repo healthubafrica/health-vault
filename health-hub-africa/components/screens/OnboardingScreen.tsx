@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { FormInput, FormSelect } from '@/components/ui/FormInput'
 import { Button } from '@/components/ui/Button'
 import { patients, subscriptions, auth, type SubscriptionPlan } from '@/lib/api'
+import { useGatewayChoice } from '@/lib/hooks/useGatewayChoice'
+import { CARD_GATEWAYS } from '@/lib/payments/gateway'
 import { formatCurrency } from '@/lib/utils'
 import { SkeletonBox } from '@/components/ui/Skeleton'
 import { useAuthStore } from '@/lib/stores/authStore'
@@ -177,6 +179,9 @@ export function OnboardingScreen() {
   const [plansError, setPlansError] = useState('')
   const [selectedPlanId, setSelectedPlanId] = useState('')
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annually'>('monthly')
+  // Paystack is only offered once the API reports it live; statuses are
+  // re-read on reaching the plan step, when the user is certainly signed in.
+  const { gateway, setGateway, paystackActive } = useGatewayChoice(step === 5)
   const [planSubmitting, setPlanSubmitting] = useState(false)
   const [planError, setPlanError] = useState('')
 
@@ -698,6 +703,30 @@ export function OnboardingScreen() {
                         ))}
                       </div>
 
+                      {/* Payment method — only when Paystack is live alongside Flutterwave */}
+                      {paystackActive && (
+                        <div className="flex items-center gap-2 mb-4" role="group" aria-label="Payment method">
+                          <span className="text-[11px] font-medium text-white/50">Pay with</span>
+                          <div className="flex gap-1 p-1 rounded-full bg-white/5 border border-white/10">
+                            {CARD_GATEWAYS.map(g => (
+                              <button
+                                key={g}
+                                type="button"
+                                onClick={() => setGateway(g)}
+                                aria-pressed={gateway === g}
+                                className={`text-[11px] font-bold px-3.5 py-1.5 rounded-full transition-all cursor-pointer ${
+                                  gateway === g
+                                    ? 'bg-white text-[#0d1f11]'
+                                    : 'bg-transparent text-white/50 hover:text-white/80'
+                                }`}
+                              >
+                                {g}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Plan cards */}
                       <div className="flex flex-col gap-2.5 overflow-y-auto max-h-[260px] pr-1">
                         {plans.map(plan => {
@@ -795,7 +824,7 @@ export function OnboardingScreen() {
                                   await subscriptions.subscribe(plan.id, 'monthly')
                                   setStep(6)
                                 } else {
-                                  const res = await subscriptions.upgrade(plan.id, billingCycle)
+                                  const res = await subscriptions.upgrade(plan.id, billingCycle, gateway)
                                   window.location.href = res.authorizationUrl
                                 }
                               } catch (e: unknown) {
