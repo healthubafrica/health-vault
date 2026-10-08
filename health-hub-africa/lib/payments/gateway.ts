@@ -1,6 +1,10 @@
-export type CardGateway = 'Flutterwave' | 'Paystack'
+export type CardGateway = 'Paystack' | 'Flutterwave'
 
-export const CARD_GATEWAYS: readonly CardGateway[] = ['Flutterwave', 'Paystack']
+/** Preselected in the payment-method popup. */
+export const DEFAULT_GATEWAY: CardGateway = 'Paystack'
+
+/** Display order for the payment-method popup. */
+export const CARD_GATEWAYS: readonly CardGateway[] = ['Paystack', 'Flutterwave']
 
 /** True only when the API explicitly lists Paystack as active. */
 export function isPaystackActive(statuses?: { gateway: string; active: boolean }[] | null): boolean {

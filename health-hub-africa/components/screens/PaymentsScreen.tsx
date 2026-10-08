@@ -48,7 +48,9 @@ export function PaymentsScreen() {
   const [showModal, setShowModal] = useState(false)
   const [description, setDescription] = useState('')
   const [amountNaira, setAmountNaira] = useState('')
-  const [gateway, setGateway] = useState<Gateway>('flutterwave')
+  // Paystack is the default; if the API reports it inactive the form falls back to Flutterwave.
+  const [selectedGateway, setSelectedGateway] = useState<Gateway>('paystack')
+  const gateway: Gateway = selectedGateway === 'paystack' && paystackInactive ? 'flutterwave' : selectedGateway
   const [submitting, setSubmitting] = useState(false)
   const [transferConfirm, setTransferConfirm] = useState<{ ref: string; amount: string } | null>(null)
 
@@ -123,7 +125,7 @@ export function PaymentsScreen() {
     analytics.track('ui_click', { element_id: 'make_payment_cta', feature_area: 'payments' })
     setDescription('')
     setAmountNaira('')
-    setGateway('flutterwave')
+    setSelectedGateway('paystack')
     setTransferConfirm(null)
     setShowModal(true)
   }
@@ -254,13 +256,13 @@ export function PaymentsScreen() {
                   </label>
                   <select
                     value={gateway}
-                    onChange={(e) => setGateway(e.target.value as Gateway)}
+                    onChange={(e) => setSelectedGateway(e.target.value as Gateway)}
                     className="w-full rounded-xl border px-3 py-2 text-sm outline-none focus:ring-2"
                     style={{ background: 'var(--color-bg)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
                   >
+                    <option value="paystack" disabled={paystackInactive}>Paystack (Card / Bank)</option>
                     <option value="flutterwave">Flutterwave (Card / Bank)</option>
                     <option value="bank_transfer">Bank Transfer (UBA)</option>
-                    <option value="paystack" disabled={paystackInactive}>Paystack (Card / Bank)</option>
                   </select>
                 </div>
 
