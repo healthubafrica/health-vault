@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, Crown, CheckCircle2, Sparkles } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
-import { subscriptions, analytics, SubscriptionPlan, ApiError } from '@/lib/api';
+import { subscriptions, payments, analytics, SubscriptionPlan, ApiError } from '@/lib/api';
 import { ListSkeleton, ErrorState } from '@/components/states';
 
 function formatNaira(kobo: number): string {
@@ -20,6 +20,16 @@ export default function SubscriptionScreen() {
   const qc = useQueryClient();
 
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annually'>('monthly');
+  const [gateway, setGateway] = useState<'Flutterwave' | 'Paystack'>('Flutterwave');
+
+  // The chooser only appears once the API reports Paystack as live, so a
+  // missing/misconfigured key never offers patients an option that would fail.
+  const { data: gatewayStatuses } = useQuery({
+    queryKey: ['payment-gateway-status'],
+    queryFn: payments.getGatewayStatus,
+    staleTime: 5 * 60_000,
+  });
+  const paystackActive = gatewayStatuses?.some((g) => g.gateway === 'paystack' && g.active) ?? false;
 
   const { data: myData, isLoading: isLoadingMy } = useQuery({
     queryKey: ['subscription-me'],
@@ -40,7 +50,8 @@ export default function SubscriptionScreen() {
   const plans = plansData?.data ?? [];
 
   const upgradeMutation = useMutation({
-    mutationFn: (plan: SubscriptionPlan) => subscriptions.upgrade(plan.id, billingCycle),
+    mutationFn: (plan: SubscriptionPlan) =>
+      subscriptions.upgrade(plan.id, billingCycle, paystackActive ? gateway : 'Flutterwave'),
     onSuccess: async (result, plan) => {
       analytics.track('checkout_start', { plan: plan.tier, billing: billingCycle, gateway: result.gateway });
       await WebBrowser.openBrowserAsync(result.authorizationUrl);
@@ -139,6 +150,30 @@ export default function SubscriptionScreen() {
           })}
         </View>
 
+        {/* Payment method — only when Paystack is live alongside Flutterwave */}
+        {paystackActive ? (
+          <View style={{ gap: 6 }}>
+            <Text style={[styles.gatewayLabel, { color: theme.textMuted }]}>Pay with</Text>
+            <View style={styles.cycleRow}>
+              {(['Flutterwave', 'Paystack'] as const).map((g) => {
+                const isSelected = gateway === g;
+                return (
+                  <TouchableOpacity
+                    key={g}
+                    activeOpacity={0.85}
+                    onPress={() => setGateway(g)}
+                    style={[
+                      styles.cyclePill,
+                      { backgroundColor: isSelected ? theme.primary : theme.surface, borderColor: isSelected ? theme.primary : theme.border },
+                    ]}>
+                    <Text style={[styles.cyclePillText, { color: isSelected ? '#FFFFFF' : theme.text }]}>{g}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
         {/* Available Plans */}
         {isLoadingPlans ? (
           <ListSkeleton rows={3} />
@@ -236,6 +271,7 @@ const styles = StyleSheet.create({
   cycleRow: { flexDirection: 'row', gap: 10 },
   cyclePill: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
   cyclePillText: { fontSize: 13, fontWeight: '700' },
+  gatewayLabel: { fontSize: 12, fontWeight: '600' },
   plansList: { gap: 14 },
   planCard: { borderRadius: 20, borderWidth: 1.5, padding: 18 },
   popularBadge: {

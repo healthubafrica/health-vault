@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ShieldCheck, CreditCard, Building2, BadgeCheck } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -26,7 +26,7 @@ const BANK_DETAILS = {
   name: 'Health Hub Africa',
 };
 
-type Gateway = 'Flutterwave' | 'manual';
+type Gateway = 'Flutterwave' | 'Paystack' | 'manual';
 
 export default function MakePaymentScreen() {
   const router = useRouter();
@@ -38,6 +38,15 @@ export default function MakePaymentScreen() {
   const [amountNaira, setAmountNaira] = useState('');
   const [gateway, setGateway] = useState<Gateway>('Flutterwave');
   const [saveCard, setSaveCard] = useState(true);
+
+  // Paystack is only offered once the API reports it live, so a missing or
+  // misconfigured key never presents patients with an option that would fail.
+  const { data: gatewayStatuses } = useQuery({
+    queryKey: ['payment-gateway-status'],
+    queryFn: payments.getGatewayStatus,
+    staleTime: 5 * 60_000,
+  });
+  const paystackActive = gatewayStatuses?.some((g) => g.gateway === 'paystack' && g.active) ?? false;
   const [transferConfirm, setTransferConfirm] = useState<{ ref: string; amount: string } | null>(null);
 
   // One key per distinct (amount, description, gateway) combination — stays
@@ -188,6 +197,23 @@ export default function MakePaymentScreen() {
                 Card / Flutterwave
               </Text>
             </TouchableOpacity>
+            {paystackActive ? (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => setGateway('Paystack')}
+                style={[
+                  styles.gatewayCard,
+                  {
+                    backgroundColor: gateway === 'Paystack' ? theme.primaryLight : theme.surface,
+                    borderColor: gateway === 'Paystack' ? theme.primary : theme.border,
+                  },
+                ]}>
+                <CreditCard size={18} color={gateway === 'Paystack' ? theme.primary : theme.textMuted} />
+                <Text style={[styles.gatewayText, { color: gateway === 'Paystack' ? theme.primary : theme.text }]}>
+                  Card / Paystack
+                </Text>
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={() => setGateway('manual')}
@@ -230,7 +256,7 @@ export default function MakePaymentScreen() {
           onPress={handleSubmit}
           style={[styles.submitBtn, { backgroundColor: theme.primary, opacity: initiateMutation.isPending ? 0.6 : 1 }]}>
           <Text style={styles.submitBtnText}>
-            {initiateMutation.isPending ? 'Starting…' : gateway === 'Flutterwave' ? 'Continue to Checkout' : 'Generate Bank Reference'}
+            {initiateMutation.isPending ? 'Starting…' : gateway === 'manual' ? 'Generate Bank Reference' : 'Continue to Checkout'}
           </Text>
         </TouchableOpacity>
       </ScrollView>
@@ -270,9 +296,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     fontSize: 14,
   },
-  gatewayRow: { flexDirection: 'row', gap: 10 },
+  gatewayRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   gatewayCard: {
     flex: 1,
+    minWidth: '45%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,

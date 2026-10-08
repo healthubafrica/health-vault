@@ -292,4 +292,146 @@ describe('PaymentsService', () => {
       expect(mockAnalyticsService.emitServerEvent).not.toHaveBeenCalled();
     });
   });
+
+  // ── Paystack ──────────────────────────────────────────────────────────────
+
+  describe('initiate — Paystack', () => {
+    const dto = {
+      gateway: PaymentGateway.Paystack,
+      purpose: 'subscription' as const,
+      amountKobo: 250000,
+      currency: 'NGN',
+      description: 'Silver plan',
+    };
+    let fetchSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      mockConfig.get.mockImplementation((k: string) => (k === 'FRONTEND_URL' ? 'https://portal.test' : undefined));
+      mockConfig.getOrThrow.mockReturnValue('sk_test_dummy');
+      mockPrisma.payment.findUnique.mockResolvedValue(null);
+      mockPrisma.payment.findFirst.mockResolvedValue(null); // generatePaymentRef lookup
+      mockPrisma.payment.create.mockResolvedValue({
+        id: 'pay-ps',
+        patientId: 'patient-1',
+        gateway: PaymentGateway.Paystack,
+        status: PaymentStatus.pending,
+        createdAt: new Date(),
+      });
+      mockPrisma.payment.update.mockResolvedValue({});
+      fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: { authorization_url: 'https://checkout.paystack.com/abc', access_code: 'abc', reference: 'echoed' },
+        }),
+      } as Response);
+    });
+
+    afterEach(() => {
+      fetchSpy.mockRestore();
+      mockConfig.get.mockReset();
+      mockConfig.getOrThrow.mockReset();
+    });
+
+    const sentBody = () => JSON.parse((fetchSpy.mock.calls[0][1] as { body: string }).body);
+
+    it('starts a Paystack transaction and returns the hosted checkout URL', async () => {
+      const res = await service.initiate(dto as any, patientUser);
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'https://api.paystack.co/transaction/initialize',
+        expect.objectContaining({ method: 'POST' }),
+      );
+      expect(sentBody()).toMatchObject({
+        email: 'p@test.com',
+        amount: 250000,
+        currency: 'NGN',
+        callback_url: 'https://portal.test/payments/verify',
+      });
+      expect(res).toMatchObject({
+        paymentId: 'pay-ps',
+        gateway: PaymentGateway.Paystack,
+        authorizationUrl: 'https://checkout.paystack.com/abc',
+        amountKobo: 250000,
+      });
+    });
+
+    it('persists the checkout URL without dropping the metadata subscription activation depends on', async () => {
+      await service.initiate(dto as any, patientUser, {
+        metadata: { kind: 'subscription_upgrade', planId: 'plan-1' },
+      });
+
+      expect(mockPrisma.payment.update).toHaveBeenCalledWith({
+        where: { id: 'pay-ps' },
+        data: expect.objectContaining({
+          gatewayRef: sentBody().reference,
+          metadata: expect.objectContaining({
+            kind: 'subscription_upgrade',
+            planId: 'plan-1',
+            authorizationUrl: 'https://checkout.paystack.com/abc',
+          }),
+        }),
+      });
+    });
+
+    it('sends Paystack a reference it accepts (letters, digits, "-", ".", "=" only) even when the client key has underscores', async () => {
+      await service.initiate(dto as any, patientUser, { idempotencyKey: 'checkout_attempt_1' });
+
+      const { reference } = sentBody();
+      expect(reference).toMatch(/^[A-Za-z0-9.=-]+$/);
+      expect(mockPrisma.payment.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ gatewayRef: reference }) }),
+      );
+    });
+
+    it('replays the stored checkout URL for a repeated key instead of opening a second Paystack transaction', async () => {
+      mockPrisma.payment.findUnique.mockResolvedValue({
+        id: 'pay-ps',
+        patientId: patient.id,
+        amountKobo: dto.amountKobo,
+        currency: dto.currency,
+        gateway: PaymentGateway.Paystack,
+        gatewayRef: 'checkout-attempt-1',
+        idempotencyKey: 'checkout_attempt_1',
+        status: PaymentStatus.pending,
+        metadata: { authorizationUrl: 'https://checkout.paystack.com/abc' },
+      });
+
+      const res = await service.initiate(dto as any, patientUser, { idempotencyKey: 'checkout_attempt_1' });
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(res).toMatchObject({ authorizationUrl: 'https://checkout.paystack.com/abc' });
+    });
+
+    it('surfaces a generic gateway error when Paystack rejects the request', async () => {
+      fetchSpy.mockResolvedValue({ ok: false, text: async () => 'bad request' } as Response);
+
+      await expect(service.initiate(dto as any, patientUser)).rejects.toThrow('Payment gateway error');
+    });
+
+    it('still rejects saved-card charging, which only exists for Flutterwave', async () => {
+      await expect(
+        service.initiate({ ...dto, paymentMethodId: 'pm-1' } as any, patientUser),
+      ).rejects.toThrow(/Saved-card charging is only supported for Flutterwave/);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getGatewayStatus', () => {
+    const paystack = () => service.getGatewayStatus().find((g) => g.gateway === 'paystack')!;
+
+    afterEach(() => mockConfig.get.mockReset());
+
+    it('reports Paystack active once its secret key is configured', () => {
+      mockConfig.get.mockImplementation((k: string) => (k === 'PAYSTACK_SECRET_KEY' ? 'sk_live_x' : undefined));
+
+      expect(paystack()).toMatchObject({ active: true });
+      expect(paystack()).not.toHaveProperty('comingSoon');
+    });
+
+    it('reports Paystack inactive when no key is configured', () => {
+      mockConfig.get.mockReturnValue(undefined);
+
+      expect(paystack().active).toBe(false);
+    });
+  });
 });

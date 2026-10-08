@@ -58,15 +58,6 @@ export class PaymentsService {
     });
     if (!patient) throw new NotFoundException('Patient profile not found');
 
-    // Paystack is temporarily disabled for new charges pending a compliance
-    // review — the enum value and all existing verify/refund paths stay
-    // intact for historical Paystack payments, but a new charge request
-    // against it must fail loudly here rather than silently create a payment
-    // that can never be completed.
-    if (dto.gateway === PaymentGateway.Paystack) {
-      throw new BadRequestException('Paystack is coming soon. Please use Flutterwave or bank transfer.');
-    }
-
     // Idempotency: a client-supplied key lets a retried or double-submitted
     // request (double-tap, a client timeout retry, an app resume after a
     // dropped response) replay the original result instead of creating a
@@ -149,6 +140,17 @@ export class PaymentsService {
     // Initiate charge with the selected gateway
     if (dto.gateway === PaymentGateway.Flutterwave) {
       return this.initiateFlutterwave(
+        payment.id,
+        patient.user.email,
+        amountKobo,
+        dto.currency,
+        idempotencyKey,
+        description,
+        metadata,
+      );
+    }
+    if (dto.gateway === PaymentGateway.Paystack) {
+      return this.initiatePaystack(
         payment.id,
         patient.user.email,
         amountKobo,
@@ -261,10 +263,14 @@ export class PaymentsService {
     email: string,
     amountKobo: number,
     currency: string,
-    reference: string,
+    idempotencyKey: string,
     description: string,
+    metadata: Prisma.InputJsonValue,
   ) {
     const secret = this.config.getOrThrow<string>('PAYSTACK_SECRET_KEY');
+    // Paystack only accepts letters, digits, "-", "." and "=" in a reference;
+    // client idempotency keys may also contain "_".
+    const reference = idempotencyKey.replace(/_/g, '-');
     const res = await fetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',
       headers: {
@@ -289,9 +295,15 @@ export class PaymentsService {
 
     const data = (await res.json()) as { data: { authorization_url: string; access_code: string; reference: string } };
 
+    // authorizationUrl is persisted so a replayed initiate() (same
+    // idempotency key) returns the same checkout link — Paystack would reject
+    // a second transaction with a duplicate reference anyway.
     await this.prisma.payment.update({
       where: { id: paymentId },
-      data: { gatewayRef: reference },
+      data: {
+        gatewayRef: reference,
+        metadata: { ...(metadata as Record<string, unknown>), authorizationUrl: data.data.authorization_url },
+      },
     });
 
     return {
@@ -816,8 +828,7 @@ export class PaymentsService {
       {
         gateway: 'paystack',
         name: 'Paystack',
-        active: false,
-        comingSoon: true,
+        active: !!this.config.get<string>('PAYSTACK_SECRET_KEY'),
       },
       {
         gateway: 'bank_transfer',

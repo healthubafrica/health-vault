@@ -15,7 +15,11 @@ import { TrackImpression } from '@/components/analytics/TrackImpression'
 import { toast } from 'sonner'
 
 type PillVariant = 'success' | 'warning' | 'emergency' | 'neutral'
-type Gateway = 'flutterwave' | 'bank_transfer'
+type Gateway = 'flutterwave' | 'paystack' | 'bank_transfer'
+
+// Backend PaymentGateway enum values are PascalCase ('Flutterwave', 'Paystack',
+// 'manual') — the local Gateway type stays lowercase for UI/select convenience.
+const API_GATEWAY = { flutterwave: 'Flutterwave', paystack: 'Paystack', bank_transfer: 'manual' } as const
 
 const BANK_DETAILS = {
   bank: 'United Bank for Africa (UBA)',
@@ -37,6 +41,9 @@ function formatNaira(amountKobo: number): string {
 export function PaymentsScreen() {
   const { data: paymentsRes, isInitialLoad, error, refetch } = useApi(() => paymentsApi.list())
   const { data: gatewayStatuses } = useApi(() => paymentsApi.getGatewayStatus())
+  // Only disable Paystack once the API has explicitly said it's inactive —
+  // while statuses are loading (or failed to load) leave it selectable.
+  const paystackInactive = gatewayStatuses?.find((g) => g.gateway === 'paystack')?.active === false
 
   const [showModal, setShowModal] = useState(false)
   const [description, setDescription] = useState('')
@@ -76,9 +83,7 @@ export function PaymentsScreen() {
       toast.error('Please fill in all fields with valid values.')
       return
     }
-    // Backend PaymentGateway enum values are PascalCase ('Flutterwave', 'manual')
-    // — the local Gateway type stays lowercase for UI/select convenience.
-    const apiGateway = gateway === 'bank_transfer' ? 'manual' : 'Flutterwave'
+    const apiGateway = API_GATEWAY[gateway]
     setSubmitting(true)
     try {
       analytics.track('checkout_started', { gateway: apiGateway })
@@ -255,7 +260,7 @@ export function PaymentsScreen() {
                   >
                     <option value="flutterwave">Flutterwave (Card / Bank)</option>
                     <option value="bank_transfer">Bank Transfer (UBA)</option>
-                    <option value="paystack" disabled>Paystack (Coming Soon)</option>
+                    <option value="paystack" disabled={paystackInactive}>Paystack (Card / Bank)</option>
                   </select>
                 </div>
 
@@ -362,7 +367,7 @@ export function PaymentsScreen() {
           {(gatewayStatuses ?? [
             { gateway: 'flutterwave', name: 'Flutterwave', active: true },
             { gateway: 'bank_transfer', name: 'Bank Transfer', active: true, bankName: 'United Bank for Africa', accountNumber: '1028358485' },
-            { gateway: 'paystack', name: 'Paystack', active: false, comingSoon: true },
+            { gateway: 'paystack', name: 'Paystack', active: true },
           ]).map((gw: GatewayStatus) => (
             <div
               key={gw.gateway}

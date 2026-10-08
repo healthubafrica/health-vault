@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Check } from 'lucide-react'
-import { subscriptions, analytics, type SubscriptionPlan } from '@/lib/api'
+import { subscriptions, payments as paymentsApi, analytics, type SubscriptionPlan } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
@@ -29,6 +29,11 @@ export function SubscriptionsScreen() {
   const { data: plansRes, isInitialLoad: plansLoading } = useApi(() => subscriptions.listPlans())
   const [saving, setSaving] = useState<string | null>(null)
   const [billing, setBilling] = useState<'monthly' | 'annually'>('monthly')
+  const [gateway, setGateway] = useState<'Flutterwave' | 'Paystack'>('Flutterwave')
+  const { data: gatewayStatuses } = useApi(() => paymentsApi.getGatewayStatus())
+  // The chooser only appears once the API reports Paystack as live, so a
+  // missing/misconfigured key never shows patients an option that would fail.
+  const paystackActive = gatewayStatuses?.some((g) => g.gateway === 'paystack' && g.active) ?? false
   const [expandedPlans, setExpandedPlans] = useState<Set<string>>(new Set())
 
   const toggleExpanded = (planId: string) => {
@@ -62,7 +67,7 @@ export function SubscriptionsScreen() {
     if (!window.confirm(confirmMsg)) return
     try {
       setSaving(plan.id)
-      const res = await subscriptions.upgrade(plan.id, billing)
+      const res = await subscriptions.upgrade(plan.id, billing, paystackActive ? gateway : 'Flutterwave')
       analytics.track('checkout_start', { plan: plan.tier, billing, gateway: res.gateway })
       // Redirect to the gateway's hosted checkout. The subscription is
       // activated by the payment webhook once the charge succeeds.
@@ -172,6 +177,34 @@ export function SubscriptionsScreen() {
               </button>
             ))}
           </div>
+
+          {/* ── Payment method (only when more than one card gateway is live) ── */}
+          {paystackActive && (
+            <div className="flex items-center gap-2" role="group" aria-label="Payment method">
+              <span className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>Pay with</span>
+              <div
+                className="flex gap-1 p-1 rounded-full"
+                style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}
+              >
+                {(['Flutterwave', 'Paystack'] as const).map((g) => (
+                  <button
+                    key={g}
+                    onClick={() => setGateway(g)}
+                    aria-pressed={gateway === g}
+                    className="text-xs font-bold px-4 py-2 rounded-full transition-all"
+                    style={{
+                      background: gateway === g ? 'var(--color-text)' : 'transparent',
+                      color: gateway === g ? 'var(--color-bg)' : 'var(--color-text-muted)',
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* ── Plan cards ── */}
           <div className="flex flex-col gap-3">
