@@ -78,14 +78,14 @@ class EnvironmentVariables {
 
   // Optional: PaymentsService uses getOrThrow at call time, so a missing key
   // fails loudly on the first payment attempt instead of blocking startup
-  // with dummy placeholder values. Paystack is temporarily disabled for new
-  // charges (compliance review) but the key stays supported so existing
-  // Paystack payments can still be verified/refunded.
+  // with dummy placeholder values. Paystack is offered alongside Flutterwave
+  // for new charges; it is reported active (GET /payments/gateways/status)
+  // only while this key is set. The same key signs its webhooks.
   @IsOptional()
   @IsString()
   PAYSTACK_SECRET_KEY?: string;
 
-  // Flutterwave — active gateway for new charges.
+  // Flutterwave — card gateway offered alongside Paystack.
   @IsOptional()
   @IsString()
   FLUTTERWAVE_SECRET_KEY?: string;

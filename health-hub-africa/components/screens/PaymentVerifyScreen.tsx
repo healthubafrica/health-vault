@@ -13,7 +13,8 @@ type VerifyState = 'loading' | 'success' | 'failed' | 'no_reference'
 export function PaymentVerifyScreen() {
   const params = useSearchParams()
   const router = useRouter()
-  const reference = params.get('reference') ?? params.get('trxref')
+  // Paystack returns ?reference=&trxref=, Flutterwave returns ?tx_ref=
+  const reference = params.get('reference') ?? params.get('trxref') ?? params.get('tx_ref')
   const [state, setState] = useState<VerifyState>(reference ? 'loading' : 'no_reference')
   const [gateway, setGateway] = useState<string | null>(null)
   const [paymentId, setPaymentId] = useState<string | null>(null)
