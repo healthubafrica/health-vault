@@ -5,8 +5,10 @@ import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Check } from 'lucide-react'
-import { subscriptions, payments as paymentsApi, analytics, type SubscriptionPlan } from '@/lib/api'
+import { subscriptions, analytics, type SubscriptionPlan } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
+import { useGatewayChoice } from '@/lib/hooks/useGatewayChoice'
+import { CARD_GATEWAYS } from '@/lib/payments/gateway'
 import { ListSkeleton } from '@/components/skeletons/ListSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { TrackImpression } from '@/components/analytics/TrackImpression'
@@ -29,11 +31,9 @@ export function SubscriptionsScreen() {
   const { data: plansRes, isInitialLoad: plansLoading } = useApi(() => subscriptions.listPlans())
   const [saving, setSaving] = useState<string | null>(null)
   const [billing, setBilling] = useState<'monthly' | 'annually'>('monthly')
-  const [gateway, setGateway] = useState<'Flutterwave' | 'Paystack'>('Flutterwave')
-  const { data: gatewayStatuses } = useApi(() => paymentsApi.getGatewayStatus())
   // The chooser only appears once the API reports Paystack as live, so a
   // missing/misconfigured key never shows patients an option that would fail.
-  const paystackActive = gatewayStatuses?.some((g) => g.gateway === 'paystack' && g.active) ?? false
+  const { gateway, setGateway, paystackActive } = useGatewayChoice()
   const [expandedPlans, setExpandedPlans] = useState<Set<string>>(new Set())
 
   const toggleExpanded = (planId: string) => {
@@ -67,7 +67,7 @@ export function SubscriptionsScreen() {
     if (!window.confirm(confirmMsg)) return
     try {
       setSaving(plan.id)
-      const res = await subscriptions.upgrade(plan.id, billing, paystackActive ? gateway : 'Flutterwave')
+      const res = await subscriptions.upgrade(plan.id, billing, gateway)
       analytics.track('checkout_start', { plan: plan.tier, billing, gateway: res.gateway })
       // Redirect to the gateway's hosted checkout. The subscription is
       // activated by the payment webhook once the charge succeeds.
@@ -186,7 +186,7 @@ export function SubscriptionsScreen() {
                 className="flex gap-1 p-1 rounded-full"
                 style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}
               >
-                {(['Flutterwave', 'Paystack'] as const).map((g) => (
+                {CARD_GATEWAYS.map((g) => (
                   <button
                     key={g}
                     onClick={() => setGateway(g)}
