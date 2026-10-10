@@ -255,7 +255,8 @@ export interface ServiceProvider {
   lastName: string;
   title?: string | null;
   specialty?: string | null;
-  rating?: number | null;
+  // Prisma Decimal: arrives as a string, so never call number methods on it directly.
+  rating?: number | string | null;
   isAvailable: boolean;
   profilePhotoUrl?: string | null;
   bio?: string | null;
@@ -269,7 +270,15 @@ export interface SchedulingPolicy {
   selfServiceEnabled: boolean;
 }
 
+export interface BookableFacility {
+  id: string;
+  name: string;
+  city?: string | null;
+  state?: string | null;
+}
+
 export interface CreateAppointmentPayload {
+  facilityId?: string;
   appointmentType: 'in_person' | 'virtual' | 'home_visit';
   serviceType?: string;
   scheduledAt: string;
@@ -512,6 +521,8 @@ export const appointments = {
     );
   },
 
+  facilities: () => apiRequest<BookableFacility[]>('/appointments/facilities'),
+
   getSchedulingPolicy: () =>
     apiRequest<SchedulingPolicy>('/appointments/scheduling-policy'),
 
@@ -728,6 +739,7 @@ export const payments = {
     apiRequest<{
       paymentId: string;
       authorizationUrl?: string;
+      reference?: string;
       gateway: string;
       status?: string;
       requiresOtp?: boolean;
@@ -740,6 +752,12 @@ export const payments = {
 
   getGatewayStatus: () =>
     apiRequest<{ gateway: string; name: string; active: boolean }[]>('/payments/gateways/status'),
+
+  // Public endpoint; re-checks with the gateway so the app need not wait for the webhook.
+  verify: (reference: string) =>
+    apiRequest<{ status: string; paymentId: string; gateway: string }>(
+      `/payments/verify?reference=${encodeURIComponent(reference)}`
+    ),
 
   validateCharge: (data: { paymentId: string; flwRef: string; otp: string }) =>
     apiRequest<{ status: string; paymentId: string }>('/payments/validate-charge', {
@@ -941,6 +959,8 @@ export interface SubscriptionUpgradeResponse {
   paymentId: string;
   gateway: string;
   authorizationUrl: string;
+  /** Gateway reference; pass to payments.verify to learn the outcome. */
+  reference?: string;
   amountKobo: number;
   currency: string;
 }

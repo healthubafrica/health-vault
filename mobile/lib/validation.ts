@@ -33,3 +33,11 @@ const GENDER = { female: 'Female', male: 'Male', other: 'Other' } as const;
 export function genderForApi(g: keyof typeof GENDER): (typeof GENDER)[keyof typeof GENDER] {
   return GENDER[g];
 }
+
+/** Naira amount typed by the user: allows "1,500" and "1500.50"; rejects anything else. */
+export function parseNairaAmount(raw: string): number | null {
+  const cleaned = raw.trim().replace(/[,\s]/g, '');
+  if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null;
+  const n = Number(cleaned);
+  return n > 0 ? n : null;
+}

@@ -43,6 +43,8 @@ export default function BookAppointmentStep4Screen() {
     providerSpecialty?: string;
     providerInitials?: string;
     consultationFormat?: string;
+    facilityId?: string;
+    facilityName?: string;
     appointmentDate?: string;
     appointmentTime?: string;
     scheduledAtIso?: string;
@@ -70,16 +72,16 @@ export default function BookAppointmentStep4Screen() {
     }
     setIsProcessing(true);
     try {
-      const isTelecare = params.consultationFormat === 'virtual' || (params.serviceName || '').includes('TeleCare');
       analytics.track('ui_click', { element_id: 'book_appointment_cta', feature_area: 'appointments' });
       analytics.track('booking_started', { serviceType: params.serviceType, hasProvider: !!params.providerId });
       const res = await appointments.create({
-        appointmentType: isTelecare ? 'virtual' : 'in_person',
+        appointmentType: params.consultationFormat === 'in_person' ? 'in_person' : 'virtual',
         serviceType: params.serviceType || 'TeleCare',
         scheduledAt: params.scheduledAtIso,
         durationMinutes: BOOKING_DURATION_MINUTES,
         chiefComplaint: params.reason || 'General checkup',
         ...(params.providerId && { providerId: params.providerId }),
+        ...(params.consultationFormat === 'in_person' && params.facilityId && { facilityId: params.facilityId }),
       }, idempotencyKey);
       analytics.track('booking_confirmed', { serviceType: params.serviceType });
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
@@ -195,7 +197,7 @@ export default function BookAppointmentStep4Screen() {
                   </View>
                   <Text style={[styles.detailVal, { color: theme.text }]}>
                     {params.consultationFormat === 'in_person'
-                      ? 'In-Person Clinic Visit'
+                      ? `In-person${params.facilityName ? ` · ${params.facilityName}` : ''}`
                       : 'HD Video Consultation'}
                   </Text>
                 </View>

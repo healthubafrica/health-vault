@@ -64,7 +64,8 @@ export default function BookAppointmentStep2Screen() {
   });
 
   const handleContinue = () => {
-    const provider = allProviders.find((p) => p.id === selectedProviderId) || allProviders[0];
+    // Never fall back to the first provider: the patient must have chosen one.
+    const provider = allProviders.find((p) => p.id === selectedProviderId);
     if (!provider) return;
     router.push({
       pathname: '/book-appointment-step3',
@@ -216,7 +217,7 @@ export default function BookAppointmentStep2Screen() {
                       <View style={styles.ratingRow}>
                         <Star size={14} color="#F5B041" fill="#F5B041" />
                         <Text style={[styles.ratingText, { color: theme.text }]}>
-                          {provider.rating.toFixed(1)}
+                          {Number(provider.rating).toFixed(1)}
                         </Text>
                       </View>
                     )}

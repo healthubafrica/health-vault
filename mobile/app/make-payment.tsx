@@ -20,6 +20,8 @@ import { useColorScheme } from '@/components/useColorScheme';
 import { payments, analytics, generateIdempotencyKey, ApiError } from '@/lib/api';
 import { SuccessState } from '@/components/states';
 import GatewayPickerModal from '@/components/GatewayPickerModal';
+import { settlePayment, outcomeMessage } from '@/lib/paymentResult';
+import { parseNairaAmount } from '@/lib/validation';
 import { useGatewayAvailability } from '@/lib/useGatewayAvailability';
 import type { CardGateway } from '@/lib/gateway';
 
@@ -62,7 +64,7 @@ export default function MakePaymentScreen() {
 
   const initiateMutation = useMutation({
     mutationFn: (gateway: CardGateway | 'manual') => {
-      const parsed = parseFloat(amountNaira);
+      const parsed = parseNairaAmount(amountNaira) ?? 0;
       analytics.track('checkout_started', { gateway });
       return payments.initiate(
         {
@@ -78,18 +80,28 @@ export default function MakePaymentScreen() {
     },
     onSuccess: async (result, gateway) => {
       setPickerOpen(false);
-      if (result.authorizationUrl) {
-        // payment_success/failure isn't observable here — the gateway confirms
-        // via webhook, no in-app verify screen to hook (unlike the web portal's
-        // PaymentVerifyScreen).
+      if (result.status === 'paid') {
+        // A repeated request for a payment that already succeeded.
+        const msg = outcomeMessage('paid');
+        Alert.alert(msg.title, msg.body);
+        qc.invalidateQueries({ queryKey: ['payments'] });
+      } else if (result.authorizationUrl) {
         await WebBrowser.openBrowserAsync(result.authorizationUrl);
+        // The browser closing says nothing about whether the card was charged.
+        const outcome = result.reference ? await settlePayment(payments.verify, result.reference) : 'pending';
+        analytics.track(outcome === 'paid' ? 'payment_success' : outcome === 'failed' ? 'payment_failure' : 'payment_pending', { gateway });
         qc.invalidateQueries({ queryKey: ['payments'] });
         qc.invalidateQueries({ queryKey: ['payment-methods'] });
+        const msg = outcomeMessage(outcome);
+        Alert.alert(msg.title, msg.body);
+      } else if (gateway !== 'manual') {
+        // A card payment with no checkout link must not fall through to the bank-transfer screen.
+        Alert.alert('Could not start payment', 'The payment gateway did not return a checkout page. Please try again.');
       } else {
         analytics.track('payment_pending', { gateway });
         setTransferConfirm({
           ref: result.paymentId,
-          amount: `₦${parseFloat(amountNaira).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`,
+          amount: `₦${(parseNairaAmount(amountNaira) ?? 0).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`,
         });
         qc.invalidateQueries({ queryKey: ['payments'] });
       }
@@ -103,9 +115,9 @@ export default function MakePaymentScreen() {
 
   const handleSubmit = () => {
     analytics.track('ui_click', { element_id: 'make_payment_cta', feature_area: 'payments' });
-    const parsed = parseFloat(amountNaira);
-    if (!description.trim() || isNaN(parsed) || parsed <= 0) {
-      Alert.alert('Incomplete Form', 'Please enter a description and a valid amount.');
+    const parsed = parseNairaAmount(amountNaira);
+    if (!description.trim() || parsed === null) {
+      Alert.alert('Incomplete Form', 'Please enter a description and a valid amount (e.g. 1500 or 1,500.50).');
       return;
     }
     if (method === 'manual') initiateMutation.mutate('manual');
@@ -250,7 +262,7 @@ export default function MakePaymentScreen() {
       </ScrollView>
       <GatewayPickerModal
         visible={pickerOpen}
-        summary={`${description.trim() || 'Payment'} — ₦${(parseFloat(amountNaira) || 0).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`}
+        summary={`${description.trim() || 'Payment'} — ₦${(parseNairaAmount(amountNaira) ?? 0).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`}
         busy={initiateMutation.isPending}
         onClose={() => setPickerOpen(false)}
         onConfirm={(g) => initiateMutation.mutate(g)}

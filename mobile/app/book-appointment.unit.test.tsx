@@ -31,6 +31,7 @@ jest.mock('@/lib/api', () => {
       getSlots: jest.fn(),
       create: jest.fn(),
       getSchedulingPolicy: jest.fn(),
+      facilities: jest.fn(),
     },
   };
 });
@@ -59,6 +60,7 @@ beforeEach(() => {
   appointments.listProviders.mockReset();
   appointments.getSlots.mockReset();
   appointments.create.mockReset();
+  appointments.facilities.mockReset().mockResolvedValue([{ id: 'fac-1', name: 'Lekki Partner Clinic', city: 'Lagos' }]);
   appointments.getSchedulingPolicy.mockReset().mockResolvedValue({
     cancellationWindowHours: 12,
     rescheduleWindowHours: 12,
@@ -77,6 +79,13 @@ describe('Step 2 — choose clinician', () => {
 
     expect(await findByText('Dr. Ada Okafor')).toBeTruthy();
     expect(appointments.listProviders).toHaveBeenCalledWith('TeleCare');
+  });
+
+  it('renders a rating that arrives as a string (Prisma Decimal) instead of crashing', async () => {
+    appointments.listProviders.mockResolvedValue([{ ...provider, rating: '4.5' }]);
+    const { findByText } = renderWithClient(<BookAppointmentStep2Screen />);
+
+    expect(await findByText('4.5')).toBeTruthy();
   });
 
   it('shows the real error and a retry — not "No clinicians available" — when the request fails', async () => {
@@ -170,6 +179,41 @@ describe('Step 3 — choose a slot', () => {
   });
 });
 
+describe('Step 3 — in-person services need a facility', () => {
+  const slotIso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+  const slotLabel = new Date(slotIso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  beforeEach(() => {
+    mockParams = { serviceId: 'care-test', serviceName: 'CareTest', serviceType: 'CareTest', providerId: 'prov-1', providerName: 'Dr. Ada Okafor' };
+    appointments.getSlots.mockResolvedValue([{ providerId: 'prov-1', providerName: 'Dr', slots: [slotIso] }]);
+  });
+
+  it('will not continue until a facility is chosen, then forwards it', async () => {
+    const { findByText } = renderWithClient(<BookAppointmentStep3Screen />);
+
+    fireEvent.press(await findByText(slotLabel));
+    fireEvent.press(await findByText('Continue to Summary'));
+    expect(mockPush).not.toHaveBeenCalled();
+
+    fireEvent.press(await findByText('Lekki Partner Clinic'));
+    fireEvent.press(await findByText('Continue to Summary'));
+    expect(mockPush.mock.calls[0][0].params).toMatchObject({
+      consultationFormat: 'in_person',
+      facilityId: 'fac-1',
+      facilityName: 'Lekki Partner Clinic',
+    });
+  });
+
+  it('keeps TeleCare video-only with no facility picker', async () => {
+    mockParams = { ...mockParams, serviceId: 'telecare', serviceName: 'TeleCare', serviceType: 'TeleCare' };
+    const { queryByText, findByText } = renderWithClient(<BookAppointmentStep3Screen />);
+
+    await findByText(slotLabel);
+    expect(queryByText('CHOOSE A FACILITY')).toBeNull();
+    expect(appointments.facilities).not.toHaveBeenCalled();
+  });
+});
+
 describe('Step 4 — confirm booking', () => {
   const scheduledAtIso = new Date(Date.now() + 48 * 3600 * 1000).toISOString();
 
@@ -228,6 +272,21 @@ describe('Step 4 — confirm booking', () => {
     const { findByText } = renderWithClient(<BookAppointmentStep4Screen />);
 
     expect(await findByText(/12 hours before/)).toBeTruthy();
+  });
+
+  it('books an in-person visit at the chosen facility', async () => {
+    mockParams = { ...mockParams, serviceType: 'CareTest', serviceName: 'CareTest', consultationFormat: 'in_person', facilityId: 'fac-1', facilityName: 'Lekki Partner Clinic' };
+    appointments.create.mockResolvedValue({ hhaRef: 'APT-2026-000002' });
+    const { findByText } = renderWithClient(<BookAppointmentStep4Screen />);
+
+    fireEvent.press(await findByText('Confirm appointment'));
+
+    await waitFor(() => expect(appointments.create).toHaveBeenCalled());
+    expect(appointments.create.mock.calls[0][0]).toMatchObject({
+      appointmentType: 'in_person',
+      serviceType: 'CareTest',
+      facilityId: 'fac-1',
+    });
   });
 
   it('tells the patient when the booking fails instead of faking a confirmation', async () => {

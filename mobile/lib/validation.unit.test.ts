@@ -1,4 +1,4 @@
-import { genderForApi, isValidPassword, normalizePhone, parseIsoDob } from './validation';
+import { genderForApi, isValidPassword, normalizePhone, parseIsoDob, parseNairaAmount } from './validation';
 
 describe('isValidPassword (mirrors backend SEC-003)', () => {
   it('accepts 12+ chars with upper, lower, digit and special', () => {
@@ -42,5 +42,15 @@ describe('genderForApi', () => {
     expect(genderForApi('female')).toBe('Female');
     expect(genderForApi('male')).toBe('Male');
     expect(genderForApi('other')).toBe('Other');
+  });
+});
+
+describe('parseNairaAmount', () => {
+  it('reads thousands separators instead of truncating "1,500" to 1', () => {
+    expect(parseNairaAmount('1,500')).toBe(1500);
+    expect(parseNairaAmount(' 2500.50 ')).toBe(2500.5);
+  });
+  it.each(['', '0', '-5', 'abc', '12.345', '1.2.3', '₦500'])('rejects %s', (v) => {
+    expect(parseNairaAmount(v)).toBeNull();
   });
 });

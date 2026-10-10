@@ -6,7 +6,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, Crown, CheckCircle2, Sparkles } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
-import { subscriptions, analytics, SubscriptionPlan, ApiError } from '@/lib/api';
+import { subscriptions, payments, analytics, SubscriptionPlan, ApiError } from '@/lib/api';
+import { settlePayment, outcomeMessage } from '@/lib/paymentResult';
 import GatewayPickerModal from '@/components/GatewayPickerModal';
 import { useGatewayAvailability } from '@/lib/useGatewayAvailability';
 import type { CardGateway } from '@/lib/gateway';
@@ -53,7 +54,14 @@ export default function SubscriptionScreen() {
       setPickingPlan(null);
       analytics.track('checkout_start', { plan: plan.tier, billing: billingCycle, gateway: result.gateway });
       await WebBrowser.openBrowserAsync(result.authorizationUrl);
+      // The browser closing says nothing about whether the card was charged.
+      const outcome = result.reference ? await settlePayment(payments.verify, result.reference) : 'pending';
+      if (outcome === 'paid') analytics.track('payment_success', { gateway: result.gateway, plan: plan.tier });
+      if (outcome === 'failed') analytics.track('payment_failure', { gateway: result.gateway, reason: 'declined_or_cancelled' });
       qc.invalidateQueries({ queryKey: ['subscription-me'] });
+      qc.invalidateQueries({ queryKey: ['payments'] });
+      const msg = outcomeMessage(outcome);
+      Alert.alert(msg.title, msg.body);
     },
     onError: (err: unknown, { plan }) => {
       setPickingPlan(null);
