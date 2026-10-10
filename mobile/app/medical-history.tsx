@@ -21,6 +21,7 @@ import {
   Plus,
 } from 'lucide-react-native';
 
+import { ErrorState } from '@/components/states';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import EmergencyFAB from '@/components/EmergencyFAB';
@@ -37,8 +38,8 @@ export default function MedicalHistoryScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['patient-profile'],
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['patient', 'profile'],
     queryFn: () => patients.getMyProfile(),
   });
 
@@ -92,7 +93,7 @@ export default function MedicalHistoryScreen() {
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['patient-profile'] });
+      qc.invalidateQueries({ queryKey: ['patient', 'profile'] });
       setEditing(false);
     },
     onError: (err: unknown) =>
@@ -131,6 +132,8 @@ export default function MedicalHistoryScreen() {
           <View style={{ alignItems: 'center', paddingVertical: 40 }}>
             <ActivityIndicator size="large" color={theme.primary} />
           </View>
+        ) : isError && !data ? (
+          <ErrorState onRetry={() => refetch()} />
         ) : editing ? (
           <>
             {CATEGORY_KEYS.map((c) => (

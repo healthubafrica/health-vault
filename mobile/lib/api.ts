@@ -544,6 +544,9 @@ export const patients = {
   // see patients.service.ts findMyCareTeam.
   getMyCareTeam: () => apiRequest<{ data: CareTeamMember[] }>('/patients/me/care-team'),
 
+  // Emails the patient a copy of their health record (rate-limited server side).
+  requestExport: () => apiRequest<{ message?: string }>('/patients/me/request-export', { method: 'POST' }),
+
   updateOnboardingProgress: (step: number, stepName: string) =>
     apiRequest<unknown>('/patients/me/onboarding-progress', {
       method: 'PATCH',

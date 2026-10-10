@@ -21,9 +21,9 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import EmergencyFAB from '@/components/EmergencyFAB';
 import EmergencyContactsCard from '@/components/EmergencyContactsCard';
-import { patients } from '@/lib/api';
+import { patients, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/authStore';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 
 export default function MyProfileScreen() {
   const router = useRouter();
@@ -52,12 +52,17 @@ export default function MyProfileScreen() {
   const allergies = profile?.medicalInfo?.allergies?.length ? profile.medicalInfo.allergies : ['None reported'];
   const chronicConditions = profile?.medicalInfo?.chronicConditions?.length ? profile.medicalInfo.chronicConditions : ['None reported'];
 
-  const handleDownloadRecord = () => {
-    Alert.alert(
-      'Download Full Health Dossier',
-      'Generating verified PDF dossier containing vitals trends, prescription history, lab reports, and physician encounters.'
-    );
-  };
+  const exportMutation = useMutation({
+    mutationFn: () => patients.requestExport(),
+    onSuccess: (res) =>
+      Alert.alert('Export requested', res?.message ?? 'A copy of your health record will be sent to your email.'),
+    onError: (err: unknown) =>
+      Alert.alert(
+        'Could not request export',
+        err instanceof ApiError ? err.message : 'Please try again in a little while.',
+      ),
+  });
+  const handleDownloadRecord = () => exportMutation.mutate();
 
   const handleEditProfile = () => {
     router.push('/edit-profile');
@@ -206,7 +211,7 @@ export default function MyProfileScreen() {
             style={[styles.secondaryBtn, { backgroundColor: theme.primaryLight }]}>
             <Download size={18} color={theme.primary} />
             <Text style={[styles.secondaryBtnText, { color: theme.primaryDark }]}>
-              Download Health Record
+              {exportMutation.isPending ? 'Requesting…' : 'Email me my health record'}
             </Text>
           </TouchableOpacity>
         </View>

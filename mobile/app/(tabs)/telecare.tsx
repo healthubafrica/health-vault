@@ -22,6 +22,7 @@ import {
   Video,
 } from 'lucide-react-native';
 
+import { ErrorState } from '@/components/states';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
@@ -36,7 +37,7 @@ export default function TeleCareWaitingRoomScreen() {
 
   const [isConnecting, setIsConnecting] = useState(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     // `upcoming` hides an appointment the moment its start time passes, which would
     // drop a call that is late or already in progress. Look back a few hours instead.
     queryKey: ['appointments', 'telecare-next'],
@@ -90,12 +91,6 @@ export default function TeleCareWaitingRoomScreen() {
         <Text style={[styles.title, { color: theme.text }]}>TeleCare</Text>
         <View style={styles.headerRight}>
           <TopHeaderEmergency />
-          <TouchableOpacity
-            onPress={() => router.push('/telecare-settings')}
-            style={styles.settingsBtn}
-            activeOpacity={0.7}>
-            <Settings size={20} color={theme.text} />
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -105,6 +100,8 @@ export default function TeleCareWaitingRoomScreen() {
           <View style={{ alignItems: 'center', paddingVertical: 40 }}>
             <ActivityIndicator size="large" color={theme.primary} />
           </View>
+        ) : isError && !data ? (
+          <ErrorState onRetry={() => refetch()} />
         ) : !nextTelecare ? (
           <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, alignItems: 'center', paddingVertical: 24 }]}>
             <Video size={32} color={theme.textMuted} />

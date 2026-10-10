@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft } from 'lucide-react-native';
 
+import { ErrorState } from '@/components/states';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
@@ -33,7 +34,7 @@ export default function BloodPressureTrendDetailScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['vitals'],
     queryFn: () => vitals.list(),
   });
@@ -54,6 +55,14 @@ export default function BloodPressureTrendDetailScreen() {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background, alignItems: 'center', justifyContent: 'center' }]}>
         <ActivityIndicator size="large" color={theme.primary} />
+      </SafeAreaView>
+    );
+  }
+
+  if (isError && !data) {
+    return (
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+        <ErrorState onRetry={() => refetch()} />
       </SafeAreaView>
     );
   }

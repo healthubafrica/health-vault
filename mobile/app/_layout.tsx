@@ -204,12 +204,6 @@ function RootLayoutNav() {
           }}
         />
         <Stack.Screen
-          name="telecare-settings"
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
           name="my-profile"
           options={{
             headerShown: false,
@@ -371,7 +365,6 @@ function RootLayoutNav() {
             headerShown: false,
           }}
         />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Information' }} />
       </Stack>
     </ThemeProvider>
   );

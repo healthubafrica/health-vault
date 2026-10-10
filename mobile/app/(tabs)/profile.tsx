@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import Constants from 'expo-constants';
 import { useQuery } from '@tanstack/react-query';
 import {
   User,
@@ -107,7 +108,7 @@ export default function MoreMenuScreen() {
           {/* Edit Profile */}
           <TouchableOpacity
             activeOpacity={0.75}
-            onPress={() => router.push('/my-profile')}
+            onPress={() => router.push('/edit-profile')}
             style={[styles.menuRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <User size={20} color={theme.primary} />
             <Text style={[styles.menuText, { color: theme.text }]}>Edit Profile</Text>
@@ -286,7 +287,7 @@ export default function MoreMenuScreen() {
             <Info size={20} color={theme.primary} />
             <View style={styles.rowMiddle}>
               <Text style={[styles.menuText, { color: theme.text }]}>About MyHealth Vault+</Text>
-              <Text style={[styles.menuSub, { color: theme.textMuted }]}>Version 2.1.0</Text>
+              <Text style={[styles.menuSub, { color: theme.textMuted }]}>Version {Constants.expoConfig?.version ?? ''}</Text>
             </View>
             <ChevronRight size={18} color={theme.textMuted} />
           </TouchableOpacity>

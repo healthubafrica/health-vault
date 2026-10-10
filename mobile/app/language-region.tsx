@@ -41,7 +41,7 @@ export default function LanguageRegionScreen() {
   const qc = useQueryClient();
 
   const { data: profileData } = useQuery({
-    queryKey: ['patient-profile'],
+    queryKey: ['patient', 'profile'],
     queryFn: () => patients.getMyProfile(),
   });
   const profile = profileData?.data;
@@ -61,7 +61,7 @@ export default function LanguageRegionScreen() {
       return patients.update(profile.id, { preferredLanguage: selectedLanguage });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['patient-profile'] });
+      qc.invalidateQueries({ queryKey: ['patient', 'profile'] });
       Alert.alert('Preferences Saved', 'Your display language has been updated.');
       router.back();
     },
