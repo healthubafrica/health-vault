@@ -4,11 +4,13 @@ import { PatientsController } from './patients.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { OpenemrModule } from '../openemr/openemr.module';
 import { StorageModule } from '../storage/storage.module';
+import { EmergencyContactsService } from './emergency-contacts.service';
+import { EmergencyContactsController } from './emergency-contacts.controller';
 
 @Module({
   imports: [NotificationsModule, OpenemrModule, StorageModule],
-  providers: [PatientsService],
-  controllers: [PatientsController],
+  providers: [PatientsService, EmergencyContactsService],
+  controllers: [PatientsController, EmergencyContactsController],
   exports: [PatientsService],
 })
 export class PatientsModule {}
