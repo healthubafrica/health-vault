@@ -123,4 +123,24 @@ describe('MakePaymentScreen', () => {
     await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith('Could not start payment', expect.any(String)));
     expect(r.queryByText('Reference Generated')).toBeNull();
   });
+
+  it('shows the human bank reference (hhaRef) for a bank transfer, falling back to reference then paymentId', async () => {
+    payments.initiate.mockResolvedValue({ paymentId: 'p1', reference: 'raw-ref', hhaRef: 'PAY-2026-000123', gateway: 'manual' });
+    const r = renderScreen();
+    fill(r);
+    fireEvent.press(await r.findByText('Bank Transfer'));
+    fireEvent.press(await r.findByText('Generate Bank Reference'));
+    expect(await r.findByText('Reference Generated')).toBeTruthy();
+    expect(r.getByText(/PAY-2026-000123/)).toBeTruthy();
+    expect(r.queryByText(/raw-ref/)).toBeNull();
+  });
+
+  it('falls back to paymentId when the backend returns no reference', async () => {
+    payments.initiate.mockResolvedValue({ paymentId: 'p-only', gateway: 'manual' });
+    const r = renderScreen();
+    fill(r);
+    fireEvent.press(await r.findByText('Bank Transfer'));
+    fireEvent.press(await r.findByText('Generate Bank Reference'));
+    expect(await r.findByText(/p-only/)).toBeTruthy();
+  });
 });

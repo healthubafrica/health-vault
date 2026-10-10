@@ -17,6 +17,7 @@ import {
   Clock,
   FlaskConical,
   CheckCircle2,
+  HeartHandshake,
 } from 'lucide-react-native';
 
 import Colors from '@/constants/Colors';
@@ -127,6 +128,23 @@ export default function ServicesTabScreen() {
             </TrackImpression>
           ))}
         </View>
+
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => router.push('/expert-review' as never)}
+          style={[styles.detailCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={styles.detailRow}>
+            <View style={[styles.detailIconBox, { backgroundColor: '#FDECEA' }]}>
+              <HeartHandshake size={18} color="#B91C1C" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.detailTitle, { color: theme.text }]}>My Expert Review cases</Text>
+              <Text style={[styles.detailBody, { color: theme.textMuted }]}>
+                Track your specialist second opinions or submit a new case.
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
 
         {/* Service Details Section */}
         <View style={styles.infoSection}>

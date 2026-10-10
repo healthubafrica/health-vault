@@ -87,4 +87,10 @@ describe('ShareRecordsScreen', () => {
     expect(await r.findByText('Email verified')).toBeTruthy();
     expect(shares.audit).toHaveBeenCalledWith('sh1');
   });
+
+  it('limits the label to 80 characters (backend MaxLength)', async () => {
+    const r = renderScreen();
+    await r.findByText('For Dr Bello');
+    expect(r.getByPlaceholderText('e.g. For my specialist referral').props.maxLength).toBe(80);
+  });
 });

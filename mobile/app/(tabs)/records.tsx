@@ -24,6 +24,7 @@ import {
   Trash2,
   Lock,
   Pencil,
+  HeartHandshake,
 } from 'lucide-react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -292,6 +293,15 @@ export default function RecordsHubScreen() {
 
       {/* Content Area */}
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => router.push('/expert-review' as never)}
+          style={[styles.storageBox, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
+          <HeartHandshake size={18} color={theme.primary} />
+          <Text style={{ flex: 1, color: theme.text, fontWeight: '700' }}>Expert Review cases</Text>
+          <ChevronRight size={16} color={theme.textMuted} />
+        </TouchableOpacity>
 
         {/* DOCUMENTS TAB — the actual Vault: search, category filter,
             storage quota, upload, delete. Same underlying records as the

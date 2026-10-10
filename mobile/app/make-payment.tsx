@@ -132,7 +132,7 @@ export default function MakePaymentScreen() {
       } else {
         analytics.track('payment_pending', { gateway });
         setTransferConfirm({
-          ref: result.paymentId,
+          ref: result.hhaRef ?? result.reference ?? result.paymentId,
           amount: `₦${(parseNairaAmount(amountNaira) ?? 0).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`,
         });
         qc.invalidateQueries({ queryKey: ['payments'] });

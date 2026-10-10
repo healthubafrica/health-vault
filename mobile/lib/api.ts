@@ -6,6 +6,7 @@
 
 import * as SecureStore from 'expo-secure-store';
 import * as analyticsClient from './analytics/client';
+import type { ExpertReviewCase, CreateExpertReviewInput } from './expertReview';
 
 export const API_BASE =
   (process.env.EXPO_PUBLIC_API_URL ?? 'https://api.myvaultplus.com') + '/api/v1';
@@ -447,7 +448,7 @@ export type AcquisitionSource = 'social_media' | 'friend' | 'referral' | 'family
 
 export const auth = {
   login: (email: string, password: string) =>
-    apiRequest<{ accessToken: string; refreshToken: string } | { requiresTwoFactor: true; userId: string }>(
+    apiRequest<{ accessToken: string; refreshToken: string }>(
       '/auth/login',
       { method: 'POST', body: JSON.stringify({ email, password }) },
       false
@@ -468,11 +469,6 @@ export const auth = {
       false
     ),
 
-  get2faStatus: () => apiRequest<{ twoFactorEnabled: boolean }>('/auth/2fa'),
-
-  set2fa: (enabled: boolean) =>
-    apiRequest<unknown>('/auth/2fa', { method: 'PATCH', body: JSON.stringify({ enabled }) }),
-
   changePassword: (currentPassword: string, newPassword: string) =>
     apiRequest<unknown>('/auth/change-password', {
       method: 'PATCH',
@@ -485,14 +481,6 @@ export const auth = {
     ),
 
   logoutAll: () => apiRequest<unknown>('/auth/logout-all', { method: 'POST' }),
-
-  // Second step of login when /auth/login answers { requiresTwoFactor, userId }.
-  verify2fa: (userId: string, otp: string) =>
-    apiRequest<{ accessToken: string; refreshToken: string }>(
-      '/auth/verify-2fa',
-      { method: 'POST', body: JSON.stringify({ userId, otp }) },
-      false
-    ),
 
   verifyOtp: async (email: string, otp: string, type = 'email') =>
     apiRequest<{ accessToken: string; refreshToken: string }>(
@@ -866,6 +854,8 @@ export const payments = {
       paymentId: string;
       authorizationUrl?: string;
       reference?: string;
+      /** Human reference (PAY-YYYY-NNNNNN) shown for bank transfers. */
+      hhaRef?: string;
       gateway: string;
       status?: string;
       requiresOtp?: boolean;
@@ -1217,4 +1207,16 @@ export const travelsafe = {
   list: () => apiRequest<{ data: TravelSafeTrip[] }>('/travelsafe/trips'),
 
   get: (id: string) => apiRequest<{ data: TravelSafeTrip }>(`/travelsafe/trips/${id}`),
+};
+
+export const expertReview = {
+  list: () => apiRequest<ExpertReviewCase[]>('/expert-review'),
+
+  get: (id: string) => apiRequest<ExpertReviewCase>(`/expert-review/${encodeURIComponent(id)}`),
+
+  create: (data: CreateExpertReviewInput) =>
+    apiRequest<ExpertReviewCase>('/expert-review', { method: 'POST', body: JSON.stringify(data) }),
+
+  acknowledgeDisclaimer: (id: string) =>
+    apiRequest<unknown>(`/expert-review/${encodeURIComponent(id)}/acknowledge-disclaimer`, { method: 'POST' }),
 };

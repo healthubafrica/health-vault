@@ -75,7 +75,6 @@
           "photosPermission": "MyHealth Vault+ needs access to your photos so you can choose a profile picture."
         }
       ],
-      "expo-sharing",
       [
         "expo-notifications",
         {

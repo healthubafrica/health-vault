@@ -253,7 +253,7 @@ export default function ShareRecordsScreen() {
             style={[styles.labelInput, { borderColor: theme.border, backgroundColor: theme.surface, color: theme.text }]}
             placeholder="e.g. For my specialist referral"
             placeholderTextColor={theme.textFaint}
-            maxLength={100}
+            maxLength={80}
             value={label}
             onChangeText={setLabel}
           />

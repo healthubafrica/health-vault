@@ -125,6 +125,11 @@ export default function EditProfileScreen() {
   const setAvatar = (avatarUrl?: string) => {
     const current = useAuthStore.getState().user;
     if (current) useAuthStore.setState({ user: { ...current, avatarUrl } });
+    // Write the new value (null when removed) into the cached profile so the
+    // screen never falls back to a stale profilePhotoUrl while it refetches.
+    qc.setQueryData(['patient', 'profile'], (old: typeof profileRes) =>
+      old ? { ...old, data: { ...old.data, profilePhotoUrl: avatarUrl ?? null } } : old,
+    );
     qc.invalidateQueries({ queryKey: ['patient', 'profile'] });
   };
 

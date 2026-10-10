@@ -375,6 +375,9 @@ function RootLayoutNav() {
         <Stack.Screen name="support-ticket" options={{ headerShown: false }} />
         <Stack.Screen name="dispatch-history" options={{ headerShown: false }} />
         <Stack.Screen name="dispatch-case" options={{ headerShown: false }} />
+        <Stack.Screen name="expert-review" options={{ headerShown: false }} />
+        <Stack.Screen name="expert-review-case" options={{ headerShown: false }} />
+        <Stack.Screen name="expert-review-new" options={{ headerShown: false }} />
       </Stack>
     </ThemeProvider>
   );

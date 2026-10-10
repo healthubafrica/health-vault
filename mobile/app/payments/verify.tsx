@@ -23,12 +23,16 @@ export default function PaymentVerifyScreen() {
   useEffect(() => {
     if (!reference) return;
     let live = true;
-    settlePayment(payments.verify, reference).then((o) => {
-      if (!live) return;
-      setOutcome(o);
-      qc.invalidateQueries({ queryKey: ['payments'] });
-      qc.invalidateQueries({ queryKey: ['subscription-me'] });
-    });
+    // The deep-link `status` param is advisory and never read: only the
+    // authenticated verify call may mark a payment as paid.
+    settlePayment(payments.verify, reference)
+      .catch((): PaymentOutcome => 'pending')
+      .then((o) => {
+        if (!live) return;
+        setOutcome(o);
+        qc.invalidateQueries({ queryKey: ['payments'] });
+        qc.invalidateQueries({ queryKey: ['subscription-me'] });
+      });
     return () => {
       live = false;
     };

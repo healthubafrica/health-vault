@@ -7,14 +7,13 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
-  Switch,
   Alert,
   TextInput,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, Lock, Smartphone, KeyRound, LogOut, Fingerprint, FileText } from 'lucide-react-native';
+import { ChevronLeft, Lock, KeyRound, LogOut, Fingerprint, FileText } from 'lucide-react-native';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -37,14 +36,7 @@ export default function PrivacySecurityScreen() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
 
-  const twoFa = useQuery({ queryKey: ['2fa'], queryFn: () => auth.get2faStatus() });
   const sessions = useQuery({ queryKey: ['sessions'], queryFn: () => auth.listSessions() });
-
-  const toggle2fa = useMutation({
-    mutationFn: (enabled: boolean) => auth.set2fa(enabled),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['2fa'] }),
-    onError: (err: unknown) => Alert.alert('Could not update', err instanceof ApiError ? err.message : 'Please try again.'),
-  });
 
   const changePassword = useMutation({
     mutationFn: () => auth.changePassword(currentPassword, newPassword),
@@ -108,33 +100,6 @@ export default function PrivacySecurityScreen() {
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Sign-in security</Text>
         </View>
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <View style={styles.row}>
-            <Smartphone size={22} color={theme.primary} />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.rowTitle, { color: theme.text }]}>Two-factor authentication</Text>
-              <Text style={[styles.rowDesc, { color: theme.textMuted }]}>
-                Require an emailed code when you sign in.
-              </Text>
-            </View>
-            {twoFa.isLoading ? (
-              <ActivityIndicator color={theme.primary} />
-            ) : twoFa.isError ? (
-              <TouchableOpacity onPress={() => twoFa.refetch()}>
-                <Text style={{ color: theme.primary, fontWeight: '700' }}>Retry</Text>
-              </TouchableOpacity>
-            ) : (
-              <Switch
-                value={!!twoFa.data?.twoFactorEnabled}
-                disabled={toggle2fa.isPending}
-                onValueChange={(v) => toggle2fa.mutate(v)}
-                trackColor={{ false: '#D0D5DD', true: theme.primaryLight }}
-                thumbColor={twoFa.data?.twoFactorEnabled ? theme.primary : '#F2F4F7'}
-              />
-            )}
-          </View>
-
-          <View style={[styles.divider, { backgroundColor: theme.border }]} />
-
           <View style={styles.row}>
             <Fingerprint size={22} color={theme.primary} />
             <View style={{ flex: 1 }}>

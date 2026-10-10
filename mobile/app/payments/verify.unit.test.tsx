@@ -58,4 +58,21 @@ describe('PaymentVerifyScreen', () => {
     expect(await r.findByText('Nothing to confirm')).toBeTruthy();
     expect(payments.verify).not.toHaveBeenCalled();
   });
+
+  it('never marks paid from a spoofed status param alone', async () => {
+    mockParams = { reference: 'ref-9', status: 'successful' };
+    payments.verify.mockResolvedValue({ status: 'pending' });
+    const r = renderScreen();
+    expect(r.queryByText('Payment successful')).toBeNull();
+    expect(r.getByText('Confirming your payment…')).toBeTruthy();
+    await waitFor(() => expect(payments.verify).toHaveBeenCalledWith('ref-9'));
+  });
+
+  it('resolves to pending when verification keeps failing', async () => {
+    mockParams = { reference: 'ref-10', status: 'successful' };
+    payments.verify.mockRejectedValue(new Error('network'));
+    const r = renderScreen();
+    expect(await r.findByText('Payment processing', {}, { timeout: 20000 })).toBeTruthy();
+    expect(r.queryByText('Payment successful')).toBeNull();
+  });
 });
