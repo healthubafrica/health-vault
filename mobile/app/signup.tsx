@@ -1,3 +1,4 @@
+import { genderForApi, isValidPassword, normalizePhone, parseIsoDob, PASSWORD_HINT } from '@/lib/validation';
 import React, { useState } from 'react';
 import {
   StyleSheet,
@@ -64,6 +65,10 @@ export default function SignUpScreen() {
         Alert.alert('Required', 'Please enter your full name.');
         return;
       }
+      if (!parseIsoDob(dob.trim())) {
+        Alert.alert('Date of birth', 'Enter your date of birth as YYYY-MM-DD (for example 1990-04-12).');
+        return;
+      }
       if (!acquisitionSource) {
         Alert.alert('Required', 'Please tell us how you first heard about Health-Hub Africa.');
         return;
@@ -78,8 +83,13 @@ export default function SignUpScreen() {
         Alert.alert('Password mismatch', 'Passwords do not match.');
         return;
       }
-      if (password.length < 8) {
-        Alert.alert('Weak password', 'Password must be at least 8 characters.');
+      if (!isValidPassword(password)) {
+        Alert.alert('Weak password', PASSWORD_HINT);
+        return;
+      }
+      const phoneResult = normalizePhone(phone);
+      if (!phoneResult.ok) {
+        Alert.alert('Phone number', 'Enter your phone number in international format, e.g. +2348012345678.');
         return;
       }
       setIsLoading(true);
@@ -87,7 +97,7 @@ export default function SignUpScreen() {
         await auth.register(
           email.trim(),
           password,
-          phone.trim() || undefined,
+          phoneResult.value,
           fullName.trim(),
           acquisitionSource as AcquisitionSource,
         );
@@ -132,8 +142,8 @@ export default function SignUpScreen() {
           const res = await patients.create({
             firstName: fullName.trim().split(' ')[0] ?? fullName.trim(),
             lastName: fullName.trim().split(' ').slice(1).join(' ') || '',
-            dateOfBirth: dob || '1990-01-01',
-            gender,
+            dateOfBirth: parseIsoDob(dob.trim()) as string,
+            gender: genderForApi(gender),
             country: 'Nigeria',
           });
           profile = res.data;
@@ -266,7 +276,7 @@ export default function SignUpScreen() {
                   <View style={styles.inputWrapper}>
                     <TextInput
                       style={styles.textInput}
-                      placeholder="DD / MM / YYYY (e.g. 14/07/1992)"
+                      placeholder="YYYY-MM-DD (e.g. 1992-07-14)"
                       placeholderTextColor="#98A2B3"
                       value={dob}
                       onChangeText={setDob}
@@ -358,7 +368,7 @@ export default function SignUpScreen() {
                   <View style={styles.inputWrapper}>
                     <TextInput
                       style={styles.textInput}
-                      placeholder="Enter your mobile number with country code"
+                      placeholder="+2348012345678"
                       placeholderTextColor="#98A2B3"
                       keyboardType="phone-pad"
                       value={phone}
@@ -372,7 +382,7 @@ export default function SignUpScreen() {
                   <View style={styles.inputWrapper}>
                     <TextInput
                       style={[styles.textInput, { paddingRight: 44 }]}
-                      placeholder="Minimum 8 characters"
+                      placeholder="12+ characters, mixed case, number, symbol"
                       placeholderTextColor="#98A2B3"
                       secureTextEntry={!showPassword}
                       value={password}

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -12,11 +12,15 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import BotanicalBackground from '@/components/BotanicalBackground';
+import { useAuthStore } from '@/lib/stores/authStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function AppEntrySplashScreen() {
   const router = useRouter();
+  const isAuthenticated = useAuthStore((st) => st.isAuthenticated);
+  const isRestoring = useAuthStore((st) => st.isLoading);
+  const [minSplashDone, setMinSplashDone] = useState(false);
 
   // Subtle pulsing animations for logo emblem and progress indicator
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -44,16 +48,19 @@ export default function AppEntrySplashScreen() {
       }),
     ]).start();
 
-    // Auto-advance to onboarding after splash duration
-    const timer = setTimeout(() => {
-      router.replace('/onboarding');
-    }, 2200);
-
+    // Minimum splash time; the actual destination waits for session restore.
+    const timer = setTimeout(() => setMinSplashDone(true), 2200);
     return () => clearTimeout(timer);
   }, []);
 
+  // Signed-in users go straight to the app; everyone else to onboarding.
+  useEffect(() => {
+    if (!minSplashDone || isRestoring) return;
+    router.replace(isAuthenticated ? '/(tabs)' : '/onboarding');
+  }, [minSplashDone, isRestoring, isAuthenticated]);
+
   const handleManualAdvance = () => {
-    router.replace('/onboarding');
+    router.replace(isAuthenticated ? '/(tabs)' : '/onboarding');
   };
 
   return (
@@ -88,7 +95,7 @@ export default function AppEntrySplashScreen() {
         <View style={styles.bottomActionsContainer}>
           <TouchableOpacity
             activeOpacity={0.85}
-            onPress={() => router.replace('/onboarding')}
+            onPress={handleManualAdvance}
             style={styles.primaryCtaBtn}>
             <Text style={styles.primaryCtaText}>Get Started</Text>
           </TouchableOpacity>

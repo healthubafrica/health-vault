@@ -29,41 +29,21 @@ export default function PrescriptionDetailScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  const rxName = (params.name as string) || 'Metformin 500mg';
-  const rxDosage = (params.dosage as string) || '1 tablet twice daily';
-  const rxProvider = (params.provider as string) || 'Dr. T. Mahlangu';
-  const rxStatus = ((params.status as string) || 'due') as 'due' | 'active';
-  const rxIndication = (params.indication as string) || 'Type 2 Diabetes Management';
-  const rxPrescribedDate = (params.prescribedDate as string) || '10 Mar 2025';
-  const rxStartDate = (params.startDate as string) || '01 Mar 2025';
-  const rxExpiryDate = (params.expiryDate as string) || '01 Sep 2025';
-  const rxRefillsLeft = parseInt((params.refillsLeft as string) || (rxStatus === 'due' ? '0' : '2'), 10);
-  const rxTotalRefills = 3;
-  const rxInstructions =
-    (params.instructions as string) ||
-    'Take with meals. Avoid alcohol. Monitor blood glucose regularly.';
-  const rxSideEffects =
-    (params.sideEffects as string) ||
-    'Nausea, diarrhea, headache (common and usually resolve)';
-  const rxPharmacy = (params.pharmacy as string) || 'Clicks Pharmacy - Midrand';
-  const rxWarnings =
-    'May cause vitamin B12 deficiency with long-term use. Annual B12 testing recommended.';
-
-  const handleRequestRefill = () => {
-    Alert.alert(
-      'Refill Requested',
-      `Your refill request for ${rxName} has been submitted to ${rxPharmacy} and ${rxProvider}.`
-    );
-  };
+  const rxName = (params.name as string) || 'Prescription';
+  const rxDosage = (params.dosage as string) || '';
+  const rxProvider = (params.provider as string) || '';
+  const rxStatus = ((params.status as string) || 'active') as 'due' | 'active';
+  const rxPrescribedDate = (params.prescribedDate as string) || '';
+  const rxExpiryDate = (params.expiryDate as string) || '';
+  const rxRoute = (params.route as string) || '';
+  const rxRefillsLeft = parseInt((params.refillsLeft as string) || '0', 10);
+  const rxNotes = (params.notes as string) || '';
 
   const handleContactProvider = () => {
-    Alert.alert('Contact Clinician', `Connecting you to ${rxProvider}...`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Start TeleCare', onPress: () => router.push('/(tabs)/telecare') },
-    ]);
+    // No refill-request endpoint exists yet: send the patient to a real consultation.
+    router.push('/book-appointment-step1');
   };
 
-  const progressPercent = Math.min(100, Math.max(0, (rxRefillsLeft / rxTotalRefills) * 100));
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -90,7 +70,7 @@ export default function PrescriptionDetailScreen() {
           <View style={styles.cardHeader}>
             <View style={styles.cardHeaderInfo}>
               <Text style={[styles.rxTitle, { color: theme.text }]}>{rxName}</Text>
-              <Text style={[styles.indicationText, { color: theme.textMuted }]}>{rxIndication}</Text>
+              {rxRoute ? <Text style={[styles.indicationText, { color: theme.textMuted }]}>Route: {rxRoute}</Text> : null}
             </View>
             <StatusPill
               status={rxStatus === 'due' ? 'amber' : 'green'}
@@ -105,11 +85,11 @@ export default function PrescriptionDetailScreen() {
             </View>
             <View style={styles.metaRow}>
               <Text style={[styles.metaLabel, { color: theme.textMuted }]}>PRESCRIBED BY</Text>
-              <Text style={[styles.metaValue, { color: theme.text }]}>{rxProvider}</Text>
+              <Text style={[styles.metaValue, { color: theme.text }]}>{rxProvider || 'Not recorded'}</Text>
             </View>
             <View style={styles.metaRow}>
               <Text style={[styles.metaLabel, { color: theme.textMuted }]}>PRESCRIBED DATE</Text>
-              <Text style={[styles.metaValue, { color: theme.text }]}>{rxPrescribedDate}</Text>
+              <Text style={[styles.metaValue, { color: theme.text }]}>{rxPrescribedDate || 'Not recorded'}</Text>
             </View>
           </View>
         </View>
@@ -121,118 +101,44 @@ export default function PrescriptionDetailScreen() {
             <View style={styles.refillRow}>
               <Text style={[styles.refillLabel, { color: theme.text }]}>Refills Remaining</Text>
               <Text style={[styles.refillValue, { color: theme.text }]}>
-                {rxRefillsLeft}/{rxTotalRefills}
+                {rxRefillsLeft}
               </Text>
-            </View>
-
-            {/* Progress Bar */}
-            <View style={[styles.progressTrack, { backgroundColor: theme.border }]}>
-              <View
-                style={[
-                  styles.progressBar,
-                  {
-                    width: `${progressPercent}%`,
-                    backgroundColor: rxRefillsLeft === 0 ? '#E8930A' : theme.primary,
-                  },
-                ]}
-              />
             </View>
 
             <Text style={[styles.refillHint, { color: theme.textMuted }]}>
               {rxRefillsLeft === 0
-                ? 'No refills remaining. Contact your provider to renew.'
+                ? 'No refills remaining'
                 : `${rxRefillsLeft} refill${rxRefillsLeft > 1 ? 's' : ''} available`}
             </Text>
           </View>
         </View>
 
-        {/* Coverage Dates */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>COVERAGE DATES</Text>
-          <View style={styles.infoCardsList}>
-            <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.metaLabel, { color: theme.textMuted }]}>START DATE</Text>
-              <Text style={[styles.infoCardValue, { color: theme.text }]}>{rxStartDate}</Text>
-            </View>
-
-            <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.metaLabel, { color: theme.textMuted }]}>EXPIRY DATE</Text>
-              <Text style={[styles.infoCardValue, { color: theme.text }]}>{rxExpiryDate}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Instructions */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>INSTRUCTIONS</Text>
-          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.bodyText, { color: theme.text }]}>{rxInstructions}</Text>
-          </View>
-        </View>
-
-        {/* Side Effects */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>POSSIBLE SIDE EFFECTS</Text>
-          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.bodyText, { color: theme.text }]}>{rxSideEffects}</Text>
-          </View>
-        </View>
-
-        {/* Important Warnings */}
-        {rxWarnings && (
+        {rxExpiryDate ? (
           <View style={styles.section}>
-            <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>IMPORTANT WARNINGS</Text>
-            <View
-              style={[
-                styles.warningBox,
-                {
-                  backgroundColor: theme.status.warning.background,
-                  borderColor: theme.status.warning.border,
-                },
-              ]}>
-              <Text style={[styles.warningText, { color: theme.status.warning.text }]}>
-                {rxWarnings}
-              </Text>
+            <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>EXPIRES</Text>
+            <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Text style={[styles.bodyText, { color: theme.text }]}>{rxExpiryDate}</Text>
             </View>
           </View>
-        )}
+        ) : null}
 
-        {/* Pharmacy */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>PHARMACY</Text>
-          <TouchableOpacity
-            activeOpacity={0.75}
-            style={[styles.pharmacyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.pharmacyName, { color: theme.text }]}>{rxPharmacy}</Text>
-            <ChevronRight size={18} color={theme.textMuted} />
-          </TouchableOpacity>
-        </View>
+        {rxNotes ? (
+          <View style={styles.section}>
+            <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>NOTES FROM YOUR CLINICIAN</Text>
+            <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Text style={[styles.bodyText, { color: theme.text }]}>{rxNotes}</Text>
+            </View>
+          </View>
+        ) : null}
 
         {/* Action Buttons */}
         <View style={styles.actionGroup}>
-          {rxStatus === 'due' && (
-            <TouchableOpacity
-              onPress={handleRequestRefill}
-              activeOpacity={0.85}
-              style={[
-                styles.refillActionBtn,
-                {
-                  backgroundColor: theme.status.warning.background,
-                  borderColor: theme.status.warning.border,
-                },
-              ]}>
-              <Text style={[styles.refillActionText, { color: theme.status.warning.text }]}>
-                Request Refill
-              </Text>
-            </TouchableOpacity>
-          )}
-
           <TouchableOpacity
             onPress={handleContactProvider}
             activeOpacity={0.85}
             style={[styles.contactBtn, { backgroundColor: theme.primaryLight }]}>
             <Phone size={18} color={theme.primary} />
-            <Text style={[styles.contactBtnText, { color: theme.primaryDark }]}>Contact Provider</Text>
+            <Text style={[styles.contactBtnText, { color: theme.primaryDark }]}>Book a consultation to renew</Text>
           </TouchableOpacity>
         </View>
 

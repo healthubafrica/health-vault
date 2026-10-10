@@ -26,7 +26,8 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
-import { appointments, analytics } from '@/lib/api';
+import { appointments, telecare, analytics, ApiError } from '@/lib/api';
+import { findSessionForAppointment } from '@/lib/appointments';
 
 export default function TeleCareWaitingRoomScreen() {
   const router = useRouter();
@@ -53,10 +54,22 @@ export default function TeleCareWaitingRoomScreen() {
     ? `${nextTelecare.provider.firstName[0] ?? ''}${nextTelecare.provider.lastName[0] ?? ''}`.toUpperCase()
     : '—';
 
-  const handleJoinCall = () => {
+  const handleJoinCall = async () => {
     if (!nextTelecare) return;
     analytics.track('ui_click', { element_id: 'join_telecare_cta', feature_area: 'telecare' });
-    router.push({ pathname: '/telecare-call', params: { sessionId: nextTelecare.id } });
+    try {
+      // The video token is issued per TelecareSession; nextTelecare.id is the
+      // APPOINTMENT id and was being sent to the token endpoint (always failing).
+      const sessions = (await telecare.list()).data;
+      const session = findSessionForAppointment(sessions, nextTelecare.id);
+      if (!session) {
+        Alert.alert('Session not ready', 'Your video room opens once the appointment is confirmed. Please check back shortly.');
+        return;
+      }
+      router.push({ pathname: '/telecare-call', params: { sessionId: session.id } });
+    } catch (err) {
+      Alert.alert('Could not join', err instanceof ApiError ? err.message : 'Please try again.');
+    }
   };
 
   const handleEndSession = () => {

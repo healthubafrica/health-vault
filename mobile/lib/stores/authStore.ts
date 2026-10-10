@@ -6,6 +6,9 @@ import {
   getStoredRefreshToken,
   clearStoredTokens,
   apiRequest,
+  refreshSession,
+  setSessionExpiredHandler,
+  patients,
 } from '../api';
 
 export interface UserProfile {
@@ -100,31 +103,50 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       }
 
-      // Exchange refresh token for fresh session
-      const data = await apiRequest<{ accessToken: string; refreshToken: string; user: UserProfile }>(
-        '/auth/refresh',
-        {
-          method: 'POST',
-          body: JSON.stringify({ refreshToken }),
-        },
-        false
-      );
-
-      if (data.accessToken) {
-        setAccessToken(data.accessToken);
-        if (data.refreshToken) {
-          await saveRefreshToken(data.refreshToken);
-        }
-        set({ user: data.user, isAuthenticated: true, isLoading: false });
-        return true;
+      // Exchange the refresh token for a fresh access token (sent as the
+      // x-refresh-token header — see refreshSession), then load the profile:
+      // the refresh response carries tokens only, no user.
+      const outcome = await refreshSession();
+      if (outcome === 'rejected') {
+        await clearStoredTokens();
+        set({ user: null, isAuthenticated: false, isLoading: false });
+        return false;
+      }
+      if (outcome === 'unreachable') {
+        // Offline at launch: keep the stored session, let screens retry.
+        set({ isLoading: false });
+        return false;
       }
 
-      set({ user: null, isAuthenticated: false, isLoading: false });
-      return false;
-    } catch (err) {
-      await clearStoredTokens();
-      set({ user: null, isAuthenticated: false, isLoading: false });
+      const { data: profile } = await patients.getMyProfile();
+      set({
+        user: {
+          id: profile.id,
+          email: profile.user.email,
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          phone: profile.user.phone ?? undefined,
+          avatarUrl: profile.profilePhotoUrl ?? undefined,
+        },
+        isAuthenticated: true,
+        isLoading: false,
+      });
+      return true;
+    } catch {
+      // Profile fetch failed after a good refresh (e.g. network drop): do not
+      // destroy a valid session over a transient error.
+      set({ isLoading: false });
       return false;
     }
   },
 }));
+
+// A rejected refresh anywhere in the app (apiRequest) resets auth state so the
+// root layout routes back to sign-in instead of leaving a dead session on screen.
+// Called once from the root layout (not at import time, so tests that mock the
+// API module can import this store).
+export function registerSessionExpiryHandler() {
+  setSessionExpiredHandler(() => {
+    useAuthStore.setState({ user: null, isAuthenticated: false, isLoading: false });
+  });
+}

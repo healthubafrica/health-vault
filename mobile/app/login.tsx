@@ -32,6 +32,9 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  // Set when the server asks for a second factor after a correct password.
+  const [twoFactorUserId, setTwoFactorUserId] = useState<string | null>(null);
+  const [otp, setOtp] = useState('');
 
   // ── Forgot Password ───────────────────────────────────────────────────────
 
@@ -63,7 +66,48 @@ export default function LoginScreen() {
 
   // ── Login ─────────────────────────────────────────────────────────────────
 
+  // Shared by the password step and the 2FA step.
+  const completeLogin = async (accessToken: string, refreshToken: string) => {
+    // Must happen before any authenticated request below — apiRequest reads
+    // this in-memory token synchronously, and it isn't set until loginStore
+    // runs. Fetching the profile first sent every fresh login out with no
+    // Authorization header, which 401'd, found no refresh token saved yet
+    // either, and surfaced as a false "Your session has expired" error.
+    setAccessToken(accessToken);
+
+    // Fetch full patient profile
+    const { data: profile } = await patients.getMyProfile();
+
+    await loginStore(accessToken, refreshToken, {
+      id: profile.id,
+      email: profile.user.email,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      phone: profile.user.phone ?? undefined,
+      avatarUrl: profile.profilePhotoUrl ?? undefined,
+    });
+
+    router.replace('/(tabs)');
+  };
+
   const handleLogin = async () => {
+    if (twoFactorUserId) {
+      if (otp.trim().length < 6) {
+        Alert.alert('Code required', 'Enter the 6-digit code we sent you.');
+        return;
+      }
+      setIsLoading(true);
+      try {
+        const { accessToken, refreshToken } = await auth.verify2fa(twoFactorUserId, otp.trim());
+        await completeLogin(accessToken, refreshToken);
+      } catch (err) {
+        Alert.alert('Verification failed', err instanceof ApiError ? err.message : 'Please try again.');
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
     if (!email.trim() || !password) {
       Alert.alert('Missing fields', 'Please enter your email and password.');
       return;
@@ -74,35 +118,13 @@ export default function LoginScreen() {
       const result = await auth.login(email.trim(), password);
 
       if ('requiresTwoFactor' in result) {
-        // OTP required — navigate to OTP verification screen
-        Alert.alert('OTP Required', 'A one-time code has been sent to your email/phone.');
-        // TODO: navigate to OTP screen when built
-        setIsLoading(false);
+        // Password was right; the server emailed a one-time code.
+        setTwoFactorUserId(result.userId);
+        setOtp('');
         return;
       }
 
-      const { accessToken, refreshToken } = result;
-
-      // Must happen before any authenticated request below — apiRequest reads
-      // this in-memory token synchronously, and it isn't set until loginStore
-      // runs. Fetching the profile first sent every fresh login out with no
-      // Authorization header, which 401'd, found no refresh token saved yet
-      // either, and surfaced as a false "Your session has expired" error.
-      setAccessToken(accessToken);
-
-      // Fetch full patient profile
-      const { data: profile } = await patients.getMyProfile();
-
-      await loginStore(accessToken, refreshToken, {
-        id: profile.id,
-        email: profile.user.email,
-        firstName: profile.firstName,
-        lastName: profile.lastName,
-        phone: profile.user.phone ?? undefined,
-        avatarUrl: profile.profilePhotoUrl ?? undefined,
-      });
-
-      router.replace('/(tabs)');
+      await completeLogin(result.accessToken, result.refreshToken);
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'Login failed. Please try again.';
       Alert.alert('Sign In Failed', msg);
@@ -143,6 +165,27 @@ export default function LoginScreen() {
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.cardScrollContent}>
 
+            {twoFactorUserId ? (
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Verification code</Text>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="6-digit code from your email"
+                    placeholderTextColor="#98A2B3"
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    autoFocus
+                    value={otp}
+                    onChangeText={setOtp}
+                  />
+                </View>
+                <TouchableOpacity activeOpacity={0.7} onPress={() => setTwoFactorUserId(null)}>
+                  <Text style={styles.forgotPasswordLinkText}>Use a different account</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
             {/* Email Field */}
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Email address</Text>
@@ -185,6 +228,9 @@ export default function LoginScreen() {
               </View>
             </View>
 
+              </>
+            )}
+
             {/* Login Button */}
             <TouchableOpacity
               activeOpacity={0.85}
@@ -194,7 +240,7 @@ export default function LoginScreen() {
               {isLoading ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.loginBtnText}>Sign In</Text>
+                <Text style={styles.loginBtnText}>{twoFactorUserId ? 'Verify' : 'Sign In'}</Text>
               )}
             </TouchableOpacity>
 

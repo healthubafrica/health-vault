@@ -408,6 +408,10 @@ export default function RecordsHubScreen() {
                             dosage: `${rx.dosage} · ${rx.frequency}`,
                             status: isDue ? 'due' : 'active',
                             refillsLeft: rx.refillsRemaining.toString(),
+                            route: rx.route ?? '',
+                            expiryDate: rx.expiresAt ? formatDate(rx.expiresAt) : '',
+                            prescribedDate: formatDate(rx.createdAt),
+                            notes: rx.notes ?? '',
                           },
                         })
                       }
@@ -471,7 +475,11 @@ export default function RecordsHubScreen() {
             ) : (
               <View style={styles.listGroup}>
                 {labOrdersData?.data?.map((labOrder: LabOrder) => {
-                  const isReady = labOrder.overallStatus === 'completed' || labOrder.overallStatus === 'ready';
+                  // LabStatus is pending | normal | review | critical: anything but
+                  // pending means results are in (the old check looked for
+                  // 'completed'/'ready', values the backend never sends).
+                  const isReady = labOrder.overallStatus !== 'pending';
+                  const needsReview = labOrder.overallStatus === 'review' || labOrder.overallStatus === 'critical';
                   const title = labOrder.results?.[0]?.testName ?? 'Lab Order';
                   return (
                     <TouchableOpacity
@@ -498,8 +506,8 @@ export default function RecordsHubScreen() {
                       </View>
                       <View style={styles.statusWithChevron}>
                         <StatusPill
-                          status={isReady ? 'green' : 'amber'}
-                          label={isReady ? 'Ready' : 'Pending'}
+                          status={isReady && !needsReview ? 'green' : 'amber'}
+                          label={!isReady ? 'Pending' : needsReview ? 'Review' : 'Ready'}
                         />
                         <ChevronRight size={18} color={theme.textMuted} />
                       </View>

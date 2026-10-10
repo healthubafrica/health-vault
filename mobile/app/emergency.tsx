@@ -22,9 +22,31 @@ import {
 } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
+import * as Location from 'expo-location';
 import { patients, dispatch, analytics, ApiError } from '@/lib/api';
+import { bloodGroupLabel } from '@/lib/bloodGroup';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useQuery } from '@tanstack/react-query';
+
+// Backend EmergencyType has no generic "medical" value; "Other" is the catch-all.
+const DISPATCH_EMERGENCY_TYPE = 'Other';
+const EMERGENCY_NUMBER = '112';
+
+async function getCurrentCoordinates(): Promise<{ latitude: number; longitude: number } | null> {
+  try {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') return null;
+    const fix = await Promise.race([
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+    ]);
+    if (fix) return { latitude: fix.coords.latitude, longitude: fix.coords.longitude };
+    const last = await Location.getLastKnownPositionAsync();
+    return last ? { latitude: last.coords.latitude, longitude: last.coords.longitude } : null;
+  } catch {
+    return null;
+  }
+}
 
 export default function EmergencyScreen() {
   const router = useRouter();
@@ -40,12 +62,15 @@ export default function EmergencyScreen() {
 
   const profile = profileRes?.data;
   const patientName = profile ? `${profile.firstName} ${profile.lastName}` : (authUser ? `${authUser.firstName} ${authUser.lastName}` : 'Patient');
-  const bloodGroup = profile?.bloodGroup ?? 'O+ (Positive)';
-  const allergies = profile?.medicalInfo?.allergies?.join(', ') || 'Penicillin (Severe / Anaphylaxis)';
-  const chronicConditions = profile?.medicalInfo?.chronicConditions?.join(', ') || 'Type 2 Diabetes Mellitus';
-  const currentMedications = profile?.medicalInfo?.activeMedications?.join(', ') || 'Metformin 500mg (Daily)';
-  const emergencyContactName = profile?.emergencyContacts?.[0]?.fullName ?? profile?.nextOfKinName ?? 'Kwame Osei';
-  const emergencyContactPhone = profile?.emergencyContacts?.[0]?.phone ?? profile?.nextOfKinPhone ?? '+27 82 123 4567';
+  // Only real, recorded data: a responder must never be shown invented
+  // allergies, medicines or contacts.
+  const NOT_RECORDED = 'Not recorded';
+  const bloodGroup = bloodGroupLabel(profile?.bloodGroup) ?? NOT_RECORDED;
+  const allergies = profile?.medicalInfo?.allergies?.join(', ') || NOT_RECORDED;
+  const chronicConditions = profile?.medicalInfo?.chronicConditions?.join(', ') || NOT_RECORDED;
+  const currentMedications = profile?.medicalInfo?.activeMedications?.join(', ') || NOT_RECORDED;
+  const emergencyContactName = profile?.emergencyContacts?.[0]?.fullName ?? profile?.nextOfKinName ?? NOT_RECORDED;
+  const emergencyContactPhone = profile?.emergencyContacts?.[0]?.phone ?? profile?.nextOfKinPhone ?? NOT_RECORDED;
   const emergencyContactRel = profile?.emergencyContacts?.[0]?.relationship ?? profile?.nextOfKinRelationship ?? 'Contact';
 
   const handleDispatchCare = () => {
@@ -59,19 +84,32 @@ export default function EmergencyScreen() {
           style: 'destructive',
           onPress: async () => {
             setIsRequesting(true);
-            analytics.track('dispatch_request_started', { emergencyType: 'medical_emergency' });
+            analytics.track('dispatch_request_started', { emergencyType: DISPATCH_EMERGENCY_TYPE });
             try {
+              // Best effort: a dispatcher needs the location, but never block
+              // an emergency on a slow or denied GPS fix.
+              const coords = await getCurrentCoordinates();
               await dispatch.create({
-                emergencyType: 'medical_emergency',
+                emergencyType: DISPATCH_EMERGENCY_TYPE,
                 description: `Emergency request for ${patientName}`,
                 contactPhone: profile?.user?.phone ?? authUser?.phone ?? undefined,
+                ...(coords && { latitude: coords.latitude, longitude: coords.longitude }),
               });
-              analytics.track('dispatch_request_success', { emergencyType: 'medical_emergency' });
-              Alert.alert('DispatchCare Alerted', 'Ambulance dispatch unit has been notified. Live status ETA: 8 mins.');
+              analytics.track('dispatch_request_success', { emergencyType: DISPATCH_EMERGENCY_TYPE });
+              Alert.alert(
+                'Request sent',
+                coords
+                  ? 'DispatchCare has your request and location. A dispatcher will contact you shortly.'
+                  : "DispatchCare has your request, but we couldn't get your location. Tell the dispatcher where you are when they call.",
+              );
             } catch (err: unknown) {
-              analytics.track('dispatch_request_failure', { emergencyType: 'medical_emergency' });
-              const msg = err instanceof ApiError ? err.message : 'Emergency services alerted. An agent is contacting you.';
-              Alert.alert('Dispatch Alerted', msg);
+              analytics.track('dispatch_request_failure', { emergencyType: DISPATCH_EMERGENCY_TYPE });
+              // Never imply help is coming when the request failed.
+              Alert.alert(
+                'Request NOT sent',
+                (err instanceof ApiError ? err.message : 'We could not reach DispatchCare.') +
+                  '\n\nCall ' + EMERGENCY_NUMBER + ' now.',
+              );
             } finally {
               setIsRequesting(false);
             }
@@ -101,7 +139,7 @@ export default function EmergencyScreen() {
           <AlertOctagon size={36} color={theme.emergency} />
           <Text style={[styles.dispatchHeading, { color: theme.emergency }]}>DispatchCare Emergency</Text>
           <Text style={[styles.dispatchSub, { color: '#78281F' }]}>
-            Fast-response medical dispatch connected to your live GPS coordinates.
+            Fast-response medical dispatch. We share your GPS location when you allow it.
           </Text>
 
           <View style={[styles.gpsBox, { backgroundColor: '#FFFFFF', borderColor: theme.emergency }]}>

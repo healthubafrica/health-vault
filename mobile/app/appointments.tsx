@@ -23,76 +23,9 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
-import { appointments, analytics, Appointment, ApiError } from '@/lib/api';
+import { appointments, telecare, analytics, Appointment, ApiError } from '@/lib/api';
+import { canCancel, canJoinCall, findSessionForAppointment, isPastStatus, statusPill } from '@/lib/appointments';
 
-
-interface AppointmentItem {
-  id: number;
-  providerName: string;
-  specialty: string;
-  date: string;
-  type: 'TeleCare' | 'in-person';
-  status: 'confirmed' | 'pending' | 'completed' | 'cancelled';
-  initials: string;
-  action: string;
-}
-
-const APPOINTMENTS_DATA: { upcoming: AppointmentItem[]; past: AppointmentItem[] } = {
-  upcoming: [
-    {
-      id: 1,
-      providerName: 'Dr. Naledi Dlamini',
-      specialty: 'General Practitioner',
-      date: 'Today, 2:30 PM',
-      type: 'TeleCare',
-      status: 'confirmed',
-      initials: 'ND',
-      action: 'Join Call',
-    },
-    {
-      id: 2,
-      providerName: 'Dr. T. Mahlangu',
-      specialty: 'Endocrinologist',
-      date: 'Wed, 16 Jul 2025 · 10:00 AM',
-      type: 'in-person',
-      status: 'confirmed',
-      initials: 'TM',
-      action: 'Reschedule',
-    },
-    {
-      id: 3,
-      providerName: 'Dr. Sarah Chen',
-      specialty: 'Cardiologist',
-      date: 'Fri, 18 Jul 2025 · 3:15 PM',
-      type: 'in-person',
-      status: 'pending',
-      initials: 'SC',
-      action: 'Confirm',
-    },
-  ],
-  past: [
-    {
-      id: 4,
-      providerName: 'Dr. Naledi Dlamini',
-      specialty: 'General Practitioner',
-      date: 'Mon, 07 Jul 2025 · 2:30 PM',
-      type: 'TeleCare',
-      status: 'completed',
-      initials: 'ND',
-      action: 'Book Again',
-    },
-    {
-      id: 5,
-      providerName: 'Dr. James Okonkwo',
-      specialty: 'Dermatologist',
-      date: 'Sat, 29 Jun 2025 · 11:00 AM',
-      type: 'in-person',
-      status: 'completed',
-      initials: 'JO',
-      action: 'Book Again',
-    },
-  ],
-};
 
 export default function AppointmentsScreen() {
   const router = useRouter();
@@ -108,7 +41,12 @@ export default function AppointmentsScreen() {
 
   const { data: pastData, isLoading: loadingPast } = useQuery({
     queryKey: ['appointments', 'past'],
-    queryFn: () => appointments.list({ status: 'completed' }),
+    // Past = completed, cancelled and missed. The API filters by one status,
+    // so fetch recent appointments and keep the finished ones.
+    queryFn: async () => {
+      const res = await appointments.list();
+      return { ...res, data: res.data.filter((a) => isPastStatus(a.status)) };
+    },
   });
 
   const cancelMutation = useMutation({
@@ -153,10 +91,25 @@ export default function AppointmentsScreen() {
     );
   };
 
+  const joinCall = async (item: Appointment) => {
+    try {
+      // The video token is issued per TelecareSession, not per appointment.
+      const sessions = (await telecare.list()).data;
+      const session = findSessionForAppointment(sessions, item.id);
+      if (!session) {
+        Alert.alert('Session not ready', 'Your video room opens once the appointment is confirmed. Please check back shortly.');
+        return;
+      }
+      router.push({ pathname: '/telecare-call', params: { sessionId: session.id } });
+    } catch (err) {
+      Alert.alert('Could not join', err instanceof ApiError ? err.message : 'Please try again.');
+    }
+  };
+
   const handleAction = (item: Appointment) => {
-    if (item.isTelecare && item.status === 'confirmed') {
-      router.push('/telecare-call');
-    } else if (item.status === 'confirmed' || item.status === 'pending') {
+    if (canJoinCall(item)) {
+      void joinCall(item);
+    } else if (canCancel(item.status)) {
       Alert.alert(
         'Appointment Options',
         `Choose an action for your appointment:`,
@@ -277,7 +230,7 @@ export default function AppointmentsScreen() {
                         {specialty}
                       </Text>
                       <View style={{ marginTop: 4, alignSelf: 'flex-start' }}>
-                        <StatusPill status={appointment.status as 'confirmed' | 'pending' | 'completed' | 'cancelled'} />
+                        <StatusPill {...statusPill(appointment.status)} />
                       </View>
                     </View>
                   </View>
@@ -295,22 +248,22 @@ export default function AppointmentsScreen() {
                   </View>
 
                   {/* Action CTA Button */}
-                  {(appointment.status === 'confirmed' || appointment.status === 'pending') && (
+                  {(canJoinCall(appointment) || canCancel(appointment.status)) && (
                     <TouchableOpacity
                       activeOpacity={0.85}
                       onPress={() => handleAction(appointment)}
                       style={[
                         styles.actionBtn,
-                        appointment.isTelecare && appointment.status === 'confirmed'
+                        canJoinCall(appointment)
                           ? { backgroundColor: theme.primary }
                           : { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 },
                       ]}>
                       <Text
                         style={[
                           styles.actionBtnText,
-                          { color: appointment.isTelecare && appointment.status === 'confirmed' ? '#FFFFFF' : theme.text },
+                          { color: canJoinCall(appointment) ? '#FFFFFF' : theme.text },
                         ]}>
-                        {appointment.isTelecare && appointment.status === 'confirmed' ? 'Join Call' : 'Options'}
+                        {canJoinCall(appointment) ? 'Join Call' : 'Options'}
                       </Text>
                     </TouchableOpacity>
                   )}

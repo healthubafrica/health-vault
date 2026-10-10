@@ -75,7 +75,7 @@ export async function apiRequest<T>(
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+    res = await fetchWithTimeout(`${API_BASE}${path}`, { ...options, headers });
   } catch {
     throw new ApiError(
       0,
@@ -84,10 +84,14 @@ export async function apiRequest<T>(
   }
 
   if (res.status === 401 && retryOnAuth) {
-    const refreshed = await attemptTokenRefresh();
-    if (refreshed) return apiRequest<T>(path, options, false);
-    await clearStoredTokens();
-    throw new ApiError(401, 'Your session has expired. Please sign in again.');
+    const outcome = await refreshSession();
+    if (outcome === 'ok') return apiRequest<T>(path, options, false);
+    if (outcome === 'rejected') {
+      await clearStoredTokens();
+      onSessionExpired?.();
+      throw new ApiError(401, 'Your session has expired. Please sign in again.');
+    }
+    throw new ApiError(0, 'Unable to connect to Health Hub Africa. Please check your internet connection.');
   }
 
   if (!res.ok) {
@@ -101,27 +105,59 @@ export async function apiRequest<T>(
   return res.json() as Promise<T>;
 }
 
-async function attemptTokenRefresh(): Promise<boolean> {
+// Registered by the auth store so a dead session (refresh rejected) resets the
+// UI state and routes to sign-in, without api.ts importing the store (cycle).
+let onSessionExpired: (() => void) | null = null;
+export function setSessionExpiredHandler(fn: (() => void) | null) {
+  onSessionExpired = fn;
+}
+
+export type RefreshOutcome = 'ok' | 'rejected' | 'unreachable';
+
+// Single-flight: concurrent 401s share one refresh. The backend rotates the
+// refresh token on every use, so two parallel refreshes would make the second
+// one fail and wrongly sign the user out.
+let refreshInFlight: Promise<RefreshOutcome> | null = null;
+
+export function refreshSession(): Promise<RefreshOutcome> {
+  if (!refreshInFlight) {
+    refreshInFlight = doRefresh().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+async function doRefresh(): Promise<RefreshOutcome> {
   const refreshToken = await getStoredRefreshToken();
-  if (!refreshToken) return false;
+  if (!refreshToken) return 'rejected';
 
   try {
-    const res = await fetch(`${API_BASE}/auth/refresh`, {
+    // The backend's jwt-refresh strategy reads ONLY the x-refresh-token header
+    // (the web portal does the same); a JSON body is ignored and always 401s.
+    const res = await fetchWithTimeout(`${API_BASE}/auth/refresh`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
+      headers: { 'Content-Type': 'application/json', 'x-refresh-token': refreshToken },
     });
-    if (!res.ok) return false;
+    if (res.status === 401 || res.status === 403) return 'rejected';
+    if (!res.ok) return 'unreachable';
     const data = await res.json();
-    if (data.accessToken) {
-      setAccessToken(data.accessToken);
-      if (data.refreshToken) await saveRefreshToken(data.refreshToken);
-      return true;
-    }
-    return false;
+    if (!data.accessToken) return 'rejected';
+    setAccessToken(data.accessToken);
+    if (data.refreshToken) await saveRefreshToken(data.refreshToken);
+    return 'ok';
   } catch {
-    return false;
+    // Offline or timed out: the session may still be valid — don't sign out.
+    return 'unreachable';
   }
+}
+
+const REQUEST_TIMEOUT_MS = 20_000;
+
+function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -330,19 +366,23 @@ export interface SupportMessage {
   createdAt: string;
 }
 
+// Mirrors NotificationsService.listPatientAlerts: `category` is the alert's
+// referenceType (appointment | lab | payment | record | telecare | alert | system)
+// and `actionUrl` is a web-portal path.
 export interface Notification {
   id: string;
-  type: string;
+  category: string;
   title: string;
   body: string;
   isRead: boolean;
+  actionUrl?: string;
   createdAt: string;
-  data?: Record<string, unknown> | null;
 }
 
 export interface TelecareSession {
   id: string;
   hhaRef: string;
+  appointmentId?: string | null;
   status: string;
   scheduledAt: string;
   startedAt?: string | null;
@@ -375,6 +415,14 @@ export const auth = {
           anonymousVisitorId: await analyticsClient.getAnonymousVisitorId(),
         }),
       },
+      false
+    ),
+
+  // Second step of login when /auth/login answers { requiresTwoFactor, userId }.
+  verify2fa: (userId: string, otp: string) =>
+    apiRequest<{ accessToken: string; refreshToken: string }>(
+      '/auth/verify-2fa',
+      { method: 'POST', body: JSON.stringify({ userId, otp }) },
       false
     ),
 
@@ -511,6 +559,13 @@ export const records = {
   prescriptions: () => apiRequest<PrescriptionItem[]>('/records/prescriptions/list'),
 
   getStorageUsage: () => apiRequest<{ data: StorageUsage | null }>('/records/storage'),
+
+  // Short-lived presigned S3 URL for a stored file. `fileUrl` is the stored
+  // object URL; the backend wants just its key (the URL path without the slash).
+  getDownloadUrl: (fileUrl: string) => {
+    const objectKey = new URL(fileUrl).pathname.slice(1);
+    return apiRequest<{ data: { downloadUrl: string } }>(`/records/download-url/${encodeURIComponent(objectKey)}`);
+  },
 };
 
 export interface StorageUsage {
@@ -708,7 +763,7 @@ export const notifications = {
     apiRequest<void>(`/notifications/${id}/read`, { method: 'PATCH' }),
 
   markAllRead: () =>
-    apiRequest<void>('/notifications/read-all', { method: 'POST' }),
+    apiRequest<unknown>('/notifications/read-all', { method: 'PATCH' }),
 };
 
 export const telecare = {
@@ -841,7 +896,11 @@ export interface ConsentRecord {
 }
 
 export const consents = {
-  list: () => apiRequest<{ data: ConsentRecord[] }>('/consents'),
+  // GET /consents returns a bare array (no envelope); normalise so screens read `.data`.
+  list: async (): Promise<{ data: ConsentRecord[] }> => {
+    const res = await apiRequest<ConsentRecord[] | { data: ConsentRecord[] }>('/consents');
+    return { data: Array.isArray(res) ? res : res?.data ?? [] };
+  },
 
   upsert: (data: { consentType: ConsentType; granted: boolean; version?: string }) =>
     apiRequest<{ data: ConsentRecord }>('/consents', {

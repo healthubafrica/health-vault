@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { bloodGroupLabel, bloodGroupToApi } from '@/lib/bloodGroup';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -45,14 +46,37 @@ export default function EditProfileScreen() {
     email: profile?.user?.email ?? authUser?.email ?? '',
     phone: profile?.user?.phone ?? authUser?.phone ?? '',
     dateOfBirth: profile?.dateOfBirth ?? '',
-    gender: profile?.gender ?? 'Female',
-    bloodType: profile?.bloodGroup ?? 'O+',
-    height: profile?.medicalInfo?.heightCm ? String(profile.medicalInfo.heightCm) : '170',
-    weight: profile?.medicalInfo?.weightKg ? String(profile.medicalInfo.weightKg) : '65',
+    gender: profile?.gender ?? '',
+    bloodType: bloodGroupLabel(profile?.bloodGroup) ?? '',
+    height: profile?.medicalInfo?.heightCm ? String(profile.medicalInfo.heightCm) : '',
+    weight: profile?.medicalInfo?.weightKg ? String(profile.medicalInfo.weightKg) : '',
     address: profile?.address ?? '',
     city: profile?.city ?? '',
     country: profile?.country ?? 'Nigeria',
   });
+
+  // The form is created before the profile request resolves, so fill it from
+  // the real profile once it arrives. Without this the defaults stay in place
+  // and Save overwrites the patient's actual details.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    if (!profile || hydrated) return;
+    setHydrated(true);
+    setFormData({
+      firstName: profile.firstName ?? '',
+      lastName: profile.lastName ?? '',
+      email: profile.user?.email ?? '',
+      phone: profile.user?.phone ?? '',
+      dateOfBirth: profile.dateOfBirth ? String(profile.dateOfBirth).slice(0, 10) : '',
+      gender: profile.gender ?? '',
+      bloodType: bloodGroupLabel(profile.bloodGroup) ?? '',
+      height: profile.medicalInfo?.heightCm ? String(profile.medicalInfo.heightCm) : '',
+      weight: profile.medicalInfo?.weightKg ? String(profile.medicalInfo.weightKg) : '',
+      address: profile.address ?? '',
+      city: profile.city ?? '',
+      country: profile.country ?? 'Nigeria',
+    });
+  }, [profile, hydrated]);
 
   const updateMutation = useMutation({
     mutationFn: async () => {
@@ -60,14 +84,16 @@ export default function EditProfileScreen() {
       return patients.update(profile.id, {
         firstName: formData.firstName,
         lastName: formData.lastName,
-        bloodGroup: formData.bloodType,
+        ...(bloodGroupToApi(formData.bloodType) && { bloodGroup: bloodGroupToApi(formData.bloodType) }),
         address: formData.address,
         city: formData.city,
         country: formData.country,
-        medicalInfo: {
-          heightCm: parseFloat(formData.height) || undefined,
-          weightKg: parseFloat(formData.weight) || undefined,
-        },
+        ...((parseFloat(formData.height) > 0 || parseFloat(formData.weight) > 0) && {
+          medicalInfo: {
+            heightCm: parseFloat(formData.height) > 0 ? parseFloat(formData.height) : undefined,
+            weightKg: parseFloat(formData.weight) > 0 ? parseFloat(formData.weight) : undefined,
+          },
+        }),
       });
     },
     onSuccess: () => {
@@ -89,11 +115,7 @@ export default function EditProfileScreen() {
   };
 
   const handleChangePhoto = () => {
-    Alert.alert('Change Profile Photo', 'Choose an option to update your photo:', [
-      { text: 'Take Photo', onPress: () => {} },
-      { text: 'Choose from Gallery', onPress: () => {} },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    Alert.alert('Profile photo', 'Changing your photo from the app is not available yet. You can update it on the web portal.');
   };
 
   return (
@@ -117,7 +139,7 @@ export default function EditProfileScreen() {
         {/* Avatar Section */}
         <View style={styles.avatarSection}>
           <View style={[styles.avatarBox, { backgroundColor: theme.primaryDark }]}>
-            <Text style={styles.avatarText}>AO</Text>
+            <Text style={styles.avatarText}>{`${formData.firstName[0] ?? ''}${formData.lastName[0] ?? ''}`.toUpperCase() || '·'}</Text>
           </View>
           <TouchableOpacity
             onPress={handleChangePhoto}
@@ -157,7 +179,7 @@ export default function EditProfileScreen() {
             <TextInput
               style={[styles.inputField, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
               value={formData.dateOfBirth}
-              onChangeText={(text) => setFormData({ ...formData, dateOfBirth: text })}
+              editable={false}
               placeholderTextColor={theme.textMuted}
             />
           </View>
@@ -166,13 +188,9 @@ export default function EditProfileScreen() {
             <Text style={[styles.inputLabel, { color: theme.textMuted }]}>GENDER</Text>
             <TouchableOpacity
               activeOpacity={0.75}
-              onPress={() => {
-                const nextGender = formData.gender === 'Female' ? 'Male' : 'Female';
-                setFormData({ ...formData, gender: nextGender });
-              }}
+              disabled
               style={[styles.dropdownField, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.dropdownText, { color: theme.text }]}>{formData.gender}</Text>
-              <ChevronDown size={18} color={theme.textMuted} />
+              <Text style={[styles.dropdownText, { color: theme.text }]}>{formData.gender || 'Not set'}</Text>
             </TouchableOpacity>
           </View>
 
@@ -182,12 +200,11 @@ export default function EditProfileScreen() {
               activeOpacity={0.75}
               onPress={() => {
                 const types = ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'];
-                const currentIndex = types.indexOf(formData.bloodType);
-                const nextType = types[(currentIndex + 1) % types.length];
+                const nextType = types[(types.indexOf(formData.bloodType) + 1) % types.length];
                 setFormData({ ...formData, bloodType: nextType });
               }}
               style={[styles.dropdownField, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.dropdownText, { color: theme.text }]}>{formData.bloodType}</Text>
+              <Text style={[styles.dropdownText, { color: theme.text }]}>{formData.bloodType || 'Not set'}</Text>
               <ChevronDown size={18} color={theme.textMuted} />
             </TouchableOpacity>
           </View>
@@ -238,9 +255,9 @@ export default function EditProfileScreen() {
           <View style={styles.inputGroup}>
             <Text style={[styles.inputLabel, { color: theme.textMuted }]}>PHONE NUMBER</Text>
             <TextInput
-              style={[styles.inputField, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
+              editable={false}
+              style={[styles.inputField, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.textMuted, opacity: 0.8 }]}
               value={formData.phone}
-              onChangeText={(text) => setFormData({ ...formData, phone: text })}
               keyboardType="phone-pad"
               placeholderTextColor={theme.textMuted}
             />
