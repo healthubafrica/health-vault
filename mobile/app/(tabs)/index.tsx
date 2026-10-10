@@ -21,6 +21,7 @@ import QuickActionButton from '@/components/QuickActionButton';
 import AppointmentCard from '@/components/AppointmentCard';
 import ActivityCard from '@/components/ActivityCard';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
+import { ErrorState } from '@/components/states';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { vitals, appointments, payments, notifications as notifApi, analytics } from '@/lib/api';
 
@@ -54,13 +55,13 @@ export default function HomeDashboardScreen() {
 
   // ── Data queries ──────────────────────────────────────────────────────────
 
-  const { data: vitalsData } = useQuery({
+  const { data: vitalsData, isError: vitalsError, refetch: refetchVitals } = useQuery({
     queryKey: ['vitals'],
     queryFn: () => vitals.list(),
     enabled: !!user,
   });
 
-  const { data: appointmentsData } = useQuery({
+  const { data: appointmentsData, isError: apptsError, refetch: refetchAppts } = useQuery({
     queryKey: ['appointments', 'upcoming'],
     queryFn: () => appointments.list({ upcoming: true }),
     enabled: !!user,
@@ -73,7 +74,7 @@ export default function HomeDashboardScreen() {
   });
   const hasUnread = (notifData?.data ?? []).some((n) => !n.isRead);
 
-  const { data: paymentsData } = useQuery({
+  const { data: paymentsData, isError: paymentsError, refetch: refetchPayments } = useQuery({
     queryKey: ['payments'],
     queryFn: () => payments.list(),
     enabled: !!user,
@@ -149,7 +150,11 @@ export default function HomeDashboardScreen() {
                 <Text style={styles.wellnessScoreLabel}>Health Snapshot</Text>
                 <Text style={styles.wellnessScoreValue}>{snapshotValue}</Text>
                 <Text style={styles.wellnessScoreSub}>
-                  {latestVitals ? 'key readings in your latest entry' : 'No vitals yet'}
+                  {vitalsError && !vitalsData
+                    ? "Couldn't load your vitals"
+                    : latestVitals
+                      ? 'key readings in your latest entry'
+                      : 'No vitals yet'}
                 </Text>
               </View>
 
@@ -232,7 +237,12 @@ export default function HomeDashboardScreen() {
             </TouchableOpacity>
           </View>
 
-          {upcomingAppt ? (
+          {apptsError && !appointmentsData ? (
+            <ErrorState
+              title="Couldn't load appointments"
+              onRetry={() => refetchAppts()}
+            />
+          ) : upcomingAppt ? (
             <AppointmentCard
               providerName={
                 upcomingAppt.provider
@@ -284,6 +294,18 @@ export default function HomeDashboardScreen() {
           </View>
 
           <View style={styles.activityList}>
+            {paymentsError && !paymentsData ? (
+              <ErrorState
+                title="Couldn't load payments"
+                onRetry={() => refetchPayments()}
+              />
+            ) : null}
+            {vitalsError && !vitalsData ? (
+              <ErrorState
+                title="Couldn't load vitals"
+                onRetry={() => refetchVitals()}
+              />
+            ) : null}
             {recentPayment ? (
               <ActivityCard
                 icon="credit-card"
@@ -310,7 +332,7 @@ export default function HomeDashboardScreen() {
               />
             ) : null}
 
-            {!recentPayment && !latestVitals ? (
+            {!recentPayment && !latestVitals && !paymentsError && !vitalsError ? (
               <View style={[styles.emptyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Text style={[styles.emptyCardText, { color: theme.textMuted }]}>No recent activity</Text>
               </View>

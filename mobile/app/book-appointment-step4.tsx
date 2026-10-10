@@ -163,6 +163,13 @@ export default function BookAppointmentStep4Screen() {
                 </View>
               </View>
 
+              {params.serviceType === 'ExpertReview' ? (
+                <Text style={[styles.doctorSpecialty, { color: theme.textMuted, marginTop: 10 }]}>
+                  This books a scheduled specialist consultation appointment. It is not a written case review or
+                  second-opinion report.
+                </Text>
+              ) : null}
+
               <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
               <View style={styles.detailsTable}>

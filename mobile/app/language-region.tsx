@@ -19,6 +19,7 @@ import {
   Check,
 } from 'lucide-react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ErrorState } from '@/components/states';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { patients, ApiError } from '@/lib/api';
@@ -40,7 +41,7 @@ export default function LanguageRegionScreen() {
   const theme = Colors[colorScheme];
   const qc = useQueryClient();
 
-  const { data: profileData } = useQuery({
+  const { data: profileData, isError: profileError, refetch: refetchProfile } = useQuery({
     queryKey: ['patient', 'profile'],
     queryFn: () => patients.getMyProfile(),
   });
@@ -101,6 +102,10 @@ export default function LanguageRegionScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
+
+        {profileError && !profile ? (
+          <ErrorState title="Couldn't load your profile" onRetry={() => refetchProfile()} />
+        ) : null}
 
         {/* Language Section */}
         <View style={styles.sectionHeader}>

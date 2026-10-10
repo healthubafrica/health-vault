@@ -514,6 +514,15 @@ export const auth = {
   logout: () =>
     apiRequest<{ message: string }>('/auth/logout', { method: 'POST' }).catch(() => {}),
 
+  // Re-sends the signup verification code for an unverified account
+  // (rate limited server-side).
+  resendOtp: (email: string) =>
+    apiRequest<{ message: string }>(
+      '/auth/resend-otp',
+      { method: 'POST', body: JSON.stringify({ email }) },
+      false
+    ),
+
   forgotPassword: (email: string) =>
     apiRequest<{ message: string }>(
       '/auth/forgot-password',

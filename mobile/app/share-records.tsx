@@ -26,7 +26,7 @@ import {
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { shares, RecordShare, ApiError } from '@/lib/api';
-import { EmptyState, SuccessState } from '@/components/states';
+import { EmptyState, ErrorState, SuccessState } from '@/components/states';
 import ShareActivityModal from '@/components/ShareActivityModal';
 import { SHARE_EXPIRY_OPTIONS, ShareExpiryId, expiryToIso, describeExpiry } from '@/lib/shareExpiry';
 
@@ -62,7 +62,7 @@ export default function ShareRecordsScreen() {
   const [auditShare, setAuditShare] = useState<RecordShare | null>(null);
   const [justCreated, setJustCreated] = useState<{ emails: number } | null>(null);
 
-  const { data: activeShares, isLoading } = useQuery({
+  const { data: activeShares, isLoading, isError, refetch } = useQuery({
     queryKey: ['shares'],
     queryFn: () => shares.list(),
   });
@@ -290,6 +290,8 @@ export default function ShareRecordsScreen() {
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Active Shares</Text>
           {isLoading ? (
             <ActivityIndicator color={theme.primary} style={{ marginTop: 16 }} />
+          ) : isError && !activeShares ? (
+            <ErrorState onRetry={() => refetch()} />
           ) : (activeShares ?? []).filter((s) => !s.isRevoked).length === 0 ? (
             <EmptyState
               icon={ShieldCheck}

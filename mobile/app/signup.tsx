@@ -27,6 +27,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { auth, patients, analytics, setAccessToken, ApiError, type AcquisitionSource } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/authStore';
+import { useCooldown } from '@/lib/useCooldown';
 
 
 export default function SignUpScreen() {
@@ -55,8 +56,21 @@ export default function SignUpScreen() {
   const [showPassword, setShowPassword] = useState(false);
 
   const [otpCode, setOtpCode] = useState('');
+  const resendCooldown = useCooldown();
+  const [resendNote, setResendNote] = useState<string | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleResendOtp = async () => {
+    setResendNote(null);
+    try {
+      await auth.resendOtp(email.trim());
+      resendCooldown.start();
+      setResendNote('A new code is on its way. Check your email.');
+    } catch (err) {
+      setResendNote(err instanceof ApiError ? err.message : "We couldn't resend the code. Please try again shortly.");
+    }
+  };
 
   // ── Step handlers ────────────────────────────────────────────────────────
 
@@ -103,6 +117,7 @@ export default function SignUpScreen() {
           acquisitionSource as AcquisitionSource,
         );
         analytics.track('otp_requested', { channel: 'email' });
+        resendCooldown.start();
         setCurrentStep(3);
       } catch (err) {
         analytics.track('registration_error');
@@ -444,6 +459,16 @@ export default function SignUpScreen() {
                       onChangeText={setOtpCode}
                     />
                   </View>
+                  <TouchableOpacity
+                    disabled={resendCooldown.remaining > 0}
+                    onPress={handleResendOtp}
+                    accessibilityLabel="Resend code"
+                    style={{ alignItems: 'center', marginTop: 12 }}>
+                    <Text style={[styles.termsBold, resendCooldown.remaining > 0 && { opacity: 0.5 }]}>
+                      {resendCooldown.remaining > 0 ? `Resend code in ${resendCooldown.remaining}s` : 'Resend code'}
+                    </Text>
+                  </TouchableOpacity>
+                  {resendNote ? <Text style={[styles.otpSub, { textAlign: 'center', marginTop: 6 }]}>{resendNote}</Text> : null}
                 </View>
 
                 {/* Terms Consent */}

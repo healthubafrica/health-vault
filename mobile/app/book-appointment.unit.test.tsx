@@ -354,6 +354,12 @@ describe('Step 4 — confirm booking', () => {
     });
   });
 
+  it('labels an Expert Review booking as a consultation, not a case review', async () => {
+    mockParams = { ...mockParams, serviceType: 'ExpertReview', serviceName: 'Expert Review' };
+    const { findByText } = renderWithClient(<BookAppointmentStep4Screen />);
+    expect(await findByText(/scheduled specialist consultation appointment/)).toBeTruthy();
+  });
+
   it('tells the patient when the booking fails instead of faking a confirmation', async () => {
     appointments.create.mockRejectedValue(new ApiError(409, 'This provider is already booked for the selected time.'));
     const { findByText, queryByText } = renderWithClient(<BookAppointmentStep4Screen />);

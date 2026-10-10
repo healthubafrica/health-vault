@@ -47,7 +47,7 @@ export default function MoreMenuScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  const { data: careTeamData } = useQuery({
+  const { data: careTeamData, isError: careTeamError } = useQuery({
     queryKey: ['care-team'],
     queryFn: () => patients.getMyCareTeam(),
   });
@@ -138,7 +138,9 @@ export default function MoreMenuScreen() {
             <View style={styles.rowMiddle}>
               <Text style={[styles.menuText, { color: theme.text }]}>My Care Team</Text>
               <Text style={[styles.menuSub, { color: theme.textMuted }]}>
-                {careTeamCount} provider{careTeamCount === 1 ? '' : 's'} added
+                {careTeamError && !careTeamData
+                  ? 'Unavailable right now'
+                  : `${careTeamCount} provider${careTeamCount === 1 ? '' : 's'}`}
               </Text>
             </View>
             <ChevronRight size={18} color={theme.textMuted} />

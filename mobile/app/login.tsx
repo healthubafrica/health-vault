@@ -21,7 +21,6 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { auth, patients, setAccessToken, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/authStore';
-import { isValidPassword, PASSWORD_HINT } from '@/lib/validation';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -37,51 +36,8 @@ export default function LoginScreen() {
   const [twoFactorUserId, setTwoFactorUserId] = useState<string | null>(null);
   const [otp, setOtp] = useState('');
 
-  // ── Forgot Password ───────────────────────────────────────────────────────
-
-  const [resetStage, setResetStage] = useState(false);
-  const [resetCode, setResetCode] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-
-  const handleForgotPassword = async () => {
-    if (!email.trim()) {
-      Alert.alert('Email required', 'Enter your email address first, then tap Forgot Password.');
-      return;
-    }
-    setIsLoading(true);
-    try {
-      await auth.forgotPassword(email.trim());
-      setResetCode('');
-      setNewPassword('');
-      setResetStage(true);
-      Alert.alert('Check your email', 'If that address is registered, a 6-digit reset code is on its way.');
-    } catch (err) {
-      Alert.alert('Error', err instanceof ApiError ? err.message : 'Failed to send reset code.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleResetPassword = async () => {
-    if (resetCode.trim().length !== 6) {
-      Alert.alert('Code required', 'Enter the 6-digit code from your email.');
-      return;
-    }
-    if (!isValidPassword(newPassword)) {
-      Alert.alert('Weak password', PASSWORD_HINT);
-      return;
-    }
-    setIsLoading(true);
-    try {
-      await auth.resetPassword(email.trim(), resetCode.trim(), newPassword);
-      setResetStage(false);
-      setPassword('');
-      Alert.alert('Password updated', 'Sign in with your new password.');
-    } catch (err) {
-      Alert.alert('Could not reset password', err instanceof ApiError ? err.message : 'Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
+  const handleForgotPassword = () => {
+    router.push({ pathname: '/reset-password', params: { email: email.trim() } } as never);
   };
 
   // Shared by the password step and the 2FA step.
@@ -109,10 +65,6 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
-    if (resetStage) {
-      await handleResetPassword();
-      return;
-    }
     if (twoFactorUserId) {
       if (otp.trim().length < 6) {
         Alert.alert('Code required', 'Enter the 6-digit code we sent you.');
@@ -187,36 +139,7 @@ export default function LoginScreen() {
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.cardScrollContent}>
 
-            {resetStage ? (
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Reset code</Text>
-                <View style={styles.inputWrapper}>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="6-digit code from your email"
-                    placeholderTextColor="#98A2B3"
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    value={resetCode}
-                    onChangeText={setResetCode}
-                  />
-                </View>
-                <Text style={[styles.inputLabel, { marginTop: 12 }]}>New password</Text>
-                <View style={styles.inputWrapper}>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="12+ characters, mixed case, number, symbol"
-                    placeholderTextColor="#98A2B3"
-                    secureTextEntry
-                    value={newPassword}
-                    onChangeText={setNewPassword}
-                  />
-                </View>
-                <TouchableOpacity activeOpacity={0.7} onPress={() => setResetStage(false)}>
-                  <Text style={styles.forgotPasswordLinkText}>Back to sign in</Text>
-                </TouchableOpacity>
-              </View>
-            ) : twoFactorUserId ? (
+            {twoFactorUserId ? (
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Verification code</Text>
                 <View style={styles.inputWrapper}>
@@ -291,7 +214,7 @@ export default function LoginScreen() {
               {isLoading ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.loginBtnText}>{resetStage ? 'Reset Password' : twoFactorUserId ? 'Verify' : 'Sign In'}</Text>
+                <Text style={styles.loginBtnText}>{twoFactorUserId ? 'Verify' : 'Sign In'}</Text>
               )}
             </TouchableOpacity>
 

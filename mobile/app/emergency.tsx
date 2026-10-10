@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   History,
 } from 'lucide-react-native';
+import { ErrorState } from '@/components/states';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import * as Location from 'expo-location';
@@ -65,7 +66,7 @@ export default function EmergencyScreen() {
     };
   }, []);
 
-  const { data: profileRes } = useQuery({
+  const { data: profileRes, isError: profileError, refetch: refetchProfile } = useQuery({
     queryKey: ['patient', 'profile'],
     queryFn: () => patients.getMyProfile(),
   });
@@ -142,6 +143,9 @@ export default function EmergencyScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {profileError && !profile ? (
+          <ErrorState title="Couldn't load your medical profile" onRetry={() => refetchProfile()} />
+        ) : null}
         
         {/* Back Button & Header */}
         <View style={styles.topBar}>

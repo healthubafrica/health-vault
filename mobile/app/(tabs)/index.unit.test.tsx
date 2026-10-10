@@ -44,6 +44,15 @@ describe('HomeDashboardScreen', () => {
     expect(await findByText('Ada Okafor')).toBeTruthy();
   });
 
+  it('shows a retryable error instead of "No upcoming appointments" when the request fails', async () => {
+    appointments.list.mockRejectedValueOnce(new Error('network'));
+    const { findByText, queryByText } = renderHome();
+    expect(await findByText("Couldn't load appointments")).toBeTruthy();
+    expect(queryByText('No upcoming appointments')).toBeNull();
+    fireEvent.press(await findByText('Try Again'));
+    expect(await findByText('No upcoming appointments')).toBeTruthy();
+  });
+
   it('shows an empty state and books a first appointment when there are none upcoming', async () => {
     const { findByText } = renderHome();
 

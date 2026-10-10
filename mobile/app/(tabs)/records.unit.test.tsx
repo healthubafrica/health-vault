@@ -62,6 +62,13 @@ describe('RecordsHubScreen documents', () => {
 
   afterEach(() => (Alert.alert as jest.Mock).mockRestore());
 
+  it('shows an error with retry when the documents request fails', async () => {
+    documents.list.mockRejectedValueOnce(new Error('network'));
+    const r = renderScreen();
+    fireEvent.press(await r.findByText('Try Again'));
+    expect(await r.findByText('Old title')).toBeTruthy();
+  });
+
   it('edits title, category and provider visibility', async () => {
     const r = renderScreen();
     await r.findByText('Old title');

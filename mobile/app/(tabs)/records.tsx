@@ -31,7 +31,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
-import { EmptyState, NoSearchResultState, ListSkeleton } from '@/components/states';
+import { EmptyState, NoSearchResultState, ListSkeleton, ErrorState } from '@/components/states';
 import DocumentEditSheet, { DOCUMENT_CATEGORY_LABELS, DocumentFormValues } from '@/components/DocumentEditSheet';
 import {
   records,
@@ -102,7 +102,7 @@ export default function RecordsHubScreen() {
   // through the richer endpoint built for the Vault — category, tags,
   // search/sort, and the presigned-upload flow below, none of which
   // records.list() exposes.
-  const { data: docsData, isLoading: loadingDocs } = useQuery({
+  const { data: docsData, isLoading: loadingDocs, isError: docsError, refetch: refetchDocs } = useQuery({
     queryKey: ['documents', searchQuery, categoryFilter],
     queryFn: () => documents.list({ q: searchQuery || undefined, category: categoryFilter, sort: 'createdAt', order: 'desc' }),
     enabled: activeTab === 'documents',
@@ -209,19 +209,19 @@ export default function RecordsHubScreen() {
     }
   };
 
-  const { data: prescriptionsData, isLoading: loadingPrescriptions } = useQuery({
+  const { data: prescriptionsData, isLoading: loadingPrescriptions, isError: rxError, refetch: refetchRx } = useQuery({
     queryKey: ['records', 'prescriptions'],
     queryFn: () => records.prescriptions(),
     enabled: activeTab === 'prescriptions',
   });
 
-  const { data: labOrdersData, isLoading: loadingLabs } = useQuery({
+  const { data: labOrdersData, isLoading: loadingLabs, isError: labsError, refetch: refetchLabs } = useQuery({
     queryKey: ['labs', 'orders'],
     queryFn: () => labs.listOrders(),
     enabled: activeTab === 'results',
   });
 
-  const { data: visitNotesData, isLoading: loadingVisits } = useQuery({
+  const { data: visitNotesData, isLoading: loadingVisits, isError: visitsError, refetch: refetchVisits } = useQuery({
     queryKey: ['records', 'visits'],
     // 'visit_note' isn't a real RecordType (visit | prescription | lab |
     // imaging | document | referral | expert_review | visit_summary) —
@@ -357,6 +357,8 @@ export default function RecordsHubScreen() {
 
             {loadingDocs ? (
               <ListSkeleton rows={3} />
+            ) : docsError ? (
+              <ErrorState onRetry={() => refetchDocs()} />
             ) : (docsData?.data?.length ?? 0) === 0 ? (
               searchQuery ? (
                 <NoSearchResultState searchTerm={searchQuery} onClearSearch={() => setSearchQuery('')} onResetFilters={() => { setSearchQuery(''); setCategoryFilter(undefined); }} />
@@ -422,6 +424,8 @@ export default function RecordsHubScreen() {
           <View>
             {loadingPrescriptions ? (
               <ListSkeleton rows={3} />
+            ) : rxError ? (
+              <ErrorState onRetry={() => refetchRx()} />
             ) : ((Array.isArray(prescriptionsData) ? prescriptionsData.length : (prescriptionsData as unknown as { data?: PrescriptionItem[] })?.data?.length ?? 0) === 0) ? (
               <EmptyState
                 icon={Pill}
@@ -504,6 +508,8 @@ export default function RecordsHubScreen() {
           <View>
             {loadingLabs ? (
               <ListSkeleton rows={3} />
+            ) : labsError ? (
+              <ErrorState onRetry={() => refetchLabs()} />
             ) : (labOrdersData?.data?.length ?? 0) === 0 ? (
               <EmptyState
                 icon={FlaskConical}
@@ -562,6 +568,8 @@ export default function RecordsHubScreen() {
           <View>
             {loadingVisits ? (
               <ListSkeleton rows={3} />
+            ) : visitsError ? (
+              <ErrorState onRetry={() => refetchVisits()} />
             ) : (visitNotesData?.data?.length ?? 0) === 0 ? (
               <EmptyState
                 icon={ClipboardList}

@@ -22,6 +22,7 @@ import {
   Check,
 } from 'lucide-react-native';
 
+import { ErrorState } from '@/components/states';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import EmergencyFAB from '@/components/EmergencyFAB';
@@ -37,7 +38,7 @@ export default function EditProfileScreen() {
   const authUser = useAuthStore((s) => s.user);
   const qc = useQueryClient();
 
-  const { data: profileRes } = useQuery({
+  const { data: profileRes, isError: profileError, refetch: refetchProfile } = useQuery({
     queryKey: ['patient', 'profile'],
     queryFn: () => patients.getMyProfile(),
   });
@@ -193,6 +194,9 @@ export default function EditProfileScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {profileError && !profile ? (
+          <ErrorState title="Couldn't load your profile" onRetry={() => refetchProfile()} />
+        ) : null}
         
         {/* Avatar Section */}
         <View style={styles.avatarSection}>

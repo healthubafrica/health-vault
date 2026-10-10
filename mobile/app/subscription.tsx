@@ -94,7 +94,7 @@ export default function SubscriptionScreen() {
 
   const handleCancel = () => {
     if (!current) return;
-    Alert.alert('Cancel Subscription', `Cancel your ${current.plan.name} plan?`, [
+    Alert.alert('Cancel Subscription', `Your ${current.plan.name} plan will be cancelled immediately, not at the end of the period you paid for, and its benefits stop right away. Cancelling does not refund payments already made. You can subscribe again at any time.`, [
       { text: 'Keep Plan', style: 'cancel' },
       { text: 'Cancel Plan', style: 'destructive', onPress: () => cancelMutation.mutate(current.id) },
     ]);

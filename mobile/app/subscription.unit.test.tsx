@@ -177,7 +177,7 @@ describe('SubscriptionScreen', () => {
 
     expect(Alert.alert).toHaveBeenCalledWith(
       'Cancel Subscription',
-      'Cancel your Pro plan?',
+      expect.stringContaining('Pro plan will be cancelled immediately'),
       expect.arrayContaining([expect.objectContaining({ text: 'Cancel Plan' })]),
     );
 
