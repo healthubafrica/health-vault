@@ -147,6 +147,7 @@ export class PaymentsService {
         idempotencyKey,
         description,
         metadata,
+        dto.client,
       );
     }
     if (dto.gateway === PaymentGateway.Paystack) {
@@ -158,12 +159,17 @@ export class PaymentsService {
         idempotencyKey,
         description,
         metadata,
+        dto.client,
       );
     }
 
+    // Manual / bank-transfer: expose the human payment reference the patient
+    // quotes on the transfer, never the internal UUID idempotency key (only a
+    // client-supplied key is echoed back).
     return {
       paymentId: payment.id,
-      idempotencyKey,
+      reference: payment.hhaRef,
+      ...(clientIdempotencyKey && { idempotencyKey: clientIdempotencyKey }),
       gateway: dto.gateway,
       amountKobo,
       currency: dto.currency,
@@ -213,6 +219,7 @@ export class PaymentsService {
     gateway: PaymentGateway;
     gatewayRef: string | null;
     idempotencyKey: string | null;
+    hhaRef?: string;
     amountKobo: number;
     currency: string;
     status: PaymentStatus;
@@ -245,12 +252,20 @@ export class PaymentsService {
     }
     return {
       paymentId: payment.id,
+      reference: payment.hhaRef,
       idempotencyKey: payment.idempotencyKey,
       gateway: payment.gateway,
       amountKobo: payment.amountKobo,
       currency: payment.currency,
       status: payment.status,
     };
+  }
+
+  // Where the gateway sends the browser back. client=mobile makes the portal's
+  // /payments/verify page hand off to the app's deep link.
+  private checkoutReturnUrl(client?: 'web' | 'mobile'): string {
+    const base = `${this.config.get('FRONTEND_URL')}/payments/verify`;
+    return client === 'mobile' ? `${base}?client=mobile` : base;
   }
 
   private async initiatePaystack(
@@ -261,6 +276,7 @@ export class PaymentsService {
     idempotencyKey: string,
     description: string,
     metadata: Prisma.InputJsonValue,
+    client?: 'web' | 'mobile',
   ) {
     const secret = this.config.getOrThrow<string>('PAYSTACK_SECRET_KEY');
     // Paystack only accepts letters, digits, "-", "." and "=" in a reference;
@@ -277,7 +293,7 @@ export class PaymentsService {
         amount: amountKobo,
         currency,
         reference,
-        callback_url: `${this.config.get('FRONTEND_URL')}/payments/verify`,
+        callback_url: this.checkoutReturnUrl(client),
         metadata: { paymentId, description },
       }),
     });
@@ -320,6 +336,7 @@ export class PaymentsService {
     txRef: string,
     description: string,
     metadata: Prisma.InputJsonValue,
+    client?: 'web' | 'mobile',
   ) {
     const secret = this.config.getOrThrow<string>('FLUTTERWAVE_SECRET_KEY');
     // Flutterwave amounts are in the currency's major unit (naira), not kobo.
@@ -334,7 +351,7 @@ export class PaymentsService {
         tx_ref: txRef,
         amount,
         currency,
-        redirect_url: `${this.config.get('FRONTEND_URL')}/payments/verify`,
+        redirect_url: this.checkoutReturnUrl(client),
         customer: { email },
         customizations: { title: 'Health Hub Africa' },
         meta: { paymentId, description },
@@ -793,11 +810,18 @@ export class PaymentsService {
       }
 
       if (res.ok) {
-        const body = (await res.json()) as { data: { status: string; tx_ref: string; id: number; amount_refunded?: number } };
+        const body = (await res.json()) as { data: { status: string; tx_ref: string; id: number; amount_refunded?: number; card?: Record<string, unknown> } };
         if (body.data?.status === 'successful') {
           const syntheticEvent = {
             event: 'charge.success',
-            data: { reference: body.data.tx_ref, status: body.data.status, id: body.data.id },
+            // card carries the reusable token so a save-card request that only
+            // resolves through this fallback still saves the card.
+            data: {
+              reference: body.data.tx_ref,
+              status: body.data.status,
+              id: body.data.id,
+              ...(body.data.card && { card: body.data.card }),
+            },
           };
           await this.processWebhookEvent(syntheticEvent, PaymentGateway.Flutterwave);
           return { status: 'paid', paymentId: payment.id, gateway: payment.gateway };
@@ -971,11 +995,8 @@ export class PaymentsService {
     });
 
     // Capture and save the card token, only if the patient opted in when
-    // initiating this payment. Only present on the real Flutterwave webhook
-    // (which carries the full `card` object) — not on the verifyPayment
-    // client-side fallback's synthetic event, so a save-card request that
-    // resolves only through that fallback won't save a card; the normal
-    // webhook path covers the common case.
+    // initiating this payment. Present on the real Flutterwave webhook and
+    // on verifyPayment's synthetic event (copied from verify_by_reference).
     const meta = finalMetadata as { savePaymentMethod?: boolean } | null;
     if (meta?.savePaymentMethod && gateway === PaymentGateway.Flutterwave) {
       await this.saveCardFromWebhook(payment.id, payment.patientId, eventData).catch((err) =>

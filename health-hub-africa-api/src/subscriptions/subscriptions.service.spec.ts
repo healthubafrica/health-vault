@@ -386,4 +386,37 @@ describe('SubscriptionsService', () => {
       );
     });
   });
+  // ── upgrade ───────────────────────────────────────────────────────────────
+
+  describe('upgrade', () => {
+    beforeEach(() => {
+      mockPrisma.patient.findUnique.mockResolvedValue(patient);
+      mockPrisma.subscriptionPlan.findUnique.mockResolvedValue({
+        ...plan, name: 'Silver', priceKobo: 500000, annualPriceKobo: 0, launchPriceKobo: 0,
+      });
+      mockPaymentsService.initiate.mockResolvedValue({ paymentId: 'pay-1' });
+    });
+
+    it('forwards the Idempotency-Key and mobile client flag to payment initiation', async () => {
+      await service.upgrade(
+        { planId: 'plan-silver', billingCycle: BillingCycle.monthly, client: 'mobile' } as any,
+        patientUser,
+        'upg_key-1',
+      );
+
+      expect(mockPaymentsService.initiate).toHaveBeenCalledWith(
+        expect.objectContaining({ client: 'mobile', amountKobo: 500000 }),
+        patientUser,
+        expect.objectContaining({ idempotencyKey: 'upg_key-1' }),
+      );
+    });
+
+    it('works without a key and defaults to the web client', async () => {
+      await service.upgrade({ planId: 'plan-silver', billingCycle: BillingCycle.monthly } as any, patientUser);
+
+      const [dto, , opts] = mockPaymentsService.initiate.mock.calls[0];
+      expect(dto.client).toBeUndefined();
+      expect(opts.idempotencyKey).toBeUndefined();
+    });
+  });
 });

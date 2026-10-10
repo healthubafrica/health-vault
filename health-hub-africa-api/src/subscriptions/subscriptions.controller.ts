@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -49,8 +50,12 @@ export class SubscriptionsController {
       'Creates a pending Payment and returns the Paystack authorization URL. ' +
       'The webhook activates the subscription on successful payment.',
   })
-  async upgrade(@Body() dto: UpgradeSubscriptionDto, @CurrentUser() user: JwtPayload) {
-    return this.subscriptionsService.upgrade(dto, user);
+  async upgrade(
+    @Body() dto: UpgradeSubscriptionDto,
+    @CurrentUser() user: JwtPayload,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.subscriptionsService.upgrade(dto, user, idempotencyKey);
   }
 
   @ApiBearerAuth()

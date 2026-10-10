@@ -416,6 +416,108 @@ describe('PaymentsService', () => {
     });
   });
 
+  describe('mobile return flow', () => {
+    let fetchSpy: jest.SpyInstance;
+    const base = { purpose: 'subscription' as const, amountKobo: 250000, currency: 'NGN', description: 'Silver' };
+
+    beforeEach(() => {
+      mockConfig.get.mockImplementation((k: string) => (k === 'FRONTEND_URL' ? 'https://portal.test' : undefined));
+      mockConfig.getOrThrow.mockReturnValue('sk_test_dummy');
+      mockPrisma.payment.findUnique.mockResolvedValue(null);
+      mockPrisma.payment.findFirst.mockResolvedValue(null);
+      mockPrisma.payment.create.mockResolvedValue({ id: 'pay-m', patientId: 'patient-1', status: PaymentStatus.pending });
+      mockPrisma.payment.update.mockResolvedValue({});
+      fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: 'success',
+          data: { link: 'https://flw.test/pay', authorization_url: 'https://ps.test/pay', access_code: 'a', reference: 'r' },
+        }),
+      } as Response);
+    });
+
+    afterEach(() => {
+      fetchSpy.mockRestore();
+      mockConfig.get.mockReset();
+      mockConfig.getOrThrow.mockReset();
+    });
+
+    const sentBody = () => JSON.parse((fetchSpy.mock.calls[0][1] as { body: string }).body);
+
+    it('Paystack: client=mobile adds ?client=mobile to the callback URL', async () => {
+      await service.initiate({ ...base, gateway: PaymentGateway.Paystack, client: 'mobile' } as any, patientUser);
+      expect(sentBody().callback_url).toBe('https://portal.test/payments/verify?client=mobile');
+    });
+
+    it('Flutterwave: client=mobile adds ?client=mobile to the redirect URL', async () => {
+      await service.initiate({ ...base, gateway: PaymentGateway.Flutterwave, client: 'mobile' } as any, patientUser);
+      expect(sentBody().redirect_url).toBe('https://portal.test/payments/verify?client=mobile');
+    });
+
+    it('defaults to the plain web URL and leaves Paystack metadata unchanged', async () => {
+      await service.initiate({ ...base, gateway: PaymentGateway.Paystack } as any, patientUser);
+      expect(sentBody().callback_url).toBe('https://portal.test/payments/verify');
+      expect(sentBody().metadata).toEqual({ paymentId: 'pay-m', description: 'Silver' });
+    });
+
+    it('does not persist the client flag into payment metadata', async () => {
+      await service.initiate({ ...base, gateway: PaymentGateway.Flutterwave, client: 'mobile' } as any, patientUser);
+      const createData = mockPrisma.payment.create.mock.calls[0][0].data;
+      expect(JSON.stringify(createData)).not.toContain('mobile');
+    });
+  });
+
+  describe('manual payment reference', () => {
+    it('returns the human hhaRef, not the UUID idempotency key', async () => {
+      mockPrisma.payment.findUnique.mockResolvedValue(null);
+      mockPrisma.payment.findFirst.mockResolvedValue(null);
+      mockPrisma.payment.create.mockImplementation(async ({ data }: any) => ({ id: 'pay-man', ...data }));
+
+      const res = await service.initiate(
+        { gateway: PaymentGateway.manual, purpose: 'other', amountKobo: 50000, currency: 'NGN' } as any,
+        patientUser,
+      );
+
+      expect(res).toMatchObject({ paymentId: 'pay-man', reference: expect.stringMatching(/^PAY-\d{4}-\d{6}$/) });
+      expect(res).not.toHaveProperty('idempotencyKey');
+    });
+
+    it('replay also exposes hhaRef', async () => {
+      mockPrisma.payment.findUnique.mockResolvedValue({
+        id: 'pay-1', patientId: patient.id, amountKobo: 50000, currency: 'NGN', gateway: PaymentGateway.manual,
+        gatewayRef: null, idempotencyKey: 'k1', hhaRef: 'PAY-2026-000007', status: PaymentStatus.pending, metadata: null,
+      });
+      const res = await service.initiate(
+        { gateway: PaymentGateway.manual, purpose: 'other', amountKobo: 50000, currency: 'NGN' } as any,
+        patientUser,
+        { idempotencyKey: 'k1' },
+      );
+      expect(res).toMatchObject({ reference: 'PAY-2026-000007' });
+    });
+  });
+
+  describe('verifyPayment — Flutterwave fallback', () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    it('passes the card from verify_by_reference into the synthetic event so the token can be saved', async () => {
+      mockConfig.getOrThrow.mockReturnValue('flw_dummy');
+      mockPrisma.payment.findFirst.mockResolvedValue({ id: 'pay-f', status: PaymentStatus.pending, gateway: PaymentGateway.Flutterwave });
+      const card = { token: 'flw-t-1', last_4digits: '4081', type: 'VISA', expiry: '09/30' };
+      jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: { status: 'successful', tx_ref: 'tx-1', id: 77, card } }),
+      } as Response);
+      const proc = jest.spyOn(service as any, 'processWebhookEvent').mockResolvedValue(undefined);
+
+      await service.verifyPayment('tx-1');
+
+      expect(proc).toHaveBeenCalledWith(
+        { event: 'charge.success', data: { reference: 'tx-1', status: 'successful', id: 77, card } },
+        PaymentGateway.Flutterwave,
+      );
+    });
+  });
+
   describe('getGatewayStatus', () => {
     const paystack = () => service.getGatewayStatus().find((g) => g.gateway === 'paystack')!;
 
