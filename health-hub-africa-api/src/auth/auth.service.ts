@@ -22,7 +22,8 @@ import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { UpdateNotificationPrefsDto } from './dto/notification-prefs.dto';
 
 const BCRYPT_ROUNDS = 12;
-const OTP_RESEND_COOLDOWN_MS = 30_000;
+const OTP_RESEND_COOLDOWN_MS = 60_000;
+const OTP_RESEND_HOURLY_CAP = 5;
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 // SEC: account-level lockout — distinct from per-IP throttling. The IP
@@ -404,19 +405,30 @@ export class AuthService {
   async resendVerificationOtp(email: string) {
     const message = 'If the account exists and is not yet verified, a new code has been sent.';
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user || user.isVerified || !user.isActive) return { message };
+    if (!user || user.isVerified || !user.isActive || user.deletedAt) return { message };
 
-    const recent = await this.prisma.verificationToken.findFirst({
-      where: {
-        userId: user.id,
-        type: 'email',
-        createdAt: { gt: new Date(Date.now() - OTP_RESEND_COOLDOWN_MS) },
-      },
-      select: { createdAt: true },
-    });
-    if (recent) return { message };
+    const [recent, sentLastHour] = await Promise.all([
+      this.prisma.verificationToken.findFirst({
+        where: {
+          userId: user.id,
+          type: 'email',
+          createdAt: { gt: new Date(Date.now() - OTP_RESEND_COOLDOWN_MS) },
+        },
+        select: { createdAt: true },
+      }),
+      this.prisma.verificationToken.count({
+        where: { userId: user.id, type: 'email', createdAt: { gt: new Date(Date.now() - 60 * 60 * 1000) } },
+      }),
+    ]);
+    if (recent || sentLastHour >= OTP_RESEND_HOURLY_CAP) return { message };
 
-    await this.sendEmailOtp(user.email, user.id, 'email');
+    // Fire-and-forget so response time does not reveal whether the account
+    // exists. Never log the code or email body, only the user id.
+    void this.sendEmailOtp(user.email, user.id, 'email').catch((err) =>
+      this.logger.error(
+        `Verification OTP resend failed for user ${user.id}: ${err instanceof Error ? err.name : 'error'}`,
+      ),
+    );
     return { message };
   }
 

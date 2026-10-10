@@ -48,7 +48,7 @@ export class SupportService {
           },
         },
       },
-      include: { messages: true },
+      include: { messages: { where: { isInternal: false } } },
     });
   }
 
@@ -76,20 +76,26 @@ export class SupportService {
             provider: { select: { firstName: true, lastName: true } },
           },
         },
-        _count: { select: { messages: true } },
+        _count: { select: { messages: isAdmin ? true : { where: { isInternal: false } } } },
       },
     });
   }
 
   async findOne(id: string, currentUser: JwtPayload) {
+    const isAdmin = ADMIN_ROLES.includes(currentUser.role as UserRole);
+    // Internal staff notes never reach non-staff callers.
     const ticket = await this.prisma.supportTicket.findUnique({
       where: { id },
-      include: { messages: { orderBy: { createdAt: 'asc' } } },
+      include: {
+        messages: {
+          ...(isAdmin ? {} : { where: { isInternal: false } }),
+          orderBy: { createdAt: 'asc' },
+        },
+      },
     });
 
     if (!ticket) throw new NotFoundException('Support ticket not found');
 
-    const isAdmin = ADMIN_ROLES.includes(currentUser.role as UserRole);
     if (!isAdmin && ticket.submittedBy !== currentUser.sub) {
       throw new ForbiddenException('Access denied');
     }

@@ -25,7 +25,7 @@ jest.mock('bcryptjs', () => ({
 
 const mockPrisma = {
   user: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
-  verificationToken: { findFirst: jest.fn(), create: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }), update: jest.fn() },
+  verificationToken: { findFirst: jest.fn(), count: jest.fn().mockResolvedValue(0), create: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }), update: jest.fn() },
   notificationPreference: { upsert: jest.fn() },
   userSession: {
     create: jest.fn().mockResolvedValue({ id: 'session-1' }),
@@ -322,12 +322,48 @@ describe('AuthService', () => {
 
   describe('resendVerificationOtp', () => {
     const GENERIC = 'If the account exists and is not yet verified, a new code has been sent.';
+    const flush = () => new Promise((r) => setImmediate(r));
+    beforeEach(() => mockPrisma.verificationToken.count.mockResolvedValue(0));
+
+    it('sends nothing for a soft-deleted account', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'u-3', email: 'd@test.com', isVerified: false, isActive: true, deletedAt: new Date() });
+      expect((await service.resendVerificationOtp('d@test.com')).message).toBe(GENERIC);
+      await flush();
+      expect(mockNotifications.sendEmail).not.toHaveBeenCalled();
+    });
+
+    it('uses a 60s cooldown window', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'u-1', email: 'a@test.com', isVerified: false, isActive: true });
+      mockPrisma.verificationToken.findFirst.mockResolvedValue(null);
+      await service.resendVerificationOtp('a@test.com');
+      const gt: Date = mockPrisma.verificationToken.findFirst.mock.calls.at(-1)[0].where.createdAt.gt;
+      expect(Date.now() - gt.getTime()).toBeGreaterThanOrEqual(59_000);
+    });
+
+    it('caps resends at 5 per hour per account', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'u-1', email: 'a@test.com', isVerified: false, isActive: true });
+      mockPrisma.verificationToken.findFirst.mockResolvedValue(null);
+      mockPrisma.verificationToken.count.mockResolvedValue(5);
+      mockNotifications.sendEmail.mockClear();
+      expect((await service.resendVerificationOtp('a@test.com')).message).toBe(GENERIC);
+      await flush();
+      expect(mockNotifications.sendEmail).not.toHaveBeenCalled();
+    });
+
+    it('does not await the send and swallows send errors without logging the code', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'u-1', email: 'a@test.com', isVerified: false, isActive: true });
+      mockPrisma.verificationToken.findFirst.mockResolvedValue(null);
+      mockPrisma.verificationToken.create.mockRejectedValueOnce(new Error('db down 123456'));
+      await expect(service.resendVerificationOtp('a@test.com')).resolves.toEqual({ message: GENERIC });
+      await flush();
+    });
 
     it('sends an email-type OTP to an unverified account', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ id: 'u-1', email: 'a@test.com', isVerified: false, isActive: true, role: UserRole.patient });
       mockPrisma.verificationToken.findFirst.mockResolvedValue(null);
 
       const result = await service.resendVerificationOtp('a@test.com');
+      await flush();
 
       expect(result.message).toBe(GENERIC);
       expect(mockPrisma.verificationToken.create).toHaveBeenCalledWith(
@@ -341,6 +377,7 @@ describe('AuthService', () => {
       mockPrisma.verificationToken.findFirst.mockResolvedValue(null);
 
       await service.resendVerificationOtp('a@test.com');
+      await flush();
 
       expect(mockPrisma.verificationToken.create).not.toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ type: 'password_reset' }) }),
