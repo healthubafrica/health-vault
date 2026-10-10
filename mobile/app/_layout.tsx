@@ -366,6 +366,9 @@ function RootLayoutNav() {
             headerShown: false,
           }}
         />
+        <Stack.Screen name="support-ticket" options={{ headerShown: false }} />
+        <Stack.Screen name="dispatch-history" options={{ headerShown: false }} />
+        <Stack.Screen name="dispatch-case" options={{ headerShown: false }} />
       </Stack>
     </ThemeProvider>
   );

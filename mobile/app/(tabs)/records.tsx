@@ -23,6 +23,7 @@ import {
   Search,
   Trash2,
   Lock,
+  Pencil,
 } from 'lucide-react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -31,6 +32,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
 import { EmptyState, NoSearchResultState, ListSkeleton } from '@/components/states';
+import DocumentEditSheet, { DOCUMENT_CATEGORY_LABELS, DocumentFormValues } from '@/components/DocumentEditSheet';
 import {
   records,
   labs,
@@ -46,28 +48,7 @@ import {
 
 type TabType = 'documents' | 'prescriptions' | 'results' | 'visits';
 
-const CATEGORY_LABELS: Record<DocumentCategory, string> = {
-  personal_identification: 'ID',
-  medical_history: 'Medical History',
-  providers: 'Providers',
-  specialists: 'Specialists',
-  emergency: 'Emergency',
-  hospital: 'Hospital',
-  laboratory: 'Laboratory',
-  imaging: 'Imaging',
-  medications: 'Medications',
-  vaccinations: 'Vaccinations',
-  chronic_disease: 'Chronic Disease',
-  womens_health: "Women's Health",
-  childrens_health: "Children's Health",
-  mental_health: 'Mental Health',
-  dental: 'Dental',
-  vision: 'Vision',
-  travel: 'Travel',
-  legal: 'Legal',
-  wearables: 'Wearables',
-  miscellaneous: 'Other',
-};
+const CATEGORY_LABELS = DOCUMENT_CATEGORY_LABELS;
 
 // Matches DOCUMENT_MIME_TYPES on the backend — anything else is rejected
 // server-side anyway, so keep the picker in sync rather than letting a
@@ -109,6 +90,9 @@ export default function RecordsHubScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<DocumentCategory | undefined>(undefined);
   const [isUploading, setIsUploading] = useState(false);
+  // A picked file waits here while the title/category prompt is open.
+  const [pendingFile, setPendingFile] = useState<{ name: string; uri: string; size?: number; mimeType: string } | null>(null);
+  const [editingDoc, setEditingDoc] = useState<VaultDocument | null>(null);
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
@@ -142,6 +126,21 @@ export default function RecordsHubScreen() {
     onError: (err: unknown) => Alert.alert('Could not delete', err instanceof ApiError ? err.message : 'Please try again.'),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: (v: DocumentFormValues & { id: string }) =>
+      documents.update(v.id, {
+        title: v.title,
+        category: v.category,
+        description: v.description,
+        providerVisibility: v.providerVisibility,
+      }),
+    onSuccess: () => {
+      setEditingDoc(null);
+      qc.invalidateQueries({ queryKey: ['documents'] });
+    },
+    onError: (err: unknown) => Alert.alert('Could not save changes', err instanceof ApiError ? err.message : 'Please try again.'),
+  });
+
   const handleDeleteDoc = (doc: VaultDocument) => {
     Alert.alert('Delete Document', `"${doc.title}" will be permanently removed. This can't be undone.`, [
       { text: 'Cancel', style: 'cancel' },
@@ -163,12 +162,21 @@ export default function RecordsHubScreen() {
       return;
     }
 
+    // Ask for a title and category before anything is uploaded.
+    setPendingFile({ name: file.name, uri: file.uri, size: file.size, mimeType });
+  };
+
+  const uploadPicked = async (values: DocumentFormValues) => {
+    if (!pendingFile) return;
+    const file = pendingFile;
+    const mimeType = file.mimeType;
     setIsUploading(true);
     try {
       // Some pickers report no size; measure the file itself rather than sending 0 (the API rejects it).
       const fileBlob = await (await fetch(file.uri)).blob();
       const sizeBytes = file.size ?? fileBlob.size;
       if (!sizeBytes) {
+        setPendingFile(null);
         Alert.alert('File appears empty', 'Please choose a different file.');
         return;
       }
@@ -185,15 +193,16 @@ export default function RecordsHubScreen() {
       await documents.create({
         objectKey: ticket.objectKey,
         fileName: file.name,
-        title: file.name,
-        category: categoryFilter ?? 'miscellaneous',
+        title: values.title,
+        category: values.category,
       });
-      analytics.track('upload_success', { category: categoryFilter ?? 'miscellaneous' });
+      analytics.track('upload_success', { category: values.category });
+      setPendingFile(null);
 
       qc.invalidateQueries({ queryKey: ['documents'] });
       qc.invalidateQueries({ queryKey: ['storage-usage'] });
     } catch (err) {
-      analytics.track('upload_failure', { category: categoryFilter ?? 'miscellaneous' });
+      analytics.track('upload_failure', { category: values.category });
       Alert.alert('Upload failed', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setIsUploading(false);
@@ -388,6 +397,12 @@ export default function RecordsHubScreen() {
                           {doc.fileSizeBytes ? ` · ${formatBytes(doc.fileSizeBytes)}` : ''}
                         </Text>
                       </View>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setEditingDoc(doc)}
+                      accessibilityLabel="Edit document"
+                      style={styles.deleteIconBtn}>
+                      <Pencil size={16} color={theme.primary} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => handleDeleteDoc(doc)}
@@ -593,6 +608,33 @@ export default function RecordsHubScreen() {
         )}
 
       </ScrollView>
+
+      <DocumentEditSheet
+        visible={!!pendingFile}
+        mode="upload"
+        busy={isUploading}
+        initial={{
+          title: pendingFile?.name ?? '',
+          category: categoryFilter ?? 'miscellaneous',
+          description: '',
+          providerVisibility: true,
+        }}
+        onCancel={() => !isUploading && setPendingFile(null)}
+        onSubmit={uploadPicked}
+      />
+      <DocumentEditSheet
+        visible={!!editingDoc}
+        mode="edit"
+        busy={updateMutation.isPending}
+        initial={{
+          title: editingDoc?.title ?? '',
+          category: editingDoc?.category ?? 'miscellaneous',
+          description: editingDoc?.description ?? '',
+          providerVisibility: editingDoc?.providerVisibility ?? true,
+        }}
+        onCancel={() => setEditingDoc(null)}
+        onSubmit={(v) => editingDoc && updateMutation.mutate({ ...v, id: editingDoc.id })}
+      />
     </SafeAreaView>
   );
 }

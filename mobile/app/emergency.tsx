@@ -19,6 +19,7 @@ import {
   Users,
   ShieldAlert,
   ChevronLeft,
+  History,
 } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -98,18 +99,28 @@ export default function EmergencyScreen() {
               // Best effort: a dispatcher needs the location, but never block
               // an emergency on a slow or denied GPS fix.
               const coords = await getCurrentCoordinates();
-              await dispatch.create({
+              const created = await dispatch.create({
                 emergencyType: DISPATCH_EMERGENCY_TYPE,
                 description: `Emergency request for ${patientName}`,
                 contactPhone: profile?.user?.phone ?? authUser?.phone ?? undefined,
                 ...(coords && { latitude: coords.latitude, longitude: coords.longitude }),
               });
               analytics.track('dispatch_request_success', { emergencyType: DISPATCH_EMERGENCY_TYPE });
+              const caseId = created?.data?.id;
               Alert.alert(
                 'Request sent',
                 coords
                   ? 'DispatchCare has your request and location. A dispatcher will contact you shortly.'
                   : "DispatchCare has your request, but we couldn't get your location. Tell the dispatcher where you are when they call.",
+                caseId
+                  ? [
+                      { text: 'OK', style: 'cancel' },
+                      {
+                        text: 'Track request',
+                        onPress: () => router.push({ pathname: '/dispatch-case', params: { id: caseId } } as never),
+                      },
+                    ]
+                  : undefined,
               );
             } catch (err: unknown) {
               analytics.track('dispatch_request_failure', { emergencyType: DISPATCH_EMERGENCY_TYPE });
@@ -169,6 +180,14 @@ export default function EmergencyScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => router.push('/dispatch-history' as never)}
+          style={[styles.historyLink, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <History size={18} color={theme.text} />
+          <Text style={[styles.historyText, { color: theme.text }]}>View dispatch history</Text>
+        </TouchableOpacity>
 
         {/* Emergency Medical Summary */}
         <View style={styles.section}>
@@ -321,6 +340,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '900',
     letterSpacing: 0.5,
+  },
+  historyLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 20,
+  },
+  historyText: {
+    fontSize: 14,
+    fontWeight: '700',
   },
   section: {
     marginBottom: 20,

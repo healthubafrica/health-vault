@@ -20,6 +20,7 @@ import {
   MicOff,
   Phone,
   Video,
+  UserPlus,
 } from 'lucide-react-native';
 
 import { ErrorState } from '@/components/states';
@@ -27,6 +28,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
+import GuestInviteSheet from '@/components/GuestInviteSheet';
 import { appointments, telecare, analytics, ApiError } from '@/lib/api';
 import { canJoinCall, findSessionForAppointment, isPastStatus, statusPill } from '@/lib/appointments';
 
@@ -36,6 +38,7 @@ export default function TeleCareWaitingRoomScreen() {
   const theme = Colors[colorScheme];
 
   const [isConnecting, setIsConnecting] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   const { data, isLoading, isError, refetch } = useQuery({
     // `upcoming` hides an appointment the moment its start time passes, which would
@@ -47,6 +50,17 @@ export default function TeleCareWaitingRoomScreen() {
   const nextTelecare = (data?.data ?? [])
     .filter((a) => a.isTelecare && !isPastStatus(a.status))
     .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())[0];
+
+  // Guest invites hang off the TelecareSession (not the appointment); the session
+  // only exists once the appointment is confirmed.
+  const { data: sessionsData } = useQuery({
+    queryKey: ['telecare', 'sessions'],
+    queryFn: () => telecare.list(),
+    enabled: !!nextTelecare,
+  });
+  const inviteSession = nextTelecare
+    ? findSessionForAppointment(sessionsData?.data ?? [], nextTelecare.id)
+    : undefined;
 
   const providerName = nextTelecare?.provider
     ? `${nextTelecare.provider.title ?? 'Dr.'} ${nextTelecare.provider.firstName} ${nextTelecare.provider.lastName}`
@@ -173,6 +187,16 @@ export default function TeleCareWaitingRoomScreen() {
             <Text style={styles.joinBtnText}>{isConnecting ? 'Connecting...' : 'Join Call'}</Text>
           </TouchableOpacity>
 
+          {inviteSession && (
+            <TouchableOpacity
+              onPress={() => setInviteOpen(true)}
+              activeOpacity={0.85}
+              style={[styles.endBtn, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection: 'row', gap: 8 }]}>
+              <UserPlus size={16} color={theme.text} />
+              <Text style={[styles.endBtnText, { color: theme.text }]}>Invite a guest</Text>
+            </TouchableOpacity>
+          )}
+
           {/* End Session Button */}
           <TouchableOpacity
             onPress={handleEndSession}
@@ -185,6 +209,10 @@ export default function TeleCareWaitingRoomScreen() {
         )}
 
       </ScrollView>
+
+      {inviteSession && (
+        <GuestInviteSheet sessionId={inviteSession.id} visible={inviteOpen} onClose={() => setInviteOpen(false)} />
+      )}
     </SafeAreaView>
   );
 }

@@ -24,12 +24,16 @@ import {
   ShieldAlert,
   Send,
   FileQuestion,
+  ChevronRight,
+  Inbox,
 } from 'lucide-react-native';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { support, ApiError } from '@/lib/api';
-import { NoSearchResultState } from '@/components/states';
+import { NoSearchResultState, EmptyState, ErrorState, ListSkeleton } from '@/components/states';
+import StatusPill from '@/components/StatusPill';
+import { ticketStatusLabel, ticketStatusPill } from '@/lib/supportTickets';
 
 const FAQS = [
   {
@@ -51,6 +55,10 @@ export default function HelpSupportScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
+  const qc = useQueryClient();
+  const ticketsQuery = useQuery({ queryKey: ['support-tickets'], queryFn: () => support.list() });
+  const tickets = ticketsQuery.data ?? [];
+
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedFaq, setExpandedFaq] = useState<number | null>(0);
   const [ticketSubject, setTicketSubject] = useState('');
@@ -71,6 +79,7 @@ export default function HelpSupportScreen() {
       );
       setTicketSubject('');
       setTicketMessage('');
+      qc.invalidateQueries({ queryKey: ['support-tickets'] });
     },
     onError: (err: unknown) => {
       Alert.alert('Could not submit ticket', err instanceof ApiError ? err.message : 'Please try again.');
@@ -205,6 +214,45 @@ export default function HelpSupportScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* My tickets */}
+        <View style={styles.sectionHeader}>
+          <Inbox size={18} color={theme.primary} />
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>My Tickets</Text>
+        </View>
+
+        {ticketsQuery.isLoading ? (
+          <ListSkeleton rows={2} />
+        ) : ticketsQuery.isError ? (
+          <ErrorState onRetry={() => ticketsQuery.refetch()} />
+        ) : tickets.length === 0 ? (
+          <EmptyState
+            icon={Inbox}
+            title="No tickets yet"
+            description="Messages you send to support will show up here with their replies."
+          />
+        ) : (
+          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            {tickets.map((t, idx) => (
+              <React.Fragment key={t.id}>
+                {idx > 0 && <View style={[styles.divider, { backgroundColor: theme.border }]} />}
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => router.push({ pathname: '/support-ticket', params: { id: t.id } } as never)}
+                  style={styles.faqRow}>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text style={[styles.faqQuestion, { color: theme.text }]} numberOfLines={2}>{t.subject}</Text>
+                    <Text style={[styles.channelSub, { color: theme.textMuted }]}>
+                      #{t.hhaRef} · {new Date(t.updatedAt ?? t.createdAt).toLocaleDateString()}
+                    </Text>
+                  </View>
+                  <StatusPill status={ticketStatusPill(t.status)} label={ticketStatusLabel(t.status)} />
+                  <ChevronRight size={16} color={theme.textMuted} />
+                </TouchableOpacity>
+              </React.Fragment>
+            ))}
+          </View>
+        )}
 
       </ScrollView>
     </SafeAreaView>

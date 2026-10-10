@@ -412,6 +412,8 @@ export interface SupportMessage {
   body: string;
   senderId: string;
   createdAt: string;
+  /** Staff-only note; the API should not return these to patients, the app hides them regardless. */
+  isInternal?: boolean;
 }
 
 // Mirrors NotificationsService.listPatientAlerts: `category` is the alert's
@@ -771,7 +773,17 @@ export const documents = {
     return apiRequest<{ data: VaultDocument[]; meta: { total: number } }>(`/documents${suffix}`);
   },
 
-  update: (id: string, data: Partial<{ title: string; description: string; category: DocumentCategory; tags: string[] }>) =>
+  update: (
+    id: string,
+    data: Partial<{
+      title: string;
+      description: string;
+      category: DocumentCategory;
+      tags: string[];
+      documentDate: string;
+      providerVisibility: boolean;
+    }>,
+  ) =>
     apiRequest<{ data: VaultDocument }>(`/documents/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   remove: (id: string) => apiRequest<void>(`/documents/${id}`, { method: 'DELETE' }),
@@ -982,6 +994,26 @@ export const support = {
     }),
 };
 
+export interface DispatchEvent {
+  id: string;
+  status: string;
+  notes?: string | null;
+  occurredAt: string;
+}
+
+export interface DispatchCase {
+  id: string;
+  hhaRef: string;
+  emergencyType: string;
+  description?: string | null;
+  status: string;
+  locationText?: string | null;
+  etaMinutes?: number | null;
+  createdAt: string;
+  closedAt?: string | null;
+  events?: DispatchEvent[];
+}
+
 export const dispatch = {
   create: (data: {
     emergencyType: string;
@@ -991,9 +1023,39 @@ export const dispatch = {
     locationAddress?: string;
     contactPhone?: string;
   }) =>
-    apiRequest<{ data: unknown }>(
+    apiRequest<{ data: DispatchCase }>(
       '/dispatch',
       { method: 'POST', body: JSON.stringify(data) }
+    ),
+
+  list: () => apiRequest<{ data: DispatchCase[] }>('/dispatch'),
+
+  get: (id: string) => apiRequest<{ data: DispatchCase }>(`/dispatch/${encodeURIComponent(id)}`),
+};
+
+export interface GuestInvite {
+  id: string;
+  guestName: string;
+  guestEmail: string;
+  isRevoked: boolean;
+  verifiedAt?: string | null;
+  createdAt: string;
+}
+
+export const telecareGuestInvites = {
+  list: (sessionId: string) =>
+    apiRequest<GuestInvite[]>(`/telecare/sessions/${encodeURIComponent(sessionId)}/guest-invites`),
+
+  create: (sessionId: string, body: { guestName: string; guestEmail: string }) =>
+    apiRequest<GuestInvite>(`/telecare/sessions/${encodeURIComponent(sessionId)}/guest-invites`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  revoke: (sessionId: string, inviteId: string) =>
+    apiRequest<unknown>(
+      `/telecare/sessions/${encodeURIComponent(sessionId)}/guest-invites/${encodeURIComponent(inviteId)}`,
+      { method: 'DELETE' },
     ),
 };
 

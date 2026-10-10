@@ -21,11 +21,14 @@ import {
   ShieldCheck,
   Trash2,
   Clock,
+  Activity,
 } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { shares, RecordShare, ApiError } from '@/lib/api';
 import { EmptyState, SuccessState } from '@/components/states';
+import ShareActivityModal from '@/components/ShareActivityModal';
+import { SHARE_EXPIRY_OPTIONS, ShareExpiryId, expiryToIso, describeExpiry } from '@/lib/shareExpiry';
 
 // Must match CreateShareDto's @IsIn list on the backend exactly.
 const RECORD_TYPE_OPTIONS = [
@@ -37,6 +40,8 @@ const RECORD_TYPE_OPTIONS = [
   { id: 'document', label: 'Documents' },
   { id: 'expert_review', label: 'Expert Reviews' },
 ];
+
+const TYPE_LABELS: Record<string, string> = Object.fromEntries(RECORD_TYPE_OPTIONS.map((o) => [o.id, o.label]));
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -52,6 +57,9 @@ export default function ShareRecordsScreen() {
   const [emailInput, setEmailInput] = useState('');
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [detectForwarding, setDetectForwarding] = useState(true);
+  const [expiry, setExpiry] = useState<ShareExpiryId>('7d');
+  const [label, setLabel] = useState('');
+  const [auditShare, setAuditShare] = useState<RecordShare | null>(null);
   const [justCreated, setJustCreated] = useState<{ emails: number } | null>(null);
 
   const { data: activeShares, isLoading } = useQuery({
@@ -67,6 +75,8 @@ export default function ShareRecordsScreen() {
         recordTypes: selectedTypes.length > 0 ? selectedTypes : undefined,
         detectForwarding,
         notifyRecipients: true,
+        expiresAt: expiryToIso(expiry),
+        label: label.trim() || undefined,
       }),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['shares'] });
@@ -74,6 +84,7 @@ export default function ShareRecordsScreen() {
       setEmails([]);
       setEmailInput('');
       setSelectedTypes([]);
+      setLabel('');
     },
     onError: (err: unknown) => {
       Alert.alert('Could not create share', err instanceof ApiError ? err.message : 'Please try again.');
@@ -213,6 +224,41 @@ export default function ShareRecordsScreen() {
           </View>
         </View>
 
+        {/* Expiry */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Link expires after</Text>
+          <View style={styles.typesGrid}>
+            {SHARE_EXPIRY_OPTIONS.map((opt) => {
+              const isSelected = expiry === opt.id;
+              return (
+                <TouchableOpacity
+                  key={opt.id}
+                  activeOpacity={0.8}
+                  onPress={() => setExpiry(opt.id)}
+                  style={[
+                    styles.typeChip,
+                    { backgroundColor: isSelected ? theme.primary : theme.surface, borderColor: isSelected ? theme.primary : theme.border },
+                  ]}>
+                  <Text style={[styles.typeChipText, { color: isSelected ? '#FFFFFF' : theme.text }]}>{opt.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Label */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Label (optional)</Text>
+          <TextInput
+            style={[styles.labelInput, { borderColor: theme.border, backgroundColor: theme.surface, color: theme.text }]}
+            placeholder="e.g. For my specialist referral"
+            placeholderTextColor={theme.textFaint}
+            maxLength={100}
+            value={label}
+            onChangeText={setLabel}
+          />
+        </View>
+
         {/* Forwarding detection */}
         <View style={[styles.toggleRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={{ flex: 1 }}>
@@ -255,16 +301,29 @@ export default function ShareRecordsScreen() {
               {(activeShares ?? []).filter((s) => !s.isRevoked).map((share) => (
                 <View key={share.id} style={[styles.shareCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.shareEmails, { color: theme.text }]} numberOfLines={1}>
+                    {share.label ? (
+                      <Text style={[styles.shareEmails, { color: theme.text }]} numberOfLines={1}>{share.label}</Text>
+                    ) : null}
+                    <Text
+                      style={[share.label ? styles.shareMeta : styles.shareEmails, { color: share.label ? theme.textMuted : theme.text }]}
+                      numberOfLines={1}>
                       {share.allowedEmails.join(', ')}
+                    </Text>
+                    <Text style={[styles.shareMeta, { color: theme.textMuted, marginTop: 2 }]} numberOfLines={2}>
+                      {share.recordTypes?.length
+                        ? share.recordTypes.map((t) => TYPE_LABELS[t] ?? t).join(', ')
+                        : 'Full record'}
                     </Text>
                     <View style={styles.shareMetaRow}>
                       <Clock size={11} color={theme.textFaint} />
                       <Text style={[styles.shareMeta, { color: theme.textFaint }]}>
-                        {share._count.accesses} view{share._count.accesses === 1 ? '' : 's'} · {new Date(share.createdAt).toLocaleDateString()}
+                        {describeExpiry(share.expiresAt)} · {share._count.accesses} view{share._count.accesses === 1 ? '' : 's'}
                       </Text>
                     </View>
                   </View>
+                  <TouchableOpacity onPress={() => setAuditShare(share)} style={styles.revokeBtn} accessibilityLabel="Activity">
+                    <Activity size={16} color={theme.primary} />
+                  </TouchableOpacity>
                   <TouchableOpacity
                     disabled={revokeMutation.isPending}
                     onPress={() => handleRevoke(share)}
@@ -278,6 +337,8 @@ export default function ShareRecordsScreen() {
         </View>
 
       </ScrollView>
+
+      <ShareActivityModal share={auditShare} onClose={() => setAuditShare(null)} />
     </SafeAreaView>
   );
 }
@@ -318,6 +379,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   emailInput: { flex: 1, fontSize: 14 },
+  labelInput: { height: 48, borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, fontSize: 14 },
   addBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
   addBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
   emailChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
