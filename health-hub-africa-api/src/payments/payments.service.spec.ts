@@ -626,7 +626,7 @@ describe('PaymentsService', () => {
       await service.verifyPayment('legacy-key');
       expect(mockPrisma.payment.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { OR: [{ gatewayRef: 'legacy-key' }, { idempotencyKey: 'legacy-key' }] },
+          where: { OR: [{ gatewayRef: 'legacy-key' }, { idempotencyKey: 'legacy-key', gatewayRef: null }] },
         }),
       );
       expect(String(fetchSpy.mock.calls[0][0])).toContain('/verify/HHA-stored');

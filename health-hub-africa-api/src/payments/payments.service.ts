@@ -783,7 +783,9 @@ export class PaymentsService {
   // PSP, so no ownership check is needed. Returns minimal status info only.
   async verifyPayment(reference: string) {
     const payment = await this.prisma.payment.findFirst({
-      where: { OR: [{ gatewayRef: reference }, { idempotencyKey: reference }] },
+      // The idempotency-key fallback is for legacy rows (no stored gatewayRef) only: keys are
+      // client-chosen and must not be usable to poll or re-verify newer payments.
+      where: { OR: [{ gatewayRef: reference }, { idempotencyKey: reference, gatewayRef: null }] },
       select: { id: true, status: true, gateway: true, gatewayRef: true },
     });
 

@@ -407,6 +407,17 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user || user.isVerified || !user.isActive || user.deletedAt) return { message };
 
+    // Do all remaining work detached so the response time is the same whether or not
+    // the account exists. Never log the code or email body, only the user id.
+    void this.issueResendOtp(user).catch((err) =>
+      this.logger.error(
+        `Verification OTP resend failed for user ${user.id}: ${err instanceof Error ? err.name : 'error'}`,
+      ),
+    );
+    return { message };
+  }
+
+  private async issueResendOtp(user: { id: string; email: string }) {
     const [recent, sentLastHour] = await Promise.all([
       this.prisma.verificationToken.findFirst({
         where: {
@@ -420,16 +431,8 @@ export class AuthService {
         where: { userId: user.id, type: 'email', createdAt: { gt: new Date(Date.now() - 60 * 60 * 1000) } },
       }),
     ]);
-    if (recent || sentLastHour >= OTP_RESEND_HOURLY_CAP) return { message };
-
-    // Fire-and-forget so response time does not reveal whether the account
-    // exists. Never log the code or email body, only the user id.
-    void this.sendEmailOtp(user.email, user.id, 'email').catch((err) =>
-      this.logger.error(
-        `Verification OTP resend failed for user ${user.id}: ${err instanceof Error ? err.name : 'error'}`,
-      ),
-    );
-    return { message };
+    if (recent || sentLastHour >= OTP_RESEND_HOURLY_CAP) return;
+    await this.sendEmailOtp(user.email, user.id, 'email');
   }
 
   async resetPassword(email: string, otp: string, newPassword: string) {
