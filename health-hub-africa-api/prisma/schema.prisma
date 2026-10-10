@@ -238,6 +238,7 @@ model User {
   patient               Patient?
   provider              Provider?
   notificationPrefs     NotificationPreference?
+  deviceTokens          DeviceToken[]
   onboardingProgress    OnboardingProgress?
   auditLogsAsActor      AuditLog[]            @relation("AuditLogActor")
   supportTicketsSubmitted SupportTicket[]     @relation("TicketSubmitter")
@@ -1255,6 +1256,23 @@ model NotificationPreference {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notification_preferences")
+}
+
+// FCM/APNs device tokens registered by the mobile app (POST
+// /notifications/push-token). Unique on the token itself: a phone that logs
+// into a different account is re-bound to that user rather than duplicated.
+model DeviceToken {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  token      String   @unique
+  platform   String
+  lastSeenAt DateTime @default(now()) @map("last_seen_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("device_tokens")
 }
 
 // ─── STRIDE™ AI System ────────────────────────────────────────────────────────
