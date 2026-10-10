@@ -1,5 +1,5 @@
 import { genderForApi, isValidPassword, normalizePhone, parseIsoDob, PASSWORD_HINT } from '@/lib/validation';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -43,6 +43,9 @@ export default function SignUpScreen() {
   const [dob, setDob] = useState('');
   const [gender, setGender] = useState<'female' | 'male' | 'other'>('female');
   const [idNumber, setIdNumber] = useState('');
+  // The OTP is single-use. If creating the patient profile fails after it was verified,
+  // a retry must reuse these tokens instead of asking for a code that is already spent.
+  const verifiedTokens = useRef<{ accessToken: string; refreshToken: string } | null>(null);
   const [acquisitionSource, setAcquisitionSource] = useState<AcquisitionSource | ''>('');
 
   const [email, setEmail] = useState('');
@@ -51,8 +54,6 @@ export default function SignUpScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const [medicalAid, setMedicalAid] = useState('');
-  const [memberNumber, setMemberNumber] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -101,7 +102,6 @@ export default function SignUpScreen() {
           fullName.trim(),
           acquisitionSource as AcquisitionSource,
         );
-        analytics.track('registration_complete', { acquisitionSource });
         analytics.track('otp_requested', { channel: 'email' });
         setCurrentStep(3);
       } catch (err) {
@@ -123,8 +123,10 @@ export default function SignUpScreen() {
       setIsLoading(true);
       try {
         // Verify OTP — backend returns new tokens on success
-        const tokens = await auth.verifyOtp(email.trim(), otpCode);
+        const tokens = verifiedTokens.current ?? (await auth.verifyOtp(email.trim(), otpCode));
+        verifiedTokens.current = tokens;
         analytics.track('otp_verify_success');
+        analytics.track('registration_complete', { acquisitionSource });
         const { accessToken, refreshToken } = tokens;
 
         // Same reason as login.tsx: must be set before any authenticated
@@ -137,17 +139,22 @@ export default function SignUpScreen() {
         try {
           const res = await patients.getMyProfile();
           profile = res.data;
-        } catch {
-          // Patient profile doesn't exist yet — create it
+        } catch (lookupErr) {
+          // Only "no profile yet" (404) means create one. A network/5xx/401 failure must
+          // surface instead of being treated as a missing profile.
+          if (!(lookupErr instanceof ApiError && lookupErr.status === 404)) throw lookupErr;
           const res = await patients.create({
             firstName: fullName.trim().split(' ')[0] ?? fullName.trim(),
             lastName: fullName.trim().split(' ').slice(1).join(' ') || '',
             dateOfBirth: parseIsoDob(dob.trim()) as string,
             gender: genderForApi(gender),
             country: 'Nigeria',
+            ...(idNumber.trim() ? { nin: idNumber.trim() } : {}),
           });
           profile = res.data;
         }
+
+        patients.updateOnboardingProgress(3, 'otp_verified').catch(() => {});
 
         await loginStore(accessToken, refreshToken, {
           id: profile.id,
@@ -184,7 +191,7 @@ export default function SignUpScreen() {
       case 2:
         return 'Account & Security';
       case 3:
-        return 'Medical Aid & Verification';
+        return 'Verify Your Email';
     }
   };
 
@@ -417,40 +424,14 @@ export default function SignUpScreen() {
               </View>
             )}
 
-            {/* STEP 3: Medical Aid & OTP Verification */}
+            {/* STEP 3: OTP Verification */}
             {currentStep === 3 && (
               <View style={styles.stepForm}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Medical Aid Provider (Optional)</Text>
-                  <View style={styles.inputWrapper}>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="e.g. Discovery Health, Momentum, GEMS"
-                      placeholderTextColor="#98A2B3"
-                      value={medicalAid}
-                      onChangeText={setMedicalAid}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Membership Number</Text>
-                  <View style={styles.inputWrapper}>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="Enter your membership number"
-                      placeholderTextColor="#98A2B3"
-                      value={memberNumber}
-                      onChangeText={setMemberNumber}
-                    />
-                  </View>
-                </View>
-
-                {/* SMS OTP verification */}
+                {/* Email OTP verification */}
                 <View style={styles.otpBox}>
-                  <Text style={styles.otpHeading}>SMS Verification Code</Text>
+                  <Text style={styles.otpHeading}>Email Verification Code</Text>
                   <Text style={styles.otpSub}>
-                    We sent a 6-digit security code to your mobile phone.
+                    We sent a 6-digit security code to your email address.
                   </Text>
                   <View style={[styles.inputWrapper, { marginTop: 10 }]}>
                     <TextInput
@@ -478,7 +459,7 @@ export default function SignUpScreen() {
                     {agreedToTerms && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
                   </View>
                   <Text style={styles.termsText}>
-                    I agree to the <Text style={styles.termsBold}>POPIA Privacy Policy</Text> and consent to secure encrypted medical record storage.
+                    I agree to the <Text style={styles.termsBold} onPress={() => router.push('/privacy-policy')}>Privacy Policy</Text> and consent to secure encrypted medical record storage.
                   </Text>
                 </TouchableOpacity>
               </View>

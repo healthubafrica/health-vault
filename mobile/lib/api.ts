@@ -204,6 +204,37 @@ export interface PatientProfile {
   }> | null;
 }
 
+export interface EmergencyContact {
+  id: string;
+  fullName: string;
+  relationship: string;
+  phone: string;
+  email?: string | null;
+  isPrimary: boolean;
+}
+
+export const emergencyContacts = {
+  list: async (): Promise<EmergencyContact[]> => {
+    const res = await apiRequest<{ data: EmergencyContact[] } | EmergencyContact[]>('/patients/me/emergency-contacts');
+    return Array.isArray(res) ? res : res?.data ?? [];
+  },
+  create: (body: { fullName: string; relationship: string; phone: string; email?: string; isPrimary?: boolean }) =>
+    apiRequest<{ data: EmergencyContact }>('/patients/me/emergency-contacts', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  update: (
+    id: string,
+    body: Partial<{ fullName: string; relationship: string; phone: string; email: string; isPrimary: boolean }>,
+  ) =>
+    apiRequest<{ data: EmergencyContact }>(`/patients/me/emergency-contacts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  remove: (id: string) =>
+    apiRequest<{ data: { deleted: boolean } }>(`/patients/me/emergency-contacts/${id}`, { method: 'DELETE' }),
+};
+
 export interface VitalsReading {
   id: string;
   recordedAt: string;
@@ -512,6 +543,12 @@ export const patients = {
   // Derived from appointment history, not a dedicated assignment table —
   // see patients.service.ts findMyCareTeam.
   getMyCareTeam: () => apiRequest<{ data: CareTeamMember[] }>('/patients/me/care-team'),
+
+  updateOnboardingProgress: (step: number, stepName: string) =>
+    apiRequest<unknown>('/patients/me/onboarding-progress', {
+      method: 'PATCH',
+      body: JSON.stringify({ step, stepName }),
+    }),
 };
 
 export const vitals = {

@@ -10,6 +10,7 @@ import {
   setSessionExpiredHandler,
   patients,
 } from '../api';
+import { unregisterPushToken } from '../notifications';
 
 export interface UserProfile {
   id: string;
@@ -77,7 +78,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     try {
-      await apiRequest('/auth/logout', { method: 'POST' }).catch(() => {});
+      // Order matters: unregister the device while the access token is still valid, and
+      // never refresh mid-logout (retryOnAuth=false) so an expired token can't bounce the
+      // user through the session-expired flow.
+      await unregisterPushToken();
+      await apiRequest('/auth/logout', { method: 'POST' }, false).catch(() => {});
     } finally {
       await clearStoredTokens();
       set({ user: null, isAuthenticated: false, isLoading: false });

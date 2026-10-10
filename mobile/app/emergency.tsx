@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -54,6 +54,15 @@ export default function EmergencyScreen() {
   const theme = Colors[colorScheme];
   const authUser = useAuthStore((s) => s.user);
   const [isRequesting, setIsRequesting] = useState(false);
+  // undefined = still locating, null = unavailable (permission denied / no fix)
+  const [loc, setLoc] = useState<{ latitude: number; longitude: number } | null | undefined>(undefined);
+  useEffect(() => {
+    let alive = true;
+    getCurrentCoordinates().then((c) => alive && setLoc(c)).catch(() => alive && setLoc(null));
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const { data: profileRes } = useQuery({
     queryKey: ['patient', 'profile'],
@@ -129,9 +138,6 @@ export default function EmergencyScreen() {
             <ChevronLeft size={24} color={theme.text} />
             <Text style={[styles.backText, { color: theme.text }]}>Back</Text>
           </TouchableOpacity>
-          <View style={[styles.offlineBadge, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.offlineText, { color: theme.textMuted }]}>Offline-Encrypted Profile</Text>
-          </View>
         </View>
 
         {/* Primary Emergency Action */}
@@ -144,7 +150,13 @@ export default function EmergencyScreen() {
 
           <View style={[styles.gpsBox, { backgroundColor: '#FFFFFF', borderColor: theme.emergency }]}>
             <MapPin size={16} color={theme.emergency} />
-            <Text style={styles.gpsText}>GPS: -33.9249, 18.4241 (Cape Town, SA)</Text>
+            <Text style={styles.gpsText}>
+              {loc === undefined
+                ? 'Getting your location…'
+                : loc
+                  ? `GPS: ${loc.latitude.toFixed(4)}, ${loc.longitude.toFixed(4)}`
+                  : 'Location unavailable — allow location access or tell dispatch where you are'}
+            </Text>
           </View>
 
           <TouchableOpacity
@@ -158,7 +170,7 @@ export default function EmergencyScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Emergency Medical Summary (Offline-Accessible) */}
+        {/* Emergency Medical Summary */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Emergency Profile ({patientName})</Text>
           

@@ -2,7 +2,10 @@ import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
+import * as SecureStore from 'expo-secure-store';
 import { apiRequest } from './api';
+
+const PUSH_TOKEN_KEY = 'hha_push_token';
 
 // Configure foreground notification behavior
 Notifications.setNotificationHandler({
@@ -108,14 +111,12 @@ export async function registerForPushNotificationsAsync(): Promise<PushRegistrat
       projectId,
     });
     const expoPushToken = expoTokenData.data;
-    console.log('[Notifications] Expo Push Token:', expoPushToken);
 
     // 6. Get Native Device Push Token (Direct FCM Token on Android / APNs on iOS)
     let devicePushToken: string | undefined;
     try {
       const deviceTokenData = await Notifications.getDevicePushTokenAsync();
       devicePushToken = deviceTokenData.data;
-      console.log('[Notifications] Native FCM/APNs Device Token:', devicePushToken);
     } catch (e) {
       console.warn('[Notifications] Could not retrieve native device push token:', e);
     }
@@ -135,30 +136,35 @@ export async function registerForPushNotificationsAsync(): Promise<PushRegistrat
 }
 
 /**
- * Sends registered push tokens to the backend user profile / notification service.
+ * Registers this device's push token with the backend (POST /notifications/push-token)
+ * so server-side alerts can reach the phone. The token is kept in SecureStore so it
+ * can be unregistered at sign-out even after an app restart.
  */
 export async function syncPushTokenWithBackend(
   tokens: { expoPushToken?: string; devicePushToken?: string }
 ): Promise<void> {
+  // The backend sends through FCM, so prefer the native device token.
+  const token = tokens.devicePushToken || tokens.expoPushToken;
+  if (!token || (Platform.OS !== 'ios' && Platform.OS !== 'android')) return;
   try {
-    const payload = {
-      fcmToken: tokens.devicePushToken || tokens.expoPushToken,
-      expoToken: tokens.expoPushToken,
-      platform: Platform.OS,
-      deviceModel: Device.modelName ?? 'Unknown',
-      osVersion: Device.osVersion ?? 'Unknown',
-    };
-
-    // NOTE: the backend does not yet expose a device-token endpoint (no
-    // POST /users/push-token, no token storage, no push sender), so this call
-    // 404s today. Report that honestly instead of logging success; once the
-    // endpoint exists this starts working with no further app change.
-    await apiRequest('/users/push-token', {
+    await apiRequest('/notifications/push-token', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ token, platform: Platform.OS }),
     });
-    console.log('[Notifications] Push token synced with backend.');
+    await SecureStore.setItemAsync(PUSH_TOKEN_KEY, token);
   } catch (error) {
-    console.warn('[Notifications] Failed to sync push token with backend:', error);
+    console.warn('[Notifications] Failed to register push token:', error);
+  }
+}
+
+/** Stops pushes to this device. Call while the access token is still valid (before logout). */
+export async function unregisterPushToken(): Promise<void> {
+  try {
+    const token = await SecureStore.getItemAsync(PUSH_TOKEN_KEY);
+    if (!token) return;
+    await apiRequest('/notifications/push-token', { method: 'DELETE', body: JSON.stringify({ token }) }, false);
+    await SecureStore.deleteItemAsync(PUSH_TOKEN_KEY);
+  } catch {
+    // Best effort: a failed unregister must never block signing out.
   }
 }

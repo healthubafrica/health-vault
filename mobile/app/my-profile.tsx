@@ -20,6 +20,7 @@ import {
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import EmergencyFAB from '@/components/EmergencyFAB';
+import EmergencyContactsCard from '@/components/EmergencyContactsCard';
 import { patients } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useQuery } from '@tanstack/react-query';
@@ -50,7 +51,6 @@ export default function MyProfileScreen() {
   const country = profile?.country ?? '—';
   const allergies = profile?.medicalInfo?.allergies?.length ? profile.medicalInfo.allergies : ['None reported'];
   const chronicConditions = profile?.medicalInfo?.chronicConditions?.length ? profile.medicalInfo.chronicConditions : ['None reported'];
-  const emergencyContact = profile?.emergencyContacts?.[0] ?? { fullName: profile?.nextOfKinName ?? '—', relationship: profile?.nextOfKinRelationship ?? '—' };
 
   const handleDownloadRecord = () => {
     Alert.alert(
@@ -185,15 +185,7 @@ export default function MyProfileScreen() {
         <View style={styles.section}>
           <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>EMERGENCY CONTACT</Text>
 
-          <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>NAME</Text>
-            <Text style={[styles.fieldValue, { color: theme.text }]}>{emergencyContact.fullName}</Text>
-          </View>
-
-          <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>RELATIONSHIP</Text>
-            <Text style={[styles.fieldValue, { color: theme.text }]}>{emergencyContact.relationship}</Text>
-          </View>
+          <EmergencyContactsCard />
         </View>
 
         {/* Action Buttons */}
