@@ -22,6 +22,7 @@ import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { UpdateNotificationPrefsDto } from './dto/notification-prefs.dto';
 
 const BCRYPT_ROUNDS = 12;
+const OTP_RESEND_COOLDOWN_MS = 30_000;
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 // SEC: account-level lockout — distinct from per-IP throttling. The IP
@@ -397,9 +398,32 @@ export class AuthService {
     return { message: 'If the email exists, a reset OTP has been sent.' };
   }
 
+  // Re-sends the signup verification code (type 'email', what verify-otp
+  // consumes). Always the same response so it cannot enumerate accounts;
+  // a per-account cooldown backs up the per-IP route throttle.
+  async resendVerificationOtp(email: string) {
+    const message = 'If the account exists and is not yet verified, a new code has been sent.';
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user || user.isVerified || !user.isActive) return { message };
+
+    const recent = await this.prisma.verificationToken.findFirst({
+      where: {
+        userId: user.id,
+        type: 'email',
+        createdAt: { gt: new Date(Date.now() - OTP_RESEND_COOLDOWN_MS) },
+      },
+      select: { createdAt: true },
+    });
+    if (recent) return { message };
+
+    await this.sendEmailOtp(user.email, user.id, 'email');
+    return { message };
+  }
+
   async resetPassword(email: string, otp: string, newPassword: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) throw new BadRequestException('Invalid request');
+    // Same error as a wrong code so an unknown email is indistinguishable.
+    if (!user) throw new BadRequestException('Invalid or expired OTP');
 
     // SEC-013: compare against bcrypt hash stored at OTP creation time
     const token = await this.prisma.verificationToken.findFirst({
@@ -426,6 +450,9 @@ export class AuthService {
         where: { id: user.id },
         data: {
           passwordHash,
+          // The emailed OTP proves mailbox ownership, so an account that
+          // never finished signup verification is not left locked out.
+          isVerified: true,
           // Reset is the legitimate user's path out of a lockout — clear it.
           failedLoginAttempts: 0,
           lockedUntil: null,

@@ -369,6 +369,10 @@ export class RecordsService {
       hhaRef: true,
       patientId: true,
       providerId: true,
+      // Name/title/specialty only: no contact details or credentials.
+      provider: {
+        select: { id: true, title: true, firstName: true, lastName: true, specialty: true },
+      },
       appointmentId: true,
       recordType: true,
       title: true,

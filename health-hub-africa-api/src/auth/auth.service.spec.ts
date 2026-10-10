@@ -305,7 +305,64 @@ describe('AuthService', () => {
 
     it('rejects for an unknown email', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
-      await expect(service.resetPassword('nobody@test.com', '123456', 'NewPass1!')).rejects.toThrow('Invalid request');
+      await expect(service.resetPassword('nobody@test.com', '123456', 'NewPass1!')).rejects.toThrow('Invalid or expired OTP');
+    });
+
+    it('marks the account verified, since the emailed OTP proves mailbox ownership', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-9', email: 'x@test.com', isVerified: false });
+      mockPrisma.verificationToken.findFirst.mockResolvedValue({ id: 'tok-9', token: 'hashed' });
+
+      await service.resetPassword('x@test.com', '123456', 'NewPass1!');
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ isVerified: true }) }),
+      );
+    });
+  });
+
+  describe('resendVerificationOtp', () => {
+    const GENERIC = 'If the account exists and is not yet verified, a new code has been sent.';
+
+    it('sends an email-type OTP to an unverified account', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'u-1', email: 'a@test.com', isVerified: false, isActive: true, role: UserRole.patient });
+      mockPrisma.verificationToken.findFirst.mockResolvedValue(null);
+
+      const result = await service.resendVerificationOtp('a@test.com');
+
+      expect(result.message).toBe(GENERIC);
+      expect(mockPrisma.verificationToken.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ userId: 'u-1', type: 'email' }) }),
+      );
+      expect(mockNotifications.sendEmail).toHaveBeenCalled();
+    });
+
+    it('does not issue a password_reset token (the old request-otp bug)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'u-1', email: 'a@test.com', isVerified: false, isActive: true });
+      mockPrisma.verificationToken.findFirst.mockResolvedValue(null);
+
+      await service.resendVerificationOtp('a@test.com');
+
+      expect(mockPrisma.verificationToken.create).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ type: 'password_reset' }) }),
+      );
+    });
+
+    it('returns the same message and sends nothing for unknown or already-verified accounts', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      expect((await service.resendVerificationOtp('nobody@test.com')).message).toBe(GENERIC);
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'u-2', isVerified: true, isActive: true });
+      expect((await service.resendVerificationOtp('v@test.com')).message).toBe(GENERIC);
+      expect(mockNotifications.sendEmail).not.toHaveBeenCalled();
+    });
+
+    it('enforces a per-account cooldown when a code was issued moments ago', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'u-1', email: 'a@test.com', isVerified: false, isActive: true });
+      mockPrisma.verificationToken.findFirst.mockResolvedValue({ createdAt: new Date() });
+
+      const result = await service.resendVerificationOtp('a@test.com');
+
+      expect(result.message).toBe(GENERIC);
+      expect(mockNotifications.sendEmail).not.toHaveBeenCalled();
     });
   });
 
