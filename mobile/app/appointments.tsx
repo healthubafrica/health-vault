@@ -1,3 +1,4 @@
+import { ErrorState } from '@/components/states';
 import React, { useState } from 'react';
 import {
   StyleSheet,
@@ -34,12 +35,12 @@ export default function AppointmentsScreen() {
   const theme = Colors[colorScheme];
   const qc = useQueryClient();
 
-  const { data: upcomingData, isLoading: loadingUpcoming } = useQuery({
+  const { data: upcomingData, isLoading: loadingUpcoming, isError: upcomingError, refetch: refetchUpcoming } = useQuery({
     queryKey: ['appointments', 'upcoming'],
     queryFn: () => appointments.list({ upcoming: true }),
   });
 
-  const { data: pastData, isLoading: loadingPast } = useQuery({
+  const { data: pastData, isLoading: loadingPast, isError: pastError, refetch: refetchPast } = useQuery({
     queryKey: ['appointments', 'past'],
     // Past = completed, cancelled and missed. The API filters by one status,
     // so fetch recent appointments and keep the finished ones.
@@ -69,6 +70,8 @@ export default function AppointmentsScreen() {
       : (pastData?.data ?? []);
 
   const isLoading = activeTab === 'upcoming' ? loadingUpcoming : loadingPast;
+  const loadFailed = activeTab === 'upcoming' ? upcomingError : pastError;
+  const retry = activeTab === 'upcoming' ? refetchUpcoming : refetchPast;
 
   const formatDate = (iso: string) => {
     const d = new Date(iso);
@@ -187,6 +190,8 @@ export default function AppointmentsScreen() {
           <View style={{ alignItems: 'center', paddingTop: 60 }}>
             <ActivityIndicator size="large" color={theme.primary} />
           </View>
+        ) : loadFailed ? (
+          <ErrorState onRetry={() => retry()} />
         ) : currentList.length === 0 ? (
           <View style={styles.emptyState}>
             <Calendar size={48} color={theme.textMuted} style={{ marginBottom: 12 }} />

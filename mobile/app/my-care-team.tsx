@@ -23,7 +23,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import EmergencyFAB from '@/components/EmergencyFAB';
 import { patients, CareTeamMember } from '@/lib/api';
-import { EmptyState, ListSkeleton } from '@/components/states';
+import { EmptyState, ListSkeleton, ErrorState } from '@/components/states';
 
 function initialsOf(m: CareTeamMember) {
   return `${m.firstName[0] ?? ''}${m.lastName[0] ?? ''}`.toUpperCase();
@@ -34,7 +34,7 @@ export default function MyCareTeamScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['care-team'],
     queryFn: () => patients.getMyCareTeam(),
   });
@@ -98,6 +98,8 @@ export default function MyCareTeamScreen() {
 
           {isLoading ? (
             <ListSkeleton rows={2} />
+          ) : isError ? (
+            <ErrorState onRetry={() => refetch()} />
           ) : careTeam.length === 0 ? (
             <EmptyState
               icon={Users}

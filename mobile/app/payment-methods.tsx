@@ -21,7 +21,7 @@ import {
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { paymentMethods, PaymentMethod, ApiError } from '@/lib/api';
-import { EmptyState, ListSkeleton } from '@/components/states';
+import { EmptyState, ListSkeleton, ErrorState } from '@/components/states';
 
 export default function PaymentMethodsScreen() {
   const router = useRouter();
@@ -29,7 +29,7 @@ export default function PaymentMethodsScreen() {
   const theme = Colors[colorScheme];
   const qc = useQueryClient();
 
-  const { data: cards, isLoading } = useQuery({
+  const { data: cards, isLoading, isError, refetch } = useQuery({
     queryKey: ['payment-methods'],
     queryFn: () => paymentMethods.list(),
   });
@@ -94,6 +94,8 @@ export default function PaymentMethodsScreen() {
 
         {isLoading ? (
           <ListSkeleton rows={2} />
+        ) : isError ? (
+          <ErrorState onRetry={() => refetch()} />
         ) : (cards ?? []).length === 0 ? (
           <EmptyState
             icon={CreditCard}

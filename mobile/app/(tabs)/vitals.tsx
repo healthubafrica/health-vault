@@ -18,7 +18,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
-import { EmptyState, CardSkeleton } from '@/components/states';
+import { EmptyState, CardSkeleton, ErrorState } from '@/components/states';
 import { vitals, VitalsReading } from '@/lib/api';
 
 
@@ -76,7 +76,7 @@ export default function VitalsListFull() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['vitals'],
     queryFn: () => vitals.list(),
   });
@@ -158,6 +158,8 @@ export default function VitalsListFull() {
 
         {isLoading ? (
           <CardSkeleton />
+        ) : isError ? (
+          <ErrorState onRetry={() => refetch()} />
         ) : VITALS_DATA.length === 0 ? (
           <EmptyState
             icon={Activity}

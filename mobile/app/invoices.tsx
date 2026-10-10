@@ -25,10 +25,11 @@ import {
   Plus,
 } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
+import { matchesFilter, summarizePayments } from '@/lib/invoices';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { payments, Payment } from '@/lib/api';
-import { EmptyState, ListSkeleton } from '@/components/states';
+import { EmptyState, ListSkeleton, ErrorState } from '@/components/states';
 
 function formatNaira(kobo: number): string {
   return '₦' + (kobo / 100).toLocaleString('en-NG', { minimumFractionDigits: 2 });
@@ -42,7 +43,7 @@ export default function InvoicesScreen() {
 
   const [activeFilter, setActiveFilter] = useState<'all' | 'paid' | 'pending'>('all');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['payments'],
     queryFn: () => payments.list(),
   });
@@ -50,21 +51,10 @@ export default function InvoicesScreen() {
   const allPayments: Payment[] = data?.data ?? [];
 
   const filteredInvoices = allPayments.filter((p) => {
-    if (activeFilter === 'paid') return p.status === 'paid';
-    if (activeFilter === 'pending') return p.status !== 'paid';
-    return true;
+    return matchesFilter(activeFilter, p.status);
   });
 
-  const totalKobo = allPayments.reduce((s, p) => s + (p.amountKobo ?? 0), 0);
-  const paidKobo = allPayments.filter((p) => p.status === 'paid').reduce((s, p) => s + (p.amountKobo ?? 0), 0);
-  const pendingKobo = totalKobo - paidKobo;
-
-  const handleDownload = (p: Payment) => {
-    Alert.alert(
-      'Receipt Downloaded',
-      `Receipt for ${p.description ?? 'payment'} has been saved to your downloads.`
-    );
-  };
+  const { totalKobo, paidKobo, pendingKobo } = summarizePayments(allPayments);
 
   const handleShare = async (p: Payment) => {
     try {
@@ -159,6 +149,8 @@ export default function InvoicesScreen() {
         <View style={styles.listContainer}>
           {isLoading ? (
             <ListSkeleton rows={3} />
+          ) : isError ? (
+            <ErrorState onRetry={() => refetch()} />
           ) : filteredInvoices.length === 0 ? (
             <EmptyState
               icon={Receipt}
@@ -216,13 +208,13 @@ export default function InvoicesScreen() {
 
                 {/* Actions Row */}
                 <View style={styles.invoiceActionsRow}>
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    onPress={() => handleDownload(p)}
-                    style={[styles.actionBtn, { backgroundColor: theme.primaryLight }]}>
-                    <Download size={14} color={theme.primary} />
-                    <Text style={[styles.actionBtnText, { color: theme.primary }]}>Download Receipt</Text>
-                  </TouchableOpacity>
+                  {/* A receipt is emailed when a payment succeeds; there is no in-app download yet. */}
+                  <View style={[styles.actionBtn, { backgroundColor: theme.primaryLight }]}>
+                    <Receipt size={14} color={theme.primary} />
+                    <Text style={[styles.actionBtnText, { color: theme.primary }]}>
+                      {isPaid ? 'Receipt sent to your email' : 'No receipt yet'}
+                    </Text>
+                  </View>
 
                   <TouchableOpacity
                     activeOpacity={0.8}

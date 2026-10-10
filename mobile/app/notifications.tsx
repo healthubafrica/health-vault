@@ -28,7 +28,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
 import { notifications as notifApi, Notification as ApiNotification } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { EmptyState, ListSkeleton } from '@/components/states';
+import { EmptyState, ListSkeleton, ErrorState } from '@/components/states';
 
 interface NotificationItem {
   id: string;
@@ -59,7 +59,7 @@ export default function NotificationsScreen() {
 
   const [activeFilter, setActiveFilter] = useState('all');
 
-  const { data: apiNotifsData, isLoading } = useQuery({
+  const { data: apiNotifsData, isLoading, isError, refetch } = useQuery({
     queryKey: ['notifications'],
     queryFn: () => notifApi.list(),
   });
@@ -217,6 +217,8 @@ export default function NotificationsScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {isLoading ? (
           <ListSkeleton rows={4} />
+        ) : isError ? (
+          <ErrorState onRetry={() => refetch()} />
         ) : filteredNotifications.length === 0 ? (
           <EmptyState
             icon={BellOff}
