@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, SafeAreaView, StatusBar, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, Crown, CheckCircle2, Sparkles } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
-import { subscriptions, payments, analytics, SubscriptionPlan, ApiError } from '@/lib/api';
+import { subscriptions, payments, analytics, generateIdempotencyKey, SubscriptionPlan, ApiError } from '@/lib/api';
+import { openCheckout } from '@/lib/checkout';
 import { settlePayment, outcomeMessage } from '@/lib/paymentResult';
 import { planPriceKobo, currentPlanPrice, isPaidPlan } from '@/lib/pricing';
 import GatewayPickerModal from '@/components/GatewayPickerModal';
@@ -48,15 +48,26 @@ export default function SubscriptionScreen() {
   const current = myData?.data ?? null;
   const plans = plansData?.data ?? [];
 
+  // One key per (plan, cycle, gateway): a retry of the same attempt replays instead of
+  // double-charging; cleared once the attempt settles so a new one starts fresh.
+  const keys = useRef(new Map<string, string>());
+  const keyFor = (planId: string, gateway: string) => {
+    const id = `${planId}|${billingCycle}|${gateway}`;
+    if (!keys.current.has(id)) keys.current.set(id, generateIdempotencyKey());
+    return keys.current.get(id)!;
+  };
+
   const upgradeMutation = useMutation({
     mutationFn: ({ plan, gateway }: { plan: SubscriptionPlan; gateway: CardGateway }) =>
-      subscriptions.upgrade(plan.id, billingCycle, gateway),
+      subscriptions.upgrade(plan.id, billingCycle, gateway, keyFor(plan.id, gateway)),
     onSuccess: async (result, { plan }) => {
       setPickingPlan(null);
       analytics.track('checkout_start', { plan: plan.tier, billing: billingCycle, gateway: result.gateway });
-      await WebBrowser.openBrowserAsync(result.authorizationUrl);
-      // The browser closing says nothing about whether the card was charged.
-      const outcome = result.reference ? await settlePayment(payments.verify, result.reference) : 'pending';
+      const returned = await openCheckout(result.authorizationUrl);
+      // The browser closing (or the return link) says nothing about whether the card was charged.
+      const reference = result.reference ?? returned.reference;
+      const outcome = reference ? await settlePayment(payments.verify, reference) : 'pending';
+      if (outcome !== 'pending') keys.current.clear();
       if (outcome === 'paid') analytics.track('payment_success', { gateway: result.gateway, plan: plan.tier });
       if (outcome === 'failed') analytics.track('payment_failure', { gateway: result.gateway, reason: 'declined_or_cancelled' });
       qc.invalidateQueries({ queryKey: ['subscription-me'] });

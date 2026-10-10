@@ -28,7 +28,8 @@ import { useQuery } from '@tanstack/react-query';
 import { matchesFilter, summarizePayments } from '@/lib/invoices';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
-import { payments, Payment } from '@/lib/api';
+import { payments, Payment, ApiError } from '@/lib/api';
+import { shareHtmlAsPdf } from '@/lib/shareFile';
 import { EmptyState, ListSkeleton, ErrorState } from '@/components/states';
 
 function formatNaira(kobo: number): string {
@@ -55,6 +56,29 @@ export default function InvoicesScreen() {
   });
 
   const { totalKobo, paidKobo, pendingKobo } = summarizePayments(allPayments);
+
+  const [receiptBusyId, setReceiptBusyId] = useState<string | null>(null);
+
+  const handleReceipt = async (p: Payment) => {
+    if (receiptBusyId) return;
+    setReceiptBusyId(p.id);
+    try {
+      const html = await payments.getReceiptHtml(p.id);
+      await shareHtmlAsPdf(html, `Receipt ${p.hhaRef ?? ''}`.trim());
+    } catch (err) {
+      const notFound = err instanceof ApiError && err.status === 404;
+      Alert.alert(
+        'Receipt unavailable',
+        notFound
+          ? 'A receipt is not available for this payment yet.'
+          : err instanceof ApiError
+            ? err.message
+            : 'We could not prepare the receipt. Please try again.',
+      );
+    } finally {
+      setReceiptBusyId(null);
+    }
+  };
 
   const handleShare = async (p: Payment) => {
     try {
@@ -161,6 +185,7 @@ export default function InvoicesScreen() {
             />
           ) : filteredInvoices.map((p) => {
             const isPaid = p.status === 'paid';
+            const hasReceipt = isPaid || p.status === 'refunded';
             return (
               <View
                 key={p.id}
@@ -182,7 +207,7 @@ export default function InvoicesScreen() {
                       <Clock size={12} color="#B42318" />
                     )}
                     <Text style={[styles.statusPillText, { color: isPaid ? '#006022' : '#B42318' }]}>
-                      {isPaid ? 'PAID' : 'PENDING'}
+                      {isPaid ? 'PAID' : p.status === 'pending' ? 'PENDING' : p.status.toUpperCase()}
                     </Text>
                   </View>
                 </View>
@@ -208,13 +233,24 @@ export default function InvoicesScreen() {
 
                 {/* Actions Row */}
                 <View style={styles.invoiceActionsRow}>
-                  {/* A receipt is emailed when a payment succeeds; there is no in-app download yet. */}
-                  <View style={[styles.actionBtn, { backgroundColor: theme.primaryLight }]}>
-                    <Receipt size={14} color={theme.primary} />
-                    <Text style={[styles.actionBtnText, { color: theme.primary }]}>
-                      {isPaid ? 'Receipt sent to your email' : 'No receipt yet'}
-                    </Text>
-                  </View>
+                  {hasReceipt ? (
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      disabled={receiptBusyId !== null}
+                      onPress={() => handleReceipt(p)}
+                      accessibilityLabel="View or share receipt"
+                      style={[styles.actionBtn, { backgroundColor: theme.primaryLight, opacity: receiptBusyId === p.id ? 0.6 : 1 }]}>
+                      <Receipt size={14} color={theme.primary} />
+                      <Text style={[styles.actionBtnText, { color: theme.primary }]}>
+                        {receiptBusyId === p.id ? 'Preparing receipt…' : 'View / Share receipt'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={[styles.actionBtn, { backgroundColor: theme.primaryLight }]}>
+                      <Receipt size={14} color={theme.primary} />
+                      <Text style={[styles.actionBtnText, { color: theme.primary }]}>No receipt yet</Text>
+                    </View>
+                  )}
 
                   <TouchableOpacity
                     activeOpacity={0.8}

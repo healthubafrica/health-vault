@@ -9,7 +9,6 @@ import {
   StatusBar,
   Alert,
   Share,
-  Linking,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import {
@@ -23,6 +22,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import EmergencyFAB from '@/components/EmergencyFAB';
 import { records, ApiError } from '@/lib/api';
+import { downloadAndShare } from '@/lib/shareFile';
 
 export default function DocumentDetailScreen() {
   const router = useRouter();
@@ -55,7 +55,9 @@ export default function DocumentDetailScreen() {
     setDownloading(true);
     try {
       const res = await records.getDownloadUrl(docUrl);
-      await Linking.openURL(res.data.downloadUrl);
+      const ext = docUrl.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
+      const mime = ext === 'pdf' ? 'application/pdf' : ['jpg', 'jpeg', 'png'].includes(ext) ? `image/${ext === 'jpg' ? 'jpeg' : ext}` : 'application/octet-stream';
+      await downloadAndShare(res.data.downloadUrl, /\.[a-z0-9]{2,5}$/i.test(docName) ? docName : `${docName}${ext ? `.${ext}` : ''}`, mime);
     } catch (err) {
       Alert.alert('Could not open document', err instanceof ApiError ? err.message : 'Please try again.');
     } finally {

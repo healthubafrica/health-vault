@@ -102,6 +102,8 @@ export async function apiRequest<T>(
   }
 
   if (res.status === 204) return undefined as T;
+  // Receipts are served as text/html rather than JSON.
+  if ((res.headers?.get?.('content-type') ?? '').startsWith('text/')) return res.text() as Promise<T>;
   return res.json() as Promise<T>;
 }
 
@@ -540,6 +542,22 @@ export const patients = {
       { method: 'PATCH', body: JSON.stringify(data) }
     ),
 
+  // Profile photo: presign -> PUT the bytes -> process (crop/resize/WebP, saves it).
+  getProfilePhotoUploadUrl: (data: { contentType: string; sizeBytes: number }) =>
+    apiRequest<{ uploadUrl: string; objectKey: string; publicUrl?: string }>(
+      '/patients/me/profile-photo-upload-url',
+      { method: 'POST', body: JSON.stringify(data) }
+    ),
+
+  processProfilePhoto: (objectKey: string) =>
+    apiRequest<{ profilePhotoUrl?: string | null }>('/patients/me/profile-photo/process', {
+      method: 'POST',
+      body: JSON.stringify({ objectKey }),
+    }),
+
+  removeProfilePhoto: () =>
+    apiRequest<{ message?: string }>('/patients/me/profile-photo', { method: 'DELETE' }),
+
   // Derived from appointment history, not a dedicated assignment table —
   // see patients.service.ts findMyCareTeam.
   getMyCareTeam: () => apiRequest<{ data: CareTeamMember[] }>('/patients/me/care-team'),
@@ -818,6 +836,8 @@ export const payments = {
       description?: string;
       savePaymentMethod?: boolean;
       paymentMethodId?: string;
+      /** 'mobile' makes the gateway return to the myhealthvault:// deep link. */
+      client?: 'web' | 'mobile';
     },
     idempotencyKey?: string,
   ) =>
@@ -845,6 +865,9 @@ export const payments = {
     apiRequest<{ status: string; paymentId: string; gateway: string }>(
       `/payments/verify?reference=${encodeURIComponent(reference)}`
     ),
+
+  // Printable HTML receipt for a paid or refunded payment (authenticated, text).
+  getReceiptHtml: (id: string) => apiRequest<string>(`/payments/${encodeURIComponent(id)}/receipt`),
 
   validateCharge: (data: { paymentId: string; flwRef: string; otp: string }) =>
     apiRequest<{ status: string; paymentId: string }>('/payments/validate-charge', {
@@ -1073,10 +1096,17 @@ export const subscriptions = {
 
   // Patient-facing paid upgrade. Returns a gateway authorization URL to open;
   // the subscription activates via payment webhook once the gateway confirms.
-  upgrade: (planId: string, billingCycle: string, gateway: 'Flutterwave' | 'Paystack' = 'Flutterwave') =>
+  // The Idempotency-Key makes a retry of the same attempt replay instead of double-charging.
+  upgrade: (
+    planId: string,
+    billingCycle: string,
+    gateway: 'Flutterwave' | 'Paystack' = 'Flutterwave',
+    idempotencyKey?: string,
+  ) =>
     apiRequest<SubscriptionUpgradeResponse>('/subscriptions/upgrade', {
       method: 'POST',
-      body: JSON.stringify({ planId, billingCycle, gateway }),
+      body: JSON.stringify({ planId, billingCycle, gateway, client: 'mobile' }),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
     }),
 
   cancel: (subscriptionId: string) =>

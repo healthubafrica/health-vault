@@ -9,7 +9,7 @@ jest.setTimeout(30000);
 jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn() }) }));
 
 const mockOpenBrowserAsync = jest.fn().mockResolvedValue({});
-jest.mock('expo-web-browser', () => ({ openBrowserAsync: (...a: unknown[]) => mockOpenBrowserAsync(...a) }));
+jest.mock('expo-web-browser', () => ({ openAuthSessionAsync: (...a: unknown[]) => mockOpenBrowserAsync(...a) }));
 
 jest.mock('@/lib/api', () => {
   const actual = jest.requireActual('@/lib/api');
@@ -75,7 +75,7 @@ describe('MakePaymentScreen', () => {
 
     await waitFor(() => expect(payments.initiate).toHaveBeenCalled());
     const [body, key] = payments.initiate.mock.calls[0];
-    expect(body).toMatchObject({ gateway: 'Flutterwave', amountKobo: 150000, currency: 'NGN' });
+    expect(body).toMatchObject({ gateway: 'Flutterwave', amountKobo: 150000, currency: 'NGN', client: 'mobile' });
     expect(typeof key).toBe('string');
     await waitFor(() => expect(payments.verify).toHaveBeenCalledWith('ref-1'));
   });

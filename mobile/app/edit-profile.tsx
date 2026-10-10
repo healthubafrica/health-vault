@@ -10,7 +10,10 @@ import {
   StatusBar,
   TextInput,
   Alert,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import {
   ChevronLeft,
@@ -24,6 +27,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import EmergencyFAB from '@/components/EmergencyFAB';
 import { patients, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/authStore';
+import { uploadProfilePhoto } from '@/lib/profilePhoto';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export default function EditProfileScreen() {
@@ -114,8 +118,62 @@ export default function EditProfileScreen() {
     updateMutation.mutate();
   };
 
+  const photoUrl = authUser?.avatarUrl ?? profile?.profilePhotoUrl ?? undefined;
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  const setAvatar = (avatarUrl?: string) => {
+    const current = useAuthStore.getState().user;
+    if (current) useAuthStore.setState({ user: { ...current, avatarUrl } });
+    qc.invalidateQueries({ queryKey: ['patient', 'profile'] });
+  };
+
+  const pickAndUpload = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission needed', 'Allow photo access in your device settings to choose a profile photo.');
+        return;
+      }
+      const picked = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (picked.canceled || !picked.assets?.[0]) return;
+      setPhotoBusy(true);
+      const url = await uploadProfilePhoto(picked.assets[0]);
+      setAvatar(url ?? undefined);
+    } catch (err) {
+      Alert.alert('Could not update photo', err instanceof Error ? err.message : 'Please try again.');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const removePhoto = async () => {
+    setPhotoBusy(true);
+    try {
+      await patients.removeProfilePhoto();
+      setAvatar(undefined);
+    } catch (err) {
+      Alert.alert('Could not remove photo', err instanceof Error ? err.message : 'Please try again.');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
   const handleChangePhoto = () => {
-    Alert.alert('Profile photo', 'Changing your photo from the app is not available yet. You can update it on the web portal.');
+    if (photoBusy) return;
+    if (!photoUrl) {
+      void pickAndUpload();
+      return;
+    }
+    Alert.alert('Profile photo', undefined, [
+      { text: 'Choose new photo', onPress: () => void pickAndUpload() },
+      { text: 'Remove photo', style: 'destructive', onPress: () => void removePhoto() },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   return (
@@ -139,14 +197,19 @@ export default function EditProfileScreen() {
         {/* Avatar Section */}
         <View style={styles.avatarSection}>
           <View style={[styles.avatarBox, { backgroundColor: theme.primaryDark }]}>
-            <Text style={styles.avatarText}>{`${formData.firstName[0] ?? ''}${formData.lastName[0] ?? ''}`.toUpperCase() || '·'}</Text>
+            {photoUrl ? (
+              <Image source={{ uri: photoUrl }} style={styles.avatarImage} accessibilityLabel="Profile photo" />
+            ) : (
+              <Text style={styles.avatarText}>{`${formData.firstName[0] ?? ''}${formData.lastName[0] ?? ''}`.toUpperCase() || '·'}</Text>
+            )}
+            {photoBusy && <ActivityIndicator color="#FFFFFF" style={StyleSheet.absoluteFill} />}
           </View>
           <TouchableOpacity
             onPress={handleChangePhoto}
             activeOpacity={0.75}
             style={styles.changePhotoBtn}>
             <Camera size={16} color={theme.primary} />
-            <Text style={[styles.changePhotoText, { color: theme.primary }]}>Change Photo</Text>
+            <Text style={[styles.changePhotoText, { color: theme.primary }]}>{photoBusy ? 'Updating…' : 'Change Photo'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -369,6 +432,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 10,
   },
+  avatarImage: { width: 80, height: 80, borderRadius: 40 },
   avatarText: {
     color: '#FFFFFF',
     fontSize: 28,

@@ -13,7 +13,6 @@ import {
   Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ShieldCheck, CreditCard, Building2, BadgeCheck } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
@@ -21,6 +20,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import { payments, paymentMethods, analytics, generateIdempotencyKey, ApiError } from '@/lib/api';
 import { SuccessState } from '@/components/states';
 import GatewayPickerModal from '@/components/GatewayPickerModal';
+import { openCheckout } from '@/lib/checkout';
 import { settlePayment, outcomeMessage } from '@/lib/paymentResult';
 import { parseNairaAmount } from '@/lib/validation';
 import { useGatewayAvailability } from '@/lib/useGatewayAvailability';
@@ -95,6 +95,7 @@ export default function MakePaymentScreen() {
           currency: 'NGN',
           savePaymentMethod: gateway === 'Flutterwave' && !savedCardId ? saveCard : undefined,
           paymentMethodId: gateway === 'Flutterwave' && savedCardId ? savedCardId : undefined,
+          client: 'mobile',
         },
         keyFor(gateway),
       );
@@ -112,9 +113,10 @@ export default function MakePaymentScreen() {
         setOtp('');
         setOtpPrompt({ paymentId: result.paymentId, flwRef: result.flwRef, reference: result.reference });
       } else if (result.authorizationUrl) {
-        await WebBrowser.openBrowserAsync(result.authorizationUrl);
-        // The browser closing says nothing about whether the card was charged.
-        const outcome = result.reference ? await settlePayment(payments.verify, result.reference) : 'pending';
+        const returned = await openCheckout(result.authorizationUrl);
+        // The browser closing (or the return link) says nothing about whether the card was charged.
+        const reference = result.reference ?? returned.reference;
+        const outcome = reference ? await settlePayment(payments.verify, reference) : 'pending';
         // A settled attempt (paid or failed) must never be replayed: the same key would
         // answer "already paid" or reopen a dead checkout link. Keep it only while
         // pending so a retry of an in-flight attempt still replays.
