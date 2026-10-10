@@ -8,7 +8,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { subscriptions, payments, analytics, SubscriptionPlan, ApiError } from '@/lib/api';
 import { settlePayment, outcomeMessage } from '@/lib/paymentResult';
-import { planPriceKobo } from '@/lib/pricing';
+import { planPriceKobo, currentPlanPrice, isPaidPlan } from '@/lib/pricing';
 import GatewayPickerModal from '@/components/GatewayPickerModal';
 import { useGatewayAvailability } from '@/lib/useGatewayAvailability';
 import type { CardGateway } from '@/lib/gateway';
@@ -90,6 +90,7 @@ export default function SubscriptionScreen() {
   };
 
   const priceForCycle = (plan: SubscriptionPlan) => planPriceKobo(plan, billingCycle);
+  const currentPrice = current ? currentPlanPrice(current) : null;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -115,14 +116,14 @@ export default function SubscriptionScreen() {
             </View>
             <Text style={styles.currentPlanName}>{current.plan.name}</Text>
             <Text style={styles.currentPlanPrice}>
-              {formatNaira(current.plan.priceKobo)} / {current.plan.billingPeriod}
+              {currentPrice ? `${formatNaira(currentPrice.kobo)} / ${currentPrice.unit}` : ''}
             </Text>
             <Text style={styles.currentPlanMeta}>
               {current.expiresAt
                 ? `Renews ${new Date(current.expiresAt).toLocaleDateString()}`
                 : 'Never expires'}
             </Text>
-            {current.plan.tier !== 'free' && (
+            {isPaidPlan(current.plan) && (
               <TouchableOpacity
                 activeOpacity={0.8}
                 disabled={cancelMutation.isPending}
@@ -166,6 +167,7 @@ export default function SubscriptionScreen() {
           <View style={styles.plansList}>
             {plans.map((plan) => {
               const isCurrent = current?.plan.id === plan.id;
+              const cyclePrice = priceForCycle(plan);
               return (
                 <View
                   key={plan.id}
@@ -181,7 +183,11 @@ export default function SubscriptionScreen() {
                   )}
                   <Text style={[styles.planName, { color: theme.text }]}>{plan.name}</Text>
                   <Text style={[styles.planPrice, { color: theme.primary }]}>
-                    {plan.priceKobo === 0 ? 'Free' : `${formatNaira(priceForCycle(plan))} / ${billingCycle === 'annually' ? 'yr' : 'mo'}`}
+                    {plan.priceKobo === 0
+                      ? 'Free'
+                      : cyclePrice === null
+                        ? 'Monthly only'
+                        : `${formatNaira(cyclePrice)} / ${billingCycle === 'annually' ? 'yr' : 'mo'}`}
                   </Text>
                   {plan.bestFor && <Text style={[styles.planBestFor, { color: theme.textMuted }]}>{plan.bestFor}</Text>}
 

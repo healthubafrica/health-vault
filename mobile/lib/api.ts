@@ -731,8 +731,15 @@ export function generateIdempotencyKey(): string {
     const bytes = c.getRandomValues(new Uint8Array(16));
     return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
   }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  // React Native has no crypto.randomUUID without a polyfill, so this is the path
+  // that normally runs. Uniqueness (not secrecy) is what an idempotency key needs:
+  // timestamp + per-process counter + two random draws.
+  idempotencySeq += 1;
+  const rand = () => Math.random().toString(36).slice(2, 10);
+  return `${Date.now().toString(36)}-${idempotencySeq.toString(36)}-${rand()}${rand()}`;
 }
+
+let idempotencySeq = 0;
 
 export const payments = {
   // GET /payments returns a bare array (no { data } envelope); normalise so

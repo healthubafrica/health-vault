@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -10,14 +10,15 @@ import {
   TextInput,
   Switch,
   Alert,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ShieldCheck, CreditCard, Building2, BadgeCheck } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
-import { payments, analytics, generateIdempotencyKey, ApiError } from '@/lib/api';
+import { payments, paymentMethods, analytics, generateIdempotencyKey, ApiError } from '@/lib/api';
 import { SuccessState } from '@/components/states';
 import GatewayPickerModal from '@/components/GatewayPickerModal';
 import { settlePayment, outcomeMessage } from '@/lib/paymentResult';
@@ -44,6 +45,10 @@ export default function MakePaymentScreen() {
   const [method, setMethod] = useState<Method>('card');
   const [saveCard, setSaveCard] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Saved Flutterwave card chosen for this payment (null = pay with a new card).
+  const [savedCardId, setSavedCardId] = useState<string | null>(null);
+  const [otpPrompt, setOtpPrompt] = useState<{ paymentId: string; flwRef: string; reference?: string } | null>(null);
+  const [otp, setOtp] = useState('');
 
   // The popup only opens once the API reports Paystack live, so a missing or
   // misconfigured key never presents patients with an option that would fail.
@@ -57,10 +62,25 @@ export default function MakePaymentScreen() {
   // a retry of the old one).
   const keys = useRef(new Map<string, string>());
   const keyFor = (gateway: string) => {
-    const id = `${amountNaira}|${description}|${gateway}|${saveCard}`;
+    const id = `${amountNaira}|${description}|${gateway}|${saveCard}|${savedCardId ?? ''}`;
     if (!keys.current.has(id)) keys.current.set(id, generateIdempotencyKey());
     return keys.current.get(id)!;
   };
+
+  const { data: savedMethods } = useQuery({
+    queryKey: ['payment-methods'],
+    queryFn: () => paymentMethods.list(),
+    enabled: method === 'card',
+  });
+  // Only Flutterwave can charge a stored card token; Paystack always uses its checkout.
+  const flwCards = (savedMethods ?? []).filter((m) => m.gateway === 'Flutterwave');
+  useEffect(() => {
+    if (flwCards.length > 0) {
+      setSavedCardId((cur) => cur ?? (flwCards.find((m) => m.isDefault) ?? flwCards[0]).id);
+    }
+    // Preselect when cards first load only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedMethods]);
 
   const initiateMutation = useMutation({
     mutationFn: (gateway: CardGateway | 'manual') => {
@@ -73,7 +93,8 @@ export default function MakePaymentScreen() {
           description: description.trim(),
           amountKobo: Math.round(parsed * 100),
           currency: 'NGN',
-          savePaymentMethod: gateway === 'Flutterwave' ? saveCard : undefined,
+          savePaymentMethod: gateway === 'Flutterwave' && !savedCardId ? saveCard : undefined,
+          paymentMethodId: gateway === 'Flutterwave' && savedCardId ? savedCardId : undefined,
         },
         keyFor(gateway),
       );
@@ -82,13 +103,22 @@ export default function MakePaymentScreen() {
       setPickerOpen(false);
       if (result.status === 'paid') {
         // A repeated request for a payment that already succeeded.
+        keys.current.clear();
         const msg = outcomeMessage('paid');
         Alert.alert(msg.title, msg.body);
         qc.invalidateQueries({ queryKey: ['payments'] });
+      } else if (result.requiresOtp && result.flwRef) {
+        // The bank wants a one-time code before charging the saved card.
+        setOtp('');
+        setOtpPrompt({ paymentId: result.paymentId, flwRef: result.flwRef, reference: result.reference });
       } else if (result.authorizationUrl) {
         await WebBrowser.openBrowserAsync(result.authorizationUrl);
         // The browser closing says nothing about whether the card was charged.
         const outcome = result.reference ? await settlePayment(payments.verify, result.reference) : 'pending';
+        // A settled attempt (paid or failed) must never be replayed: the same key would
+        // answer "already paid" or reopen a dead checkout link. Keep it only while
+        // pending so a retry of an in-flight attempt still replays.
+        if (outcome !== 'pending') keys.current.clear();
         analytics.track(outcome === 'paid' ? 'payment_success' : outcome === 'failed' ? 'payment_failure' : 'payment_pending', { gateway });
         qc.invalidateQueries({ queryKey: ['payments'] });
         qc.invalidateQueries({ queryKey: ['payment-methods'] });
@@ -108,9 +138,29 @@ export default function MakePaymentScreen() {
     },
     onError: (err: unknown, gateway) => {
       setPickerOpen(false);
+      // A rejected request (4xx) is not an in-flight attempt, so don't replay its key.
+      if (err instanceof ApiError && err.status >= 400 && err.status < 500) keys.current.clear();
       analytics.track('payment_failure', { gateway, reason: 'initiate_error' });
       Alert.alert('Could not start payment', err instanceof ApiError ? err.message : 'Please try again.');
     },
+  });
+
+  const otpMutation = useMutation({
+    mutationFn: async () => {
+      if (!otpPrompt) throw new Error('No payment awaiting a code');
+      await payments.validateCharge({ paymentId: otpPrompt.paymentId, flwRef: otpPrompt.flwRef, otp: otp.trim() });
+      return otpPrompt.reference ? settlePayment(payments.verify, otpPrompt.reference) : ('pending' as const);
+    },
+    onSuccess: (outcome) => {
+      setOtpPrompt(null);
+      keys.current.clear();
+      analytics.track(outcome === 'paid' ? 'payment_success' : outcome === 'failed' ? 'payment_failure' : 'payment_pending', { gateway: 'Flutterwave' });
+      qc.invalidateQueries({ queryKey: ['payments'] });
+      const msg = outcomeMessage(outcome);
+      Alert.alert(msg.title, msg.body);
+    },
+    onError: (err: unknown) =>
+      Alert.alert('Code not accepted', err instanceof ApiError ? err.message : 'Check the code and try again.'),
   });
 
   const handleSubmit = () => {
@@ -121,6 +171,7 @@ export default function MakePaymentScreen() {
       return;
     }
     if (method === 'manual') initiateMutation.mutate('manual');
+    else if (savedCardId) initiateMutation.mutate('Flutterwave');
     else if (paystackActive) setPickerOpen(true);
     else initiateMutation.mutate('Flutterwave');
   };
@@ -232,7 +283,43 @@ export default function MakePaymentScreen() {
           </View>
         </View>
 
-        {method === 'card' && (
+        {method === 'card' && flwCards.length > 0 && (
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: theme.text }]}>Pay with</Text>
+            {flwCards.map((m) => (
+              <TouchableOpacity
+                key={m.id}
+                activeOpacity={0.85}
+                onPress={() => setSavedCardId(m.id)}
+                style={[
+                  styles.savedCard,
+                  {
+                    backgroundColor: savedCardId === m.id ? theme.primaryLight : theme.surface,
+                    borderColor: savedCardId === m.id ? theme.primary : theme.border,
+                  },
+                ]}>
+                <CreditCard size={18} color={savedCardId === m.id ? theme.primary : theme.textMuted} />
+                <Text style={[styles.gatewayText, { color: theme.text }]}>
+                  {`${m.cardBrand ?? 'Card'} ····${m.last4 ?? '····'}`}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => setSavedCardId(null)}
+              style={[
+                styles.savedCard,
+                {
+                  backgroundColor: savedCardId === null ? theme.primaryLight : theme.surface,
+                  borderColor: savedCardId === null ? theme.primary : theme.border,
+                },
+              ]}>
+              <Text style={[styles.gatewayText, { color: theme.text }]}>Use a new card</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {method === 'card' && !savedCardId && (
           <View style={[styles.saveCardRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <BadgeCheck size={20} color={theme.primary} />
             <View style={{ flex: 1 }}>
@@ -260,6 +347,32 @@ export default function MakePaymentScreen() {
           </Text>
         </TouchableOpacity>
       </ScrollView>
+      <Modal visible={!!otpPrompt} transparent animationType="fade" onRequestClose={() => setOtpPrompt(null)}>
+        <View style={styles.otpBackdrop}>
+          <View style={[styles.otpCard, { backgroundColor: theme.surface }]}>
+            <Text style={[styles.label, { color: theme.text }]}>Enter the code from your bank</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+              placeholder="One-time code"
+              placeholderTextColor={theme.textMuted}
+              keyboardType="number-pad"
+              value={otp}
+              onChangeText={setOtp}
+              maxLength={8}
+            />
+            <TouchableOpacity
+              activeOpacity={0.85}
+              disabled={otpMutation.isPending || otp.trim().length < 4}
+              onPress={() => otpMutation.mutate()}
+              style={[styles.submitBtn, { backgroundColor: theme.primary, opacity: otpMutation.isPending || otp.trim().length < 4 ? 0.6 : 1 }]}>
+              <Text style={styles.submitBtnText}>{otpMutation.isPending ? 'Confirming…' : 'Confirm payment'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setOtpPrompt(null)} style={{ alignItems: 'center', padding: 8 }}>
+              <Text style={{ color: theme.textMuted, fontWeight: '700' }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       <GatewayPickerModal
         visible={pickerOpen}
         summary={`${description.trim() || 'Payment'} — ₦${(parseNairaAmount(amountNaira) ?? 0).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`}
@@ -316,6 +429,16 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   gatewayText: { fontSize: 12, fontWeight: '700', flexShrink: 1 },
+  savedCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  otpBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 },
+  otpCard: { borderRadius: 16, padding: 18, gap: 12 },
   saveCardRow: {
     flexDirection: 'row',
     alignItems: 'center',

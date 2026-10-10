@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,7 +9,7 @@ import {
   StatusBar,
   Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft,
@@ -33,6 +33,13 @@ export default function PaymentMethodsScreen() {
     queryKey: ['payment-methods'],
     queryFn: () => paymentMethods.list(),
   });
+
+  // Coming back from checkout (or the browser) must show a card saved by that payment.
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch]),
+  );
 
   const setDefaultMutation = useMutation({
     mutationFn: (id: string) => paymentMethods.setDefault(id),
@@ -100,7 +107,7 @@ export default function PaymentMethodsScreen() {
           <EmptyState
             icon={CreditCard}
             title="No saved cards yet"
-            description="A card is saved automatically the next time you pay and choose &quot;Save this card&quot; at checkout."
+            description="When you pay by card with Flutterwave and keep &quot;Save this card&quot; on, it appears here after the payment completes."
             primaryActionLabel="Make a Payment"
             onPrimaryAction={() => router.push('/make-payment')}
           />
