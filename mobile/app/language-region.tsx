@@ -24,22 +24,15 @@ import { useColorScheme } from '@/components/useColorScheme';
 import { patients, ApiError } from '@/lib/api';
 
 const LANGUAGES = [
-  { id: 'en-za', name: 'English (South Africa)', flag: '🇿🇦' },
-  { id: 'en-uk', name: 'English (United Kingdom)', flag: '🇬🇧' },
-  { id: 'zu', name: 'isiZulu', flag: '🇿🇦' },
-  { id: 'xh', name: 'isiXhosa', flag: '🇿🇦' },
-  { id: 'af', name: 'Afrikaans', flag: '🇿🇦' },
-  { id: 'sw', name: 'Kiswahili (East Africa)', flag: '🇰🇪' },
-  { id: 'fr', name: 'Français (Central & West Africa)', flag: '🇫🇷' },
+  { id: 'en', name: 'English', flag: '' },
+  { id: 'ha', name: 'Hausa', flag: '' },
+  { id: 'yo', name: 'Yorùbá', flag: '' },
+  { id: 'ig', name: 'Igbo', flag: '' },
+  { id: 'fr', name: 'Français', flag: '' },
+  { id: 'sw', name: 'Kiswahili', flag: '' },
 ];
 
-const CURRENCIES = [
-  { id: 'ZAR', name: 'South African Rand (ZAR)', symbol: 'R' },
-  { id: 'KES', name: 'Kenyan Shilling (KES)', symbol: 'KSh' },
-  { id: 'NGN', name: 'Nigerian Naira (NGN)', symbol: '₦' },
-  { id: 'GHS', name: 'Ghanaian Cedi (GHS)', symbol: 'GH₵' },
-  { id: 'USD', name: 'US Dollar (USD)', symbol: '$' },
-];
+
 
 export default function LanguageRegionScreen() {
   const router = useRouter();
@@ -53,10 +46,7 @@ export default function LanguageRegionScreen() {
   });
   const profile = profileData?.data;
 
-  const [selectedLanguage, setSelectedLanguage] = useState('en-za');
-  const [selectedCurrency, setSelectedCurrency] = useState('NGN');
-  const [selectedUnit, setSelectedUnit] = useState<'metric' | 'imperial'>('metric');
-  const [timeFormat, setTimeFormat] = useState<'24' | '12'>('24');
+  const [selectedLanguage, setSelectedLanguage] = useState('en');
 
   // Only preferredLanguage is actually persisted server-side — currency,
   // unit system, and time format have no backing profile field yet, so
@@ -137,65 +127,9 @@ export default function LanguageRegionScreen() {
           })}
         </View>
 
-        {/* Currency Section */}
-        <View style={styles.sectionHeader}>
-          <Coins size={18} color={theme.primary} />
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Preferred Currency</Text>
-        </View>
-
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          {CURRENCIES.map((curr, idx) => {
-            const isSelected = selectedCurrency === curr.id;
-            return (
-              <React.Fragment key={curr.id}>
-                {idx > 0 && <View style={[styles.divider, { backgroundColor: theme.border }]} />}
-                <TouchableOpacity
-                  activeOpacity={0.75}
-                  onPress={() => setSelectedCurrency(curr.id)}
-                  style={styles.optionRow}>
-                  <View style={[styles.currSymbolBox, { backgroundColor: theme.primaryLight }]}>
-                    <Text style={[styles.currSymbolText, { color: theme.primary }]}>{curr.symbol}</Text>
-                  </View>
-                  <Text style={[styles.optionName, { color: theme.text }]}>{curr.name}</Text>
-                  {isSelected && <Check size={18} color={theme.primary} strokeWidth={2.5} />}
-                </TouchableOpacity>
-              </React.Fragment>
-            );
-          })}
-        </View>
-
-        {/* Unit System */}
-        <View style={styles.sectionHeader}>
-          <Scale size={18} color={theme.primary} />
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Clinical Measurement Units</Text>
-        </View>
-
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <TouchableOpacity
-            activeOpacity={0.75}
-            onPress={() => setSelectedUnit('metric')}
-            style={styles.optionRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.optionName, { color: theme.text }]}>Metric System (Standard)</Text>
-              <Text style={[styles.optionSub, { color: theme.textMuted }]}>°C, kg, mmHg, mmol/L</Text>
-            </View>
-            {selectedUnit === 'metric' && <Check size={18} color={theme.primary} strokeWidth={2.5} />}
-          </TouchableOpacity>
-
-          <View style={[styles.divider, { backgroundColor: theme.border }]} />
-
-          <TouchableOpacity
-            activeOpacity={0.75}
-            onPress={() => setSelectedUnit('imperial')}
-            style={styles.optionRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.optionName, { color: theme.text }]}>Imperial System</Text>
-              <Text style={[styles.optionSub, { color: theme.textMuted }]}>°F, lbs, mmHg, mg/dL</Text>
-            </View>
-            {selectedUnit === 'imperial' && <Check size={18} color={theme.primary} strokeWidth={2.5} />}
-          </TouchableOpacity>
-        </View>
-
+        <Text style={{ fontSize: 12, color: theme.textMuted, textAlign: 'center', marginTop: 12 }}>
+          Your choice is saved to your profile. The app is currently shown in English; translations are being added.
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );

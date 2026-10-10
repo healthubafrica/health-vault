@@ -105,7 +105,9 @@ export default function TeleCareInCallScreen() {
     // Fire-and-forget, same rationale as web: a LiveKit server-side webhook
     // is the final source of truth, this just gives an instant flip.
     if (params.sessionId) telecare.markCompleted(params.sessionId).catch(() => null);
-    router.replace('/(tabs)/telecare');
+    // Ask how it went; the rating screen returns to the TeleCare tab either way.
+    if (params.sessionId) router.replace({ pathname: '/telecare-rating', params: { sessionId: params.sessionId } } as never); // typed-routes file regenerates on next `expo start`
+    else router.replace('/(tabs)/telecare');
   };
 
   if (!params.sessionId) {

@@ -428,6 +428,24 @@ export const auth = {
       false
     ),
 
+  get2faStatus: () => apiRequest<{ twoFactorEnabled: boolean }>('/auth/2fa'),
+
+  set2fa: (enabled: boolean) =>
+    apiRequest<unknown>('/auth/2fa', { method: 'PATCH', body: JSON.stringify({ enabled }) }),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiRequest<unknown>('/auth/change-password', {
+      method: 'PATCH',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+
+  listSessions: () =>
+    apiRequest<{ data: Array<{ id: string; ipAddress?: string | null; userAgent?: string | null; createdAt: string; expiresAt: string }> }>(
+      '/auth/sessions'
+    ),
+
+  logoutAll: () => apiRequest<unknown>('/auth/logout-all', { method: 'POST' }),
+
   // Second step of login when /auth/login answers { requiresTwoFactor, userId }.
   verify2fa: (userId: string, otp: string) =>
     apiRequest<{ accessToken: string; refreshToken: string }>(
@@ -795,6 +813,12 @@ export const telecare = {
       `/telecare/sessions/${id}/token`,
       { method: 'POST' }
     ),
+
+  rate: (id: string, rating: number, feedback?: string) =>
+    apiRequest<unknown>(`/telecare/sessions/${id}/rate`, {
+      method: 'PATCH',
+      body: JSON.stringify({ rating, ...(feedback && { feedback }) }),
+    }),
 
   markCompleted: (id: string) =>
     apiRequest<{ id: string; status: string; endedAt: string | null }>(

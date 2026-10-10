@@ -204,6 +204,12 @@ function RootLayoutNav() {
           }}
         />
         <Stack.Screen
+          name="telecare-rating"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
           name="telecare-settings"
           options={{
             headerShown: false,

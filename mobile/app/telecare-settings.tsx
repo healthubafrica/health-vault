@@ -224,35 +224,7 @@ export default function TeleCareSettingsScreen() {
 
           <TouchableOpacity
             activeOpacity={0.75}
-            onPress={() => Alert.alert('Test Audio', 'Playing audio diagnostic tone... Microphone and speaker calibrated.')}
-            style={[styles.menuItem, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <View style={styles.menuLeft}>
-              <Headphones size={20} color={theme.primary} />
-              <View>
-                <Text style={[styles.menuTitle, { color: theme.text }]}>Test Audio</Text>
-                <Text style={[styles.menuDesc, { color: theme.textMuted }]}>Check mic & speaker</Text>
-              </View>
-            </View>
-            <ChevronRight size={18} color={theme.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            activeOpacity={0.75}
-            onPress={() => Alert.alert('Connection Info', 'Bandwidth: 14.8 Mbps\nLatency: 24 ms\nSFU Server: JNB-01 (Johannesburg)')}
-            style={[styles.menuItem, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <View style={styles.menuLeft}>
-              <Info size={20} color={theme.primary} />
-              <View>
-                <Text style={[styles.menuTitle, { color: theme.text }]}>Connection Info</Text>
-                <Text style={[styles.menuDesc, { color: theme.textMuted }]}>Network details</Text>
-              </View>
-            </View>
-            <ChevronRight size={18} color={theme.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            activeOpacity={0.75}
-            onPress={() => Alert.alert('Help & Support', 'TeleCare video consultations require at least 1 Mbps stable connection. For support contact support@healthhub.africa')}
+            onPress={() => router.push('/help-support')}
             style={[styles.menuItem, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <View style={styles.menuLeft}>
               <HelpCircle size={20} color={theme.primary} />

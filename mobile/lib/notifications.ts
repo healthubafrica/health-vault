@@ -149,15 +149,15 @@ export async function syncPushTokenWithBackend(
       osVersion: Device.osVersion ?? 'Unknown',
     };
 
-    // Attempt to register device token with backend API
+    // NOTE: the backend does not yet expose a device-token endpoint (no
+    // POST /users/push-token, no token storage, no push sender), so this call
+    // 404s today. Report that honestly instead of logging success; once the
+    // endpoint exists this starts working with no further app change.
     await apiRequest('/users/push-token', {
       method: 'POST',
       body: JSON.stringify(payload),
-    }).catch(() => {
-      // Silently handled if endpoint is not yet activated on server
     });
-
-    console.log('[Notifications] Push token successfully synced with backend.');
+    console.log('[Notifications] Push token synced with backend.');
   } catch (error) {
     console.warn('[Notifications] Failed to sync push token with backend:', error);
   }
