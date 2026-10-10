@@ -64,19 +64,23 @@ export default function BookAppointmentStep2Screen() {
   });
 
   const handleContinue = () => {
-    // Never fall back to the first provider: the patient must have chosen one.
+    // A provider is optional, exactly like the web portal: with none chosen the
+    // care team assigns one after booking. Never silently pick one for the patient.
     const provider = allProviders.find((p) => p.id === selectedProviderId);
-    if (!provider) return;
     router.push({
       pathname: '/book-appointment-step3',
       params: {
         serviceId: params.serviceId || '1',
         serviceName: params.serviceName || 'TeleCare™',
         serviceType,
-        providerId: provider.id,
-        providerName: `${provider.title ?? 'Dr.'} ${provider.firstName} ${provider.lastName}`,
-        providerSpecialty: provider.specialty || 'General Practitioner',
-        providerInitials: initialsOf(provider),
+        ...(provider
+          ? {
+              providerId: provider.id,
+              providerName: `${provider.title ?? 'Dr.'} ${provider.firstName} ${provider.lastName}`,
+              providerSpecialty: provider.specialty || 'General Practitioner',
+              providerInitials: initialsOf(provider),
+            }
+          : { providerId: '', providerName: '', providerSpecialty: '', providerInitials: '' }),
       },
     });
   };
@@ -153,6 +157,38 @@ export default function BookAppointmentStep2Screen() {
             );
           })}
         </ScrollView>
+
+        {/* No-preference option: always available, even when no providers are listed */}
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => setSelectedProviderId('')}
+          style={[
+            styles.providerCard,
+            {
+              backgroundColor: theme.surface,
+              borderColor: selectedProviderId === '' ? theme.primary : theme.border,
+              borderWidth: selectedProviderId === '' ? 2 : 1,
+            },
+          ]}>
+          <View style={styles.providerTopRow}>
+            <View style={styles.providerMetaCol}>
+              <Text style={[styles.providerName, { color: theme.text }]}>Let the care team assign a clinician</Text>
+              <Text style={[styles.specialtyText, { color: theme.textMuted }]}>
+                Recommended if you have no preference. We will confirm who will see you.
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.radioCircle,
+                {
+                  borderColor: selectedProviderId === '' ? theme.primary : theme.border,
+                  backgroundColor: selectedProviderId === '' ? theme.primary : 'transparent',
+                },
+              ]}>
+              {selectedProviderId === '' && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
+            </View>
+          </View>
+        </TouchableOpacity>
 
         {/* Providers List */}
         {isLoading ? (
@@ -281,7 +317,6 @@ export default function BookAppointmentStep2Screen() {
 
         <TouchableOpacity
           activeOpacity={0.85}
-          disabled={!selectedProviderId}
           onPress={handleContinue}
           style={[styles.continueBtn, { backgroundColor: theme.primary }]}>
           <Text style={styles.continueBtnText}>Continue to Date & Time</Text>

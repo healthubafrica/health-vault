@@ -11,7 +11,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.myvaultplus.app",
+      "bundleIdentifier": "com.myvaultsplus.app",
       "infoPlist": {
         "NSCameraUsageDescription": "MyHealth Vault+ needs camera access for TeleCare video consultations.",
         "NSMicrophoneUsageDescription": "MyHealth Vault+ needs microphone access for TeleCare video consultations.",

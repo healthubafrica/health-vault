@@ -152,7 +152,7 @@ export default function BookAppointmentStep4Screen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.doctorName, { color: theme.text }]}>
-                    {params.providerName || 'your clinician'}
+                    {params.providerName || 'Care team will assign a clinician'}
                   </Text>
                   <Text style={[styles.doctorSpecialty, { color: theme.textMuted }]}>
                     {params.providerSpecialty || 'General Practitioner'}
@@ -244,7 +244,7 @@ export default function BookAppointmentStep4Screen() {
             Appointment Booked!
           </Text>
           <Text style={[styles.successSubheading, { color: theme.textMuted }]}>
-            Your request with {params.providerName || 'your clinician'} has been received. You'll be notified once it is confirmed.
+            Your request {params.providerName ? `with ${params.providerName} ` : ''}has been received. A clinician will be assigned if you did not choose one. You'll be notified once it is confirmed.
           </Text>
 
           <View style={[styles.refCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>

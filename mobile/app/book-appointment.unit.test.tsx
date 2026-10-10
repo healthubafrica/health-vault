@@ -115,6 +115,71 @@ describe('Step 2 — choose clinician', () => {
   });
 });
 
+describe('No provider chosen (the care team assigns one, like the web portal)', () => {
+  beforeEach(() => {
+    mockParams = { serviceId: 'telecare', serviceName: 'TeleCare', serviceType: 'TeleCare' };
+  });
+
+  it('lets the patient continue from step 2 without picking anyone, even when no providers are listed', async () => {
+    appointments.listProviders.mockResolvedValue([]);
+    const { findByText } = renderWithClient(<BookAppointmentStep2Screen />);
+
+    fireEvent.press(await findByText('Continue to Date & Time'));
+
+    expect(mockPush).toHaveBeenCalledTimes(1);
+    const { pathname, params } = mockPush.mock.calls[0][0];
+    expect(pathname).toBe('/book-appointment-step3');
+    expect(params.providerId).toBe('');
+  });
+
+  it('still lets the patient continue when the provider list fails to load', async () => {
+    appointments.listProviders.mockRejectedValue(new ApiError(500, 'boom'));
+    const { findByText } = renderWithClient(<BookAppointmentStep2Screen />);
+
+    await findByText('Try again');
+    fireEvent.press(await findByText('Continue to Date & Time'));
+    expect(mockPush).toHaveBeenCalledTimes(1);
+  });
+
+  it('step 3 merges every provider’s slots when none is chosen', async () => {
+    const a = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+    const b = new Date(Date.now() + 25 * 3600 * 1000).toISOString();
+    appointments.getSlots.mockResolvedValue([
+      { providerId: 'p1', providerName: 'A', slots: [a] },
+      { providerId: 'p2', providerName: 'B', slots: [b] },
+    ]);
+    mockParams = { ...mockParams, providerId: '' };
+    const label = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true });
+    const { findByText } = renderWithClient(<BookAppointmentStep3Screen />);
+
+    expect(await findByText(label(a))).toBeTruthy();
+    expect(await findByText(label(b))).toBeTruthy();
+  });
+
+  it('step 3 offers requested times when nobody has a schedule, so booking is never blocked', async () => {
+    appointments.getSlots.mockResolvedValue([]);
+    mockParams = { ...mockParams, providerId: '' };
+    const { findByText } = renderWithClient(<BookAppointmentStep3Screen />);
+
+    expect(await findByText(/No fixed schedule for this day/)).toBeTruthy();
+  });
+
+  it('step 4 books without a providerId and says a clinician will be assigned', async () => {
+    mockParams = {
+      serviceId: 'telecare', serviceName: 'TeleCare', serviceType: 'TeleCare', providerId: '', providerName: '',
+      consultationFormat: 'video', scheduledAtIso: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
+    };
+    appointments.create.mockResolvedValue({ hhaRef: 'APT-2026-000003' });
+    const { findByText } = renderWithClient(<BookAppointmentStep4Screen />);
+
+    fireEvent.press(await findByText('Confirm appointment'));
+
+    await waitFor(() => expect(appointments.create).toHaveBeenCalled());
+    expect(appointments.create.mock.calls[0][0]).not.toHaveProperty('providerId');
+    expect(await findByText(/A clinician will be assigned/)).toBeTruthy();
+  });
+});
+
 describe('Step 3 — choose a slot', () => {
   const slotIso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
   const slotLabel = new Date(slotIso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true });

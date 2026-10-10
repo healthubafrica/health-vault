@@ -25,6 +25,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
 import { appointments, ApiError, BookableFacility } from '@/lib/api';
 import { BOOKING_DURATION_MINUTES } from '@/lib/booking';
+import { fallbackSlots, slotsForSelection } from '@/lib/slots';
 
 interface DateItem {
   dateStr: string;
@@ -102,12 +103,16 @@ export default function BookAppointmentStep3Screen() {
       }),
   });
 
-  const availableSlots = useMemo(() => {
-    // Only the chosen provider's slots: falling back to another provider's
-    // group would book a time that provider isn't offering.
-    const group = (slotGroups ?? []).find((g) => g.providerId === params.providerId);
-    return group?.slots ?? [];
-  }, [slotGroups, params.providerId]);
+  // Scheduled slots for the chosen provider (or merged across providers when the
+  // care team will assign one). If nobody has a schedule for this day, offer
+  // requested times instead — the portal accepts any time and the care team
+  // confirms, so a missing schedule must never block a booking.
+  const scheduledSlots = useMemo(
+    () => slotsForSelection(slotGroups, params.providerId ?? ''),
+    [slotGroups, params.providerId],
+  );
+  const usingRequestedTimes = !isLoading && !isError && scheduledSlots.length === 0;
+  const availableSlots = usingRequestedTimes ? fallbackSlots(selectedDate) : scheduledSlots;
 
   const morningSlots = availableSlots.filter((s) => slotHour(s) < 12);
   const afternoonSlots = availableSlots.filter((s) => slotHour(s) >= 12 && slotHour(s) < 17);
@@ -359,10 +364,15 @@ export default function BookAppointmentStep3Screen() {
             </View>
           ) : availableSlots.length === 0 ? (
             <Text style={[styles.slotGroupTitle, { color: theme.textMuted }]}>
-              No slots available this day — try another date.
+              No times left on this day — try another date.
             </Text>
           ) : (
             <>
+              {usingRequestedTimes && (
+                <Text style={[styles.slotGroupTitle, { color: theme.textMuted }]}>
+                  No fixed schedule for this day. Pick the time you prefer and the care team will confirm it.
+                </Text>
+              )}
               {[
                 { title: 'Morning', slots: morningSlots },
                 { title: 'Afternoon', slots: afternoonSlots },
