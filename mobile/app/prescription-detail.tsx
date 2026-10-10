@@ -1,4 +1,6 @@
 import React from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { records, ApiError } from '@/lib/api';
 import {
   StyleSheet,
   Text,
@@ -13,7 +15,6 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import {
   ChevronLeft,
-  MoreVertical,
   ChevronRight,
   Phone,
 } from 'lucide-react-native';
@@ -32,15 +33,29 @@ export default function PrescriptionDetailScreen() {
   const rxName = (params.name as string) || 'Prescription';
   const rxDosage = (params.dosage as string) || '';
   const rxProvider = (params.provider as string) || '';
-  const rxStatus = ((params.status as string) || 'active') as 'due' | 'active';
+  const rxId = (params.id as string) || '';
+  const rxStatus = ((params.status as string) || 'active') as 'due' | 'active' | 'expired';
   const rxPrescribedDate = (params.prescribedDate as string) || '';
   const rxExpiryDate = (params.expiryDate as string) || '';
   const rxRoute = (params.route as string) || '';
   const rxRefillsLeft = parseInt((params.refillsLeft as string) || '0', 10);
   const rxNotes = (params.notes as string) || '';
 
+  const refill = useMutation({
+    mutationFn: () => records.requestRefill(rxId),
+    onSuccess: (res) =>
+      Alert.alert(
+        res.alreadyRequested ? 'Already requested' : 'Refill requested',
+        res.alreadyRequested
+          ? 'Your care team already has a refill request for this prescription.'
+          : 'Your care team will review it and get back to you.',
+      ),
+    onError: (err: unknown) =>
+      Alert.alert('Could not send the request', err instanceof ApiError ? err.message : 'Please try again.'),
+  });
+
+  // Booking a consultation is the fallback route to a renewal.
   const handleContactProvider = () => {
-    // No refill-request endpoint exists yet: send the patient to a real consultation.
     router.push('/book-appointment-step1');
   };
 
@@ -58,9 +73,7 @@ export default function PrescriptionDetailScreen() {
 
         <Text style={[styles.headerTitle, { color: theme.text }]}>Prescription</Text>
 
-        <TouchableOpacity style={styles.moreBtn} activeOpacity={0.7}>
-          <MoreVertical size={20} color={theme.text} />
-        </TouchableOpacity>
+        <View style={styles.moreBtn} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -73,8 +86,8 @@ export default function PrescriptionDetailScreen() {
               {rxRoute ? <Text style={[styles.indicationText, { color: theme.textMuted }]}>Route: {rxRoute}</Text> : null}
             </View>
             <StatusPill
-              status={rxStatus === 'due' ? 'amber' : 'green'}
-              label={rxStatus === 'due' ? 'Refill Due' : 'Active'}
+              status={rxStatus === 'expired' ? 'red' : rxStatus === 'due' ? 'amber' : 'green'}
+              label={rxStatus === 'expired' ? 'Expired' : rxStatus === 'due' ? 'Refill Due' : 'Active'}
             />
           </View>
 
@@ -133,6 +146,17 @@ export default function PrescriptionDetailScreen() {
 
         {/* Action Buttons */}
         <View style={styles.actionGroup}>
+          {rxId ? (
+            <TouchableOpacity
+              onPress={() => refill.mutate()}
+              disabled={refill.isPending}
+              activeOpacity={0.85}
+              style={[styles.contactBtn, { backgroundColor: theme.primary, opacity: refill.isPending ? 0.6 : 1 }]}>
+              <Text style={[styles.contactBtnText, { color: '#FFFFFF' }]}>
+                {refill.isPending ? 'Sending…' : 'Request a refill'}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
           <TouchableOpacity
             onPress={handleContactProvider}
             activeOpacity={0.85}
@@ -290,18 +314,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontWeight: '500',
-  },
-  pharmacyCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  pharmacyName: {
-    fontSize: 14,
-    fontWeight: '600',
   },
   actionGroup: {
     gap: 10,

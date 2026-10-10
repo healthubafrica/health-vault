@@ -161,12 +161,6 @@ function RootLayoutNav() {
           }}
         />
         <Stack.Screen
-          name="record-heart-rate"
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
           name="reading-confirmation"
           options={{
             headerShown: false,

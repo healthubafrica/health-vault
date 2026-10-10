@@ -1,3 +1,4 @@
+import { classifyBloodPressure } from '@/lib/vitalStatus';
 import { latestWith } from '@/lib/vitals';
 import React from 'react';
 import {
@@ -52,20 +53,20 @@ function mapVitalsToMetrics(readings: VitalsReading[]): VitalMetric[] {
   if (hr) metrics.push({ metric: 'Heart Rate', value: hr.heartRate!, unit: 'bpm', status: num(hr.heartRate) > 100 ? 'amber' : 'green', lastUpdate: timeAgo(hr.recordedAt), source: 'Manual' });
 
   const bp = latestWith(readings, (r) => r.systolicBp != null && r.diastolicBp != null);
-  if (bp) metrics.push({ metric: 'Blood Pressure', value: `${bp.systolicBp}/${bp.diastolicBp}`, unit: 'mmHg', status: num(bp.systolicBp) > 140 ? 'red' : num(bp.systolicBp) > 130 ? 'amber' : 'green', lastUpdate: timeAgo(bp.recordedAt), source: 'Manual' });
+  if (bp) metrics.push({ metric: 'Blood Pressure', value: `${bp.systolicBp}/${bp.diastolicBp}`, unit: 'mmHg', status: classifyBloodPressure(num(bp.systolicBp), num(bp.diastolicBp)), lastUpdate: timeAgo(bp.recordedAt), source: 'Manual' });
 
   const sp = latestWith(readings, (r) => r.spo2 != null);
-  if (sp) metrics.push({ metric: 'SpO₂', value: sp.spo2!, unit: '%', status: num(sp.spo2) < 94 ? 'red' : num(sp.spo2) < 96 ? 'amber' : 'green', lastUpdate: timeAgo(sp.recordedAt), source: 'Manual' });
+  if (sp) metrics.push({ metric: 'SpO₂', value: num(sp.spo2), unit: '%', status: num(sp.spo2) < 94 ? 'red' : num(sp.spo2) < 96 ? 'amber' : 'green', lastUpdate: timeAgo(sp.recordedAt), source: 'Manual' });
 
   const t = latestWith(readings, (r) => r.temperatureC != null);
-  if (t) metrics.push({ metric: 'Temperature', value: t.temperatureC!, unit: '°C', status: num(t.temperatureC) > 38 ? 'amber' : 'green', lastUpdate: timeAgo(t.recordedAt), source: 'Manual' });
+  if (t) metrics.push({ metric: 'Temperature', value: num(t.temperatureC), unit: '°C', status: num(t.temperatureC) > 38 ? 'amber' : 'green', lastUpdate: timeAgo(t.recordedAt), source: 'Manual' });
 
   const w = latestWith(readings, (r) => r.weightKg != null);
-  if (w) metrics.push({ metric: 'Weight', value: w.weightKg!, unit: 'kg', status: 'green', lastUpdate: timeAgo(w.recordedAt), source: 'Manual' });
+  if (w) metrics.push({ metric: 'Weight', value: num(w.weightKg), unit: 'kg', status: 'green', lastUpdate: timeAgo(w.recordedAt), source: 'Manual' });
 
   // Glucose is stored in mg/dL platform-wide (web portal, clinician alerts).
   const g = latestWith(readings, (r) => r.bloodGlucose != null);
-  if (g) metrics.push({ metric: 'Blood Glucose', value: g.bloodGlucose!, unit: 'mg/dL', status: num(g.bloodGlucose) > 180 || num(g.bloodGlucose) < 70 ? 'red' : num(g.bloodGlucose) > 140 ? 'amber' : 'green', lastUpdate: timeAgo(g.recordedAt), source: 'Manual' });
+  if (g) metrics.push({ metric: 'Blood Glucose', value: num(g.bloodGlucose), unit: 'mg/dL', status: num(g.bloodGlucose) > 180 || num(g.bloodGlucose) < 70 ? 'red' : num(g.bloodGlucose) > 140 ? 'amber' : 'green', lastUpdate: timeAgo(g.recordedAt), source: 'Manual' });
 
   return metrics;
 }

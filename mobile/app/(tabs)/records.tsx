@@ -165,11 +165,16 @@ export default function RecordsHubScreen() {
 
     setIsUploading(true);
     try {
-      const sizeBytes = file.size ?? 0;
+      // Some pickers report no size; measure the file itself rather than sending 0 (the API rejects it).
+      const fileBlob = await (await fetch(file.uri)).blob();
+      const sizeBytes = file.size ?? fileBlob.size;
+      if (!sizeBytes) {
+        Alert.alert('File appears empty', 'Please choose a different file.');
+        return;
+      }
       const ticketRes = await documents.getUploadUrl({ fileName: file.name, contentType: mimeType, sizeBytes });
       const ticket = ticketRes.data;
 
-      const fileBlob = await (await fetch(file.uri)).blob();
       const putRes = await fetch(ticket.uploadUrl, {
         method: 'PUT',
         headers: { 'Content-Type': mimeType },
@@ -218,13 +223,25 @@ export default function RecordsHubScreen() {
     enabled: activeTab === 'visits',
   });
 
-  const handleRequestRefill = (medication: string) => {
-    // There is no refill-request endpoint yet, so never claim one was sent.
-    Alert.alert('Renew your prescription', `${medication} is renewed by your clinician during a consultation.`, [
-      { text: 'Not now', style: 'cancel' },
-      { text: 'Book a consultation', onPress: () => router.push('/book-appointment-step1') },
-    ]);
-  };
+  const refillMutation = useMutation({
+    mutationFn: (rx: { id: string; name: string }) => records.requestRefill(rx.id),
+    onSuccess: (res, rx) => {
+      Alert.alert(
+        res.alreadyRequested ? 'Already requested' : 'Refill requested',
+        res.alreadyRequested
+          ? `Your care team already has a refill request for ${rx.name}.`
+          : `Your care team will review the refill for ${rx.name} and get back to you.`,
+      );
+    },
+    onError: (_err, rx) => {
+      // Never claim a request was sent when it was not; offer the consultation route instead.
+      Alert.alert('Could not send the request', `${rx.name} can also be renewed during a consultation.`, [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Book a consultation', onPress: () => router.push('/book-appointment-step1') },
+      ]);
+    },
+  });
+  const handleRequestRefill = (rx: { id: string; name: string }) => refillMutation.mutate(rx);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -287,7 +304,7 @@ export default function RecordsHubScreen() {
                 {(storagePct >= 100 || atFileLimit) && (
                   <Text style={[styles.storageLimitText, { color: theme.status.error.solid }]}>
                     You've reached your plan's limit —{' '}
-                    <Text style={{ fontWeight: '800' }} onPress={() => router.push('/subscriptions' as any)}>upgrade to add more</Text>.
+                    <Text style={{ fontWeight: '800' }} onPress={() => router.push('/subscription')}>upgrade to add more</Text>.
                   </Text>
                 )}
               </View>
@@ -399,7 +416,8 @@ export default function RecordsHubScreen() {
             ) : (
               <View style={styles.listGroup}>
                 {(Array.isArray(prescriptionsData) ? prescriptionsData : (prescriptionsData as unknown as { data: PrescriptionItem[] })?.data ?? []).map((rx: PrescriptionItem) => {
-                  const isDue = rx.refillsRemaining === 0;
+                  const isExpired = !!rx.expiresAt && new Date(rx.expiresAt).getTime() < Date.now();
+                  const isDue = !isExpired && rx.refillsRemaining === 0;
                   return (
                     <TouchableOpacity
                       key={rx.id}
@@ -408,9 +426,10 @@ export default function RecordsHubScreen() {
                         router.push({
                           pathname: '/prescription-detail',
                           params: {
+                            id: rx.id,
                             name: rx.drugName,
                             dosage: `${rx.dosage} · ${rx.frequency}`,
-                            status: isDue ? 'due' : 'active',
+                            status: isExpired ? 'expired' : isDue ? 'due' : 'active',
                             refillsLeft: rx.refillsRemaining.toString(),
                             route: rx.route ?? '',
                             expiryDate: rx.expiresAt ? formatDate(rx.expiresAt) : '',
@@ -439,7 +458,7 @@ export default function RecordsHubScreen() {
 
                       {isDue ? (
                         <TouchableOpacity
-                          onPress={() => handleRequestRefill(rx.drugName)}
+                          onPress={() => handleRequestRefill({ id: rx.id, name: rx.drugName })}
                           activeOpacity={0.85}
                           style={[
                             styles.refillBtn,

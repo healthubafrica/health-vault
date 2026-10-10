@@ -91,7 +91,7 @@ export default function HomeDashboardScreen() {
     latestVitals?.systolicBp && latestVitals?.diastolicBp
       ? `${latestVitals.systolicBp}/${latestVitals.diastolicBp}`
       : '—/—';
-  const glucoseDisplay = latestVitals?.bloodGlucose ? `${latestVitals.bloodGlucose} mg/dL` : '— mg/dL';
+  const glucoseDisplay = latestVitals?.bloodGlucose ? `${Number(latestVitals.bloodGlucose)} mg/dL` : '— mg/dL';
 
   // How many of the four headline readings the latest entry includes.
   // (This used to be shown as a made-up "Wellness Score" = 60 + 10 per metric.)

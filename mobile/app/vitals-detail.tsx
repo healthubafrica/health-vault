@@ -34,7 +34,7 @@ const METRIC_CONFIG: Record<string, MetricConfig> = {
   'SpO₂': { field: 'spo2', unit: '%', normalRange: 'Normal range: 95–100%', status: (v) => (v < 94 ? 'red' : v < 96 ? 'amber' : 'green') },
   Temperature: { field: 'temperatureC', unit: '°C', normalRange: 'Normal range: 36.1–37.2 °C', status: (v) => (v > 38 ? 'amber' : 'green') },
   Weight: { field: 'weightKg', unit: 'kg', normalRange: 'Tracked over time', status: () => 'green' },
-  'Blood Glucose': { field: 'bloodGlucose', unit: 'mmol/L', normalRange: 'Normal range: 4–7.8 mmol/L', status: (v) => (v > 11 ? 'red' : v > 7.8 ? 'amber' : 'green') },
+  'Blood Glucose': { field: 'bloodGlucose', unit: 'mg/dL', normalRange: 'Normal range: 70–140 mg/dL', status: (v) => (v > 180 || v < 70 ? 'red' : v > 140 ? 'amber' : 'green') },
 };
 
 const STATUS_LABEL: Record<StatusColor, string> = { green: 'Normal', amber: 'Elevated', red: 'High' };

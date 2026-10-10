@@ -1,3 +1,4 @@
+import { classifyBloodPressure } from '@/lib/vitalStatus';
 import React, { useState } from 'react';
 import {
   StyleSheet,
@@ -64,9 +65,7 @@ export default function RecordVitalsEntryScreen() {
         const sys = parseFloat(parts[0]);
         const dia = parseFloat(parts[1]);
         if (!isNaN(sys) && !isNaN(dia)) {
-          if (sys <= 120 && dia <= 80) return 'green';
-          if (sys <= 139 || dia <= 89) return 'amber';
-          return 'red';
+          return classifyBloodPressure(sys, dia);
         }
       }
       return 'green';
@@ -95,7 +94,8 @@ export default function RecordVitalsEntryScreen() {
 
     setIsSaving(true);
     try {
-      await vitals.create(built.payload);
+      const recordedAt = new Date().toISOString();
+      await vitals.create({ ...built.payload, recordedAt });
       analytics.track('manual_entry_success', { metric: selectedMetric.label });
       queryClient.invalidateQueries({ queryKey: ['vitals'] });
 
@@ -108,6 +108,7 @@ export default function RecordVitalsEntryScreen() {
           status: currentStatus,
           normalRange: selectedMetric.rangeText,
           source: 'Manual entry',
+          recordedAt,
         },
       });
     } catch (err: unknown) {

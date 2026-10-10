@@ -1,3 +1,4 @@
+import { classifyBloodPressure } from '@/lib/vitalStatus';
 import React from 'react';
 import {
   StyleSheet,
@@ -23,10 +24,8 @@ import { vitals } from '@/lib/api';
 type StatusColor = 'green' | 'amber' | 'red';
 const STATUS_LABEL: Record<StatusColor, string> = { green: 'Normal', amber: 'Elevated', red: 'High' };
 
-function classify(systolic: number): StatusColor {
-  if (systolic > 140) return 'red';
-  if (systolic > 130) return 'amber';
-  return 'green';
+function classify(systolic: number, diastolic: number): StatusColor {
+  return classifyBloodPressure(systolic, diastolic);
 }
 
 export default function BloodPressureTrendDetailScreen() {
@@ -47,7 +46,7 @@ export default function BloodPressureTrendDetailScreen() {
   const systolicValues = readings.map((r) => r.systolicBp as number);
   const diastolicValues = readings.map((r) => r.diastolicBp as number);
   const latest = readings[readings.length - 1];
-  const latestStatus: StatusColor = latest ? classify(latest.systolicBp as number) : 'green';
+  const latestStatus: StatusColor = latest ? classify(latest.systolicBp as number, latest.diastolicBp as number) : 'green';
   const avgSystolic = systolicValues.length ? Math.round(systolicValues.reduce((s, v) => s + v, 0) / systolicValues.length) : 0;
   const avgDiastolic = diastolicValues.length ? Math.round(diastolicValues.reduce((s, v) => s + v, 0) / diastolicValues.length) : 0;
 
@@ -146,7 +145,7 @@ export default function BloodPressureTrendDetailScreen() {
 
               <View style={styles.historyList}>
                 {readings.slice().reverse().map((reading) => {
-                  const status = classify(reading.systolicBp as number);
+                  const status = classify(reading.systolicBp as number, reading.diastolicBp as number);
                   return (
                     <View
                       key={reading.id}

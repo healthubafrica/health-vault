@@ -552,7 +552,8 @@ export const patients = {
 };
 
 export const vitals = {
-  list: () => apiRequest<{ data: VitalsReading[] }>('/vitals'),
+  // The API defaults to the latest 50 readings; ask for the maximum so history and averages are complete.
+  list: (limit = 200) => apiRequest<{ data: VitalsReading[] }>(`/vitals?limit=${limit}`),
 
   create: (data: CreateVitalsPayload) =>
     apiRequest<{ data: VitalsReading }>(
@@ -631,12 +632,18 @@ export const analytics = {
 export const records = {
   list: (type?: string) => {
     const qs = type ? `?type=${encodeURIComponent(type)}` : '';
-    return apiRequest<{ data: ClinicalRecord[]; meta: { total: number } }>(`/records${qs}`);
+    return apiRequest<{ data: ClinicalRecord[] }>(`/records${qs}`);
   },
 
   get: (id: string) => apiRequest<{ data: ClinicalRecord }>(`/records/${id}`),
 
   prescriptions: () => apiRequest<PrescriptionItem[]>('/records/prescriptions/list'),
+
+  // Asks the care team to renew a prescription (one open request per prescription).
+  requestRefill: (id: string) =>
+    apiRequest<{ requested: boolean; alreadyRequested: boolean }>(`/records/prescriptions/${id}/refill-request`, {
+      method: 'POST',
+    }),
 
   getStorageUsage: () => apiRequest<{ data: StorageUsage | null }>('/records/storage'),
 
