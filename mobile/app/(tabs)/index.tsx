@@ -1,3 +1,4 @@
+import { mergeLatest } from '@/lib/vitals';
 import {
   StyleSheet,
   Text,
@@ -21,7 +22,7 @@ import AppointmentCard from '@/components/AppointmentCard';
 import ActivityCard from '@/components/ActivityCard';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
 import { useAuthStore } from '@/lib/stores/authStore';
-import { vitals, appointments, payments, analytics } from '@/lib/api';
+import { vitals, appointments, payments, notifications as notifApi, analytics } from '@/lib/api';
 
 function getTimeGreeting() {
   const h = new Date().getHours();
@@ -65,6 +66,13 @@ export default function HomeDashboardScreen() {
     enabled: !!user,
   });
 
+  const { data: notifData } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => notifApi.list(),
+    enabled: !!user,
+  });
+  const hasUnread = (notifData?.data ?? []).some((n) => !n.isRead);
+
   const { data: paymentsData } = useQuery({
     queryKey: ['payments'],
     queryFn: () => payments.list(),
@@ -73,7 +81,8 @@ export default function HomeDashboardScreen() {
 
   // ── Derived data ──────────────────────────────────────────────────────────
 
-  const latestVitals = vitalsData?.data?.[0];
+  // Merge the newest value of each metric (a save usually records just one).
+  const latestVitals = mergeLatest(vitalsData?.data ?? []);
   const upcomingAppt = appointmentsData?.data?.[0];
   const recentPayment = paymentsData?.data?.[0];
 
@@ -82,16 +91,17 @@ export default function HomeDashboardScreen() {
     latestVitals?.systolicBp && latestVitals?.diastolicBp
       ? `${latestVitals.systolicBp}/${latestVitals.diastolicBp}`
       : '—/—';
-  const glucoseDisplay = latestVitals?.bloodGlucose ? `${latestVitals.bloodGlucose} mmol` : '— mmol';
+  const glucoseDisplay = latestVitals?.bloodGlucose ? `${latestVitals.bloodGlucose} mg/dL` : '— mg/dL';
 
-  // Compute simple wellness score from number of available metrics
+  // How many of the four headline readings the latest entry includes.
+  // (This used to be shown as a made-up "Wellness Score" = 60 + 10 per metric.)
   const metricCount = [
     latestVitals?.heartRate,
     latestVitals?.systolicBp,
     latestVitals?.spo2,
     latestVitals?.bloodGlucose,
   ].filter(Boolean).length;
-  const wellnessScore = latestVitals ? Math.min(60 + metricCount * 10, 98) : '—';
+  const snapshotValue = latestVitals ? `${metricCount}/4` : '—';
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -116,7 +126,7 @@ export default function HomeDashboardScreen() {
               style={[styles.bellButton, { backgroundColor: theme.surface, borderColor: theme.border }]}
               onPress={() => router.push('/notifications')}>
               <Bell size={20} color={theme.text} />
-              <View style={[styles.unreadBadge, { backgroundColor: theme.emergency }]} />
+              {hasUnread ? <View style={[styles.unreadBadge, { backgroundColor: theme.emergency }]} /> : null}
             </TouchableOpacity>
           </View>
         </View>
@@ -136,10 +146,10 @@ export default function HomeDashboardScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.heroWellnessOverlay}>
               <View style={styles.wellnessLeft}>
-                <Text style={styles.wellnessScoreLabel}>Wellness Score</Text>
-                <Text style={styles.wellnessScoreValue}>{wellnessScore}</Text>
+                <Text style={styles.wellnessScoreLabel}>Health Snapshot</Text>
+                <Text style={styles.wellnessScoreValue}>{snapshotValue}</Text>
                 <Text style={styles.wellnessScoreSub}>
-                  {latestVitals ? `${metricCount} metric${metricCount !== 1 ? 's' : ''} recorded` : 'No vitals yet'}
+                  {latestVitals ? 'key readings in your latest entry' : 'No vitals yet'}
                 </Text>
               </View>
 

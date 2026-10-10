@@ -19,6 +19,7 @@ import StatusPill from '@/components/StatusPill';
 import EmergencyFAB from '@/components/EmergencyFAB';
 import { vitals, analytics, ApiError } from '@/lib/api';
 import { queryClient } from '@/lib/queryClient';
+import { buildVitalsPayload } from '@/lib/vitals';
 
 const METRIC_CONFIG = {
   label: 'Heart Rate',
@@ -35,7 +36,8 @@ export default function RecordHeartRateInputScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  const [value, setValue] = useState('72');
+  // Empty on purpose: a pre-filled 72 let one tap record a reading nobody measured.
+  const [value, setValue] = useState('');
   const [note, setNote] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -60,18 +62,15 @@ export default function RecordHeartRateInputScreen() {
   };
 
   const handleSave = async () => {
-    if (!value.trim()) {
-      Alert.alert('Missing Value', 'Please enter a heart rate value.');
+    const built = buildVitalsPayload('Heart Rate', value, note, new Date().toISOString());
+    if (!built.ok) {
+      Alert.alert('Check your reading', built.error);
       return;
     }
 
     setIsSaving(true);
     try {
-      await vitals.create({
-        heartRate: parseFloat(value),
-        notes: note.trim() || undefined,
-        recordedAt: new Date().toISOString(),
-      });
+      await vitals.create(built.payload);
       analytics.track('manual_entry_success', { metric: 'Heart Rate' });
       queryClient.invalidateQueries({ queryKey: ['vitals'] });
 
@@ -87,24 +86,8 @@ export default function RecordHeartRateInputScreen() {
         },
       });
     } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : 'Heart rate recorded locally.';
-      Alert.alert('Reading Recorded', msg, [
-        {
-          text: 'OK',
-          onPress: () =>
-            router.replace({
-              pathname: '/reading-confirmation',
-              params: {
-                metric: 'Heart Rate',
-                value,
-                unit: 'bpm',
-                status: currentStatus,
-                normalRange: METRIC_CONFIG.normalRange,
-                source: 'Manual entry',
-              },
-            }),
-        },
-      ]);
+      // Not saved: say so and stay on the form so it can be retried.
+      Alert.alert('Not saved', err instanceof ApiError ? err.message : 'Could not save this reading. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -141,6 +124,7 @@ export default function RecordHeartRateInputScreen() {
             <View style={[styles.numericBox, { backgroundColor: theme.background, borderColor: theme.border }]}>
               <TextInput
                 value={value}
+                placeholder="e.g. 72"
                 onChangeText={setValue}
                 keyboardType="numeric"
                 style={[styles.largeInput, { color: theme.text }]}

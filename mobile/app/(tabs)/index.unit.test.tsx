@@ -11,6 +11,7 @@ jest.mock('@/lib/api', () => ({
   vitals: { list: jest.fn() },
   appointments: { list: jest.fn() },
   payments: { list: jest.fn() },
+  notifications: { list: jest.fn().mockResolvedValue({ data: [] }) },
   analytics: { track: jest.fn() },
 }));
 

@@ -223,6 +223,7 @@ export interface VitalsReading {
 export interface CreateVitalsPayload {
   recordedAt?: string;
   heartRate?: number;
+  respiratoryRate?: number;
   bloodPressureSystolic?: number;
   bloodPressureDiastolic?: number;
   oxygenSaturation?: number;
