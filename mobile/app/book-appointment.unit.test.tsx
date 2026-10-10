@@ -1,0 +1,244 @@
+import React from 'react';
+import { Alert } from 'react-native';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import BookAppointmentStep2Screen from './book-appointment-step2';
+import BookAppointmentStep3Screen from './book-appointment-step3';
+import BookAppointmentStep4Screen from './book-appointment-step4';
+import { ApiError } from '@/lib/api';
+import { BOOKING_DURATION_MINUTES } from '@/lib/booking';
+
+// The first test cold-loads a large screen; give slow CI/dev machines headroom.
+jest.setTimeout(30000);
+
+const mockPush = jest.fn();
+const mockBack = jest.fn();
+let mockParams: Record<string, string | undefined> = {};
+
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: mockPush, back: mockBack }),
+  useLocalSearchParams: () => mockParams,
+}));
+jest.mock('@/components/TopHeaderEmergency', () => () => null);
+jest.mock('@/lib/api', () => {
+  const actual = jest.requireActual('@/lib/api');
+  return {
+    ApiError: actual.ApiError,
+    analytics: { track: jest.fn() },
+    generateIdempotencyKey: () => 'idem-key-1',
+    appointments: {
+      listProviders: jest.fn(),
+      getSlots: jest.fn(),
+      create: jest.fn(),
+      getSchedulingPolicy: jest.fn(),
+    },
+  };
+});
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { appointments } = require('@/lib/api');
+
+function renderWithClient(ui: React.ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
+
+const provider = {
+  id: 'prov-1',
+  firstName: 'Ada',
+  lastName: 'Okafor',
+  title: 'Dr.',
+  specialty: 'General Practice',
+  isAvailable: true,
+};
+
+beforeEach(() => {
+  mockPush.mockClear();
+  mockBack.mockClear();
+  mockParams = {};
+  appointments.listProviders.mockReset();
+  appointments.getSlots.mockReset();
+  appointments.create.mockReset();
+  appointments.getSchedulingPolicy.mockReset().mockResolvedValue({
+    cancellationWindowHours: 12,
+    rescheduleWindowHours: 12,
+    selfServiceEnabled: true,
+  });
+});
+
+describe('Step 2 — choose clinician', () => {
+  beforeEach(() => {
+    mockParams = { serviceId: 'telecare', serviceName: 'TeleCare', serviceType: 'TeleCare' };
+  });
+
+  it('lists the providers the API returns', async () => {
+    appointments.listProviders.mockResolvedValue([provider]);
+    const { findByText } = renderWithClient(<BookAppointmentStep2Screen />);
+
+    expect(await findByText('Dr. Ada Okafor')).toBeTruthy();
+    expect(appointments.listProviders).toHaveBeenCalledWith('TeleCare');
+  });
+
+  it('shows the real error and a retry — not "No clinicians available" — when the request fails', async () => {
+    appointments.listProviders.mockRejectedValue(new ApiError(500, 'Server exploded'));
+    const { findByText, queryByText } = renderWithClient(<BookAppointmentStep2Screen />);
+
+    expect(await findByText(/Server exploded/)).toBeTruthy();
+    expect(queryByText('No clinicians available')).toBeNull();
+  });
+
+  it('retries the request when "Try again" is pressed', async () => {
+    appointments.listProviders.mockRejectedValueOnce(new ApiError(500, 'Server exploded'));
+    appointments.listProviders.mockResolvedValue([provider]);
+    const { findByText } = renderWithClient(<BookAppointmentStep2Screen />);
+
+    fireEvent.press(await findByText('Try again'));
+
+    expect(await findByText('Dr. Ada Okafor')).toBeTruthy();
+    expect(appointments.listProviders).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows the empty state only when the API genuinely returns no providers', async () => {
+    appointments.listProviders.mockResolvedValue([]);
+    const { findByText } = renderWithClient(<BookAppointmentStep2Screen />);
+
+    expect(await findByText('No clinicians available')).toBeTruthy();
+  });
+});
+
+describe('Step 3 — choose a slot', () => {
+  const slotIso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+  const slotLabel = new Date(slotIso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  beforeEach(() => {
+    mockParams = {
+      serviceId: 'telecare',
+      serviceName: 'TeleCare',
+      serviceType: 'TeleCare',
+      providerId: 'prov-1',
+      providerName: 'Dr. Ada Okafor',
+      providerSpecialty: 'General Practice',
+      providerInitials: 'AO',
+    };
+  });
+
+  it('asks for slots at the same length it later books, so a slot is never longer than its window', async () => {
+    appointments.getSlots.mockResolvedValue([{ providerId: 'prov-1', providerName: 'Dr', slots: [slotIso] }]);
+    renderWithClient(<BookAppointmentStep3Screen />);
+
+    await waitFor(() => expect(appointments.getSlots).toHaveBeenCalled());
+    expect(appointments.getSlots.mock.calls[0][0]).toMatchObject({
+      serviceType: 'TeleCare',
+      providerId: 'prov-1',
+      durationMinutes: BOOKING_DURATION_MINUTES,
+    });
+  });
+
+  it('shows the real error and a retry when slots fail to load', async () => {
+    appointments.getSlots.mockRejectedValue(new ApiError(503, 'Scheduling is unavailable'));
+    const { findByText, queryByText } = renderWithClient(<BookAppointmentStep3Screen />);
+
+    expect(await findByText(/Scheduling is unavailable/)).toBeTruthy();
+    expect(queryByText(/No slots available this day/)).toBeNull();
+  });
+
+  it('forwards the chosen slot and duration to step 4 with no invented provider or fee defaults', async () => {
+    appointments.getSlots.mockResolvedValue([{ providerId: 'prov-1', providerName: 'Dr', slots: [slotIso] }]);
+    const { findByText } = renderWithClient(<BookAppointmentStep3Screen />);
+
+    fireEvent.press(await findByText(slotLabel));
+    fireEvent.press(await findByText('Continue to Summary'));
+
+    expect(mockPush).toHaveBeenCalledTimes(1);
+    const { pathname, params } = mockPush.mock.calls[0][0];
+    expect(pathname).toBe('/book-appointment-step4');
+    expect(params).toMatchObject({ providerId: 'prov-1', scheduledAtIso: slotIso, serviceType: 'TeleCare' });
+    expect(JSON.stringify(params)).not.toMatch(/Naledi|15,000/);
+  });
+
+  it('drops the selected slot when the date changes, so a stale slot can never be booked', async () => {
+    appointments.getSlots.mockResolvedValue([{ providerId: 'prov-1', providerName: 'Dr', slots: [slotIso] }]);
+    const { findByText, getAllByText } = renderWithClient(<BookAppointmentStep3Screen />);
+
+    fireEvent.press(await findByText(slotLabel));
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 2);
+    fireEvent.press(getAllByText(String(tomorrow.getDate()))[0]);
+    fireEvent.press(await findByText('Continue to Summary'));
+
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+});
+
+describe('Step 4 — confirm booking', () => {
+  const scheduledAtIso = new Date(Date.now() + 48 * 3600 * 1000).toISOString();
+
+  beforeEach(() => {
+    mockParams = {
+      serviceId: 'telecare',
+      serviceName: 'TeleCare',
+      serviceType: 'TeleCare',
+      providerId: 'prov-1',
+      providerName: 'Dr. Ada Okafor',
+      providerSpecialty: 'General Practice',
+      providerInitials: 'AO',
+      consultationFormat: 'video',
+      appointmentDate: 'Fri, 12 Oct',
+      appointmentTime: '09:00 am',
+      scheduledAtIso,
+      reason: 'Headache',
+    };
+    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  });
+
+  afterEach(() => (Alert.alert as jest.Mock).mockRestore());
+
+  it('books with the same duration the slots were generated for, and an idempotency key', async () => {
+    appointments.create.mockResolvedValue({ hhaRef: 'APT-2026-000001' });
+    const { findByText } = renderWithClient(<BookAppointmentStep4Screen />);
+
+    fireEvent.press(await findByText('Confirm appointment'));
+
+    await waitFor(() => expect(appointments.create).toHaveBeenCalled());
+    const [payload, key] = appointments.create.mock.calls[0];
+    expect(payload).toMatchObject({
+      appointmentType: 'virtual',
+      serviceType: 'TeleCare',
+      scheduledAt: scheduledAtIso,
+      durationMinutes: BOOKING_DURATION_MINUTES,
+      providerId: 'prov-1',
+      chiefComplaint: 'Headache',
+    });
+    expect(payload.notes).toBeUndefined();
+    expect(key).toBe('idem-key-1');
+    expect(await findByText(/APT-2026-000001/)).toBeTruthy();
+  });
+
+  it('does not show an invented price or claim a payment that is never taken', async () => {
+    const { findByText, queryByText } = renderWithClient(<BookAppointmentStep4Screen />);
+
+    await findByText('Confirm appointment');
+    expect(queryByText(/₦/)).toBeNull();
+    expect(queryByText(/Consultation Fee/)).toBeNull();
+    expect(queryByText(/Flutterwave/)).toBeNull();
+    expect(queryByText(/money-back/i)).toBeNull();
+  });
+
+  it("shows the real cancellation window from the backend's scheduling policy", async () => {
+    const { findByText } = renderWithClient(<BookAppointmentStep4Screen />);
+
+    expect(await findByText(/12 hours before/)).toBeTruthy();
+  });
+
+  it('tells the patient when the booking fails instead of faking a confirmation', async () => {
+    appointments.create.mockRejectedValue(new ApiError(409, 'This provider is already booked for the selected time.'));
+    const { findByText, queryByText } = renderWithClient(<BookAppointmentStep4Screen />);
+
+    fireEvent.press(await findByText('Confirm appointment'));
+
+    await waitFor(() =>
+      expect(Alert.alert).toHaveBeenCalledWith('Booking failed', 'This provider is already booked for the selected time.'),
+    );
+    expect(queryByText('Appointment Booked!')).toBeNull();
+  });
+});

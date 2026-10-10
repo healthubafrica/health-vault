@@ -17,7 +17,6 @@ import {
   Clock,
   Video,
   MapPin,
-  CreditCard,
   CheckCircle2,
   ShieldCheck,
   Check,
@@ -28,7 +27,9 @@ import {
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
-import { appointments, analytics, ApiError } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { appointments, analytics, ApiError, generateIdempotencyKey } from '@/lib/api';
+import { BOOKING_DURATION_MINUTES } from '@/lib/booking';
 import { queryClient } from '@/lib/queryClient';
 
 export default function BookAppointmentStep4Screen() {
@@ -40,7 +41,6 @@ export default function BookAppointmentStep4Screen() {
     providerId?: string;
     providerName?: string;
     providerSpecialty?: string;
-    providerFee?: string;
     providerInitials?: string;
     consultationFormat?: string;
     appointmentDate?: string;
@@ -52,14 +52,18 @@ export default function BookAppointmentStep4Screen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'medical_aid' | 'eft'>('card');
+  const [idempotencyKey] = useState(() => generateIdempotencyKey());
+  const { data: policy } = useQuery({
+    queryKey: ['scheduling-policy'],
+    queryFn: () => appointments.getSchedulingPolicy(),
+    staleTime: 5 * 60_000,
+  });
   const [isProcessing, setIsProcessing] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [bookingRef, setBookingRef] = useState('');
 
-  const feeAmount = params.providerFee || '₦15,000.00';
 
-  const handlePayAndConfirm = async () => {
+  const handleConfirm = async () => {
     if (!params.scheduledAtIso) {
       Alert.alert('Missing time slot', 'Please go back and choose an appointment slot.');
       return;
@@ -73,11 +77,10 @@ export default function BookAppointmentStep4Screen() {
         appointmentType: isTelecare ? 'virtual' : 'in_person',
         serviceType: params.serviceType || 'TeleCare',
         scheduledAt: params.scheduledAtIso,
-        durationMinutes: 45,
+        durationMinutes: BOOKING_DURATION_MINUTES,
         chiefComplaint: params.reason || 'General checkup',
-        notes: `Payment method: ${selectedPaymentMethod}`,
         ...(params.providerId && { providerId: params.providerId }),
-      });
+      }, idempotencyKey);
       analytics.track('booking_confirmed', { serviceType: params.serviceType });
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       setBookingRef(res.hhaRef);
@@ -142,12 +145,12 @@ export default function BookAppointmentStep4Screen() {
               <View style={styles.doctorHeaderRow}>
                 <View style={[styles.avatarBox, { backgroundColor: theme.primaryLight }]}>
                   <Text style={[styles.avatarText, { color: theme.primary }]}>
-                    {params.providerInitials || 'ND'}
+                    {params.providerInitials || ''}
                   </Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.doctorName, { color: theme.text }]}>
-                    {params.providerName || 'Dr. Naledi Dlamini'}
+                    {params.providerName || 'your clinician'}
                   </Text>
                   <Text style={[styles.doctorSpecialty, { color: theme.textMuted }]}>
                     {params.providerSpecialty || 'General Practitioner'}
@@ -199,55 +202,13 @@ export default function BookAppointmentStep4Screen() {
               </View>
             </View>
 
-            {/* Price Breakdown Card */}
-            <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>PAYMENT BREAKDOWN</Text>
-
-              <View style={styles.priceRow}>
-                <Text style={[styles.priceLabel, { color: theme.text }]}>Consultation Fee</Text>
-                <Text style={[styles.priceValue, { color: theme.text }]}>{feeAmount}</Text>
-              </View>
-
-              <View style={styles.priceRow}>
-                <Text style={[styles.priceLabel, { color: theme.textMuted }]}>
-                  Platform & Records Encryption Fee
-                </Text>
-                <Text style={[styles.priceValue, { color: '#006022' }]}>FREE</Text>
-              </View>
-
-              <View style={[styles.divider, { backgroundColor: theme.border }]} />
-
-              <View style={styles.totalRow}>
-                <Text style={[styles.totalLabel, { color: theme.text }]}>Total Due</Text>
-                <Text style={[styles.totalAmount, { color: theme.primaryDark }]}>{feeAmount}</Text>
-              </View>
-            </View>
-
-            {/* Payment Method Selector */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>PAYMENT METHOD</Text>
-
-              <View
-                style={[
-                  styles.paymentOption,
-                  { backgroundColor: theme.surface, borderColor: theme.primary, borderWidth: 2 },
-                ]}>
-                <CreditCard size={20} color={theme.primary} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.payTitle, { color: theme.text }]}>Card, via Flutterwave</Text>
-                  <Text style={[styles.paySub, { color: theme.textMuted }]}>
-                    You'll confirm payment securely on Flutterwave's checkout page.
-                  </Text>
-                </View>
-                <Check size={18} color={theme.primary} />
-              </View>
-            </View>
-
             {/* Cancellation Policy */}
             <View style={[styles.policyBox, { backgroundColor: theme.primaryLight }]}>
               <ShieldCheck size={16} color={theme.primary} />
               <Text style={[styles.policyText, { color: theme.primaryDark }]}>
-                Free cancellation up to 2 hours before the appointment. 100% money-back guarantee.
+                {policy?.selfServiceEnabled === false
+                  ? 'To change or cancel this appointment, please contact support.'
+                  : `You can cancel free of charge up to ${policy?.cancellationWindowHours ?? 24} hours before the appointment.`}
               </Text>
             </View>
           </ScrollView>
@@ -257,13 +218,13 @@ export default function BookAppointmentStep4Screen() {
             <TouchableOpacity
               activeOpacity={0.85}
               disabled={isProcessing}
-              onPress={handlePayAndConfirm}
+              onPress={handleConfirm}
               style={[styles.payBtn, { backgroundColor: theme.primary }]}>
               {isProcessing ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <>
-                  <Text style={styles.payBtnText}>Pay {feeAmount} & Confirm</Text>
+                  <Text style={styles.payBtnText}>Confirm appointment</Text>
                   <ArrowRight size={18} color="#FFFFFF" />
                 </>
               )}
@@ -281,7 +242,7 @@ export default function BookAppointmentStep4Screen() {
             Appointment Booked!
           </Text>
           <Text style={[styles.successSubheading, { color: theme.textMuted }]}>
-            Your consultation with {params.providerName || 'Dr. Naledi Dlamini'} is confirmed.
+            Your request with {params.providerName || 'your clinician'} has been received. You'll be notified once it is confirmed.
           </Text>
 
           <View style={[styles.refCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>

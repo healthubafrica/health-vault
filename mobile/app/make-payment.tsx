@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -13,12 +13,15 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ShieldCheck, CreditCard, Building2, BadgeCheck } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { payments, analytics, generateIdempotencyKey, ApiError } from '@/lib/api';
 import { SuccessState } from '@/components/states';
+import GatewayPickerModal from '@/components/GatewayPickerModal';
+import { useGatewayAvailability } from '@/lib/useGatewayAvailability';
+import type { CardGateway } from '@/lib/gateway';
 
 const BANK_DETAILS = {
   bank: 'United Bank for Africa (UBA)',
@@ -26,7 +29,7 @@ const BANK_DETAILS = {
   name: 'Health Hub Africa',
 };
 
-type Gateway = 'Flutterwave' | 'Paystack' | 'manual';
+type Method = 'card' | 'manual';
 
 export default function MakePaymentScreen() {
   const router = useRouter();
@@ -36,31 +39,29 @@ export default function MakePaymentScreen() {
 
   const [description, setDescription] = useState('');
   const [amountNaira, setAmountNaira] = useState('');
-  const [gateway, setGateway] = useState<Gateway>('Flutterwave');
+  const [method, setMethod] = useState<Method>('card');
   const [saveCard, setSaveCard] = useState(true);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
-  // Paystack is only offered once the API reports it live, so a missing or
+  // The popup only opens once the API reports Paystack live, so a missing or
   // misconfigured key never presents patients with an option that would fail.
-  const { data: gatewayStatuses } = useQuery({
-    queryKey: ['payment-gateway-status'],
-    queryFn: payments.getGatewayStatus,
-    staleTime: 5 * 60_000,
-  });
-  const paystackActive = gatewayStatuses?.some((g) => g.gateway === 'paystack' && g.active) ?? false;
+  const { paystackActive } = useGatewayAvailability();
   const [transferConfirm, setTransferConfirm] = useState<{ ref: string; amount: string } | null>(null);
 
-  // One key per distinct (amount, description, gateway) combination — stays
-  // the same across repeated taps of "Pay" for the same values (so a retry
-  // after a dropped network response replays instead of double-charging),
-  // and changes the moment the patient edits any of those fields (so an
-  // edited request is never mistaken for a retry of the old one).
-  const idempotencyKey = useMemo(
-    () => generateIdempotencyKey(),
-    [amountNaira, description, gateway, saveCard],
-  );
+  // One idempotency key per distinct (amount, description, gateway, save-card)
+  // combination — the same across repeated taps for the same values (so a retry
+  // after a dropped response replays instead of double-charging), and different
+  // as soon as any of them changes (so an edited request is never mistaken for
+  // a retry of the old one).
+  const keys = useRef(new Map<string, string>());
+  const keyFor = (gateway: string) => {
+    const id = `${amountNaira}|${description}|${gateway}|${saveCard}`;
+    if (!keys.current.has(id)) keys.current.set(id, generateIdempotencyKey());
+    return keys.current.get(id)!;
+  };
 
   const initiateMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: (gateway: CardGateway | 'manual') => {
       const parsed = parseFloat(amountNaira);
       analytics.track('checkout_started', { gateway });
       return payments.initiate(
@@ -72,10 +73,11 @@ export default function MakePaymentScreen() {
           currency: 'NGN',
           savePaymentMethod: gateway === 'Flutterwave' ? saveCard : undefined,
         },
-        idempotencyKey,
+        keyFor(gateway),
       );
     },
-    onSuccess: async (result) => {
+    onSuccess: async (result, gateway) => {
+      setPickerOpen(false);
       if (result.authorizationUrl) {
         // payment_success/failure isn't observable here — the gateway confirms
         // via webhook, no in-app verify screen to hook (unlike the web portal's
@@ -92,7 +94,8 @@ export default function MakePaymentScreen() {
         qc.invalidateQueries({ queryKey: ['payments'] });
       }
     },
-    onError: (err: unknown) => {
+    onError: (err: unknown, gateway) => {
+      setPickerOpen(false);
       analytics.track('payment_failure', { gateway, reason: 'initiate_error' });
       Alert.alert('Could not start payment', err instanceof ApiError ? err.message : 'Please try again.');
     },
@@ -105,7 +108,9 @@ export default function MakePaymentScreen() {
       Alert.alert('Incomplete Form', 'Please enter a description and a valid amount.');
       return;
     }
-    initiateMutation.mutate();
+    if (method === 'manual') initiateMutation.mutate('manual');
+    else if (paystackActive) setPickerOpen(true);
+    else initiateMutation.mutate('Flutterwave');
   };
 
   if (transferConfirm) {
@@ -184,61 +189,44 @@ export default function MakePaymentScreen() {
           <View style={styles.gatewayRow}>
             <TouchableOpacity
               activeOpacity={0.85}
-              onPress={() => setGateway('Flutterwave')}
+              onPress={() => setMethod('card')}
               style={[
                 styles.gatewayCard,
                 {
-                  backgroundColor: gateway === 'Flutterwave' ? theme.primaryLight : theme.surface,
-                  borderColor: gateway === 'Flutterwave' ? theme.primary : theme.border,
+                  backgroundColor: method === 'card' ? theme.primaryLight : theme.surface,
+                  borderColor: method === 'card' ? theme.primary : theme.border,
                 },
               ]}>
-              <CreditCard size={18} color={gateway === 'Flutterwave' ? theme.primary : theme.textMuted} />
-              <Text style={[styles.gatewayText, { color: gateway === 'Flutterwave' ? theme.primary : theme.text }]}>
-                Card / Flutterwave
+              <CreditCard size={18} color={method === 'card' ? theme.primary : theme.textMuted} />
+              <Text style={[styles.gatewayText, { color: method === 'card' ? theme.primary : theme.text }]}>
+                Card / Online
               </Text>
             </TouchableOpacity>
-            {paystackActive ? (
-              <TouchableOpacity
-                activeOpacity={0.85}
-                onPress={() => setGateway('Paystack')}
-                style={[
-                  styles.gatewayCard,
-                  {
-                    backgroundColor: gateway === 'Paystack' ? theme.primaryLight : theme.surface,
-                    borderColor: gateway === 'Paystack' ? theme.primary : theme.border,
-                  },
-                ]}>
-                <CreditCard size={18} color={gateway === 'Paystack' ? theme.primary : theme.textMuted} />
-                <Text style={[styles.gatewayText, { color: gateway === 'Paystack' ? theme.primary : theme.text }]}>
-                  Card / Paystack
-                </Text>
-              </TouchableOpacity>
-            ) : null}
             <TouchableOpacity
               activeOpacity={0.85}
-              onPress={() => setGateway('manual')}
+              onPress={() => setMethod('manual')}
               style={[
                 styles.gatewayCard,
                 {
-                  backgroundColor: gateway === 'manual' ? theme.primaryLight : theme.surface,
-                  borderColor: gateway === 'manual' ? theme.primary : theme.border,
+                  backgroundColor: method === 'manual' ? theme.primaryLight : theme.surface,
+                  borderColor: method === 'manual' ? theme.primary : theme.border,
                 },
               ]}>
-              <Building2 size={18} color={gateway === 'manual' ? theme.primary : theme.textMuted} />
-              <Text style={[styles.gatewayText, { color: gateway === 'manual' ? theme.primary : theme.text }]}>
+              <Building2 size={18} color={method === 'manual' ? theme.primary : theme.textMuted} />
+              <Text style={[styles.gatewayText, { color: method === 'manual' ? theme.primary : theme.text }]}>
                 Bank Transfer
               </Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {gateway === 'Flutterwave' && (
+        {method === 'card' && (
           <View style={[styles.saveCardRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <BadgeCheck size={20} color={theme.primary} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.saveCardTitle, { color: theme.text }]}>Save this card</Text>
               <Text style={[styles.saveCardDesc, { color: theme.textMuted }]}>
-                Tokenize this card for faster checkout next time. We never store your card number.
+                Tokenize this card for faster checkout next time (Flutterwave payments). We never store your card number.
               </Text>
             </View>
             <Switch
@@ -256,10 +244,17 @@ export default function MakePaymentScreen() {
           onPress={handleSubmit}
           style={[styles.submitBtn, { backgroundColor: theme.primary, opacity: initiateMutation.isPending ? 0.6 : 1 }]}>
           <Text style={styles.submitBtnText}>
-            {initiateMutation.isPending ? 'Starting…' : gateway === 'manual' ? 'Generate Bank Reference' : 'Continue to Checkout'}
+            {initiateMutation.isPending ? 'Starting…' : method === 'manual' ? 'Generate Bank Reference' : 'Continue to Checkout'}
           </Text>
         </TouchableOpacity>
       </ScrollView>
+      <GatewayPickerModal
+        visible={pickerOpen}
+        summary={`${description.trim() || 'Payment'} — ₦${(parseFloat(amountNaira) || 0).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`}
+        busy={initiateMutation.isPending}
+        onClose={() => setPickerOpen(false)}
+        onConfirm={(g) => initiateMutation.mutate(g)}
+      />
     </SafeAreaView>
   );
 }

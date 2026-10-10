@@ -23,7 +23,8 @@ import {
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
-import { appointments } from '@/lib/api';
+import { appointments, ApiError } from '@/lib/api';
+import { BOOKING_DURATION_MINUTES } from '@/lib/booking';
 
 interface DateItem {
   dateStr: string;
@@ -66,7 +67,6 @@ export default function BookAppointmentStep3Screen() {
     providerId?: string;
     providerName?: string;
     providerSpecialty?: string;
-    providerFee?: string;
     providerInitials?: string;
   }>();
 
@@ -81,12 +81,13 @@ export default function BookAppointmentStep3Screen() {
   const [selectedSlotIso, setSelectedSlotIso] = useState<string>('');
   const [reasonText, setReasonText] = useState<string>('');
 
-  const { data: slotGroups, isLoading } = useQuery({
+  const { data: slotGroups, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['appointment-slots', serviceType, selectedDate, params.providerId],
     queryFn: () =>
       appointments.getSlots({
         serviceType,
         date: selectedDate,
+        durationMinutes: BOOKING_DURATION_MINUTES,
         providerId: params.providerId || undefined,
       }),
   });
@@ -112,10 +113,9 @@ export default function BookAppointmentStep3Screen() {
         serviceName: params.serviceName || 'TeleCare™',
         serviceType,
         providerId: params.providerId || '',
-        providerName: params.providerName || 'Dr. Naledi Dlamini',
-        providerSpecialty: params.providerSpecialty || 'General Practitioner',
-        providerFee: params.providerFee || '₦15,000',
-        providerInitials: params.providerInitials || 'ND',
+        providerName: params.providerName || '',
+        providerSpecialty: params.providerSpecialty || '',
+        providerInitials: params.providerInitials || '',
         consultationFormat: selectedFormat,
         appointmentDate: formattedDateSummary,
         appointmentTime: formatSlot(selectedSlotIso),
@@ -164,10 +164,10 @@ export default function BookAppointmentStep3Screen() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.docName, { color: theme.text }]}>
-              {params.providerName || 'Dr. Naledi Dlamini'}
+              {params.providerName || 'Care team will assign a clinician'}
             </Text>
             <Text style={[styles.docSub, { color: theme.textMuted }]}>
-              {params.providerSpecialty || 'General Practitioner'} · {params.providerFee || '₦15,000'}
+              {params.providerSpecialty || 'Health Hub Africa'}
             </Text>
           </View>
           <View style={styles.verifiedPill}>
@@ -239,7 +239,10 @@ export default function BookAppointmentStep3Screen() {
               return (
                 <TouchableOpacity
                   key={item.dateStr}
-                  onPress={() => setSelectedDate(item.dateStr)}
+                  onPress={() => {
+                    setSelectedDate(item.dateStr);
+                    setSelectedSlotIso('');
+                  }}
                   activeOpacity={0.85}
                   style={[
                     styles.dateCard,
@@ -283,6 +286,15 @@ export default function BookAppointmentStep3Screen() {
 
           {isLoading ? (
             <ActivityIndicator color={theme.primary} style={{ marginTop: 8 }} />
+          ) : isError ? (
+            <View>
+              <Text style={[styles.slotGroupTitle, { color: theme.textMuted }]}>
+                {error instanceof ApiError ? error.message : 'Could not load time slots.'}
+              </Text>
+              <TouchableOpacity onPress={() => refetch()} activeOpacity={0.85} style={{ marginTop: 8 }}>
+                <Text style={{ color: theme.primary, fontWeight: '700' }}>Try again</Text>
+              </TouchableOpacity>
+            </View>
           ) : availableSlots.length === 0 ? (
             <Text style={[styles.slotGroupTitle, { color: theme.textMuted }]}>
               No slots available this day — try another date.

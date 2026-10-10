@@ -24,7 +24,7 @@ import {
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
-import { appointments, ServiceProvider } from '@/lib/api';
+import { appointments, ServiceProvider, ApiError } from '@/lib/api';
 
 const AVATAR_BGS = ['#EBF5EC', '#E3F2FD', '#FFF4E0', '#FDECEA'];
 
@@ -45,7 +45,7 @@ export default function BookAppointmentStep2Screen() {
   const [selectedSpecialty, setSelectedSpecialty] = useState('All');
   const [selectedProviderId, setSelectedProviderId] = useState<string>('');
 
-  const { data: providers, isLoading } = useQuery({
+  const { data: providers, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['appointment-providers', serviceType],
     queryFn: () => appointments.listProviders(serviceType),
   });
@@ -158,6 +158,16 @@ export default function BookAppointmentStep2Screen() {
           <View style={{ alignItems: 'center', paddingTop: 60 }}>
             <ActivityIndicator size="large" color={theme.primary} />
             <Text style={{ marginTop: 12, color: theme.textMuted, fontSize: 14 }}>Loading clinicians...</Text>
+          </View>
+        ) : isError ? (
+          <View style={[styles.emptyBox, { borderColor: theme.border }]}>
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>Couldn't load clinicians</Text>
+            <Text style={[styles.emptyBody, { color: theme.textMuted }]}>
+              {error instanceof ApiError ? error.message : 'Please check your connection and try again.'}
+            </Text>
+            <TouchableOpacity onPress={() => refetch()} activeOpacity={0.85} style={{ marginTop: 12 }}>
+              <Text style={{ color: theme.primary, fontWeight: '700' }}>Try again</Text>
+            </TouchableOpacity>
           </View>
         ) : filteredProviders.length === 0 ? (
           <View style={[styles.emptyBox, { borderColor: theme.border }]}>

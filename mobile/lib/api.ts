@@ -226,6 +226,12 @@ export interface ServiceProvider {
   languages?: string[] | null;
 }
 
+export interface SchedulingPolicy {
+  cancellationWindowHours: number;
+  rescheduleWindowHours: number;
+  selfServiceEnabled: boolean;
+}
+
 export interface CreateAppointmentPayload {
   appointmentType: 'in_person' | 'virtual' | 'home_visit';
   serviceType?: string;
@@ -457,13 +463,22 @@ export const appointments = {
     );
   },
 
+  getSchedulingPolicy: () =>
+    apiRequest<SchedulingPolicy>('/appointments/scheduling-policy'),
+
   // Resolves to the bare appointment — the controller returns the service
   // result unwrapped and no interceptor adds a { data } envelope. Only
-  // list() is enveloped ({ data, meta }).
-  create: (data: CreateAppointmentPayload) =>
+  // list() is enveloped ({ data, meta }). The optional Idempotency-Key makes a
+  // retried or double-tapped booking replay the first appointment instead of
+  // creating a second one (the backend dedupes on it).
+  create: (data: CreateAppointmentPayload, idempotencyKey?: string) =>
     apiRequest<Appointment>(
       '/appointments',
-      { method: 'POST', body: JSON.stringify(data) }
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+        ...(idempotencyKey && { headers: { 'Idempotency-Key': idempotencyKey } }),
+      }
     ),
 
   cancel: (id: string, reason?: string) =>
@@ -635,7 +650,12 @@ export function generateIdempotencyKey(): string {
 }
 
 export const payments = {
-  list: () => apiRequest<{ data: Payment[] }>('/payments'),
+  // GET /payments returns a bare array (no { data } envelope); normalise so
+  // screens keep reading `.data` and a future envelope would also keep working.
+  list: async (): Promise<{ data: Payment[] }> => {
+    const res = await apiRequest<Payment[] | { data: Payment[] }>('/payments');
+    return { data: Array.isArray(res) ? res : res?.data ?? [] };
+  },
 
   initiate: (
     data: {
