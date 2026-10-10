@@ -769,7 +769,9 @@ export const payments = {
     }),
 
   getGatewayStatus: () =>
-    apiRequest<{ gateway: string; name: string; active: boolean }[]>('/payments/gateways/status'),
+    apiRequest<{ gateway: string; name: string; active: boolean; bankName?: string; accountNumber?: string; accountName?: string }[]>(
+      '/payments/gateways/status'
+    ),
 
   // Public endpoint; re-checks with the gateway so the app need not wait for the webhook.
   verify: (reference: string) =>

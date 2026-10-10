@@ -219,7 +219,11 @@ export default function RecordsHubScreen() {
   });
 
   const handleRequestRefill = (medication: string) => {
-    Alert.alert('Refill Requested', `Your refill request for ${medication} has been sent to your clinician.`);
+    // There is no refill-request endpoint yet, so never claim one was sent.
+    Alert.alert('Renew your prescription', `${medication} is renewed by your clinician during a consultation.`, [
+      { text: 'Not now', style: 'cancel' },
+      { text: 'Book a consultation', onPress: () => router.push('/book-appointment-step1') },
+    ]);
   };
 
   return (
@@ -445,7 +449,7 @@ export default function RecordsHubScreen() {
                             },
                           ]}>
                           <Text style={[styles.refillBtnText, { color: theme.status.warning.text }]}>
-                            Request Refill
+                            Renew with a consultation
                           </Text>
                         </TouchableOpacity>
                       ) : (

@@ -8,6 +8,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { subscriptions, payments, analytics, SubscriptionPlan, ApiError } from '@/lib/api';
 import { settlePayment, outcomeMessage } from '@/lib/paymentResult';
+import { planPriceKobo } from '@/lib/pricing';
 import GatewayPickerModal from '@/components/GatewayPickerModal';
 import { useGatewayAvailability } from '@/lib/useGatewayAvailability';
 import type { CardGateway } from '@/lib/gateway';
@@ -88,8 +89,7 @@ export default function SubscriptionScreen() {
     ]);
   };
 
-  const priceForCycle = (plan: SubscriptionPlan) =>
-    billingCycle === 'annually' && plan.annualPriceKobo ? plan.annualPriceKobo : plan.priceKobo;
+  const priceForCycle = (plan: SubscriptionPlan) => planPriceKobo(plan, billingCycle);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>

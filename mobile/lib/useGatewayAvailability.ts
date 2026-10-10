@@ -14,5 +14,6 @@ export function useGatewayAvailability() {
     queryFn: payments.getGatewayStatus,
     staleTime: 5 * 60_000,
   });
-  return { paystackActive: isPaystackActive(data) };
+  const bank = data?.find((g) => g.gateway === 'bank_transfer');
+  return { paystackActive: isPaystackActive(data), bank };
 }

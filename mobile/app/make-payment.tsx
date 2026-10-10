@@ -47,7 +47,7 @@ export default function MakePaymentScreen() {
 
   // The popup only opens once the API reports Paystack live, so a missing or
   // misconfigured key never presents patients with an option that would fail.
-  const { paystackActive } = useGatewayAvailability();
+  const { paystackActive, bank } = useGatewayAvailability();
   const [transferConfirm, setTransferConfirm] = useState<{ ref: string; amount: string } | null>(null);
 
   // One idempotency key per distinct (amount, description, gateway, save-card)
@@ -143,9 +143,9 @@ export default function MakePaymentScreen() {
             referenceId={transferConfirm.ref}
             details={[
               { label: 'Amount', value: transferConfirm.amount },
-              { label: 'Bank', value: BANK_DETAILS.bank },
-              { label: 'Account Number', value: BANK_DETAILS.account },
-              { label: 'Account Name', value: BANK_DETAILS.name },
+              { label: 'Bank', value: bank?.bankName ?? BANK_DETAILS.bank },
+              { label: 'Account Number', value: bank?.accountNumber ?? BANK_DETAILS.account },
+              { label: 'Account Name', value: bank?.accountName ?? BANK_DETAILS.name },
             ]}
             primaryActionLabel="Done"
             onPrimaryAction={() => router.back()}
