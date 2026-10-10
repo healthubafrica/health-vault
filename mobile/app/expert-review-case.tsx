@@ -163,10 +163,14 @@ export default function ExpertReviewCaseScreen() {
                 {report.followUpRequired ? (
                   <Text style={[styles.eventTitle, { color: theme.text }]}>Follow-up is recommended.</Text>
                 ) : null}
-                {report.pdfUrl ? (
+                {report.pdfUrl && /^https?:\/\//.test(report.pdfUrl) ? (
                   <TouchableOpacity
                     activeOpacity={0.85}
-                    onPress={() => Linking.openURL(report.pdfUrl as string).catch(() => {})}
+                    onPress={() =>
+                      Linking.openURL(report.pdfUrl as string).catch(() =>
+                        Alert.alert('Could not open report', 'Please try again later.'),
+                      )
+                    }
                     style={[styles.cta, { backgroundColor: theme.primary }]}>
                     <Text style={styles.ctaText}>Open report PDF</Text>
                   </TouchableOpacity>
@@ -174,7 +178,9 @@ export default function ExpertReviewCaseScreen() {
               </View>
             ) : (
               <Text style={[styles.meta, { color: theme.textMuted }]}>
-                No report yet. You will see it here when your specialist completes the review.
+                {c.status === 'cancelled'
+                  ? 'This case was cancelled.'
+                  : 'No report yet. You will see it here when your specialist completes the review.'}
               </Text>
             )}
           </>
