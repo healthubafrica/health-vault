@@ -27,7 +27,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
 import { appointments, telecare, analytics, ApiError } from '@/lib/api';
-import { canJoinCall, findSessionForAppointment, statusPill } from '@/lib/appointments';
+import { canJoinCall, findSessionForAppointment, isPastStatus, statusPill } from '@/lib/appointments';
 
 export default function TeleCareWaitingRoomScreen() {
   const router = useRouter();
@@ -37,12 +37,14 @@ export default function TeleCareWaitingRoomScreen() {
   const [isConnecting, setIsConnecting] = useState(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['appointments', 'upcoming'],
-    queryFn: () => appointments.list({ upcoming: true }),
+    // `upcoming` hides an appointment the moment its start time passes, which would
+    // drop a call that is late or already in progress. Look back a few hours instead.
+    queryKey: ['appointments', 'telecare-next'],
+    queryFn: () => appointments.list({ fromDate: new Date(Date.now() - 3 * 3600 * 1000).toISOString() }),
   });
 
   const nextTelecare = (data?.data ?? [])
-    .filter((a) => a.isTelecare)
+    .filter((a) => a.isTelecare && !isPastStatus(a.status))
     .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())[0];
 
   const providerName = nextTelecare?.provider
@@ -128,7 +130,9 @@ export default function TeleCareWaitingRoomScreen() {
             </View>
             <View style={styles.providerInfo}>
               <Text style={[styles.providerName, { color: theme.text }]}>{providerName}</Text>
-              <Text style={[styles.specialtyText, { color: theme.textMuted }]}>{nextTelecare.provider?.specialty || 'General Practitioner'}</Text>
+              {nextTelecare.provider?.specialty ? (
+                <Text style={[styles.specialtyText, { color: theme.textMuted }]}>{nextTelecare.provider.specialty}</Text>
+              ) : null}
             </View>
             <StatusPill {...statusPill(nextTelecare.status)} />
           </View>

@@ -117,6 +117,22 @@ export default function AppointmentsScreen() {
         'Appointment Options',
         `Choose an action for your appointment:`,
         [
+          {
+            text: 'Reschedule',
+            onPress: () =>
+              router.push({
+                pathname: '/book-appointment-step3',
+                params: {
+                  rescheduleId: item.id,
+                  serviceType: item.serviceType,
+                  serviceName: item.serviceType,
+                  providerId: item.providerId ?? '',
+                  providerName: item.provider
+                    ? `${item.provider.title ?? 'Dr.'} ${item.provider.firstName} ${item.provider.lastName}`
+                    : '',
+                },
+              }),
+          },
           { text: 'Cancel Appointment', style: 'destructive', onPress: () => handleCancel(item) },
           { text: 'Dismiss', style: 'cancel' },
         ]

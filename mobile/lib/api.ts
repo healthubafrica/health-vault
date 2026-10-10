@@ -262,6 +262,11 @@ export interface ServiceProvider {
   bio?: string | null;
   yearsExperience?: number | null;
   languages?: string[] | null;
+  subspecialties?: string[] | null;
+  qualifications?: string[] | null;
+  clinicName?: string | null;
+  clinicCity?: string | null;
+  clinicState?: string | null;
 }
 
 export interface SchedulingPolicy {
@@ -520,7 +525,8 @@ export const vitals = {
 };
 
 export const appointments = {
-  list: (params?: { status?: string; upcoming?: boolean }) => {
+  // fromDate (ISO) is supported by the backend query DTO; `upcoming` drops anything already started.
+  list: (params?: { status?: string; upcoming?: boolean; fromDate?: string }) => {
     const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
     return apiRequest<{ data: Appointment[]; meta: { total: number } }>(`/appointments${qs}`);
   },
@@ -564,6 +570,13 @@ export const appointments = {
       `/appointments/${id}/cancel`,
       { method: 'POST', body: JSON.stringify({ reason: reason ?? '' }) }
     ),
+
+  // POST /appointments/:id/reschedule — moves a booked appointment to a new slot.
+  reschedule: (id: string, scheduledAt: string, durationMinutes?: number) =>
+    apiRequest<Appointment>(`/appointments/${id}/reschedule`, {
+      method: 'POST',
+      body: JSON.stringify({ scheduledAt, ...(durationMinutes ? { durationMinutes } : {}) }),
+    }),
 };
 
 // ── Analytics (fire-and-forget) ───────────────────────────────────────────

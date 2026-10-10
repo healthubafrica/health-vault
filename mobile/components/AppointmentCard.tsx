@@ -6,9 +6,9 @@ import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from './StatusPill';
 
 interface AppointmentCardProps {
-  providerName?: string;
+  providerName: string;
   specialty?: string;
-  time?: string;
+  time: string;
   type?: 'TeleCare' | 'In-Person' | string;
   status?: string;
   actionLabel?: string;
@@ -17,15 +17,16 @@ interface AppointmentCardProps {
 }
 
 export default function AppointmentCard({
-  providerName = 'Dr. Naledi Dlamini',
-  specialty = 'General Practitioner',
-  time = 'Today, 2:30 PM',
+  providerName,
+  specialty,
+  time,
   type = 'TeleCare',
   status = 'confirmed',
   actionLabel = 'Join Call',
   onActionPress,
-  initials = 'ND',
+  initials,
 }: AppointmentCardProps) {
+  const shownInitials = initials || providerName.replace(/^Dr\.?\s*/i, '').slice(0, 2).toUpperCase();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
   const isTele = type === 'TeleCare';
@@ -35,7 +36,7 @@ export default function AppointmentCard({
       <View style={styles.topRow}>
         {/* Avatar */}
         <View style={[styles.avatar, { backgroundColor: theme.primaryLight }]}>
-          <Text style={[styles.avatarText, { color: theme.primary }]}>{initials}</Text>
+          <Text style={[styles.avatarText, { color: theme.primary }]}>{shownInitials}</Text>
         </View>
 
         {/* Info */}
@@ -46,7 +47,7 @@ export default function AppointmentCard({
             </Text>
             <StatusPill status={status} />
           </View>
-          <Text style={[styles.specialty, { color: theme.textMuted }]}>{specialty}</Text>
+          {specialty ? <Text style={[styles.specialty, { color: theme.textMuted }]}>{specialty}</Text> : null}
 
           {/* Meta row */}
           <View style={styles.metaRow}>

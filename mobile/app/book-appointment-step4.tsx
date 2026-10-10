@@ -29,7 +29,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
 import { useQuery } from '@tanstack/react-query';
 import { appointments, analytics, ApiError, generateIdempotencyKey } from '@/lib/api';
-import { BOOKING_DURATION_MINUTES } from '@/lib/booking';
+import { BOOKING_DURATION_MINUTES, isVideoService } from '@/lib/booking';
 import { queryClient } from '@/lib/queryClient';
 
 export default function BookAppointmentStep4Screen() {
@@ -75,7 +75,7 @@ export default function BookAppointmentStep4Screen() {
       analytics.track('ui_click', { element_id: 'book_appointment_cta', feature_area: 'appointments' });
       analytics.track('booking_started', { serviceType: params.serviceType, hasProvider: !!params.providerId });
       const res = await appointments.create({
-        appointmentType: params.consultationFormat === 'in_person' ? 'in_person' : 'virtual',
+        appointmentType: isVideoService(params.serviceType) ? 'virtual' : 'in_person',
         serviceType: params.serviceType || 'TeleCare',
         scheduledAt: params.scheduledAtIso,
         durationMinutes: BOOKING_DURATION_MINUTES,
@@ -172,7 +172,7 @@ export default function BookAppointmentStep4Screen() {
                     <Text style={[styles.detailLabel, { color: theme.textMuted }]}>Date</Text>
                   </View>
                   <Text style={[styles.detailVal, { color: theme.text }]}>
-                    {params.appointmentDate || 'Today, 21 Jul 2025'}
+                    {params.appointmentDate || '—'}
                   </Text>
                 </View>
 
@@ -182,7 +182,7 @@ export default function BookAppointmentStep4Screen() {
                     <Text style={[styles.detailLabel, { color: theme.textMuted }]}>Time</Text>
                   </View>
                   <Text style={[styles.detailVal, { color: theme.text }]}>
-                    {params.appointmentTime || '02:30 PM'}
+                    {params.appointmentTime || '—'}
                   </Text>
                 </View>
 
@@ -251,7 +251,7 @@ export default function BookAppointmentStep4Screen() {
             <Text style={[styles.refLabel, { color: theme.textMuted }]}>BOOKING REFERENCE</Text>
             <Text style={[styles.refNumber, { color: theme.primaryDark }]}>#{bookingRef}</Text>
             <Text style={[styles.refTime, { color: theme.textMuted }]}>
-              {params.appointmentDate || 'Today, 21 Aug'} at {params.appointmentTime || '02:30 PM'}
+              {params.appointmentDate || '—'} at {params.appointmentTime || '—'}
             </Text>
           </View>
 
