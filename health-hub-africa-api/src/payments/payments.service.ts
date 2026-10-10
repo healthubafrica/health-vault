@@ -84,33 +84,40 @@ export class PaymentsService {
     if (clientIdempotencyKey && !/^[A-Za-z0-9_-]{1,128}$/.test(clientIdempotencyKey)) {
       throw new BadRequestException('Idempotency-Key must be 1-128 characters: letters, numbers, "-", or "_".');
     }
+    // A key reused for a genuinely different request (different patient, amount,
+    // currency, gateway, purpose, plan or billing cycle) is a client bug or a stale
+    // key from an edited form; replaying it would return a response for the wrong
+    // request, so reject rather than guess. purpose / referenceId / billingCycle are
+    // compared via the fingerprint stored at create time (absent on legacy rows).
+    const assertSameRequest = (existing: {
+      patientId: string;
+      amountKobo: number;
+      currency: string;
+      gateway: PaymentGateway;
+      metadata: Prisma.JsonValue | null;
+    }) => {
+      const storedFp = (existing.metadata as { idemFingerprint?: Record<string, unknown> } | null)?.idemFingerprint;
+      const sameFingerprint =
+        !storedFp ||
+        (storedFp.purpose === fingerprint.purpose &&
+          (storedFp.referenceId ?? null) === fingerprint.referenceId &&
+          (storedFp.billingCycle ?? null) === fingerprint.billingCycle);
+      const sameRequest =
+        existing.patientId === patient.id &&
+        existing.amountKobo === dto.amountKobo &&
+        existing.currency === dto.currency &&
+        existing.gateway === dto.gateway &&
+        sameFingerprint;
+      if (!sameRequest) {
+        throw new BadRequestException(
+          'This idempotency key was already used for a different request. Please retry with a fresh key.',
+        );
+      }
+    };
     if (clientIdempotencyKey) {
       const existing = await this.prisma.payment.findUnique({ where: { idempotencyKey: clientIdempotencyKey } });
       if (existing) {
-        // A key reused for a genuinely different request (different patient,
-        // amount, currency, or gateway) is either a client bug or a stale key
-        // left over from an edited form — replaying it would silently return
-        // a response for the wrong amount. Reject rather than guess.
-        // purpose / referenceId (e.g. plan id) / billingCycle are compared via
-        // the fingerprint stored at create time (absent on legacy rows).
-        const storedFp = (existing.metadata as { idemFingerprint?: Record<string, unknown> } | null)
-          ?.idemFingerprint;
-        const sameFingerprint =
-          !storedFp ||
-          (storedFp.purpose === fingerprint.purpose &&
-            (storedFp.referenceId ?? null) === fingerprint.referenceId &&
-            (storedFp.billingCycle ?? null) === fingerprint.billingCycle);
-        const sameRequest =
-          existing.patientId === patient.id &&
-          existing.amountKobo === dto.amountKobo &&
-          existing.currency === dto.currency &&
-          existing.gateway === dto.gateway &&
-          sameFingerprint;
-        if (!sameRequest) {
-          throw new BadRequestException(
-            'This idempotency key was already used for a different request. Please retry with a fresh key.',
-          );
-        }
+        assertSameRequest(existing);
         return this.replayInitiateResponse(existing);
       }
     }
@@ -160,7 +167,10 @@ export class PaymentsService {
     // unique constraint on idempotencyKey already stopped a duplicate row
     // from existing; replay the winner's result instead of surfacing its
     // uncaught constraint violation as a 500.
-    if (conflicted) return this.replayInitiateResponse(payment);
+    if (conflicted) {
+      assertSameRequest(payment);
+      return this.replayInitiateResponse(payment);
+    }
 
     // Initiate charge with the selected gateway
     if (dto.gateway === PaymentGateway.Flutterwave) {

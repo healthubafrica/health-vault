@@ -177,6 +177,29 @@ describe('PaymentsService', () => {
       expect(result).toEqual(expect.objectContaining({ paymentId: 'pay-winner' }));
     });
 
+    it('rejects the race loser when the winner was created for a different amount', async () => {
+      mockPrisma.payment.findUnique.mockResolvedValue(null);
+      mockPrisma.payment.findUniqueOrThrow.mockResolvedValue({
+        id: 'pay-winner',
+        patientId: patient.id,
+        amountKobo: dto.amountKobo + 1000,
+        currency: dto.currency,
+        gateway: dto.gateway,
+        gatewayRef: null,
+        idempotencyKey: 'key-race2',
+        status: PaymentStatus.pending,
+        metadata: null,
+      });
+      mockPrisma.payment.findFirst.mockResolvedValue(null);
+      mockPrisma.payment.create.mockRejectedValue(
+        Object.assign(new Error('Unique constraint failed'), { code: 'P2002', meta: { target: ['idempotency_key'] } }),
+      );
+
+      await expect(service.initiate(dto as any, patientUser, { idempotencyKey: 'key-race2' })).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
     it('rethrows a P2002 on an unrelated constraint instead of misattributing it to the idempotency race', async () => {
       mockPrisma.payment.findUnique.mockResolvedValue(null);
       mockPrisma.payment.findFirst.mockResolvedValue(null);
