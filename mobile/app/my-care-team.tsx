@@ -14,7 +14,6 @@ import { useQuery } from '@tanstack/react-query';
 import {
   ChevronLeft,
   Users,
-  Plus,
   Info,
   ChevronRight,
 } from 'lucide-react-native';
@@ -23,7 +22,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import EmergencyFAB from '@/components/EmergencyFAB';
 import { patients, CareTeamMember } from '@/lib/api';
-import { EmptyState, ListSkeleton } from '@/components/states';
+import { EmptyState, ListSkeleton, ErrorState } from '@/components/states';
 
 function initialsOf(m: CareTeamMember) {
   return `${m.firstName[0] ?? ''}${m.lastName[0] ?? ''}`.toUpperCase();
@@ -34,7 +33,7 @@ export default function MyCareTeamScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['care-team'],
     queryFn: () => patients.getMyCareTeam(),
   });
@@ -49,13 +48,6 @@ export default function MyCareTeamScreen() {
         { text: 'Cancel', style: 'cancel' },
         { text: 'Start TeleCare', onPress: () => router.push('/(tabs)/telecare') },
       ]
-    );
-  };
-
-  const handleAddProvider = () => {
-    Alert.alert(
-      'Add Healthcare Provider',
-      'Enter provider practice number (e.g. HPCSA / PR-XXXXX) or search registered clinics in the Health Hub Africa network.'
     );
   };
 
@@ -86,7 +78,7 @@ export default function MyCareTeamScreen() {
                 {careTeam.length} Provider{careTeam.length === 1 ? '' : 's'}
               </Text>
               <Text style={[styles.summaryBody, { color: theme.primaryDark }]}>
-                Providers you've seen have access to your health records and can send you messages and test results.
+                These are the providers you have had appointments with. The list updates automatically after each visit.
               </Text>
             </View>
           </View>
@@ -98,11 +90,13 @@ export default function MyCareTeamScreen() {
 
           {isLoading ? (
             <ListSkeleton rows={2} />
+          ) : isError ? (
+            <ErrorState onRetry={() => refetch()} />
           ) : careTeam.length === 0 ? (
             <EmptyState
               icon={Users}
               title="No providers yet"
-              description="Providers appear here after your first appointment, and can then access your records to provide care."
+              description="Providers appear here after your first appointment."
               primaryActionLabel="Book Care"
               onPrimaryAction={() => router.push('/book-appointment-step1')}
             />
@@ -149,43 +143,21 @@ export default function MyCareTeamScreen() {
           )}
         </View>
 
-        {/* Manage Team Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>MANAGE TEAM</Text>
-
-          <TouchableOpacity
-            activeOpacity={0.75}
-            onPress={handleAddProvider}
-            style={[styles.addCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <View style={[styles.plusIconBox, { backgroundColor: theme.primaryLight }]}>
-              <Plus size={20} color={theme.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.addTitle, { color: theme.text }]}>Add Provider</Text>
-              <Text style={[styles.addSub, { color: theme.textMuted }]}>Invite a new healthcare provider</Text>
-            </View>
-            <ChevronRight size={18} color={theme.textMuted} />
-          </TouchableOpacity>
-        </View>
-
         {/* How It Works Explainer */}
         <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.infoRow}>
             <Info size={20} color={theme.primary} style={{ marginTop: 2 }} />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.infoTitle, { color: theme.text }]}>How it works</Text>
+              <Text style={[styles.infoTitle, { color: theme.text }]}>How your team is built</Text>
               <View style={styles.bulletsList}>
                 <Text style={[styles.bulletText, { color: theme.textMuted }]}>
-                  • Providers can access your medical history and health records
+                  • Your care team is built automatically from the providers you have seen or booked with.
                 </Text>
                 <Text style={[styles.bulletText, { color: theme.textMuted }]}>
-                  • You control who has access to your data
+                  • To see a new provider, book an appointment with them and they will appear here after the visit.
                 </Text>
                 <Text style={[styles.bulletText, { color: theme.textMuted }]}>
-                  • Revoke access anytime by removing a provider
-                </Text>
-                <Text style={[styles.bulletText, { color: theme.textMuted }]}>
-                  • All data is encrypted and secure
+                  • To choose who can see your records, use Share Records.
                 </Text>
               </View>
             </View>

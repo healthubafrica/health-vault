@@ -24,29 +24,29 @@ import {
   ShieldAlert,
   Send,
   FileQuestion,
+  ChevronRight,
+  Inbox,
 } from 'lucide-react-native';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { support, ApiError } from '@/lib/api';
-import { NoSearchResultState } from '@/components/states';
+import { NoSearchResultState, EmptyState, ErrorState, ListSkeleton } from '@/components/states';
+import StatusPill from '@/components/StatusPill';
+import { ticketStatusLabel, ticketStatusPill } from '@/lib/supportTickets';
 
 const FAQS = [
   {
     q: 'How do I share my medical records with a new doctor?',
-    a: 'Go to Profile ➔ Share My Records. You will generate a live single-use QR code and a 6-digit emergency PIN with granular permissions and a 15-minute expiration timer.',
+    a: 'Open the Records tab and use Share Records to create a time-limited share link. You choose which record types are included and when it expires, and you can revoke it at any time.',
   },
   {
-    q: 'Is my clinical data and diagnostic history encrypted?',
-    a: 'Yes. All personal health data in MyHealth Vault+ is encrypted at rest and in transit using military-grade 256-bit AES cryptographic protocols compliant with POPIA and HIPAA standards.',
+    q: 'How is my data protected?',
+    a: 'Your data travels over encrypted connections and is only visible to you and to the clinicians you are assigned to or choose to share with. You can review what you have consented to under Privacy & Security.',
   },
   {
-    q: 'How does the 24/7 Paramedic SOS button work?',
-    a: 'Tapping the SOS beacon triggers a high-priority geo-located paramedic dispatch broadcast and automatically reveals your critical allergy/blood type profile to first responders.',
-  },
-  {
-    q: 'Can I claim prescription and doctor fees from Discovery Health?',
-    a: 'Yes. Health Hub Africa supports direct electronic real-time billing with major medical aid schemes across South Africa.',
+    q: 'How does the SOS button work?',
+    a: 'Tapping SOS sends a DispatchCare request with your phone number and, if you allow it, your location. A dispatcher then contacts you. If the request fails the app will tell you, and you should call 112 immediately.',
   },
 ];
 
@@ -54,6 +54,10 @@ export default function HelpSupportScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
+
+  const qc = useQueryClient();
+  const ticketsQuery = useQuery({ queryKey: ['support-tickets'], queryFn: () => support.list() });
+  const tickets = ticketsQuery.data ?? [];
 
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedFaq, setExpandedFaq] = useState<number | null>(0);
@@ -75,6 +79,7 @@ export default function HelpSupportScreen() {
       );
       setTicketSubject('');
       setTicketMessage('');
+      qc.invalidateQueries({ queryKey: ['support-tickets'] });
     },
     onError: (err: unknown) => {
       Alert.alert('Could not submit ticket', err instanceof ApiError ? err.message : 'Please try again.');
@@ -122,30 +127,6 @@ export default function HelpSupportScreen() {
         </View>
 
         {/* Contact Channels Grid */}
-        <View style={styles.channelsGrid}>
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => router.push('/telecare-call')}
-            style={[styles.channelCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <View style={[styles.channelIcon, { backgroundColor: theme.primaryLight }]}>
-              <MessageSquare size={20} color={theme.primary} />
-            </View>
-            <Text style={[styles.channelTitle, { color: theme.text }]}>Clinician Chat</Text>
-            <Text style={[styles.channelSub, { color: theme.textMuted }]}>Average response: 3 mins</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => Linking.openURL('tel:+27800044243')}
-            style={[styles.channelCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <View style={[styles.channelIcon, { backgroundColor: '#E0F2FE' }]}>
-              <PhoneCall size={20} color="#0284C7" />
-            </View>
-            <Text style={[styles.channelTitle, { color: theme.text }]}>Toll-Free Helpline</Text>
-            <Text style={[styles.channelSub, { color: theme.textMuted }]}>0800 044 243 (24/7)</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Emergency SOS Helpline */}
         <TouchableOpacity
           activeOpacity={0.85}
@@ -154,7 +135,7 @@ export default function HelpSupportScreen() {
           <ShieldAlert size={22} color="#B42318" />
           <View style={{ flex: 1 }}>
             <Text style={styles.emergencyTitle}>Life-Threatening Emergency?</Text>
-            <Text style={styles.emergencyDesc}>Tap for instant GPS paramedic ambulance dispatch & triage.</Text>
+            <Text style={styles.emergencyDesc}>Tap to send a DispatchCare request.</Text>
           </View>
         </TouchableOpacity>
 
@@ -233,6 +214,45 @@ export default function HelpSupportScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* My tickets */}
+        <View style={styles.sectionHeader}>
+          <Inbox size={18} color={theme.primary} />
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>My Tickets</Text>
+        </View>
+
+        {ticketsQuery.isLoading ? (
+          <ListSkeleton rows={2} />
+        ) : ticketsQuery.isError ? (
+          <ErrorState onRetry={() => ticketsQuery.refetch()} />
+        ) : tickets.length === 0 ? (
+          <EmptyState
+            icon={Inbox}
+            title="No tickets yet"
+            description="Messages you send to support will show up here with their replies."
+          />
+        ) : (
+          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            {tickets.map((t, idx) => (
+              <React.Fragment key={t.id}>
+                {idx > 0 && <View style={[styles.divider, { backgroundColor: theme.border }]} />}
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => router.push({ pathname: '/support-ticket', params: { id: t.id } } as never)}
+                  style={styles.faqRow}>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text style={[styles.faqQuestion, { color: theme.text }]} numberOfLines={2}>{t.subject}</Text>
+                    <Text style={[styles.channelSub, { color: theme.textMuted }]}>
+                      #{t.hhaRef} · {new Date(t.updatedAt ?? t.createdAt).toLocaleDateString()}
+                    </Text>
+                  </View>
+                  <StatusPill status={ticketStatusPill(t.status)} label={ticketStatusLabel(t.status)} />
+                  <ChevronRight size={16} color={theme.textMuted} />
+                </TouchableOpacity>
+              </React.Fragment>
+            ))}
+          </View>
+        )}
 
       </ScrollView>
     </SafeAreaView>

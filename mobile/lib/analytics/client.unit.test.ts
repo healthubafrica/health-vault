@@ -1,4 +1,5 @@
 import { track, pageView } from './client';
+import { setAccessToken } from '../api';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -43,6 +44,23 @@ describe('mobile analytics client — track()', () => {
     expect(body.ingestionSource).toBe('mobile');
     expect(body.eventId).toMatch(UUID_RE);
     expect(body.anonymousVisitorId).toMatch(UUID_RE);
+  });
+
+  it('sends the bearer token only while signed in, and never a patient id', async () => {
+    track('ui_click', { element_id: 'a' });
+    await jest.advanceTimersByTimeAsync(0);
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBeUndefined();
+
+    setAccessToken('tok123');
+    try {
+      track('ui_click', { element_id: 'b' });
+      await jest.advanceTimersByTimeAsync(0);
+      const [, init] = fetchMock.mock.calls[1];
+      expect(init.headers.Authorization).toBe('Bearer tok123');
+      expect(JSON.parse(init.body)).not.toHaveProperty('patientId');
+    } finally {
+      setAccessToken(null);
+    }
   });
 
   it('maps legacy snake_case field names onto first-class DTO columns', async () => {

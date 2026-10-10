@@ -14,11 +14,12 @@
       "bundleIdentifier": "com.myvaultplus.app",
       "infoPlist": {
         "NSCameraUsageDescription": "MyHealth Vault+ needs camera access for TeleCare video consultations.",
-        "NSMicrophoneUsageDescription": "MyHealth Vault+ needs microphone access for TeleCare video consultations."
+        "NSMicrophoneUsageDescription": "MyHealth Vault+ needs microphone access for TeleCare video consultations.",
+        "NSLocationWhenInUseUsageDescription": "MyHealth Vault+ uses your location only when you request emergency dispatch, so responders can find you."
       }
     },
     "android": {
-      "package": "com.myvaultsplus.app",
+      "package": "com.myvaultplus.app",
       "adaptiveIcon": {
         "backgroundColor": "#137333",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -69,10 +70,22 @@
       ],
       "expo-font",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "MyHealth Vault+ needs access to your photos so you can choose a profile picture."
+        }
+      ],
+      [
         "expo-notifications",
         {
           "icon": "./assets/images/android-icon-monochrome.png",
           "color": "#137333"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "MyHealth Vault+ uses your location only when you request emergency dispatch, so responders can find you."
         }
       ]
     ],

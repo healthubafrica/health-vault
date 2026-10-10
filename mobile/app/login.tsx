@@ -33,35 +33,32 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // ── Forgot Password ───────────────────────────────────────────────────────
-
   const handleForgotPassword = () => {
-    Alert.alert(
-      'Reset Password',
-      'Enter your registered email address to receive a reset code:',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Send Reset Code',
-          onPress: async () => {
-            if (!email.trim()) {
-              Alert.alert('Email required', 'Please enter your email address first.');
-              return;
-            }
-            try {
-              await auth.forgotPassword(email.trim());
-              Alert.alert('Check your email', 'A password reset code has been sent to your inbox.');
-            } catch (err) {
-              const msg = err instanceof ApiError ? err.message : 'Failed to send reset code.';
-              Alert.alert('Error', msg);
-            }
-          },
-        },
-      ]
-    );
+    router.push({ pathname: '/reset-password', params: { email: email.trim() } } as never);
   };
 
-  // ── Login ─────────────────────────────────────────────────────────────────
+  const completeLogin = async (accessToken: string, refreshToken: string) => {
+    // Must happen before any authenticated request below — apiRequest reads
+    // this in-memory token synchronously, and it isn't set until loginStore
+    // runs. Fetching the profile first sent every fresh login out with no
+    // Authorization header, which 401'd, found no refresh token saved yet
+    // either, and surfaced as a false "Your session has expired" error.
+    setAccessToken(accessToken);
+
+    // Fetch full patient profile
+    const { data: profile } = await patients.getMyProfile();
+
+    await loginStore(accessToken, refreshToken, {
+      id: profile.id,
+      email: profile.user.email,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      phone: profile.user.phone ?? undefined,
+      avatarUrl: profile.profilePhotoUrl ?? undefined,
+    });
+
+    router.replace('/(tabs)');
+  };
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
@@ -73,36 +70,7 @@ export default function LoginScreen() {
     try {
       const result = await auth.login(email.trim(), password);
 
-      if ('requiresTwoFactor' in result) {
-        // OTP required — navigate to OTP verification screen
-        Alert.alert('OTP Required', 'A one-time code has been sent to your email/phone.');
-        // TODO: navigate to OTP screen when built
-        setIsLoading(false);
-        return;
-      }
-
-      const { accessToken, refreshToken } = result;
-
-      // Must happen before any authenticated request below — apiRequest reads
-      // this in-memory token synchronously, and it isn't set until loginStore
-      // runs. Fetching the profile first sent every fresh login out with no
-      // Authorization header, which 401'd, found no refresh token saved yet
-      // either, and surfaced as a false "Your session has expired" error.
-      setAccessToken(accessToken);
-
-      // Fetch full patient profile
-      const { data: profile } = await patients.getMyProfile();
-
-      await loginStore(accessToken, refreshToken, {
-        id: profile.id,
-        email: profile.user.email,
-        firstName: profile.firstName,
-        lastName: profile.lastName,
-        phone: profile.user.phone ?? undefined,
-        avatarUrl: profile.profilePhotoUrl ?? undefined,
-      });
-
-      router.replace('/(tabs)');
+      await completeLogin(result.accessToken, result.refreshToken);
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'Login failed. Please try again.';
       Alert.alert('Sign In Failed', msg);
@@ -184,6 +152,7 @@ export default function LoginScreen() {
                 </TouchableOpacity>
               </View>
             </View>
+
 
             {/* Login Button */}
             <TouchableOpacity

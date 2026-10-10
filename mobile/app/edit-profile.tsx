@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { bloodGroupLabel, bloodGroupToApi } from '@/lib/bloodGroup';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,7 +10,10 @@ import {
   StatusBar,
   TextInput,
   Alert,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import {
   ChevronLeft,
@@ -18,11 +22,13 @@ import {
   Check,
 } from 'lucide-react-native';
 
+import { ErrorState } from '@/components/states';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import EmergencyFAB from '@/components/EmergencyFAB';
 import { patients, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/authStore';
+import { uploadProfilePhoto } from '@/lib/profilePhoto';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export default function EditProfileScreen() {
@@ -32,7 +38,7 @@ export default function EditProfileScreen() {
   const authUser = useAuthStore((s) => s.user);
   const qc = useQueryClient();
 
-  const { data: profileRes } = useQuery({
+  const { data: profileRes, isError: profileError, refetch: refetchProfile } = useQuery({
     queryKey: ['patient', 'profile'],
     queryFn: () => patients.getMyProfile(),
   });
@@ -45,14 +51,37 @@ export default function EditProfileScreen() {
     email: profile?.user?.email ?? authUser?.email ?? '',
     phone: profile?.user?.phone ?? authUser?.phone ?? '',
     dateOfBirth: profile?.dateOfBirth ?? '',
-    gender: profile?.gender ?? 'Female',
-    bloodType: profile?.bloodGroup ?? 'O+',
-    height: profile?.medicalInfo?.heightCm ? String(profile.medicalInfo.heightCm) : '170',
-    weight: profile?.medicalInfo?.weightKg ? String(profile.medicalInfo.weightKg) : '65',
+    gender: profile?.gender ?? '',
+    bloodType: bloodGroupLabel(profile?.bloodGroup) ?? '',
+    height: profile?.medicalInfo?.heightCm ? String(profile.medicalInfo.heightCm) : '',
+    weight: profile?.medicalInfo?.weightKg ? String(profile.medicalInfo.weightKg) : '',
     address: profile?.address ?? '',
     city: profile?.city ?? '',
     country: profile?.country ?? 'Nigeria',
   });
+
+  // The form is created before the profile request resolves, so fill it from
+  // the real profile once it arrives. Without this the defaults stay in place
+  // and Save overwrites the patient's actual details.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    if (!profile || hydrated) return;
+    setHydrated(true);
+    setFormData({
+      firstName: profile.firstName ?? '',
+      lastName: profile.lastName ?? '',
+      email: profile.user?.email ?? '',
+      phone: profile.user?.phone ?? '',
+      dateOfBirth: profile.dateOfBirth ? String(profile.dateOfBirth).slice(0, 10) : '',
+      gender: profile.gender ?? '',
+      bloodType: bloodGroupLabel(profile.bloodGroup) ?? '',
+      height: profile.medicalInfo?.heightCm ? String(profile.medicalInfo.heightCm) : '',
+      weight: profile.medicalInfo?.weightKg ? String(profile.medicalInfo.weightKg) : '',
+      address: profile.address ?? '',
+      city: profile.city ?? '',
+      country: profile.country ?? 'Nigeria',
+    });
+  }, [profile, hydrated]);
 
   const updateMutation = useMutation({
     mutationFn: async () => {
@@ -60,14 +89,16 @@ export default function EditProfileScreen() {
       return patients.update(profile.id, {
         firstName: formData.firstName,
         lastName: formData.lastName,
-        bloodGroup: formData.bloodType,
+        ...(bloodGroupToApi(formData.bloodType) && { bloodGroup: bloodGroupToApi(formData.bloodType) }),
         address: formData.address,
         city: formData.city,
         country: formData.country,
-        medicalInfo: {
-          heightCm: parseFloat(formData.height) || undefined,
-          weightKg: parseFloat(formData.weight) || undefined,
-        },
+        ...((parseFloat(formData.height) > 0 || parseFloat(formData.weight) > 0) && {
+          medicalInfo: {
+            heightCm: parseFloat(formData.height) > 0 ? parseFloat(formData.height) : undefined,
+            weightKg: parseFloat(formData.weight) > 0 ? parseFloat(formData.weight) : undefined,
+          },
+        }),
       });
     },
     onSuccess: () => {
@@ -88,10 +119,65 @@ export default function EditProfileScreen() {
     updateMutation.mutate();
   };
 
+  const photoUrl = authUser?.avatarUrl ?? profile?.profilePhotoUrl ?? undefined;
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  const setAvatar = (avatarUrl?: string) => {
+    const current = useAuthStore.getState().user;
+    if (current) useAuthStore.setState({ user: { ...current, avatarUrl } });
+    // Write the new value (null when removed) into the cached profile so the
+    // screen never falls back to a stale profilePhotoUrl while it refetches.
+    qc.setQueryData(['patient', 'profile'], (old: typeof profileRes) =>
+      old ? { ...old, data: { ...old.data, profilePhotoUrl: avatarUrl ?? null } } : old,
+    );
+    qc.invalidateQueries({ queryKey: ['patient', 'profile'] });
+  };
+
+  const pickAndUpload = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission needed', 'Allow photo access in your device settings to choose a profile photo.');
+        return;
+      }
+      const picked = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (picked.canceled || !picked.assets?.[0]) return;
+      setPhotoBusy(true);
+      const url = await uploadProfilePhoto(picked.assets[0]);
+      setAvatar(url ?? undefined);
+    } catch (err) {
+      Alert.alert('Could not update photo', err instanceof Error ? err.message : 'Please try again.');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const removePhoto = async () => {
+    setPhotoBusy(true);
+    try {
+      await patients.removeProfilePhoto();
+      setAvatar(undefined);
+    } catch (err) {
+      Alert.alert('Could not remove photo', err instanceof Error ? err.message : 'Please try again.');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
   const handleChangePhoto = () => {
-    Alert.alert('Change Profile Photo', 'Choose an option to update your photo:', [
-      { text: 'Take Photo', onPress: () => {} },
-      { text: 'Choose from Gallery', onPress: () => {} },
+    if (photoBusy) return;
+    if (!photoUrl) {
+      void pickAndUpload();
+      return;
+    }
+    Alert.alert('Profile photo', undefined, [
+      { text: 'Choose new photo', onPress: () => void pickAndUpload() },
+      { text: 'Remove photo', style: 'destructive', onPress: () => void removePhoto() },
       { text: 'Cancel', style: 'cancel' },
     ]);
   };
@@ -113,18 +199,26 @@ export default function EditProfileScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {profileError && !profile ? (
+          <ErrorState title="Couldn't load your profile" onRetry={() => refetchProfile()} />
+        ) : null}
         
         {/* Avatar Section */}
         <View style={styles.avatarSection}>
           <View style={[styles.avatarBox, { backgroundColor: theme.primaryDark }]}>
-            <Text style={styles.avatarText}>AO</Text>
+            {photoUrl ? (
+              <Image source={{ uri: photoUrl }} style={styles.avatarImage} accessibilityLabel="Profile photo" />
+            ) : (
+              <Text style={styles.avatarText}>{`${formData.firstName[0] ?? ''}${formData.lastName[0] ?? ''}`.toUpperCase() || '·'}</Text>
+            )}
+            {photoBusy && <ActivityIndicator color="#FFFFFF" style={StyleSheet.absoluteFill} />}
           </View>
           <TouchableOpacity
             onPress={handleChangePhoto}
             activeOpacity={0.75}
             style={styles.changePhotoBtn}>
             <Camera size={16} color={theme.primary} />
-            <Text style={[styles.changePhotoText, { color: theme.primary }]}>Change Photo</Text>
+            <Text style={[styles.changePhotoText, { color: theme.primary }]}>{photoBusy ? 'Updating…' : 'Change Photo'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -157,7 +251,7 @@ export default function EditProfileScreen() {
             <TextInput
               style={[styles.inputField, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
               value={formData.dateOfBirth}
-              onChangeText={(text) => setFormData({ ...formData, dateOfBirth: text })}
+              editable={false}
               placeholderTextColor={theme.textMuted}
             />
           </View>
@@ -166,13 +260,9 @@ export default function EditProfileScreen() {
             <Text style={[styles.inputLabel, { color: theme.textMuted }]}>GENDER</Text>
             <TouchableOpacity
               activeOpacity={0.75}
-              onPress={() => {
-                const nextGender = formData.gender === 'Female' ? 'Male' : 'Female';
-                setFormData({ ...formData, gender: nextGender });
-              }}
+              disabled
               style={[styles.dropdownField, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.dropdownText, { color: theme.text }]}>{formData.gender}</Text>
-              <ChevronDown size={18} color={theme.textMuted} />
+              <Text style={[styles.dropdownText, { color: theme.text }]}>{formData.gender || 'Not set'}</Text>
             </TouchableOpacity>
           </View>
 
@@ -182,12 +272,11 @@ export default function EditProfileScreen() {
               activeOpacity={0.75}
               onPress={() => {
                 const types = ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'];
-                const currentIndex = types.indexOf(formData.bloodType);
-                const nextType = types[(currentIndex + 1) % types.length];
+                const nextType = types[(types.indexOf(formData.bloodType) + 1) % types.length];
                 setFormData({ ...formData, bloodType: nextType });
               }}
               style={[styles.dropdownField, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.dropdownText, { color: theme.text }]}>{formData.bloodType}</Text>
+              <Text style={[styles.dropdownText, { color: theme.text }]}>{formData.bloodType || 'Not set'}</Text>
               <ChevronDown size={18} color={theme.textMuted} />
             </TouchableOpacity>
           </View>
@@ -238,9 +327,9 @@ export default function EditProfileScreen() {
           <View style={styles.inputGroup}>
             <Text style={[styles.inputLabel, { color: theme.textMuted }]}>PHONE NUMBER</Text>
             <TextInput
-              style={[styles.inputField, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
+              editable={false}
+              style={[styles.inputField, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.textMuted, opacity: 0.8 }]}
               value={formData.phone}
-              onChangeText={(text) => setFormData({ ...formData, phone: text })}
               keyboardType="phone-pad"
               placeholderTextColor={theme.textMuted}
             />
@@ -352,6 +441,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 10,
   },
+  avatarImage: { width: 80, height: 80, borderRadius: 40 },
   avatarText: {
     color: '#FFFFFF',
     fontSize: 28,

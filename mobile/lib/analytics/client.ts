@@ -10,7 +10,7 @@
 // change required at existing call sites.
 
 import * as SecureStore from 'expo-secure-store';
-import { API_BASE } from '../api';
+import { API_BASE, getAccessToken } from '../api';
 
 const VISITOR_ID_KEY = 'hha_mobile_anon_visitor_id';
 
@@ -190,9 +190,15 @@ async function flushQueue(): Promise<void> {
 
 async function sendOnce(payload: TrackEventPayload): Promise<boolean> {
   try {
+    // When signed in, the bearer token lets the server attribute the event to
+    // the patient from the JWT itself. No patient id is ever sent from here.
+    const token = getAccessToken();
     const res = await fetch(`${API_BASE}/analytics/events`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify(payload),
     });
     // A 4xx means the server rejected this payload permanently — retrying

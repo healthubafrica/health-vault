@@ -9,9 +9,10 @@ import {
   StatusBar,
   TextInput,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft,
   Clock,
@@ -23,7 +24,9 @@ import {
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
-import { appointments } from '@/lib/api';
+import { appointments, ApiError, BookableFacility } from '@/lib/api';
+import { BOOKING_DURATION_MINUTES, isVideoService, localDateKey } from '@/lib/booking';
+import { fallbackSlots, slotsForSelection } from '@/lib/slots';
 
 interface DateItem {
   dateStr: string;
@@ -40,7 +43,7 @@ function buildUpcomingDates(): DateItem[] {
     const d = new Date();
     d.setDate(d.getDate() + i);
     days.push({
-      dateStr: d.toISOString().slice(0, 10),
+      dateStr: localDateKey(d),
       dayName: i === 0 ? 'Today' : d.toLocaleDateString('en-GB', { weekday: 'short' }),
       dayNum: String(d.getDate()),
       month: d.toLocaleDateString('en-GB', { month: 'short' }),
@@ -66,8 +69,8 @@ export default function BookAppointmentStep3Screen() {
     providerId?: string;
     providerName?: string;
     providerSpecialty?: string;
-    providerFee?: string;
     providerInitials?: string;
+    rescheduleId?: string;
   }>();
 
   const colorScheme = useColorScheme() ?? 'light';
@@ -76,25 +79,42 @@ export default function BookAppointmentStep3Screen() {
 
   const DATES = useMemo(buildUpcomingDates, []);
 
-  const [selectedFormat, setSelectedFormat] = useState<'video' | 'in_person'>('video');
+  // TeleCare is video-only; other services can be at a partner facility.
+  const isVideoOnly = isVideoService(serviceType);
+  const selectedFormat: 'video' | 'in_person' = isVideoOnly ? 'video' : 'in_person';
+  const [facilityId, setFacilityId] = useState('');
+  const [facilityName, setFacilityName] = useState('');
+
+  const { data: facilities, isLoading: loadingFacilities } = useQuery({
+    queryKey: ['appointment-facilities'],
+    queryFn: () => appointments.facilities(),
+    enabled: selectedFormat === 'in_person',
+  });
   const [selectedDate, setSelectedDate] = useState<string>(DATES[0].dateStr);
   const [selectedSlotIso, setSelectedSlotIso] = useState<string>('');
   const [reasonText, setReasonText] = useState<string>('');
 
-  const { data: slotGroups, isLoading } = useQuery({
+  const { data: slotGroups, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['appointment-slots', serviceType, selectedDate, params.providerId],
     queryFn: () =>
       appointments.getSlots({
         serviceType,
         date: selectedDate,
+        durationMinutes: BOOKING_DURATION_MINUTES,
         providerId: params.providerId || undefined,
       }),
   });
 
-  const availableSlots = useMemo(() => {
-    const group = (slotGroups ?? []).find((g) => g.providerId === params.providerId) ?? slotGroups?.[0];
-    return group?.slots ?? [];
-  }, [slotGroups, params.providerId]);
+  // Scheduled slots for the chosen provider (or merged across providers when the
+  // care team will assign one). If nobody has a schedule for this day, offer
+  // requested times instead — the portal accepts any time and the care team
+  // confirms, so a missing schedule must never block a booking.
+  const scheduledSlots = useMemo(
+    () => slotsForSelection(slotGroups, params.providerId ?? ''),
+    [slotGroups, params.providerId],
+  );
+  const usingRequestedTimes = !isLoading && !isError && scheduledSlots.length === 0;
+  const availableSlots = usingRequestedTimes ? fallbackSlots(selectedDate) : scheduledSlots;
 
   const morningSlots = availableSlots.filter((s) => slotHour(s) < 12);
   const afternoonSlots = availableSlots.filter((s) => slotHour(s) >= 12 && slotHour(s) < 17);
@@ -103,8 +123,32 @@ export default function BookAppointmentStep3Screen() {
   const selectedDateObj = DATES.find((d) => d.dateStr === selectedDate) || DATES[0];
   const formattedDateSummary = `${selectedDateObj.dayName}, ${selectedDateObj.dayNum} ${selectedDateObj.month}`;
 
+  const qc = useQueryClient();
+  const isReschedule = !!params.rescheduleId;
+  const [rescheduling, setRescheduling] = useState(false);
+
+  const handleReschedule = async () => {
+    if (!params.rescheduleId || !selectedSlotIso) return;
+    setRescheduling(true);
+    try {
+      await appointments.reschedule(params.rescheduleId, selectedSlotIso, BOOKING_DURATION_MINUTES);
+      qc.invalidateQueries({ queryKey: ['appointments'] });
+      Alert.alert('Rescheduled', 'Your appointment has been moved. We will confirm the new time shortly.');
+      router.replace('/appointments');
+    } catch (err) {
+      Alert.alert('Could not reschedule', err instanceof ApiError ? err.message : 'Please try again.');
+    } finally {
+      setRescheduling(false);
+    }
+  };
+
   const handleContinue = () => {
     if (!selectedSlotIso) return;
+    if (isReschedule) {
+      void handleReschedule();
+      return;
+    }
+    if (selectedFormat === 'in_person' && !facilityId) return;
     router.push({
       pathname: '/book-appointment-step4',
       params: {
@@ -112,11 +156,12 @@ export default function BookAppointmentStep3Screen() {
         serviceName: params.serviceName || 'TeleCare™',
         serviceType,
         providerId: params.providerId || '',
-        providerName: params.providerName || 'Dr. Naledi Dlamini',
-        providerSpecialty: params.providerSpecialty || 'General Practitioner',
-        providerFee: params.providerFee || '₦15,000',
-        providerInitials: params.providerInitials || 'ND',
+        providerName: params.providerName || '',
+        providerSpecialty: params.providerSpecialty || '',
+        providerInitials: params.providerInitials || '',
         consultationFormat: selectedFormat,
+        facilityId,
+        facilityName,
         appointmentDate: formattedDateSummary,
         appointmentTime: formatSlot(selectedSlotIso),
         scheduledAtIso: selectedSlotIso,
@@ -159,76 +204,77 @@ export default function BookAppointmentStep3Screen() {
         <View style={[styles.selectedProviderChip, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={[styles.avatarBox, { backgroundColor: theme.primaryLight }]}>
             <Text style={[styles.avatarText, { color: theme.primary }]}>
-              {params.providerInitials || 'ND'}
+              {params.providerInitials || (params.providerName ? params.providerName.replace(/^Dr\.?\s*/i, '').slice(0, 2).toUpperCase() : '')}
             </Text>
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.docName, { color: theme.text }]}>
-              {params.providerName || 'Dr. Naledi Dlamini'}
+              {params.providerName || 'Care team will assign a clinician'}
             </Text>
             <Text style={[styles.docSub, { color: theme.textMuted }]}>
-              {params.providerSpecialty || 'General Practitioner'} · {params.providerFee || '₦15,000'}
+              {params.providerSpecialty || 'Health Hub Africa'}
             </Text>
           </View>
-          <View style={styles.verifiedPill}>
-            <Check size={12} color="#006022" />
-            <Text style={styles.verifiedText}>Verified</Text>
-          </View>
+          {params.providerId ? (
+            <View style={styles.verifiedPill}>
+              <Check size={12} color="#006022" />
+              <Text style={styles.verifiedText}>Verified</Text>
+            </View>
+          ) : null}
         </View>
 
-        {/* Consultation Format Toggle */}
+        {/* The format follows the service: video for video services, in person otherwise. */}
         <View style={styles.section}>
           <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>CONSULTATION TYPE</Text>
-          <View style={styles.formatRow}>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => setSelectedFormat('video')}
-              style={[
-                styles.formatBtn,
-                {
-                  backgroundColor: selectedFormat === 'video' ? theme.primaryLight : theme.surface,
-                  borderColor: selectedFormat === 'video' ? theme.primary : theme.border,
-                  borderWidth: selectedFormat === 'video' ? 2 : 1,
-                },
-              ]}>
-              <Video size={20} color={selectedFormat === 'video' ? theme.primary : theme.textMuted} />
-              <View>
-                <Text
-                  style={[
-                    styles.formatTitle,
-                    { color: selectedFormat === 'video' ? theme.primaryDark : theme.text },
-                  ]}>
-                  Video (TeleCare)
-                </Text>
-                <Text style={[styles.formatSub, { color: theme.textMuted }]}>In-app secure HD call</Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => setSelectedFormat('in_person')}
-              style={[
-                styles.formatBtn,
-                {
-                  backgroundColor: selectedFormat === 'in_person' ? theme.primaryLight : theme.surface,
-                  borderColor: selectedFormat === 'in_person' ? theme.primary : theme.border,
-                  borderWidth: selectedFormat === 'in_person' ? 2 : 1,
-                },
-              ]}>
-              <MapPin size={20} color={selectedFormat === 'in_person' ? theme.primary : theme.textMuted} />
-              <View>
-                <Text
-                  style={[
-                    styles.formatTitle,
-                    { color: selectedFormat === 'in_person' ? theme.primaryDark : theme.text },
-                  ]}>
-                  In-Person Visit
-                </Text>
-                <Text style={[styles.formatSub, { color: theme.textMuted }]}>Partner clinic facility</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
+          <Text style={[styles.formatTitle, { color: theme.text }]}>
+            {isVideoOnly ? 'Video (TeleCare) — in-app secure HD call' : 'In-person visit at a partner facility'}
+          </Text>
         </View>
+
+        {selectedFormat === 'in_person' && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>CHOOSE A FACILITY</Text>
+            {loadingFacilities ? (
+              <ActivityIndicator color={theme.primary} style={{ marginTop: 8 }} />
+            ) : (facilities ?? []).length === 0 ? (
+              <Text style={[styles.slotGroupTitle, { color: theme.textMuted }]}>
+                No partner facilities are available right now.
+              </Text>
+            ) : (
+              (facilities ?? []).map((f: BookableFacility) => {
+                const picked = facilityId === f.id;
+                return (
+                  <TouchableOpacity
+                    key={f.id}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      setFacilityId(f.id);
+                      setFacilityName(f.name);
+                    }}
+                    style={[
+                      styles.formatBtn,
+                      {
+                        marginTop: 8,
+                        backgroundColor: picked ? theme.primaryLight : theme.surface,
+                        borderColor: picked ? theme.primary : theme.border,
+                        borderWidth: picked ? 2 : 1,
+                      },
+                    ]}>
+                    <MapPin size={18} color={picked ? theme.primary : theme.textMuted} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.formatTitle, { color: picked ? theme.primaryDark : theme.text }]}>{f.name}</Text>
+                      {(f.city || f.state) ? (
+                        <Text style={[styles.formatSub, { color: theme.textMuted }]}>
+                          {[f.city, f.state].filter(Boolean).join(', ')}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </View>
+        )}
 
         {/* Date Selector Strip */}
         <View style={styles.section}>
@@ -239,7 +285,10 @@ export default function BookAppointmentStep3Screen() {
               return (
                 <TouchableOpacity
                   key={item.dateStr}
-                  onPress={() => setSelectedDate(item.dateStr)}
+                  onPress={() => {
+                    setSelectedDate(item.dateStr);
+                    setSelectedSlotIso('');
+                  }}
                   activeOpacity={0.85}
                   style={[
                     styles.dateCard,
@@ -283,12 +332,26 @@ export default function BookAppointmentStep3Screen() {
 
           {isLoading ? (
             <ActivityIndicator color={theme.primary} style={{ marginTop: 8 }} />
+          ) : isError ? (
+            <View>
+              <Text style={[styles.slotGroupTitle, { color: theme.textMuted }]}>
+                {error instanceof ApiError ? error.message : 'Could not load time slots.'}
+              </Text>
+              <TouchableOpacity onPress={() => refetch()} activeOpacity={0.85} style={{ marginTop: 8 }}>
+                <Text style={{ color: theme.primary, fontWeight: '700' }}>Try again</Text>
+              </TouchableOpacity>
+            </View>
           ) : availableSlots.length === 0 ? (
             <Text style={[styles.slotGroupTitle, { color: theme.textMuted }]}>
-              No slots available this day — try another date.
+              No times left on this day — try another date.
             </Text>
           ) : (
             <>
+              {usingRequestedTimes && (
+                <Text style={[styles.slotGroupTitle, { color: theme.textMuted }]}>
+                  No fixed schedule for this day. Pick the time you prefer and the care team will confirm it.
+                </Text>
+              )}
               {[
                 { title: 'Morning', slots: morningSlots },
                 { title: 'Afternoon', slots: afternoonSlots },
@@ -363,10 +426,10 @@ export default function BookAppointmentStep3Screen() {
 
         <TouchableOpacity
           activeOpacity={0.85}
-          disabled={!selectedSlotIso}
+          disabled={!selectedSlotIso || (selectedFormat === 'in_person' && !facilityId)}
           onPress={handleContinue}
           style={[styles.continueBtn, { backgroundColor: theme.primary }]}>
-          <Text style={styles.continueBtnText}>Continue to Summary</Text>
+          <Text style={styles.continueBtnText}>{isReschedule ? (rescheduling ? 'Rescheduling…' : 'Confirm new time') : 'Continue to Summary'}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

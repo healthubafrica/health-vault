@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { genderForApi, isValidPassword, normalizePhone, parseIsoDob, PASSWORD_HINT } from '@/lib/validation';
+import React, { useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -26,6 +27,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { auth, patients, analytics, setAccessToken, ApiError, type AcquisitionSource } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/authStore';
+import { useCooldown } from '@/lib/useCooldown';
 
 
 export default function SignUpScreen() {
@@ -42,6 +44,9 @@ export default function SignUpScreen() {
   const [dob, setDob] = useState('');
   const [gender, setGender] = useState<'female' | 'male' | 'other'>('female');
   const [idNumber, setIdNumber] = useState('');
+  // The OTP is single-use. If creating the patient profile fails after it was verified,
+  // a retry must reuse these tokens instead of asking for a code that is already spent.
+  const verifiedTokens = useRef<{ accessToken: string; refreshToken: string } | null>(null);
   const [acquisitionSource, setAcquisitionSource] = useState<AcquisitionSource | ''>('');
 
   const [email, setEmail] = useState('');
@@ -50,11 +55,22 @@ export default function SignUpScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const [medicalAid, setMedicalAid] = useState('');
-  const [memberNumber, setMemberNumber] = useState('');
   const [otpCode, setOtpCode] = useState('');
+  const resendCooldown = useCooldown();
+  const [resendNote, setResendNote] = useState<string | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleResendOtp = async () => {
+    setResendNote(null);
+    try {
+      await auth.resendOtp(email.trim());
+      resendCooldown.start();
+      setResendNote('A new code is on its way. Check your email.');
+    } catch (err) {
+      setResendNote(err instanceof ApiError ? err.message : "We couldn't resend the code. Please try again shortly.");
+    }
+  };
 
   // ── Step handlers ────────────────────────────────────────────────────────
 
@@ -62,6 +78,10 @@ export default function SignUpScreen() {
     if (currentStep === 1) {
       if (!fullName.trim()) {
         Alert.alert('Required', 'Please enter your full name.');
+        return;
+      }
+      if (!parseIsoDob(dob.trim())) {
+        Alert.alert('Date of birth', 'Enter your date of birth as YYYY-MM-DD (for example 1990-04-12).');
         return;
       }
       if (!acquisitionSource) {
@@ -78,8 +98,13 @@ export default function SignUpScreen() {
         Alert.alert('Password mismatch', 'Passwords do not match.');
         return;
       }
-      if (password.length < 8) {
-        Alert.alert('Weak password', 'Password must be at least 8 characters.');
+      if (!isValidPassword(password)) {
+        Alert.alert('Weak password', PASSWORD_HINT);
+        return;
+      }
+      const phoneResult = normalizePhone(phone);
+      if (!phoneResult.ok) {
+        Alert.alert('Phone number', 'Enter your phone number in international format, e.g. +2348012345678.');
         return;
       }
       setIsLoading(true);
@@ -87,12 +112,12 @@ export default function SignUpScreen() {
         await auth.register(
           email.trim(),
           password,
-          phone.trim() || undefined,
+          phoneResult.value,
           fullName.trim(),
           acquisitionSource as AcquisitionSource,
         );
-        analytics.track('registration_complete', { acquisitionSource });
         analytics.track('otp_requested', { channel: 'email' });
+        resendCooldown.start();
         setCurrentStep(3);
       } catch (err) {
         analytics.track('registration_error');
@@ -113,8 +138,10 @@ export default function SignUpScreen() {
       setIsLoading(true);
       try {
         // Verify OTP — backend returns new tokens on success
-        const tokens = await auth.verifyOtp(email.trim(), otpCode);
+        const tokens = verifiedTokens.current ?? (await auth.verifyOtp(email.trim(), otpCode));
+        verifiedTokens.current = tokens;
         analytics.track('otp_verify_success');
+        analytics.track('registration_complete', { acquisitionSource });
         const { accessToken, refreshToken } = tokens;
 
         // Same reason as login.tsx: must be set before any authenticated
@@ -127,17 +154,22 @@ export default function SignUpScreen() {
         try {
           const res = await patients.getMyProfile();
           profile = res.data;
-        } catch {
-          // Patient profile doesn't exist yet — create it
+        } catch (lookupErr) {
+          // Only "no profile yet" (404) means create one. A network/5xx/401 failure must
+          // surface instead of being treated as a missing profile.
+          if (!(lookupErr instanceof ApiError && lookupErr.status === 404)) throw lookupErr;
           const res = await patients.create({
             firstName: fullName.trim().split(' ')[0] ?? fullName.trim(),
             lastName: fullName.trim().split(' ').slice(1).join(' ') || '',
-            dateOfBirth: dob || '1990-01-01',
-            gender,
+            dateOfBirth: parseIsoDob(dob.trim()) as string,
+            gender: genderForApi(gender),
             country: 'Nigeria',
+            ...(idNumber.trim() ? { nin: idNumber.trim() } : {}),
           });
           profile = res.data;
         }
+
+        patients.updateOnboardingProgress(3, 'otp_verified').catch(() => {});
 
         await loginStore(accessToken, refreshToken, {
           id: profile.id,
@@ -174,7 +206,7 @@ export default function SignUpScreen() {
       case 2:
         return 'Account & Security';
       case 3:
-        return 'Medical Aid & Verification';
+        return 'Verify Your Email';
     }
   };
 
@@ -266,7 +298,7 @@ export default function SignUpScreen() {
                   <View style={styles.inputWrapper}>
                     <TextInput
                       style={styles.textInput}
-                      placeholder="DD / MM / YYYY (e.g. 14/07/1992)"
+                      placeholder="YYYY-MM-DD (e.g. 1992-07-14)"
                       placeholderTextColor="#98A2B3"
                       value={dob}
                       onChangeText={setDob}
@@ -358,7 +390,7 @@ export default function SignUpScreen() {
                   <View style={styles.inputWrapper}>
                     <TextInput
                       style={styles.textInput}
-                      placeholder="Enter your mobile number with country code"
+                      placeholder="+2348012345678"
                       placeholderTextColor="#98A2B3"
                       keyboardType="phone-pad"
                       value={phone}
@@ -372,7 +404,7 @@ export default function SignUpScreen() {
                   <View style={styles.inputWrapper}>
                     <TextInput
                       style={[styles.textInput, { paddingRight: 44 }]}
-                      placeholder="Minimum 8 characters"
+                      placeholder="12+ characters, mixed case, number, symbol"
                       placeholderTextColor="#98A2B3"
                       secureTextEntry={!showPassword}
                       value={password}
@@ -407,40 +439,14 @@ export default function SignUpScreen() {
               </View>
             )}
 
-            {/* STEP 3: Medical Aid & OTP Verification */}
+            {/* STEP 3: OTP Verification */}
             {currentStep === 3 && (
               <View style={styles.stepForm}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Medical Aid Provider (Optional)</Text>
-                  <View style={styles.inputWrapper}>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="e.g. Discovery Health, Momentum, GEMS"
-                      placeholderTextColor="#98A2B3"
-                      value={medicalAid}
-                      onChangeText={setMedicalAid}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Membership Number</Text>
-                  <View style={styles.inputWrapper}>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="Enter your membership number"
-                      placeholderTextColor="#98A2B3"
-                      value={memberNumber}
-                      onChangeText={setMemberNumber}
-                    />
-                  </View>
-                </View>
-
-                {/* SMS OTP verification */}
+                {/* Email OTP verification */}
                 <View style={styles.otpBox}>
-                  <Text style={styles.otpHeading}>SMS Verification Code</Text>
+                  <Text style={styles.otpHeading}>Email Verification Code</Text>
                   <Text style={styles.otpSub}>
-                    We sent a 6-digit security code to your mobile phone.
+                    We sent a 6-digit security code to your email address.
                   </Text>
                   <View style={[styles.inputWrapper, { marginTop: 10 }]}>
                     <TextInput
@@ -453,6 +459,16 @@ export default function SignUpScreen() {
                       onChangeText={setOtpCode}
                     />
                   </View>
+                  <TouchableOpacity
+                    disabled={resendCooldown.remaining > 0}
+                    onPress={handleResendOtp}
+                    accessibilityLabel="Resend code"
+                    style={{ alignItems: 'center', marginTop: 12 }}>
+                    <Text style={[styles.termsBold, resendCooldown.remaining > 0 && { opacity: 0.5 }]}>
+                      {resendCooldown.remaining > 0 ? `Resend code in ${resendCooldown.remaining}s` : 'Resend code'}
+                    </Text>
+                  </TouchableOpacity>
+                  {resendNote ? <Text style={[styles.otpSub, { textAlign: 'center', marginTop: 6 }]}>{resendNote}</Text> : null}
                 </View>
 
                 {/* Terms Consent */}
@@ -468,7 +484,7 @@ export default function SignUpScreen() {
                     {agreedToTerms && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
                   </View>
                   <Text style={styles.termsText}>
-                    I agree to the <Text style={styles.termsBold}>POPIA Privacy Policy</Text> and consent to secure encrypted medical record storage.
+                    I agree to the <Text style={styles.termsBold} onPress={() => router.push('/privacy-policy')}>Privacy Policy</Text> and consent to secure encrypted medical record storage.
                   </Text>
                 </TouchableOpacity>
               </View>

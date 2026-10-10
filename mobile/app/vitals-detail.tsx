@@ -13,6 +13,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft } from 'lucide-react-native';
 
+import { ErrorState } from '@/components/states';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
@@ -34,7 +35,7 @@ const METRIC_CONFIG: Record<string, MetricConfig> = {
   'SpO₂': { field: 'spo2', unit: '%', normalRange: 'Normal range: 95–100%', status: (v) => (v < 94 ? 'red' : v < 96 ? 'amber' : 'green') },
   Temperature: { field: 'temperatureC', unit: '°C', normalRange: 'Normal range: 36.1–37.2 °C', status: (v) => (v > 38 ? 'amber' : 'green') },
   Weight: { field: 'weightKg', unit: 'kg', normalRange: 'Tracked over time', status: () => 'green' },
-  'Blood Glucose': { field: 'bloodGlucose', unit: 'mmol/L', normalRange: 'Normal range: 4–7.8 mmol/L', status: (v) => (v > 11 ? 'red' : v > 7.8 ? 'amber' : 'green') },
+  'Blood Glucose': { field: 'bloodGlucose', unit: 'mg/dL', normalRange: 'Normal range: 70–140 mg/dL', status: (v) => (v > 180 || v < 70 ? 'red' : v > 140 ? 'amber' : 'green') },
 };
 
 const STATUS_LABEL: Record<StatusColor, string> = { green: 'Normal', amber: 'Elevated', red: 'High' };
@@ -47,7 +48,7 @@ export default function VitalsMetricDetailScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['vitals'],
     queryFn: () => vitals.list(),
   });
@@ -70,6 +71,14 @@ export default function VitalsMetricDetailScreen() {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background, alignItems: 'center', justifyContent: 'center' }]}>
         <ActivityIndicator size="large" color={theme.primary} />
+      </SafeAreaView>
+    );
+  }
+
+  if (isError && !data) {
+    return (
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+        <ErrorState onRetry={() => refetch()} />
       </SafeAreaView>
     );
   }

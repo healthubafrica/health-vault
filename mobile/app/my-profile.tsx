@@ -17,12 +17,14 @@ import {
   Download,
 } from 'lucide-react-native';
 
+import { ErrorState } from '@/components/states';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import EmergencyFAB from '@/components/EmergencyFAB';
-import { patients } from '@/lib/api';
+import EmergencyContactsCard from '@/components/EmergencyContactsCard';
+import { patients, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/authStore';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 
 export default function MyProfileScreen() {
   const router = useRouter();
@@ -32,7 +34,7 @@ export default function MyProfileScreen() {
 
   const [isEditing, setIsEditing] = useState(false);
 
-  const { data: profileRes, isLoading } = useQuery({
+  const { data: profileRes, isLoading, isError: profileError, refetch: refetchProfile } = useQuery({
     queryKey: ['patient', 'profile'],
     queryFn: () => patients.getMyProfile(),
   });
@@ -50,14 +52,18 @@ export default function MyProfileScreen() {
   const country = profile?.country ?? '—';
   const allergies = profile?.medicalInfo?.allergies?.length ? profile.medicalInfo.allergies : ['None reported'];
   const chronicConditions = profile?.medicalInfo?.chronicConditions?.length ? profile.medicalInfo.chronicConditions : ['None reported'];
-  const emergencyContact = profile?.emergencyContacts?.[0] ?? { fullName: profile?.nextOfKinName ?? '—', relationship: profile?.nextOfKinRelationship ?? '—' };
 
-  const handleDownloadRecord = () => {
-    Alert.alert(
-      'Download Full Health Dossier',
-      'Generating verified PDF dossier containing vitals trends, prescription history, lab reports, and physician encounters.'
-    );
-  };
+  const exportMutation = useMutation({
+    mutationFn: () => patients.requestExport(),
+    onSuccess: (res) =>
+      Alert.alert('Export requested', res?.message ?? 'A copy of your health record will be sent to your email.'),
+    onError: (err: unknown) =>
+      Alert.alert(
+        'Could not request export',
+        err instanceof ApiError ? err.message : 'Please try again in a little while.',
+      ),
+  });
+  const handleDownloadRecord = () => exportMutation.mutate();
 
   const handleEditProfile = () => {
     router.push('/edit-profile');
@@ -86,6 +92,9 @@ export default function MyProfileScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {profileError && !profile ? (
+          <ErrorState title="Couldn't load your profile" onRetry={() => refetchProfile()} />
+        ) : null}
         
         {/* Profile Avatar & Basic Info */}
         <View style={[styles.avatarCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -185,15 +194,7 @@ export default function MyProfileScreen() {
         <View style={styles.section}>
           <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>EMERGENCY CONTACT</Text>
 
-          <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>NAME</Text>
-            <Text style={[styles.fieldValue, { color: theme.text }]}>{emergencyContact.fullName}</Text>
-          </View>
-
-          <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>RELATIONSHIP</Text>
-            <Text style={[styles.fieldValue, { color: theme.text }]}>{emergencyContact.relationship}</Text>
-          </View>
+          <EmergencyContactsCard />
         </View>
 
         {/* Action Buttons */}
@@ -214,7 +215,7 @@ export default function MyProfileScreen() {
             style={[styles.secondaryBtn, { backgroundColor: theme.primaryLight }]}>
             <Download size={18} color={theme.primary} />
             <Text style={[styles.secondaryBtnText, { color: theme.primaryDark }]}>
-              Download Health Record
+              {exportMutation.isPending ? 'Requesting…' : 'Email me my health record'}
             </Text>
           </TouchableOpacity>
         </View>

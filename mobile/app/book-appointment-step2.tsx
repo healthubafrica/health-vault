@@ -24,7 +24,7 @@ import {
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
-import { appointments, ServiceProvider } from '@/lib/api';
+import { appointments, ServiceProvider, ApiError } from '@/lib/api';
 
 const AVATAR_BGS = ['#EBF5EC', '#E3F2FD', '#FFF4E0', '#FDECEA'];
 
@@ -45,7 +45,7 @@ export default function BookAppointmentStep2Screen() {
   const [selectedSpecialty, setSelectedSpecialty] = useState('All');
   const [selectedProviderId, setSelectedProviderId] = useState<string>('');
 
-  const { data: providers, isLoading } = useQuery({
+  const { data: providers, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['appointment-providers', serviceType],
     queryFn: () => appointments.listProviders(serviceType),
   });
@@ -64,18 +64,23 @@ export default function BookAppointmentStep2Screen() {
   });
 
   const handleContinue = () => {
-    const provider = allProviders.find((p) => p.id === selectedProviderId) || allProviders[0];
-    if (!provider) return;
+    // A provider is optional, exactly like the web portal: with none chosen the
+    // care team assigns one after booking. Never silently pick one for the patient.
+    const provider = allProviders.find((p) => p.id === selectedProviderId);
     router.push({
       pathname: '/book-appointment-step3',
       params: {
         serviceId: params.serviceId || '1',
         serviceName: params.serviceName || 'TeleCare™',
         serviceType,
-        providerId: provider.id,
-        providerName: `${provider.title ?? 'Dr.'} ${provider.firstName} ${provider.lastName}`,
-        providerSpecialty: provider.specialty || 'General Practitioner',
-        providerInitials: initialsOf(provider),
+        ...(provider
+          ? {
+              providerId: provider.id,
+              providerName: `${provider.title ?? 'Dr.'} ${provider.firstName} ${provider.lastName}`,
+              providerSpecialty: provider.specialty || 'General Practitioner',
+              providerInitials: initialsOf(provider),
+            }
+          : { providerId: '', providerName: '', providerSpecialty: '', providerInitials: '' }),
       },
     });
   };
@@ -153,11 +158,53 @@ export default function BookAppointmentStep2Screen() {
           })}
         </ScrollView>
 
+        {/* No-preference option: always available, even when no providers are listed */}
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => setSelectedProviderId('')}
+          style={[
+            styles.providerCard,
+            {
+              backgroundColor: theme.surface,
+              borderColor: selectedProviderId === '' ? theme.primary : theme.border,
+              borderWidth: selectedProviderId === '' ? 2 : 1,
+            },
+          ]}>
+          <View style={styles.providerTopRow}>
+            <View style={styles.providerMetaCol}>
+              <Text style={[styles.providerName, { color: theme.text }]}>Let the care team assign a clinician</Text>
+              <Text style={[styles.specialtyText, { color: theme.textMuted }]}>
+                Recommended if you have no preference. We will confirm who will see you.
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.radioCircle,
+                {
+                  borderColor: selectedProviderId === '' ? theme.primary : theme.border,
+                  backgroundColor: selectedProviderId === '' ? theme.primary : 'transparent',
+                },
+              ]}>
+              {selectedProviderId === '' && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
+            </View>
+          </View>
+        </TouchableOpacity>
+
         {/* Providers List */}
         {isLoading ? (
           <View style={{ alignItems: 'center', paddingTop: 60 }}>
             <ActivityIndicator size="large" color={theme.primary} />
             <Text style={{ marginTop: 12, color: theme.textMuted, fontSize: 14 }}>Loading clinicians...</Text>
+          </View>
+        ) : isError ? (
+          <View style={[styles.emptyBox, { borderColor: theme.border }]}>
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>Couldn't load clinicians</Text>
+            <Text style={[styles.emptyBody, { color: theme.textMuted }]}>
+              {error instanceof ApiError ? error.message : 'Please check your connection and try again.'}
+            </Text>
+            <TouchableOpacity onPress={() => refetch()} activeOpacity={0.85} style={{ marginTop: 12 }}>
+              <Text style={{ color: theme.primary, fontWeight: '700' }}>Try again</Text>
+            </TouchableOpacity>
           </View>
         ) : filteredProviders.length === 0 ? (
           <View style={[styles.emptyBox, { borderColor: theme.border }]}>
@@ -206,7 +253,7 @@ export default function BookAppointmentStep2Screen() {
                       <View style={styles.ratingRow}>
                         <Star size={14} color="#F5B041" fill="#F5B041" />
                         <Text style={[styles.ratingText, { color: theme.text }]}>
-                          {provider.rating.toFixed(1)}
+                          {Number(provider.rating).toFixed(1)}
                         </Text>
                       </View>
                     )}
@@ -270,7 +317,6 @@ export default function BookAppointmentStep2Screen() {
 
         <TouchableOpacity
           activeOpacity={0.85}
-          disabled={!selectedProviderId}
           onPress={handleContinue}
           style={[styles.continueBtn, { backgroundColor: theme.primary }]}>
           <Text style={styles.continueBtnText}>Continue to Date & Time</Text>

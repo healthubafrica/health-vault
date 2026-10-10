@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -31,12 +31,19 @@ import { telecare, ApiError } from '@/lib/api';
 
 // The room view — everything inside here has access to the LiveKit room
 // context provided by <LiveKitRoom>.
-function CallRoom({ onLeave }: { onLeave: () => void }) {
+function CallRoom({ onLeave, onProviderSeen }: { onLeave: () => void; onProviderSeen: () => void }) {
   const tracks = useTracks([Track.Source.Camera]);
   const { localParticipant, isCameraEnabled, isMicrophoneEnabled } = useLocalParticipant();
 
   const remoteTrack = tracks.find((t) => isTrackReference(t) && !t.participant.isLocal);
   const localTrack = tracks.find((t) => isTrackReference(t) && t.participant.isLocal);
+
+  // Report once a clinician has actually appeared, so leaving an empty room is not
+  // recorded as a completed consultation.
+  const hasRemote = !!remoteTrack;
+  useEffect(() => {
+    if (hasRemote) onProviderSeen();
+  }, [hasRemote, onProviderSeen]);
 
   return (
     <View style={styles.roomContainer}>
@@ -86,6 +93,10 @@ export default function TeleCareInCallScreen() {
   const params = useLocalSearchParams<{ sessionId?: string }>();
   const [callFailed, setCallFailed] = useState<string | null>(null);
   const [hasConnected, setHasConnected] = useState(false);
+  const providerSeenRef = useRef(false);
+  const markProviderSeen = useCallback(() => {
+    providerSeenRef.current = true;
+  }, []);
 
   useEffect(() => {
     AudioSession.startAudioSession();
@@ -104,8 +115,14 @@ export default function TeleCareInCallScreen() {
   const handleLeave = () => {
     // Fire-and-forget, same rationale as web: a LiveKit server-side webhook
     // is the final source of truth, this just gives an instant flip.
-    if (params.sessionId) telecare.markCompleted(params.sessionId).catch(() => null);
-    router.replace('/(tabs)/telecare');
+    // Only a call a clinician actually joined is a completed, rate-able consultation.
+    if (params.sessionId && providerSeenRef.current) {
+      telecare.markCompleted(params.sessionId).catch(() => null);
+      // Ask how it went; the rating screen returns to the TeleCare tab either way.
+      router.replace({ pathname: '/telecare-rating', params: { sessionId: params.sessionId } } as never); // typed-routes file regenerates on next `expo start`
+    } else {
+      router.replace('/(tabs)/telecare');
+    }
   };
 
   if (!params.sessionId) {
@@ -174,7 +191,7 @@ export default function TeleCareInCallScreen() {
           if (hasConnected) handleLeave();
           else setCallFailed('The call ended before it connected.');
         }}>
-        <CallRoom onLeave={handleLeave} />
+        <CallRoom onLeave={handleLeave} onProviderSeen={markProviderSeen} />
       </LiveKitRoom>
     </SafeAreaView>
   );

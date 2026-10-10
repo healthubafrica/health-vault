@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -15,13 +15,14 @@ import {
   ChevronLeft,
   Share2,
   FileText,
-  File,
   Download,
 } from 'lucide-react-native';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import EmergencyFAB from '@/components/EmergencyFAB';
+import { records, ApiError } from '@/lib/api';
+import { downloadAndShare } from '@/lib/shareFile';
 
 export default function DocumentDetailScreen() {
   const router = useRouter();
@@ -29,29 +30,39 @@ export default function DocumentDetailScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  const docName = (params.name as string) || 'Lab Report - March 2025';
-  const docDate = (params.date as string) || '14 Mar 2025';
-  const docLab = (params.lab as string) || 'Pathcare Laboratory';
-  const docType = (params.type as string) || 'PDF';
-  const docSize = (params.size as string) || '2.4 MB';
-  const docPages = (params.pages as string) || '3';
-  const docSummary =
-    (params.summary as string) ||
-    'Full Blood Panel - Complete metabolic and hematologic analysis';
+  const docName = (params.name as string) || 'Document';
+  const docDate = (params.date as string) || '';
+  const docType = (params.type as string) || '';
+  const docUrl = (params.url as string) || '';
+  const [downloading, setDownloading] = useState(false);
 
   const handleShare = async () => {
     try {
       await Share.share({
         title: docName,
-        message: `Health Document: ${docName} (${docDate}) from ${docLab}. Secured via MyHealth Vault+.`,
+        message: `Health document: ${docName}${docDate ? ` (${docDate})` : ''}. Secured via MyHealth Vault+.`,
       });
     } catch {
       // Ignored
     }
   };
 
-  const handleDownload = () => {
-    Alert.alert('Download Started', `Downloading ${docName} (${docSize}) to your device.`);
+  const handleDownload = async () => {
+    if (!docUrl) {
+      Alert.alert('Not available', 'This document has no downloadable file. Open it on the web portal.');
+      return;
+    }
+    setDownloading(true);
+    try {
+      const res = await records.getDownloadUrl(docUrl);
+      const ext = docUrl.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
+      const mime = ext === 'pdf' ? 'application/pdf' : ['jpg', 'jpeg', 'png'].includes(ext) ? `image/${ext === 'jpg' ? 'jpeg' : ext}` : 'application/octet-stream';
+      await downloadAndShare(res.data.downloadUrl, /\.[a-z0-9]{2,5}$/i.test(docName) ? docName : `${docName}${ext ? `.${ext}` : ''}`, mime);
+    } catch (err) {
+      Alert.alert('Could not open document', err instanceof ApiError ? err.message : 'Please try again.');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return (
@@ -84,7 +95,7 @@ export default function DocumentDetailScreen() {
               <Text numberOfLines={2} style={[styles.docTitle, { color: theme.text }]}>
                 {docName}
               </Text>
-              <Text style={[styles.labSubtitle, { color: theme.textMuted }]}>{docLab}</Text>
+              
             </View>
           </View>
 
@@ -97,51 +108,6 @@ export default function DocumentDetailScreen() {
               <Text style={[styles.metaLabel, { color: theme.textMuted }]}>TYPE</Text>
               <Text style={[styles.metaValue, { color: theme.text }]}>{docType}</Text>
             </View>
-            <View style={styles.metaRow}>
-              <Text style={[styles.metaLabel, { color: theme.textMuted }]}>SIZE</Text>
-              <Text style={[styles.metaValue, { color: theme.text }]}>{docSize}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Document Summary */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>SUMMARY</Text>
-          <Text style={[styles.summaryBody, { color: theme.text }]}>{docSummary}</Text>
-        </View>
-
-        {/* Document Preview Placeholder */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>PREVIEW</Text>
-          <View style={[styles.previewContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <File size={48} color={theme.primary} opacity={0.4} style={{ marginBottom: 12 }} />
-            <Text style={[styles.previewPageText, { color: theme.text }]}>
-              PDF file with {docPages} pages
-            </Text>
-            <Text style={[styles.previewSubtext, { color: theme.textMuted }]}>
-              Open in PDF viewer to see full document
-            </Text>
-          </View>
-        </View>
-
-        {/* Key Information */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>KEY INFORMATION</Text>
-          <View style={styles.infoCardsList}>
-            <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.infoLabel, { color: theme.textMuted }]}>ISSUED BY</Text>
-              <Text style={[styles.infoValue, { color: theme.text }]}>{docLab}</Text>
-            </View>
-
-            <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.infoLabel, { color: theme.textMuted }]}>TEST TYPE</Text>
-              <Text style={[styles.infoValue, { color: theme.text }]}>Full Blood Panel</Text>
-            </View>
-
-            <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.infoLabel, { color: theme.textMuted }]}>STATUS</Text>
-              <Text style={[styles.infoValue, { color: theme.text }]}>Complete & Reviewed</Text>
-            </View>
           </View>
         </View>
 
@@ -149,10 +115,11 @@ export default function DocumentDetailScreen() {
         <View style={styles.actionGroup}>
           <TouchableOpacity
             onPress={handleDownload}
+            disabled={downloading}
             activeOpacity={0.85}
-            style={[styles.primaryActionBtn, { backgroundColor: theme.primary }]}>
+            style={[styles.primaryActionBtn, { backgroundColor: theme.primary, opacity: downloading ? 0.6 : 1 }]}>
             <Download size={18} color="#FFFFFF" />
-            <Text style={styles.primaryActionText}>Download</Text>
+            <Text style={styles.primaryActionText}>{downloading ? 'Opening…' : 'Open / Download'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

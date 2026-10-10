@@ -23,6 +23,8 @@ import {
   Search,
   Trash2,
   Lock,
+  Pencil,
+  HeartHandshake,
 } from 'lucide-react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -30,7 +32,8 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
-import { EmptyState, NoSearchResultState, ListSkeleton } from '@/components/states';
+import { EmptyState, NoSearchResultState, ListSkeleton, ErrorState } from '@/components/states';
+import DocumentEditSheet, { DOCUMENT_CATEGORY_LABELS, DocumentFormValues } from '@/components/DocumentEditSheet';
 import {
   records,
   labs,
@@ -46,28 +49,7 @@ import {
 
 type TabType = 'documents' | 'prescriptions' | 'results' | 'visits';
 
-const CATEGORY_LABELS: Record<DocumentCategory, string> = {
-  personal_identification: 'ID',
-  medical_history: 'Medical History',
-  providers: 'Providers',
-  specialists: 'Specialists',
-  emergency: 'Emergency',
-  hospital: 'Hospital',
-  laboratory: 'Laboratory',
-  imaging: 'Imaging',
-  medications: 'Medications',
-  vaccinations: 'Vaccinations',
-  chronic_disease: 'Chronic Disease',
-  womens_health: "Women's Health",
-  childrens_health: "Children's Health",
-  mental_health: 'Mental Health',
-  dental: 'Dental',
-  vision: 'Vision',
-  travel: 'Travel',
-  legal: 'Legal',
-  wearables: 'Wearables',
-  miscellaneous: 'Other',
-};
+const CATEGORY_LABELS = DOCUMENT_CATEGORY_LABELS;
 
 // Matches DOCUMENT_MIME_TYPES on the backend — anything else is rejected
 // server-side anyway, so keep the picker in sync rather than letting a
@@ -109,6 +91,9 @@ export default function RecordsHubScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<DocumentCategory | undefined>(undefined);
   const [isUploading, setIsUploading] = useState(false);
+  // A picked file waits here while the title/category prompt is open.
+  const [pendingFile, setPendingFile] = useState<{ name: string; uri: string; size?: number; mimeType: string } | null>(null);
+  const [editingDoc, setEditingDoc] = useState<VaultDocument | null>(null);
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
@@ -118,7 +103,7 @@ export default function RecordsHubScreen() {
   // through the richer endpoint built for the Vault — category, tags,
   // search/sort, and the presigned-upload flow below, none of which
   // records.list() exposes.
-  const { data: docsData, isLoading: loadingDocs } = useQuery({
+  const { data: docsData, isLoading: loadingDocs, isError: docsError, refetch: refetchDocs } = useQuery({
     queryKey: ['documents', searchQuery, categoryFilter],
     queryFn: () => documents.list({ q: searchQuery || undefined, category: categoryFilter, sort: 'createdAt', order: 'desc' }),
     enabled: activeTab === 'documents',
@@ -142,6 +127,21 @@ export default function RecordsHubScreen() {
     onError: (err: unknown) => Alert.alert('Could not delete', err instanceof ApiError ? err.message : 'Please try again.'),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: (v: DocumentFormValues & { id: string }) =>
+      documents.update(v.id, {
+        title: v.title,
+        category: v.category,
+        description: v.description,
+        providerVisibility: v.providerVisibility,
+      }),
+    onSuccess: () => {
+      setEditingDoc(null);
+      qc.invalidateQueries({ queryKey: ['documents'] });
+    },
+    onError: (err: unknown) => Alert.alert('Could not save changes', err instanceof ApiError ? err.message : 'Please try again.'),
+  });
+
   const handleDeleteDoc = (doc: VaultDocument) => {
     Alert.alert('Delete Document', `"${doc.title}" will be permanently removed. This can't be undone.`, [
       { text: 'Cancel', style: 'cancel' },
@@ -163,13 +163,27 @@ export default function RecordsHubScreen() {
       return;
     }
 
+    // Ask for a title and category before anything is uploaded.
+    setPendingFile({ name: file.name, uri: file.uri, size: file.size, mimeType });
+  };
+
+  const uploadPicked = async (values: DocumentFormValues) => {
+    if (!pendingFile) return;
+    const file = pendingFile;
+    const mimeType = file.mimeType;
     setIsUploading(true);
     try {
-      const sizeBytes = file.size ?? 0;
+      // Some pickers report no size; measure the file itself rather than sending 0 (the API rejects it).
+      const fileBlob = await (await fetch(file.uri)).blob();
+      const sizeBytes = file.size ?? fileBlob.size;
+      if (!sizeBytes) {
+        setPendingFile(null);
+        Alert.alert('File appears empty', 'Please choose a different file.');
+        return;
+      }
       const ticketRes = await documents.getUploadUrl({ fileName: file.name, contentType: mimeType, sizeBytes });
       const ticket = ticketRes.data;
 
-      const fileBlob = await (await fetch(file.uri)).blob();
       const putRes = await fetch(ticket.uploadUrl, {
         method: 'PUT',
         headers: { 'Content-Type': mimeType },
@@ -180,34 +194,35 @@ export default function RecordsHubScreen() {
       await documents.create({
         objectKey: ticket.objectKey,
         fileName: file.name,
-        title: file.name,
-        category: categoryFilter ?? 'miscellaneous',
+        title: values.title,
+        category: values.category,
       });
-      analytics.track('upload_success', { category: categoryFilter ?? 'miscellaneous' });
+      analytics.track('upload_success', { category: values.category });
+      setPendingFile(null);
 
       qc.invalidateQueries({ queryKey: ['documents'] });
       qc.invalidateQueries({ queryKey: ['storage-usage'] });
     } catch (err) {
-      analytics.track('upload_failure', { category: categoryFilter ?? 'miscellaneous' });
+      analytics.track('upload_failure', { category: values.category });
       Alert.alert('Upload failed', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setIsUploading(false);
     }
   };
 
-  const { data: prescriptionsData, isLoading: loadingPrescriptions } = useQuery({
+  const { data: prescriptionsData, isLoading: loadingPrescriptions, isError: rxError, refetch: refetchRx } = useQuery({
     queryKey: ['records', 'prescriptions'],
     queryFn: () => records.prescriptions(),
     enabled: activeTab === 'prescriptions',
   });
 
-  const { data: labOrdersData, isLoading: loadingLabs } = useQuery({
+  const { data: labOrdersData, isLoading: loadingLabs, isError: labsError, refetch: refetchLabs } = useQuery({
     queryKey: ['labs', 'orders'],
     queryFn: () => labs.listOrders(),
     enabled: activeTab === 'results',
   });
 
-  const { data: visitNotesData, isLoading: loadingVisits } = useQuery({
+  const { data: visitNotesData, isLoading: loadingVisits, isError: visitsError, refetch: refetchVisits } = useQuery({
     queryKey: ['records', 'visits'],
     // 'visit_note' isn't a real RecordType (visit | prescription | lab |
     // imaging | document | referral | expert_review | visit_summary) —
@@ -218,9 +233,25 @@ export default function RecordsHubScreen() {
     enabled: activeTab === 'visits',
   });
 
-  const handleRequestRefill = (medication: string) => {
-    Alert.alert('Refill Requested', `Your refill request for ${medication} has been sent to your clinician.`);
-  };
+  const refillMutation = useMutation({
+    mutationFn: (rx: { id: string; name: string }) => records.requestRefill(rx.id),
+    onSuccess: (res, rx) => {
+      Alert.alert(
+        res.alreadyRequested ? 'Already requested' : 'Refill requested',
+        res.alreadyRequested
+          ? `Your care team already has a refill request for ${rx.name}.`
+          : `Your care team will review the refill for ${rx.name} and get back to you.`,
+      );
+    },
+    onError: (_err, rx) => {
+      // Never claim a request was sent when it was not; offer the consultation route instead.
+      Alert.alert('Could not send the request', `${rx.name} can also be renewed during a consultation.`, [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Book a consultation', onPress: () => router.push('/book-appointment-step1') },
+      ]);
+    },
+  });
+  const handleRequestRefill = (rx: { id: string; name: string }) => refillMutation.mutate(rx);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -263,6 +294,15 @@ export default function RecordsHubScreen() {
       {/* Content Area */}
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => router.push('/expert-review' as never)}
+          style={[styles.storageBox, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
+          <HeartHandshake size={18} color={theme.primary} />
+          <Text style={{ flex: 1, color: theme.text, fontWeight: '700' }}>Expert Review cases</Text>
+          <ChevronRight size={16} color={theme.textMuted} />
+        </TouchableOpacity>
+
         {/* DOCUMENTS TAB — the actual Vault: search, category filter,
             storage quota, upload, delete. Same underlying records as the
             portal's MyVault, via the same /documents endpoints. */}
@@ -283,7 +323,7 @@ export default function RecordsHubScreen() {
                 {(storagePct >= 100 || atFileLimit) && (
                   <Text style={[styles.storageLimitText, { color: theme.status.error.solid }]}>
                     You've reached your plan's limit —{' '}
-                    <Text style={{ fontWeight: '800' }} onPress={() => router.push('/subscriptions' as any)}>upgrade to add more</Text>.
+                    <Text style={{ fontWeight: '800' }} onPress={() => router.push('/subscription')}>upgrade to add more</Text>.
                   </Text>
                 )}
               </View>
@@ -327,6 +367,8 @@ export default function RecordsHubScreen() {
 
             {loadingDocs ? (
               <ListSkeleton rows={3} />
+            ) : docsError ? (
+              <ErrorState onRetry={() => refetchDocs()} />
             ) : (docsData?.data?.length ?? 0) === 0 ? (
               searchQuery ? (
                 <NoSearchResultState searchTerm={searchQuery} onClearSearch={() => setSearchQuery('')} onResetFilters={() => { setSearchQuery(''); setCategoryFilter(undefined); }} />
@@ -369,6 +411,12 @@ export default function RecordsHubScreen() {
                       </View>
                     </TouchableOpacity>
                     <TouchableOpacity
+                      onPress={() => setEditingDoc(doc)}
+                      accessibilityLabel="Edit document"
+                      style={styles.deleteIconBtn}>
+                      <Pencil size={16} color={theme.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
                       onPress={() => handleDeleteDoc(doc)}
                       disabled={deleteMutation.isPending}
                       style={styles.deleteIconBtn}>
@@ -386,6 +434,8 @@ export default function RecordsHubScreen() {
           <View>
             {loadingPrescriptions ? (
               <ListSkeleton rows={3} />
+            ) : rxError ? (
+              <ErrorState onRetry={() => refetchRx()} />
             ) : ((Array.isArray(prescriptionsData) ? prescriptionsData.length : (prescriptionsData as unknown as { data?: PrescriptionItem[] })?.data?.length ?? 0) === 0) ? (
               <EmptyState
                 icon={Pill}
@@ -395,7 +445,8 @@ export default function RecordsHubScreen() {
             ) : (
               <View style={styles.listGroup}>
                 {(Array.isArray(prescriptionsData) ? prescriptionsData : (prescriptionsData as unknown as { data: PrescriptionItem[] })?.data ?? []).map((rx: PrescriptionItem) => {
-                  const isDue = rx.refillsRemaining === 0;
+                  const isExpired = !!rx.expiresAt && new Date(rx.expiresAt).getTime() < Date.now();
+                  const isDue = !isExpired && rx.refillsRemaining === 0;
                   return (
                     <TouchableOpacity
                       key={rx.id}
@@ -404,10 +455,15 @@ export default function RecordsHubScreen() {
                         router.push({
                           pathname: '/prescription-detail',
                           params: {
+                            id: rx.id,
                             name: rx.drugName,
                             dosage: `${rx.dosage} · ${rx.frequency}`,
-                            status: isDue ? 'due' : 'active',
+                            status: isExpired ? 'expired' : isDue ? 'due' : 'active',
                             refillsLeft: rx.refillsRemaining.toString(),
+                            route: rx.route ?? '',
+                            expiryDate: rx.expiresAt ? formatDate(rx.expiresAt) : '',
+                            prescribedDate: formatDate(rx.createdAt),
+                            notes: rx.notes ?? '',
                           },
                         })
                       }
@@ -431,7 +487,7 @@ export default function RecordsHubScreen() {
 
                       {isDue ? (
                         <TouchableOpacity
-                          onPress={() => handleRequestRefill(rx.drugName)}
+                          onPress={() => handleRequestRefill({ id: rx.id, name: rx.drugName })}
                           activeOpacity={0.85}
                           style={[
                             styles.refillBtn,
@@ -441,7 +497,7 @@ export default function RecordsHubScreen() {
                             },
                           ]}>
                           <Text style={[styles.refillBtnText, { color: theme.status.warning.text }]}>
-                            Request Refill
+                            Renew with a consultation
                           </Text>
                         </TouchableOpacity>
                       ) : (
@@ -462,6 +518,8 @@ export default function RecordsHubScreen() {
           <View>
             {loadingLabs ? (
               <ListSkeleton rows={3} />
+            ) : labsError ? (
+              <ErrorState onRetry={() => refetchLabs()} />
             ) : (labOrdersData?.data?.length ?? 0) === 0 ? (
               <EmptyState
                 icon={FlaskConical}
@@ -471,7 +529,11 @@ export default function RecordsHubScreen() {
             ) : (
               <View style={styles.listGroup}>
                 {labOrdersData?.data?.map((labOrder: LabOrder) => {
-                  const isReady = labOrder.overallStatus === 'completed' || labOrder.overallStatus === 'ready';
+                  // LabStatus is pending | normal | review | critical: anything but
+                  // pending means results are in (the old check looked for
+                  // 'completed'/'ready', values the backend never sends).
+                  const isReady = labOrder.overallStatus !== 'pending';
+                  const needsReview = labOrder.overallStatus === 'review' || labOrder.overallStatus === 'critical';
                   const title = labOrder.results?.[0]?.testName ?? 'Lab Order';
                   return (
                     <TouchableOpacity
@@ -498,8 +560,8 @@ export default function RecordsHubScreen() {
                       </View>
                       <View style={styles.statusWithChevron}>
                         <StatusPill
-                          status={isReady ? 'green' : 'amber'}
-                          label={isReady ? 'Ready' : 'Pending'}
+                          status={isReady && !needsReview ? 'green' : 'amber'}
+                          label={!isReady ? 'Pending' : needsReview ? 'Review' : 'Ready'}
                         />
                         <ChevronRight size={18} color={theme.textMuted} />
                       </View>
@@ -516,6 +578,8 @@ export default function RecordsHubScreen() {
           <View>
             {loadingVisits ? (
               <ListSkeleton rows={3} />
+            ) : visitsError ? (
+              <ErrorState onRetry={() => refetchVisits()} />
             ) : (visitNotesData?.data?.length ?? 0) === 0 ? (
               <EmptyState
                 icon={ClipboardList}
@@ -562,6 +626,33 @@ export default function RecordsHubScreen() {
         )}
 
       </ScrollView>
+
+      <DocumentEditSheet
+        visible={!!pendingFile}
+        mode="upload"
+        busy={isUploading}
+        initial={{
+          title: pendingFile?.name ?? '',
+          category: categoryFilter ?? 'miscellaneous',
+          description: '',
+          providerVisibility: true,
+        }}
+        onCancel={() => !isUploading && setPendingFile(null)}
+        onSubmit={uploadPicked}
+      />
+      <DocumentEditSheet
+        visible={!!editingDoc}
+        mode="edit"
+        busy={updateMutation.isPending}
+        initial={{
+          title: editingDoc?.title ?? '',
+          category: editingDoc?.category ?? 'miscellaneous',
+          description: editingDoc?.description ?? '',
+          providerVisibility: editingDoc?.providerVisibility ?? true,
+        }}
+        onCancel={() => setEditingDoc(null)}
+        onSubmit={(v) => editingDoc && updateMutation.mutate({ ...v, id: editingDoc.id })}
+      />
     </SafeAreaView>
   );
 }

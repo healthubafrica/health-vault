@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -19,12 +19,36 @@ import {
   Users,
   ShieldAlert,
   ChevronLeft,
+  History,
 } from 'lucide-react-native';
+import { ErrorState } from '@/components/states';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
+import * as Location from 'expo-location';
 import { patients, dispatch, analytics, ApiError } from '@/lib/api';
+import { bloodGroupLabel } from '@/lib/bloodGroup';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useQuery } from '@tanstack/react-query';
+
+// Backend EmergencyType has no generic "medical" value; "Other" is the catch-all.
+const DISPATCH_EMERGENCY_TYPE = 'Other';
+const EMERGENCY_NUMBER = '112';
+
+async function getCurrentCoordinates(): Promise<{ latitude: number; longitude: number } | null> {
+  try {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') return null;
+    const fix = await Promise.race([
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+    ]);
+    if (fix) return { latitude: fix.coords.latitude, longitude: fix.coords.longitude };
+    const last = await Location.getLastKnownPositionAsync();
+    return last ? { latitude: last.coords.latitude, longitude: last.coords.longitude } : null;
+  } catch {
+    return null;
+  }
+}
 
 export default function EmergencyScreen() {
   const router = useRouter();
@@ -32,20 +56,32 @@ export default function EmergencyScreen() {
   const theme = Colors[colorScheme];
   const authUser = useAuthStore((s) => s.user);
   const [isRequesting, setIsRequesting] = useState(false);
+  // undefined = still locating, null = unavailable (permission denied / no fix)
+  const [loc, setLoc] = useState<{ latitude: number; longitude: number } | null | undefined>(undefined);
+  useEffect(() => {
+    let alive = true;
+    getCurrentCoordinates().then((c) => alive && setLoc(c)).catch(() => alive && setLoc(null));
+    return () => {
+      alive = false;
+    };
+  }, []);
 
-  const { data: profileRes } = useQuery({
+  const { data: profileRes, isError: profileError, refetch: refetchProfile } = useQuery({
     queryKey: ['patient', 'profile'],
     queryFn: () => patients.getMyProfile(),
   });
 
   const profile = profileRes?.data;
   const patientName = profile ? `${profile.firstName} ${profile.lastName}` : (authUser ? `${authUser.firstName} ${authUser.lastName}` : 'Patient');
-  const bloodGroup = profile?.bloodGroup ?? 'O+ (Positive)';
-  const allergies = profile?.medicalInfo?.allergies?.join(', ') || 'Penicillin (Severe / Anaphylaxis)';
-  const chronicConditions = profile?.medicalInfo?.chronicConditions?.join(', ') || 'Type 2 Diabetes Mellitus';
-  const currentMedications = profile?.medicalInfo?.activeMedications?.join(', ') || 'Metformin 500mg (Daily)';
-  const emergencyContactName = profile?.emergencyContacts?.[0]?.fullName ?? profile?.nextOfKinName ?? 'Kwame Osei';
-  const emergencyContactPhone = profile?.emergencyContacts?.[0]?.phone ?? profile?.nextOfKinPhone ?? '+27 82 123 4567';
+  // Only real, recorded data: a responder must never be shown invented
+  // allergies, medicines or contacts.
+  const NOT_RECORDED = 'Not recorded';
+  const bloodGroup = bloodGroupLabel(profile?.bloodGroup) ?? NOT_RECORDED;
+  const allergies = profile?.medicalInfo?.allergies?.join(', ') || NOT_RECORDED;
+  const chronicConditions = profile?.medicalInfo?.chronicConditions?.join(', ') || NOT_RECORDED;
+  const currentMedications = profile?.medicalInfo?.activeMedications?.join(', ') || NOT_RECORDED;
+  const emergencyContactName = profile?.emergencyContacts?.[0]?.fullName ?? profile?.nextOfKinName ?? NOT_RECORDED;
+  const emergencyContactPhone = profile?.emergencyContacts?.[0]?.phone ?? profile?.nextOfKinPhone ?? NOT_RECORDED;
   const emergencyContactRel = profile?.emergencyContacts?.[0]?.relationship ?? profile?.nextOfKinRelationship ?? 'Contact';
 
   const handleDispatchCare = () => {
@@ -59,19 +95,42 @@ export default function EmergencyScreen() {
           style: 'destructive',
           onPress: async () => {
             setIsRequesting(true);
-            analytics.track('dispatch_request_started', { emergencyType: 'medical_emergency' });
+            analytics.track('dispatch_request_started', { emergencyType: DISPATCH_EMERGENCY_TYPE });
             try {
-              await dispatch.create({
-                emergencyType: 'medical_emergency',
+              // Best effort: a dispatcher needs the location, but never block
+              // an emergency on a slow or denied GPS fix.
+              const coords = await getCurrentCoordinates();
+              const created = await dispatch.create({
+                emergencyType: DISPATCH_EMERGENCY_TYPE,
                 description: `Emergency request for ${patientName}`,
                 contactPhone: profile?.user?.phone ?? authUser?.phone ?? undefined,
+                ...(coords && { latitude: coords.latitude, longitude: coords.longitude }),
               });
-              analytics.track('dispatch_request_success', { emergencyType: 'medical_emergency' });
-              Alert.alert('DispatchCare Alerted', 'Ambulance dispatch unit has been notified. Live status ETA: 8 mins.');
+              analytics.track('dispatch_request_success', { emergencyType: DISPATCH_EMERGENCY_TYPE });
+              const caseId = created?.data?.id;
+              Alert.alert(
+                'Request sent',
+                coords
+                  ? 'DispatchCare has your request and location. A dispatcher will contact you shortly.'
+                  : "DispatchCare has your request, but we couldn't get your location. Tell the dispatcher where you are when they call.",
+                caseId
+                  ? [
+                      { text: 'OK', style: 'cancel' },
+                      {
+                        text: 'Track request',
+                        onPress: () => router.push({ pathname: '/dispatch-case', params: { id: caseId } } as never),
+                      },
+                    ]
+                  : undefined,
+              );
             } catch (err: unknown) {
-              analytics.track('dispatch_request_failure', { emergencyType: 'medical_emergency' });
-              const msg = err instanceof ApiError ? err.message : 'Emergency services alerted. An agent is contacting you.';
-              Alert.alert('Dispatch Alerted', msg);
+              analytics.track('dispatch_request_failure', { emergencyType: DISPATCH_EMERGENCY_TYPE });
+              // Never imply help is coming when the request failed.
+              Alert.alert(
+                'Request NOT sent',
+                (err instanceof ApiError ? err.message : 'We could not reach DispatchCare.') +
+                  '\n\nCall ' + EMERGENCY_NUMBER + ' now.',
+              );
             } finally {
               setIsRequesting(false);
             }
@@ -84,6 +143,9 @@ export default function EmergencyScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {profileError && !profile ? (
+          <ErrorState title="Couldn't load your medical profile" onRetry={() => refetchProfile()} />
+        ) : null}
         
         {/* Back Button & Header */}
         <View style={styles.topBar}>
@@ -91,9 +153,6 @@ export default function EmergencyScreen() {
             <ChevronLeft size={24} color={theme.text} />
             <Text style={[styles.backText, { color: theme.text }]}>Back</Text>
           </TouchableOpacity>
-          <View style={[styles.offlineBadge, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.offlineText, { color: theme.textMuted }]}>Offline-Encrypted Profile</Text>
-          </View>
         </View>
 
         {/* Primary Emergency Action */}
@@ -101,12 +160,18 @@ export default function EmergencyScreen() {
           <AlertOctagon size={36} color={theme.emergency} />
           <Text style={[styles.dispatchHeading, { color: theme.emergency }]}>DispatchCare Emergency</Text>
           <Text style={[styles.dispatchSub, { color: '#78281F' }]}>
-            Fast-response medical dispatch connected to your live GPS coordinates.
+            Fast-response medical dispatch. We share your GPS location when you allow it.
           </Text>
 
           <View style={[styles.gpsBox, { backgroundColor: '#FFFFFF', borderColor: theme.emergency }]}>
             <MapPin size={16} color={theme.emergency} />
-            <Text style={styles.gpsText}>GPS: -33.9249, 18.4241 (Cape Town, SA)</Text>
+            <Text style={styles.gpsText}>
+              {loc === undefined
+                ? 'Getting your location…'
+                : loc
+                  ? `GPS: ${loc.latitude.toFixed(4)}, ${loc.longitude.toFixed(4)}`
+                  : 'Location unavailable — allow location access or tell dispatch where you are'}
+            </Text>
           </View>
 
           <TouchableOpacity
@@ -120,7 +185,15 @@ export default function EmergencyScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Emergency Medical Summary (Offline-Accessible) */}
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => router.push('/dispatch-history' as never)}
+          style={[styles.historyLink, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <History size={18} color={theme.text} />
+          <Text style={[styles.historyText, { color: theme.text }]}>View dispatch history</Text>
+        </TouchableOpacity>
+
+        {/* Emergency Medical Summary */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Emergency Profile ({patientName})</Text>
           
@@ -271,6 +344,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '900',
     letterSpacing: 0.5,
+  },
+  historyLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 20,
+  },
+  historyText: {
+    fontSize: 14,
+    fontWeight: '700',
   },
   section: {
     marginBottom: 20,

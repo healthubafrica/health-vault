@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,19 +9,23 @@ import {
   StatusBar,
   Alert,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft,
   Edit2,
   Info,
+  X,
+  Plus,
 } from 'lucide-react-native';
 
+import { ErrorState } from '@/components/states';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import EmergencyFAB from '@/components/EmergencyFAB';
-import { patients } from '@/lib/api';
+import { patients, ApiError } from '@/lib/api';
 
 interface HistoryCategory {
   id: string;
@@ -34,8 +38,8 @@ export default function MedicalHistoryScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['patient-profile'],
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['patient', 'profile'],
     queryFn: () => patients.getMyProfile(),
   });
 
@@ -52,12 +56,49 @@ export default function MedicalHistoryScreen() {
       ].filter((c) => c.items.length > 0)
     : [];
 
-  const handleEditHistory = () => {
-    Alert.alert(
-      'Edit Medical History',
-      'Clinical history editor opened. You can add new allergies, surgeries, or family conditions.'
-    );
+  const qc = useQueryClient();
+  const profileId = data?.data.id;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<Record<string, string[]>>({});
+  const [newItem, setNewItem] = useState<Record<string, string>>({});
+
+  const CATEGORY_KEYS: { id: string; field: 'allergies' | 'chronicConditions' | 'activeMedications' | 'immunizations'; label: string }[] = [
+    { id: 'allergies', field: 'allergies', label: 'Allergies' },
+    { id: 'conditions', field: 'chronicConditions', label: 'Current Conditions' },
+    { id: 'medications', field: 'activeMedications', label: 'Current Medications' },
+    { id: 'immunizations', field: 'immunizations', label: 'Vaccinations' },
+  ];
+
+  const startEditing = () => {
+    setDraft(Object.fromEntries(CATEGORY_KEYS.map((c) => [c.id, [...(medicalInfo?.[c.field] ?? [])]])));
+    setNewItem({});
+    setEditing(true);
   };
+
+  const addItem = (id: string) => {
+    const text = (newItem[id] ?? '').trim();
+    if (!text || (draft[id] ?? []).some((i) => i.toLowerCase() === text.toLowerCase())) return;
+    setDraft({ ...draft, [id]: [...(draft[id] ?? []), text] });
+    setNewItem({ ...newItem, [id]: '' });
+  };
+
+  const removeItem = (id: string, idx: number) =>
+    setDraft({ ...draft, [id]: (draft[id] ?? []).filter((_, i) => i !== idx) });
+
+  const saveMutation = useMutation({
+    mutationFn: () => {
+      if (!profileId) throw new Error('Profile not loaded yet');
+      return patients.update(profileId, {
+        medicalInfo: Object.fromEntries(CATEGORY_KEYS.map((c) => [c.field, draft[c.id] ?? []])),
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['patient', 'profile'] });
+      setEditing(false);
+    },
+    onError: (err: unknown) =>
+      Alert.alert('Not saved', err instanceof ApiError ? err.message : 'Could not save your medical history. Please try again.'),
+  });
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -72,7 +113,7 @@ export default function MedicalHistoryScreen() {
 
         <Text style={[styles.headerTitle, { color: theme.text }]}>Medical History</Text>
 
-        <TouchableOpacity onPress={handleEditHistory} style={styles.editBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={editing ? () => setEditing(false) : startEditing} style={styles.editBtn} activeOpacity={0.7}>
           <Edit2 size={20} color={theme.text} />
         </TouchableOpacity>
       </View>
@@ -91,6 +132,42 @@ export default function MedicalHistoryScreen() {
           <View style={{ alignItems: 'center', paddingVertical: 40 }}>
             <ActivityIndicator size="large" color={theme.primary} />
           </View>
+        ) : isError && !data ? (
+          <ErrorState onRetry={() => refetch()} />
+        ) : editing ? (
+          <>
+            {CATEGORY_KEYS.map((c) => (
+              <View key={c.id} style={[styles.categoryCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <View style={styles.catHeaderRow}>
+                  <Text style={[styles.catTitle, { color: theme.text }]}>{c.label}</Text>
+                </View>
+                <View style={styles.itemsList}>
+                  {(draft[c.id] ?? []).map((item, idx) => (
+                    <View key={`${item}-${idx}`} style={[styles.itemRow, { justifyContent: 'space-between' }]}>
+                      <Text style={[styles.itemText, { color: theme.text, flex: 1 }]}>{item}</Text>
+                      <TouchableOpacity onPress={() => removeItem(c.id, idx)} accessibilityLabel={`Remove ${item}`} hitSlop={8}>
+                        <X size={18} color={theme.textMuted} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 6 }}>
+                    <TextInput
+                      style={{ flex: 1, borderWidth: 1, borderColor: theme.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, color: theme.text }}
+                      placeholder={`Add to ${c.label.toLowerCase()}`}
+                      placeholderTextColor={theme.textMuted}
+                      value={newItem[c.id] ?? ''}
+                      onChangeText={(t) => setNewItem({ ...newItem, [c.id]: t })}
+                      onSubmitEditing={() => addItem(c.id)}
+                      returnKeyType="done"
+                    />
+                    <TouchableOpacity onPress={() => addItem(c.id)} accessibilityLabel={`Add to ${c.label}`}>
+                      <Plus size={22} color={theme.primary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </>
         ) : categories.length === 0 ? (
           <View style={[styles.categoryCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <Text style={[styles.catTitle, { color: theme.text }]}>No medical history on file yet</Text>
@@ -136,13 +213,24 @@ export default function MedicalHistoryScreen() {
 
         {/* Action Button */}
         <View style={styles.actionSection}>
-          <TouchableOpacity
-            onPress={handleEditHistory}
-            activeOpacity={0.85}
-            style={[styles.primaryBtn, { backgroundColor: theme.primary }]}>
-            <Edit2 size={18} color="#FFFFFF" />
-            <Text style={styles.primaryBtnText}>Edit Medical History</Text>
-          </TouchableOpacity>
+          {editing ? (
+            <TouchableOpacity
+              onPress={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending}
+              activeOpacity={0.85}
+              style={[styles.primaryBtn, { backgroundColor: theme.primary, opacity: saveMutation.isPending ? 0.6 : 1 }]}>
+              <Text style={styles.primaryBtnText}>{saveMutation.isPending ? 'Saving…' : 'Save changes'}</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              onPress={startEditing}
+              disabled={!profileId}
+              activeOpacity={0.85}
+              style={[styles.primaryBtn, { backgroundColor: theme.primary, opacity: profileId ? 1 : 0.5 }]}>
+              <Edit2 size={18} color="#FFFFFF" />
+              <Text style={styles.primaryBtnText}>Edit Medical History</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
       </ScrollView>

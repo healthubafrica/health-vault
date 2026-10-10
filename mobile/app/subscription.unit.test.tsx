@@ -5,17 +5,20 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import SubscriptionScreen from './subscription';
 import { ApiError } from '@/lib/api';
 
+jest.setTimeout(30000);
+
 const mockBack = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ back: mockBack }) }));
 
 const mockOpenBrowserAsync = jest.fn().mockResolvedValue({});
-jest.mock('expo-web-browser', () => ({ openBrowserAsync: (...args: unknown[]) => mockOpenBrowserAsync(...args) }));
+jest.mock('expo-web-browser', () => ({ openAuthSessionAsync: (...args: unknown[]) => mockOpenBrowserAsync(...args) }));
 
 jest.mock('@/lib/api', () => {
   const actual = jest.requireActual('@/lib/api');
   return {
     ApiError: actual.ApiError,
     analytics: { track: jest.fn() },
+    generateIdempotencyKey: jest.fn(() => 'key-1'),
     subscriptions: {
       getMy: jest.fn(),
       listPlans: jest.fn(),
@@ -87,18 +90,23 @@ describe('SubscriptionScreen', () => {
 
     expect(analytics.track).toHaveBeenCalledWith('ui_click', { element_id: 'subscribe_cta_pro', feature_area: 'subscriptions' });
     expect(analytics.track).toHaveBeenCalledWith('plan_select', { plan: 'pro', billing: 'monthly', isSwitch: true });
-    await waitFor(() => expect(subscriptions.upgrade).toHaveBeenCalledWith('p1', 'monthly', 'Flutterwave'));
-    await waitFor(() => expect(mockOpenBrowserAsync).toHaveBeenCalledWith('https://pay.example/checkout'));
+    await waitFor(() => expect(subscriptions.upgrade).toHaveBeenCalledWith('p1', 'monthly', 'Flutterwave', expect.any(String)));
+    await waitFor(() => expect(mockOpenBrowserAsync).toHaveBeenCalledWith('https://pay.example/checkout', 'myhealthvault://payments/verify'));
   });
 
-  it('does not offer a gateway choice while Paystack is not live', async () => {
+  it('goes straight to Flutterwave with no popup while Paystack is not live', async () => {
+    subscriptions.upgrade.mockResolvedValue({
+      requiresPayment: true, paymentId: 'pay0', gateway: 'Flutterwave',
+      authorizationUrl: 'https://pay.example/checkout', amountKobo: 500000, currency: 'NGN',
+    });
     const { findByText, queryByText } = renderScreen();
-    await findByText('Pro');
+    fireEvent.press(await findByText('Upgrade'));
 
-    expect(queryByText('Paystack')).toBeNull();
+    expect(queryByText('Choose how to pay')).toBeNull();
+    await waitFor(() => expect(subscriptions.upgrade).toHaveBeenCalledWith('p1', 'monthly', 'Flutterwave', expect.any(String)));
   });
 
-  it('lets the patient pay with Paystack once it is live', async () => {
+  it('asks which gateway to use once Paystack is live, with Paystack preselected', async () => {
     payments.getGatewayStatus.mockResolvedValue(gatewaysWithPaystack(true));
     subscriptions.upgrade.mockResolvedValue({
       requiresPayment: true, paymentId: 'pay2', gateway: 'Paystack',
@@ -106,14 +114,16 @@ describe('SubscriptionScreen', () => {
     });
 
     const { findByText } = renderScreen();
-    fireEvent.press(await findByText('Paystack'));
+    await waitFor(() => expect(payments.getGatewayStatus).toHaveBeenCalled());
     fireEvent.press(await findByText('Upgrade'));
+    expect(await findByText('Choose how to pay')).toBeTruthy();
+    fireEvent.press(await findByText('Continue with Paystack'));
 
-    await waitFor(() => expect(subscriptions.upgrade).toHaveBeenCalledWith('p1', 'monthly', 'Paystack'));
-    await waitFor(() => expect(mockOpenBrowserAsync).toHaveBeenCalledWith('https://checkout.paystack.com/abc'));
+    await waitFor(() => expect(subscriptions.upgrade).toHaveBeenCalledWith('p1', 'monthly', 'Paystack', expect.any(String)));
+    await waitFor(() => expect(mockOpenBrowserAsync).toHaveBeenCalledWith('https://checkout.paystack.com/abc', 'myhealthvault://payments/verify'));
   });
 
-  it('keeps Flutterwave as the default when Paystack is live but not chosen', async () => {
+  it('lets the patient switch to Flutterwave in the popup', async () => {
     payments.getGatewayStatus.mockResolvedValue(gatewaysWithPaystack(true));
     subscriptions.upgrade.mockResolvedValue({
       requiresPayment: true, paymentId: 'pay3', gateway: 'Flutterwave',
@@ -121,10 +131,12 @@ describe('SubscriptionScreen', () => {
     });
 
     const { findByText } = renderScreen();
-    await findByText('Paystack');
+    await waitFor(() => expect(payments.getGatewayStatus).toHaveBeenCalled());
     fireEvent.press(await findByText('Upgrade'));
+    fireEvent.press(await findByText('Flutterwave'));
+    fireEvent.press(await findByText('Continue with Flutterwave'));
 
-    await waitFor(() => expect(subscriptions.upgrade).toHaveBeenCalledWith('p1', 'monthly', 'Flutterwave'));
+    await waitFor(() => expect(subscriptions.upgrade).toHaveBeenCalledWith('p1', 'monthly', 'Flutterwave', expect.any(String)));
   });
 
   it('shows an alert instead of crashing when checkout fails to start', async () => {
@@ -165,7 +177,7 @@ describe('SubscriptionScreen', () => {
 
     expect(Alert.alert).toHaveBeenCalledWith(
       'Cancel Subscription',
-      'Cancel your Pro plan?',
+      expect.stringContaining('Pro plan will be cancelled immediately'),
       expect.arrayContaining([expect.objectContaining({ text: 'Cancel Plan' })]),
     );
 

@@ -3,7 +3,7 @@ import { Stack, useRouter } from 'expo-router';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Notifications from 'expo-notifications';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Platform, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
@@ -11,7 +11,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { queryClient } from '@/lib/queryClient';
-import { useAuthStore } from '@/lib/stores/authStore';
+import { useAuthStore, registerSessionExpiryHandler } from '@/lib/stores/authStore';
 import { registerForPushNotificationsAsync, syncPushTokenWithBackend } from '@/lib/notifications';
 import Colors from '@/constants/Colors';
 
@@ -41,6 +41,10 @@ export default function RootLayout() {
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
   const restoreSession = useAuthStore((s) => s.restoreSession);
+
+  useEffect(() => {
+    registerSessionExpiryHandler();
+  }, []);
 
   useEffect(() => {
     if (error) throw error;
@@ -73,6 +77,14 @@ function RootLayoutNav() {
   const theme = Colors[colorScheme];
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  // If a signed-in session dies (refresh rejected), return to sign-in rather
+  // than leaving the user on screens that can no longer load anything.
+  const wasAuthenticated = useRef(false);
+  useEffect(() => {
+    if (wasAuthenticated.current && !isAuthenticated) router.replace('/login');
+    wasAuthenticated.current = isAuthenticated;
+  }, [isAuthenticated]);
 
   useEffect(() => {
     // 1. Register push notifications (FCM on Android / APNs on iOS)
@@ -117,6 +129,7 @@ function RootLayoutNav() {
           }}
         />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="payments/verify" options={{ headerShown: false }} />
         <Stack.Screen
           name="onboarding"
           options={{
@@ -144,12 +157,6 @@ function RootLayoutNav() {
         />
         <Stack.Screen
           name="record-vital"
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="record-heart-rate"
           options={{
             headerShown: false,
           }}
@@ -192,7 +199,7 @@ function RootLayoutNav() {
           }}
         />
         <Stack.Screen
-          name="telecare-settings"
+          name="telecare-rating"
           options={{
             headerShown: false,
           }}
@@ -265,6 +272,12 @@ function RootLayoutNav() {
         />
         <Stack.Screen
           name="login"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="reset-password"
           options={{
             headerShown: false,
           }}
@@ -359,7 +372,12 @@ function RootLayoutNav() {
             headerShown: false,
           }}
         />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Information' }} />
+        <Stack.Screen name="support-ticket" options={{ headerShown: false }} />
+        <Stack.Screen name="dispatch-history" options={{ headerShown: false }} />
+        <Stack.Screen name="dispatch-case" options={{ headerShown: false }} />
+        <Stack.Screen name="expert-review" options={{ headerShown: false }} />
+        <Stack.Screen name="expert-review-case" options={{ headerShown: false }} />
+        <Stack.Screen name="expert-review-new" options={{ headerShown: false }} />
       </Stack>
     </ThemeProvider>
   );

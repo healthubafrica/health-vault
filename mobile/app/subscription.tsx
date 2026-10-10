@@ -1,12 +1,17 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, SafeAreaView, StatusBar, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, Crown, CheckCircle2, Sparkles } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
-import { subscriptions, payments, analytics, SubscriptionPlan, ApiError } from '@/lib/api';
+import { subscriptions, payments, analytics, generateIdempotencyKey, SubscriptionPlan, ApiError } from '@/lib/api';
+import { openCheckout } from '@/lib/checkout';
+import { settlePayment, outcomeMessage } from '@/lib/paymentResult';
+import { planPriceKobo, currentPlanPrice, isPaidPlan } from '@/lib/pricing';
+import GatewayPickerModal from '@/components/GatewayPickerModal';
+import { useGatewayAvailability } from '@/lib/useGatewayAvailability';
+import type { CardGateway } from '@/lib/gateway';
 import { ListSkeleton, ErrorState } from '@/components/states';
 
 function formatNaira(kobo: number): string {
@@ -20,16 +25,10 @@ export default function SubscriptionScreen() {
   const qc = useQueryClient();
 
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annually'>('monthly');
-  const [gateway, setGateway] = useState<'Flutterwave' | 'Paystack'>('Flutterwave');
-
-  // The chooser only appears once the API reports Paystack as live, so a
-  // missing/misconfigured key never offers patients an option that would fail.
-  const { data: gatewayStatuses } = useQuery({
-    queryKey: ['payment-gateway-status'],
-    queryFn: payments.getGatewayStatus,
-    staleTime: 5 * 60_000,
-  });
-  const paystackActive = gatewayStatuses?.some((g) => g.gateway === 'paystack' && g.active) ?? false;
+  // The payment-method popup only opens once the API reports Paystack live;
+  // otherwise paid plans go straight to Flutterwave.
+  const { paystackActive } = useGatewayAvailability();
+  const [pickingPlan, setPickingPlan] = useState<SubscriptionPlan | null>(null);
 
   const { data: myData, isLoading: isLoadingMy } = useQuery({
     queryKey: ['subscription-me'],
@@ -49,15 +48,35 @@ export default function SubscriptionScreen() {
   const current = myData?.data ?? null;
   const plans = plansData?.data ?? [];
 
+  // One key per (plan, cycle, gateway): a retry of the same attempt replays instead of
+  // double-charging; cleared once the attempt settles so a new one starts fresh.
+  const keys = useRef(new Map<string, string>());
+  const keyFor = (planId: string, gateway: string) => {
+    const id = `${planId}|${billingCycle}|${gateway}`;
+    if (!keys.current.has(id)) keys.current.set(id, generateIdempotencyKey());
+    return keys.current.get(id)!;
+  };
+
   const upgradeMutation = useMutation({
-    mutationFn: (plan: SubscriptionPlan) =>
-      subscriptions.upgrade(plan.id, billingCycle, paystackActive ? gateway : 'Flutterwave'),
-    onSuccess: async (result, plan) => {
+    mutationFn: ({ plan, gateway }: { plan: SubscriptionPlan; gateway: CardGateway }) =>
+      subscriptions.upgrade(plan.id, billingCycle, gateway, keyFor(plan.id, gateway)),
+    onSuccess: async (result, { plan }) => {
+      setPickingPlan(null);
       analytics.track('checkout_start', { plan: plan.tier, billing: billingCycle, gateway: result.gateway });
-      await WebBrowser.openBrowserAsync(result.authorizationUrl);
+      const returned = await openCheckout(result.authorizationUrl);
+      // The browser closing (or the return link) says nothing about whether the card was charged.
+      const reference = result.reference ?? returned.reference;
+      const outcome = reference ? await settlePayment(payments.verify, reference) : 'pending';
+      if (outcome !== 'pending') keys.current.clear();
+      if (outcome === 'paid') analytics.track('payment_success', { gateway: result.gateway, plan: plan.tier });
+      if (outcome === 'failed') analytics.track('payment_failure', { gateway: result.gateway, reason: 'declined_or_cancelled' });
       qc.invalidateQueries({ queryKey: ['subscription-me'] });
+      qc.invalidateQueries({ queryKey: ['payments'] });
+      const msg = outcomeMessage(outcome);
+      Alert.alert(msg.title, msg.body);
     },
-    onError: (err: unknown, plan) => {
+    onError: (err: unknown, { plan }) => {
+      setPickingPlan(null);
       analytics.track('subscription_checkout_error', { plan: plan.tier });
       Alert.alert('Could not start upgrade', err instanceof ApiError ? err.message : 'Please try again.');
     },
@@ -75,14 +94,14 @@ export default function SubscriptionScreen() {
 
   const handleCancel = () => {
     if (!current) return;
-    Alert.alert('Cancel Subscription', `Cancel your ${current.plan.name} plan?`, [
+    Alert.alert('Cancel Subscription', `Your ${current.plan.name} plan will be cancelled immediately, not at the end of the period you paid for, and its benefits stop right away. Cancelling does not refund payments already made. You can subscribe again at any time.`, [
       { text: 'Keep Plan', style: 'cancel' },
       { text: 'Cancel Plan', style: 'destructive', onPress: () => cancelMutation.mutate(current.id) },
     ]);
   };
 
-  const priceForCycle = (plan: SubscriptionPlan) =>
-    billingCycle === 'annually' && plan.annualPriceKobo ? plan.annualPriceKobo : plan.priceKobo;
+  const priceForCycle = (plan: SubscriptionPlan) => planPriceKobo(plan, billingCycle);
+  const currentPrice = current ? currentPlanPrice(current) : null;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -108,14 +127,14 @@ export default function SubscriptionScreen() {
             </View>
             <Text style={styles.currentPlanName}>{current.plan.name}</Text>
             <Text style={styles.currentPlanPrice}>
-              {formatNaira(current.plan.priceKobo)} / {current.plan.billingPeriod}
+              {currentPrice ? `${formatNaira(currentPrice.kobo)} / ${currentPrice.unit}` : ''}
             </Text>
             <Text style={styles.currentPlanMeta}>
               {current.expiresAt
                 ? `Renews ${new Date(current.expiresAt).toLocaleDateString()}`
                 : 'Never expires'}
             </Text>
-            {current.plan.tier !== 'free' && (
+            {isPaidPlan(current.plan) && (
               <TouchableOpacity
                 activeOpacity={0.8}
                 disabled={cancelMutation.isPending}
@@ -150,30 +169,6 @@ export default function SubscriptionScreen() {
           })}
         </View>
 
-        {/* Payment method — only when Paystack is live alongside Flutterwave */}
-        {paystackActive ? (
-          <View style={{ gap: 6 }}>
-            <Text style={[styles.gatewayLabel, { color: theme.textMuted }]}>Pay with</Text>
-            <View style={styles.cycleRow}>
-              {(['Flutterwave', 'Paystack'] as const).map((g) => {
-                const isSelected = gateway === g;
-                return (
-                  <TouchableOpacity
-                    key={g}
-                    activeOpacity={0.85}
-                    onPress={() => setGateway(g)}
-                    style={[
-                      styles.cyclePill,
-                      { backgroundColor: isSelected ? theme.primary : theme.surface, borderColor: isSelected ? theme.primary : theme.border },
-                    ]}>
-                    <Text style={[styles.cyclePillText, { color: isSelected ? '#FFFFFF' : theme.text }]}>{g}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        ) : null}
-
         {/* Available Plans */}
         {isLoadingPlans ? (
           <ListSkeleton rows={3} />
@@ -183,6 +178,7 @@ export default function SubscriptionScreen() {
           <View style={styles.plansList}>
             {plans.map((plan) => {
               const isCurrent = current?.plan.id === plan.id;
+              const cyclePrice = priceForCycle(plan);
               return (
                 <View
                   key={plan.id}
@@ -198,7 +194,11 @@ export default function SubscriptionScreen() {
                   )}
                   <Text style={[styles.planName, { color: theme.text }]}>{plan.name}</Text>
                   <Text style={[styles.planPrice, { color: theme.primary }]}>
-                    {plan.priceKobo === 0 ? 'Free' : `${formatNaira(priceForCycle(plan))} / ${billingCycle === 'annually' ? 'yr' : 'mo'}`}
+                    {plan.priceKobo === 0
+                      ? 'Free'
+                      : cyclePrice === null
+                        ? 'Monthly only'
+                        : `${formatNaira(cyclePrice)} / ${billingCycle === 'annually' ? 'yr' : 'mo'}`}
                   </Text>
                   {plan.bestFor && <Text style={[styles.planBestFor, { color: theme.textMuted }]}>{plan.bestFor}</Text>}
 
@@ -222,7 +222,8 @@ export default function SubscriptionScreen() {
                       onPress={() => {
                         analytics.track('ui_click', { element_id: `subscribe_cta_${plan.tier}`, feature_area: 'subscriptions' });
                         analytics.track('plan_select', { plan: plan.tier, billing: billingCycle, isSwitch: !!current });
-                        upgradeMutation.mutate(plan);
+                        if (paystackActive) setPickingPlan(plan);
+                        else upgradeMutation.mutate({ plan, gateway: 'Flutterwave' });
                       }}
                       style={[styles.upgradeBtn, { backgroundColor: theme.primary, opacity: upgradeMutation.isPending ? 0.6 : 1 }]}>
                       <Text style={styles.upgradeBtnText}>
@@ -236,6 +237,13 @@ export default function SubscriptionScreen() {
           </View>
         )}
       </ScrollView>
+      <GatewayPickerModal
+        visible={pickingPlan !== null}
+        summary={pickingPlan ? `${pickingPlan.name} (${billingCycle})` : ''}
+        busy={upgradeMutation.isPending}
+        onClose={() => setPickingPlan(null)}
+        onConfirm={(gateway) => pickingPlan && upgradeMutation.mutate({ plan: pickingPlan, gateway })}
+      />
     </SafeAreaView>
   );
 }
@@ -271,8 +279,7 @@ const styles = StyleSheet.create({
   cycleRow: { flexDirection: 'row', gap: 10 },
   cyclePill: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
   cyclePillText: { fontSize: 13, fontWeight: '700' },
-  gatewayLabel: { fontSize: 12, fontWeight: '600' },
-  plansList: { gap: 14 },
+    plansList: { gap: 14 },
   planCard: { borderRadius: 20, borderWidth: 1.5, padding: 18 },
   popularBadge: {
     position: 'absolute',

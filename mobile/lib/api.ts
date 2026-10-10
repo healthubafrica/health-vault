@@ -6,6 +6,7 @@
 
 import * as SecureStore from 'expo-secure-store';
 import * as analyticsClient from './analytics/client';
+import type { ExpertReviewCase, CreateExpertReviewInput } from './expertReview';
 
 export const API_BASE =
   (process.env.EXPO_PUBLIC_API_URL ?? 'https://api.myvaultplus.com') + '/api/v1';
@@ -75,7 +76,7 @@ export async function apiRequest<T>(
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+    res = await fetchWithTimeout(`${API_BASE}${path}`, { ...options, headers });
   } catch {
     throw new ApiError(
       0,
@@ -84,10 +85,14 @@ export async function apiRequest<T>(
   }
 
   if (res.status === 401 && retryOnAuth) {
-    const refreshed = await attemptTokenRefresh();
-    if (refreshed) return apiRequest<T>(path, options, false);
-    await clearStoredTokens();
-    throw new ApiError(401, 'Your session has expired. Please sign in again.');
+    const outcome = await refreshSession();
+    if (outcome === 'ok') return apiRequest<T>(path, options, false);
+    if (outcome === 'rejected') {
+      await clearStoredTokens();
+      onSessionExpired?.();
+      throw new ApiError(401, 'Your session has expired. Please sign in again.');
+    }
+    throw new ApiError(0, 'Unable to connect to Health Hub Africa. Please check your internet connection.');
   }
 
   if (!res.ok) {
@@ -98,30 +103,64 @@ export async function apiRequest<T>(
   }
 
   if (res.status === 204) return undefined as T;
+  // Receipts are served as text/html rather than JSON.
+  if ((res.headers?.get?.('content-type') ?? '').startsWith('text/')) return res.text() as Promise<T>;
   return res.json() as Promise<T>;
 }
 
-async function attemptTokenRefresh(): Promise<boolean> {
+// Registered by the auth store so a dead session (refresh rejected) resets the
+// UI state and routes to sign-in, without api.ts importing the store (cycle).
+let onSessionExpired: (() => void) | null = null;
+export function setSessionExpiredHandler(fn: (() => void) | null) {
+  onSessionExpired = fn;
+}
+
+export type RefreshOutcome = 'ok' | 'rejected' | 'unreachable';
+
+// Single-flight: concurrent 401s share one refresh. The backend rotates the
+// refresh token on every use, so two parallel refreshes would make the second
+// one fail and wrongly sign the user out.
+let refreshInFlight: Promise<RefreshOutcome> | null = null;
+
+export function refreshSession(): Promise<RefreshOutcome> {
+  if (!refreshInFlight) {
+    refreshInFlight = doRefresh().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+async function doRefresh(): Promise<RefreshOutcome> {
   const refreshToken = await getStoredRefreshToken();
-  if (!refreshToken) return false;
+  if (!refreshToken) return 'rejected';
 
   try {
-    const res = await fetch(`${API_BASE}/auth/refresh`, {
+    // The backend's jwt-refresh strategy reads ONLY the x-refresh-token header
+    // (the web portal does the same); a JSON body is ignored and always 401s.
+    const res = await fetchWithTimeout(`${API_BASE}/auth/refresh`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
+      headers: { 'Content-Type': 'application/json', 'x-refresh-token': refreshToken },
     });
-    if (!res.ok) return false;
+    if (res.status === 401 || res.status === 403) return 'rejected';
+    if (!res.ok) return 'unreachable';
     const data = await res.json();
-    if (data.accessToken) {
-      setAccessToken(data.accessToken);
-      if (data.refreshToken) await saveRefreshToken(data.refreshToken);
-      return true;
-    }
-    return false;
+    if (!data.accessToken) return 'rejected';
+    setAccessToken(data.accessToken);
+    if (data.refreshToken) await saveRefreshToken(data.refreshToken);
+    return 'ok';
   } catch {
-    return false;
+    // Offline or timed out: the session may still be valid — don't sign out.
+    return 'unreachable';
   }
+}
+
+const REQUEST_TIMEOUT_MS = 20_000;
+
+function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -168,6 +207,37 @@ export interface PatientProfile {
   }> | null;
 }
 
+export interface EmergencyContact {
+  id: string;
+  fullName: string;
+  relationship: string;
+  phone: string;
+  email?: string | null;
+  isPrimary: boolean;
+}
+
+export const emergencyContacts = {
+  list: async (): Promise<EmergencyContact[]> => {
+    const res = await apiRequest<{ data: EmergencyContact[] } | EmergencyContact[]>('/patients/me/emergency-contacts');
+    return Array.isArray(res) ? res : res?.data ?? [];
+  },
+  create: (body: { fullName: string; relationship: string; phone: string; email?: string; isPrimary?: boolean }) =>
+    apiRequest<{ data: EmergencyContact }>('/patients/me/emergency-contacts', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  update: (
+    id: string,
+    body: Partial<{ fullName: string; relationship: string; phone: string; email: string; isPrimary: boolean }>,
+  ) =>
+    apiRequest<{ data: EmergencyContact }>(`/patients/me/emergency-contacts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  remove: (id: string) =>
+    apiRequest<{ data: { deleted: boolean } }>(`/patients/me/emergency-contacts/${id}`, { method: 'DELETE' }),
+};
+
 export interface VitalsReading {
   id: string;
   recordedAt: string;
@@ -187,6 +257,7 @@ export interface VitalsReading {
 export interface CreateVitalsPayload {
   recordedAt?: string;
   heartRate?: number;
+  respiratoryRate?: number;
   bloodPressureSystolic?: number;
   bloodPressureDiastolic?: number;
   oxygenSaturation?: number;
@@ -218,15 +289,35 @@ export interface ServiceProvider {
   lastName: string;
   title?: string | null;
   specialty?: string | null;
-  rating?: number | null;
+  // Prisma Decimal: arrives as a string, so never call number methods on it directly.
+  rating?: number | string | null;
   isAvailable: boolean;
   profilePhotoUrl?: string | null;
   bio?: string | null;
   yearsExperience?: number | null;
   languages?: string[] | null;
+  subspecialties?: string[] | null;
+  qualifications?: string[] | null;
+  clinicName?: string | null;
+  clinicCity?: string | null;
+  clinicState?: string | null;
+}
+
+export interface SchedulingPolicy {
+  cancellationWindowHours: number;
+  rescheduleWindowHours: number;
+  selfServiceEnabled: boolean;
+}
+
+export interface BookableFacility {
+  id: string;
+  name: string;
+  city?: string | null;
+  state?: string | null;
 }
 
 export interface CreateAppointmentPayload {
+  facilityId?: string;
   appointmentType: 'in_person' | 'virtual' | 'home_visit';
   serviceType?: string;
   scheduledAt: string;
@@ -322,21 +413,27 @@ export interface SupportMessage {
   body: string;
   senderId: string;
   createdAt: string;
+  /** Staff-only note; the API should not return these to patients, the app hides them regardless. */
+  isInternal?: boolean;
 }
 
+// Mirrors NotificationsService.listPatientAlerts: `category` is the alert's
+// referenceType (appointment | lab | payment | record | telecare | alert | system)
+// and `actionUrl` is a web-portal path.
 export interface Notification {
   id: string;
-  type: string;
+  category: string;
   title: string;
   body: string;
   isRead: boolean;
+  actionUrl?: string;
   createdAt: string;
-  data?: Record<string, unknown> | null;
 }
 
 export interface TelecareSession {
   id: string;
   hhaRef: string;
+  appointmentId?: string | null;
   status: string;
   scheduledAt: string;
   startedAt?: string | null;
@@ -351,7 +448,7 @@ export type AcquisitionSource = 'social_media' | 'friend' | 'referral' | 'family
 
 export const auth = {
   login: (email: string, password: string) =>
-    apiRequest<{ accessToken: string; refreshToken: string } | { requiresTwoFactor: true; userId: string }>(
+    apiRequest<{ accessToken: string; refreshToken: string }>(
       '/auth/login',
       { method: 'POST', body: JSON.stringify({ email, password }) },
       false
@@ -372,6 +469,19 @@ export const auth = {
       false
     ),
 
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiRequest<unknown>('/auth/change-password', {
+      method: 'PATCH',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+
+  listSessions: () =>
+    apiRequest<{ data: Array<{ id: string; ipAddress?: string | null; userAgent?: string | null; createdAt: string; expiresAt: string }> }>(
+      '/auth/sessions'
+    ),
+
+  logoutAll: () => apiRequest<unknown>('/auth/logout-all', { method: 'POST' }),
+
   verifyOtp: async (email: string, otp: string, type = 'email') =>
     apiRequest<{ accessToken: string; refreshToken: string }>(
       '/auth/verify-otp',
@@ -391,6 +501,15 @@ export const auth = {
 
   logout: () =>
     apiRequest<{ message: string }>('/auth/logout', { method: 'POST' }).catch(() => {}),
+
+  // Re-sends the signup verification code for an unverified account
+  // (rate limited server-side).
+  resendOtp: (email: string) =>
+    apiRequest<{ message: string }>(
+      '/auth/resend-otp',
+      { method: 'POST', body: JSON.stringify({ email }) },
+      false
+    ),
 
   forgotPassword: (email: string) =>
     apiRequest<{ message: string }>(
@@ -422,13 +541,39 @@ export const patients = {
       { method: 'PATCH', body: JSON.stringify(data) }
     ),
 
+  // Profile photo: presign -> PUT the bytes -> process (crop/resize/WebP, saves it).
+  getProfilePhotoUploadUrl: (data: { contentType: string; sizeBytes: number }) =>
+    apiRequest<{ uploadUrl: string; objectKey: string; publicUrl?: string }>(
+      '/patients/me/profile-photo-upload-url',
+      { method: 'POST', body: JSON.stringify(data) }
+    ),
+
+  processProfilePhoto: (objectKey: string) =>
+    apiRequest<{ profilePhotoUrl?: string | null }>('/patients/me/profile-photo/process', {
+      method: 'POST',
+      body: JSON.stringify({ objectKey }),
+    }),
+
+  removeProfilePhoto: () =>
+    apiRequest<{ message?: string }>('/patients/me/profile-photo', { method: 'DELETE' }),
+
   // Derived from appointment history, not a dedicated assignment table —
   // see patients.service.ts findMyCareTeam.
   getMyCareTeam: () => apiRequest<{ data: CareTeamMember[] }>('/patients/me/care-team'),
+
+  // Emails the patient a copy of their health record (rate-limited server side).
+  requestExport: () => apiRequest<{ message?: string }>('/patients/me/request-export', { method: 'POST' }),
+
+  updateOnboardingProgress: (step: number, stepName: string) =>
+    apiRequest<unknown>('/patients/me/onboarding-progress', {
+      method: 'PATCH',
+      body: JSON.stringify({ step, stepName }),
+    }),
 };
 
 export const vitals = {
-  list: () => apiRequest<{ data: VitalsReading[] }>('/vitals'),
+  // The API defaults to the latest 50 readings; ask for the maximum so history and averages are complete.
+  list: (limit = 200) => apiRequest<{ data: VitalsReading[] }>(`/vitals?limit=${limit}`),
 
   create: (data: CreateVitalsPayload) =>
     apiRequest<{ data: VitalsReading }>(
@@ -438,7 +583,8 @@ export const vitals = {
 };
 
 export const appointments = {
-  list: (params?: { status?: string; upcoming?: boolean }) => {
+  // fromDate (ISO) is supported by the backend query DTO; `upcoming` drops anything already started.
+  list: (params?: { status?: string; upcoming?: boolean; fromDate?: string }) => {
     const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
     return apiRequest<{ data: Appointment[]; meta: { total: number } }>(`/appointments${qs}`);
   },
@@ -457,13 +603,24 @@ export const appointments = {
     );
   },
 
+  facilities: () => apiRequest<BookableFacility[]>('/appointments/facilities'),
+
+  getSchedulingPolicy: () =>
+    apiRequest<SchedulingPolicy>('/appointments/scheduling-policy'),
+
   // Resolves to the bare appointment — the controller returns the service
   // result unwrapped and no interceptor adds a { data } envelope. Only
-  // list() is enveloped ({ data, meta }).
-  create: (data: CreateAppointmentPayload) =>
+  // list() is enveloped ({ data, meta }). The optional Idempotency-Key makes a
+  // retried or double-tapped booking replay the first appointment instead of
+  // creating a second one (the backend dedupes on it).
+  create: (data: CreateAppointmentPayload, idempotencyKey?: string) =>
     apiRequest<Appointment>(
       '/appointments',
-      { method: 'POST', body: JSON.stringify(data) }
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+        ...(idempotencyKey && { headers: { 'Idempotency-Key': idempotencyKey } }),
+      }
     ),
 
   cancel: (id: string, reason?: string) =>
@@ -471,6 +628,13 @@ export const appointments = {
       `/appointments/${id}/cancel`,
       { method: 'POST', body: JSON.stringify({ reason: reason ?? '' }) }
     ),
+
+  // POST /appointments/:id/reschedule — moves a booked appointment to a new slot.
+  reschedule: (id: string, scheduledAt: string, durationMinutes?: number) =>
+    apiRequest<Appointment>(`/appointments/${id}/reschedule`, {
+      method: 'POST',
+      body: JSON.stringify({ scheduledAt, ...(durationMinutes ? { durationMinutes } : {}) }),
+    }),
 };
 
 // ── Analytics (fire-and-forget) ───────────────────────────────────────────
@@ -488,14 +652,27 @@ export const analytics = {
 export const records = {
   list: (type?: string) => {
     const qs = type ? `?type=${encodeURIComponent(type)}` : '';
-    return apiRequest<{ data: ClinicalRecord[]; meta: { total: number } }>(`/records${qs}`);
+    return apiRequest<{ data: ClinicalRecord[] }>(`/records${qs}`);
   },
 
   get: (id: string) => apiRequest<{ data: ClinicalRecord }>(`/records/${id}`),
 
   prescriptions: () => apiRequest<PrescriptionItem[]>('/records/prescriptions/list'),
 
+  // Asks the care team to renew a prescription (one open request per prescription).
+  requestRefill: (id: string) =>
+    apiRequest<{ requested: boolean; alreadyRequested: boolean }>(`/records/prescriptions/${id}/refill-request`, {
+      method: 'POST',
+    }),
+
   getStorageUsage: () => apiRequest<{ data: StorageUsage | null }>('/records/storage'),
+
+  // Short-lived presigned S3 URL for a stored file. `fileUrl` is the stored
+  // object URL; the backend wants just its key (the URL path without the slash).
+  getDownloadUrl: (fileUrl: string) => {
+    const objectKey = new URL(fileUrl).pathname.slice(1);
+    return apiRequest<{ data: { downloadUrl: string } }>(`/records/download-url/${encodeURIComponent(objectKey)}`);
+  },
 };
 
 export interface StorageUsage {
@@ -593,7 +770,17 @@ export const documents = {
     return apiRequest<{ data: VaultDocument[]; meta: { total: number } }>(`/documents${suffix}`);
   },
 
-  update: (id: string, data: Partial<{ title: string; description: string; category: DocumentCategory; tags: string[] }>) =>
+  update: (
+    id: string,
+    data: Partial<{
+      title: string;
+      description: string;
+      category: DocumentCategory;
+      tags: string[];
+      documentDate: string;
+      providerVisibility: boolean;
+    }>,
+  ) =>
     apiRequest<{ data: VaultDocument }>(`/documents/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   remove: (id: string) => apiRequest<void>(`/documents/${id}`, { method: 'DELETE' }),
@@ -631,11 +818,23 @@ export function generateIdempotencyKey(): string {
     const bytes = c.getRandomValues(new Uint8Array(16));
     return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
   }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  // React Native has no crypto.randomUUID without a polyfill, so this is the path
+  // that normally runs. Uniqueness (not secrecy) is what an idempotency key needs:
+  // timestamp + per-process counter + two random draws.
+  idempotencySeq += 1;
+  const rand = () => Math.random().toString(36).slice(2, 10);
+  return `${Date.now().toString(36)}-${idempotencySeq.toString(36)}-${rand()}${rand()}`;
 }
 
+let idempotencySeq = 0;
+
 export const payments = {
-  list: () => apiRequest<{ data: Payment[] }>('/payments'),
+  // GET /payments returns a bare array (no { data } envelope); normalise so
+  // screens keep reading `.data` and a future envelope would also keep working.
+  list: async (): Promise<{ data: Payment[] }> => {
+    const res = await apiRequest<Payment[] | { data: Payment[] }>('/payments');
+    return { data: Array.isArray(res) ? res : res?.data ?? [] };
+  },
 
   initiate: (
     data: {
@@ -646,12 +845,17 @@ export const payments = {
       description?: string;
       savePaymentMethod?: boolean;
       paymentMethodId?: string;
+      /** 'mobile' makes the gateway return to the myhealthvault:// deep link. */
+      client?: 'web' | 'mobile';
     },
     idempotencyKey?: string,
   ) =>
     apiRequest<{
       paymentId: string;
       authorizationUrl?: string;
+      reference?: string;
+      /** Human reference (PAY-YYYY-NNNNNN) shown for bank transfers. */
+      hhaRef?: string;
       gateway: string;
       status?: string;
       requiresOtp?: boolean;
@@ -663,7 +867,18 @@ export const payments = {
     }),
 
   getGatewayStatus: () =>
-    apiRequest<{ gateway: string; name: string; active: boolean }[]>('/payments/gateways/status'),
+    apiRequest<{ gateway: string; name: string; active: boolean; bankName?: string; accountNumber?: string; accountName?: string }[]>(
+      '/payments/gateways/status'
+    ),
+
+  // Public endpoint; re-checks with the gateway so the app need not wait for the webhook.
+  verify: (reference: string) =>
+    apiRequest<{ status: string; paymentId: string; gateway: string }>(
+      `/payments/verify?reference=${encodeURIComponent(reference)}`
+    ),
+
+  // Printable HTML receipt for a paid or refunded payment (authenticated, text).
+  getReceiptHtml: (id: string) => apiRequest<string>(`/payments/${encodeURIComponent(id)}/receipt`),
 
   validateCharge: (data: { paymentId: string; flwRef: string; otp: string }) =>
     apiRequest<{ status: string; paymentId: string }>('/payments/validate-charge', {
@@ -688,7 +903,7 @@ export const notifications = {
     apiRequest<void>(`/notifications/${id}/read`, { method: 'PATCH' }),
 
   markAllRead: () =>
-    apiRequest<void>('/notifications/read-all', { method: 'POST' }),
+    apiRequest<unknown>('/notifications/read-all', { method: 'PATCH' }),
 };
 
 export const telecare = {
@@ -701,6 +916,12 @@ export const telecare = {
       `/telecare/sessions/${id}/token`,
       { method: 'POST' }
     ),
+
+  rate: (id: string, rating: number, feedback?: string) =>
+    apiRequest<unknown>(`/telecare/sessions/${id}/rate`, {
+      method: 'PATCH',
+      body: JSON.stringify({ rating, ...(feedback && { feedback }) }),
+    }),
 
   markCompleted: (id: string) =>
     apiRequest<{ id: string; status: string; endedAt: string | null }>(
@@ -772,6 +993,26 @@ export const support = {
     }),
 };
 
+export interface DispatchEvent {
+  id: string;
+  status: string;
+  notes?: string | null;
+  occurredAt: string;
+}
+
+export interface DispatchCase {
+  id: string;
+  hhaRef: string;
+  emergencyType: string;
+  description?: string | null;
+  status: string;
+  locationText?: string | null;
+  etaMinutes?: number | null;
+  createdAt: string;
+  closedAt?: string | null;
+  events?: DispatchEvent[];
+}
+
 export const dispatch = {
   create: (data: {
     emergencyType: string;
@@ -781,9 +1022,39 @@ export const dispatch = {
     locationAddress?: string;
     contactPhone?: string;
   }) =>
-    apiRequest<{ data: unknown }>(
+    apiRequest<{ data: DispatchCase }>(
       '/dispatch',
       { method: 'POST', body: JSON.stringify(data) }
+    ),
+
+  list: () => apiRequest<{ data: DispatchCase[] }>('/dispatch'),
+
+  get: (id: string) => apiRequest<{ data: DispatchCase }>(`/dispatch/${encodeURIComponent(id)}`),
+};
+
+export interface GuestInvite {
+  id: string;
+  guestName: string;
+  guestEmail: string;
+  isRevoked: boolean;
+  verifiedAt?: string | null;
+  createdAt: string;
+}
+
+export const telecareGuestInvites = {
+  list: (sessionId: string) =>
+    apiRequest<GuestInvite[]>(`/telecare/sessions/${encodeURIComponent(sessionId)}/guest-invites`),
+
+  create: (sessionId: string, body: { guestName: string; guestEmail: string }) =>
+    apiRequest<GuestInvite>(`/telecare/sessions/${encodeURIComponent(sessionId)}/guest-invites`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  revoke: (sessionId: string, inviteId: string) =>
+    apiRequest<unknown>(
+      `/telecare/sessions/${encodeURIComponent(sessionId)}/guest-invites/${encodeURIComponent(inviteId)}`,
+      { method: 'DELETE' },
     ),
 };
 
@@ -821,7 +1092,11 @@ export interface ConsentRecord {
 }
 
 export const consents = {
-  list: () => apiRequest<{ data: ConsentRecord[] }>('/consents'),
+  // GET /consents returns a bare array (no envelope); normalise so screens read `.data`.
+  list: async (): Promise<{ data: ConsentRecord[] }> => {
+    const res = await apiRequest<ConsentRecord[] | { data: ConsentRecord[] }>('/consents');
+    return { data: Array.isArray(res) ? res : res?.data ?? [] };
+  },
 
   upsert: (data: { consentType: ConsentType; granted: boolean; version?: string }) =>
     apiRequest<{ data: ConsentRecord }>('/consents', {
@@ -861,6 +1136,8 @@ export interface SubscriptionUpgradeResponse {
   paymentId: string;
   gateway: string;
   authorizationUrl: string;
+  /** Gateway reference; pass to payments.verify to learn the outcome. */
+  reference?: string;
   amountKobo: number;
   currency: string;
 }
@@ -880,10 +1157,17 @@ export const subscriptions = {
 
   // Patient-facing paid upgrade. Returns a gateway authorization URL to open;
   // the subscription activates via payment webhook once the gateway confirms.
-  upgrade: (planId: string, billingCycle: string, gateway: 'Flutterwave' | 'Paystack' = 'Flutterwave') =>
+  // The Idempotency-Key makes a retry of the same attempt replay instead of double-charging.
+  upgrade: (
+    planId: string,
+    billingCycle: string,
+    gateway: 'Flutterwave' | 'Paystack' = 'Flutterwave',
+    idempotencyKey?: string,
+  ) =>
     apiRequest<SubscriptionUpgradeResponse>('/subscriptions/upgrade', {
       method: 'POST',
-      body: JSON.stringify({ planId, billingCycle, gateway }),
+      body: JSON.stringify({ planId, billingCycle, gateway, client: 'mobile' }),
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
     }),
 
   cancel: (subscriptionId: string) =>
@@ -923,4 +1207,16 @@ export const travelsafe = {
   list: () => apiRequest<{ data: TravelSafeTrip[] }>('/travelsafe/trips'),
 
   get: (id: string) => apiRequest<{ data: TravelSafeTrip }>(`/travelsafe/trips/${id}`),
+};
+
+export const expertReview = {
+  list: () => apiRequest<ExpertReviewCase[]>('/expert-review'),
+
+  get: (id: string) => apiRequest<ExpertReviewCase>(`/expert-review/${encodeURIComponent(id)}`),
+
+  create: (data: CreateExpertReviewInput) =>
+    apiRequest<ExpertReviewCase>('/expert-review', { method: 'POST', body: JSON.stringify(data) }),
+
+  acknowledgeDisclaimer: (id: string) =>
+    apiRequest<unknown>(`/expert-review/${encodeURIComponent(id)}/acknowledge-disclaimer`, { method: 'POST' }),
 };

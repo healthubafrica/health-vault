@@ -7,354 +7,222 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
-  Switch,
   Alert,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import {
-  ChevronLeft,
-  Lock,
-  Fingerprint,
-  Smartphone,
-  Key,
-  ShieldCheck,
-  RotateCw,
-  LogOut,
-  ChevronRight,
-  CheckCircle2,
-} from 'lucide-react-native';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ChevronLeft, Lock, KeyRound, LogOut, Fingerprint, FileText } from 'lucide-react-native';
+
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
+import { auth, ApiError } from '@/lib/api';
+import { useAuthStore } from '@/lib/stores/authStore';
+import { isValidPassword, PASSWORD_HINT } from '@/lib/validation';
+import { ErrorState } from '@/components/states';
 
+// Everything on this screen is backed by a real endpoint. (The previous version
+// showed "Security: Excellent", fake devices, an AES key-rotation button and a
+// "sessions terminated" message that did nothing.)
 export default function PrivacySecurityScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
+  const qc = useQueryClient();
+  const logout = useAuthStore((s) => s.logout);
+  const isBiometricEnrolled = useAuthStore((s) => s.isBiometricEnrolled);
 
-  const [biometrics, setBiometrics] = useState(true);
-  const [twoFactor, setTwoFactor] = useState(true);
-  const [dataAnalytics, setDataAnalytics] = useState(false);
-  const [isRotating, setIsRotating] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
 
-  const handleRotateKeys = () => {
-    setIsRotating(true);
-    setTimeout(() => {
-      setIsRotating(false);
-      Alert.alert(
-        'Keys Rotated',
-        'Your 256-bit AES cryptographic encryption keys have been regenerated and re-synchronized across the Health Vault.'
-      );
-    }, 700);
+  const sessions = useQuery({ queryKey: ['sessions'], queryFn: () => auth.listSessions() });
+
+  const changePassword = useMutation({
+    mutationFn: () => auth.changePassword(currentPassword, newPassword),
+    onSuccess: () => {
+      setCurrentPassword('');
+      setNewPassword('');
+      Alert.alert('Password changed', 'Your password has been updated.');
+    },
+    onError: (err: unknown) => Alert.alert('Could not change password', err instanceof ApiError ? err.message : 'Please try again.'),
+  });
+
+  const submitPassword = () => {
+    if (!currentPassword) {
+      Alert.alert('Current password', 'Enter your current password.');
+      return;
+    }
+    if (!isValidPassword(newPassword)) {
+      Alert.alert('Weak password', PASSWORD_HINT);
+      return;
+    }
+    changePassword.mutate();
   };
 
-  const handleTerminateSessions = () => {
-    Alert.alert(
-      'Terminate All Sessions',
-      'This will log you out of all other web and mobile devices currently accessing your account.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Terminate Now',
-          style: 'destructive',
-          onPress: () => Alert.alert('Sessions Terminated', 'All other active sessions have been signed out.'),
+  const signOutEverywhere = () => {
+    Alert.alert('Sign out of all devices', 'You will be signed out here and on every other phone or browser.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign out everywhere',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await auth.logoutAll();
+          } catch (err) {
+            Alert.alert('Could not sign out', err instanceof ApiError ? err.message : 'Please try again.');
+            return;
+          }
+          await logout();
         },
-      ]
-    );
+      },
+    ]);
   };
+
+  const sessionList = sessions.data?.data ?? [];
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
 
-      {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={() => router.back()}
-          style={styles.backBtn}>
+        <TouchableOpacity activeOpacity={0.7} onPress={() => router.back()} style={styles.backBtn}>
           <ChevronLeft size={24} color={theme.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: theme.text }]}>Privacy & Security</Text>
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
-
-        {/* Security Status Card */}
-        <View style={[styles.statusCard, { backgroundColor: '#EAF5E2', borderColor: '#B7E0A5' }]}>
-          <ShieldCheck size={28} color="#006022" />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.statusTitle}>Health Vault Security: Excellent</Text>
-            <Text style={styles.statusDesc}>
-              Biometrics, 2-Factor Authentication, and 256-bit client-side record encryption are active.
-            </Text>
-          </View>
-        </View>
-
-        {/* Authentication Options */}
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Sign-in security */}
         <View style={styles.sectionHeader}>
           <Lock size={18} color={theme.primary} />
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Authentication & Access</Text>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Sign-in security</Text>
         </View>
-
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.row}>
             <Fingerprint size={22} color={theme.primary} />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.rowTitle, { color: theme.text }]}>Biometric Login (FaceID / Fingerprint)</Text>
-              <Text style={[styles.rowDesc, { color: theme.textMuted }]}>Unlock app without typing your master password</Text>
+              <Text style={[styles.rowTitle, { color: theme.text }]}>Device biometrics</Text>
+              <Text style={[styles.rowDesc, { color: theme.textMuted }]}>
+                {isBiometricEnrolled
+                  ? 'Your fingerprint or face is required to reopen the app. Manage it in your phone settings.'
+                  : 'No fingerprint or face is set up on this phone. Add one in your phone settings to lock the app.'}
+              </Text>
             </View>
-            <Switch
-              value={biometrics}
-              onValueChange={setBiometrics}
-              trackColor={{ false: '#D0D5DD', true: theme.primaryLight }}
-              thumbColor={biometrics ? theme.primary : '#F2F4F7'}
-            />
-          </View>
-
-          <View style={[styles.divider, { backgroundColor: theme.border }]} />
-
-          <View style={styles.row}>
-            <Smartphone size={22} color={theme.primary} />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.rowTitle, { color: theme.text }]}>Two-Factor Authentication (2FA)</Text>
-              <Text style={[styles.rowDesc, { color: theme.textMuted }]}>Require SMS code for new logins and record sharing</Text>
-            </View>
-            <Switch
-              value={twoFactor}
-              onValueChange={setTwoFactor}
-              trackColor={{ false: '#D0D5DD', true: theme.primaryLight }}
-              thumbColor={twoFactor ? theme.primary : '#F2F4F7'}
-            />
           </View>
         </View>
 
-        {/* Encryption Keys Management */}
+        {/* Change password */}
         <View style={styles.sectionHeader}>
-          <Key size={18} color={theme.primary} />
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Cryptographic Key Management</Text>
+          <KeyRound size={18} color={theme.primary} />
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Change password</Text>
         </View>
-
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <View style={styles.keyInfoRow}>
-            <View>
-              <Text style={[styles.keyLabel, { color: theme.textMuted }]}>ENCRYPTION STANDARD</Text>
-              <Text style={[styles.keyValue, { color: theme.text }]}>AES-256-GCM + Curve25519</Text>
-            </View>
-            <View style={styles.activeKeyBadge}>
-              <CheckCircle2 size={12} color="#006022" />
-              <Text style={styles.activeKeyBadgeText}>VERIFIED</Text>
-            </View>
-          </View>
-
+        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, padding: 16, gap: 10 }]}>
+          <TextInput
+            style={[styles.input, { borderColor: theme.border, color: theme.text }]}
+            placeholder="Current password"
+            placeholderTextColor={theme.textMuted}
+            secureTextEntry
+            value={currentPassword}
+            onChangeText={setCurrentPassword}
+          />
+          <TextInput
+            style={[styles.input, { borderColor: theme.border, color: theme.text }]}
+            placeholder="New password (12+ characters)"
+            placeholderTextColor={theme.textMuted}
+            secureTextEntry
+            value={newPassword}
+            onChangeText={setNewPassword}
+          />
           <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={handleRotateKeys}
-            style={[styles.rotateBtn, { backgroundColor: theme.primaryLight }]}>
-            <RotateCw size={16} color={theme.primary} />
-            <Text style={[styles.rotateBtnText, { color: theme.primary }]}>
-              {isRotating ? 'Rotating Keys...' : 'Rotate Encryption Keys'}
-            </Text>
+            activeOpacity={0.85}
+            disabled={changePassword.isPending}
+            onPress={submitPassword}
+            style={[styles.primaryBtn, { backgroundColor: theme.primary, opacity: changePassword.isPending ? 0.6 : 1 }]}>
+            <Text style={styles.primaryBtnText}>{changePassword.isPending ? 'Updating…' : 'Update password'}</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Active Sessions */}
+        {/* Active sessions (real) */}
         <View style={styles.sectionHeader}>
-          <Smartphone size={18} color={theme.primary} />
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Active Login Sessions</Text>
+          <LogOut size={18} color={theme.primary} />
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Signed-in devices</Text>
         </View>
+        {sessions.isError ? (
+          <ErrorState onRetry={() => sessions.refetch()} />
+        ) : (
+          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            {sessions.isLoading ? (
+              <ActivityIndicator color={theme.primary} style={{ margin: 16 }} />
+            ) : sessionList.length === 0 ? (
+              <Text style={[styles.rowDesc, { color: theme.textMuted, padding: 16 }]}>No active sessions.</Text>
+            ) : (
+              sessionList.map((s, i) => (
+                <View key={s.id}>
+                  {i > 0 ? <View style={[styles.divider, { backgroundColor: theme.border }]} /> : null}
+                  <View style={styles.row}>
+                    <View style={{ flex: 1 }}>
+                      <Text numberOfLines={1} style={[styles.rowTitle, { color: theme.text }]}>
+                        {s.userAgent || 'Unknown device'}
+                      </Text>
+                      <Text style={[styles.rowDesc, { color: theme.textMuted }]}>
+                        Signed in {new Date(s.createdAt).toLocaleDateString()} {s.ipAddress ? `· ${s.ipAddress}` : ''}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              ))
+            )}
+            <TouchableOpacity activeOpacity={0.8} onPress={signOutEverywhere} style={styles.terminateBtn}>
+              <Text style={[styles.terminateBtnText, { color: theme.emergency }]}>Sign out of all devices</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
+        {/* Data & consent */}
+        <View style={styles.sectionHeader}>
+          <FileText size={18} color={theme.primary} />
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Your data</Text>
+        </View>
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <View style={styles.sessionRow}>
-            <View style={[styles.sessionIcon, { backgroundColor: theme.primaryLight }]}>
-              <Smartphone size={18} color={theme.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.deviceName, { color: theme.text }]}>iPhone 16 Pro (This Device)</Text>
-              <Text style={[styles.deviceSub, { color: theme.textMuted }]}>Cape Town, South Africa • Active Now</Text>
-            </View>
-          </View>
-
+          <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/consents')} style={styles.linkRow}>
+            <Text style={[styles.rowTitle, { color: theme.text }]}>Manage consents (sharing, analytics, marketing)</Text>
+          </TouchableOpacity>
           <View style={[styles.divider, { backgroundColor: theme.border }]} />
-
-          <View style={styles.sessionRow}>
-            <View style={[styles.sessionIcon, { backgroundColor: '#F2F4F7' }]}>
-              <Smartphone size={18} color="#667085" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.deviceName, { color: theme.text }]}>Chrome Browser on macOS</Text>
-              <Text style={[styles.deviceSub, { color: theme.textMuted }]}>Johannesburg • 2 days ago</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={handleTerminateSessions}
-            style={[styles.terminateBtn, { borderColor: theme.emergency }]}>
-            <LogOut size={16} color={theme.emergency} />
-            <Text style={[styles.terminateBtnText, { color: theme.emergency }]}>Terminate All Other Sessions</Text>
+          <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/privacy-policy')} style={styles.linkRow}>
+            <Text style={[styles.rowTitle, { color: theme.text }]}>Privacy policy</Text>
           </TouchableOpacity>
         </View>
-
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
+  safeArea: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderBottomWidth: 1,
   },
-  backBtn: {
-    padding: 6,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
-    gap: 16,
-  },
-  statusCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  statusTitle: {
-    color: '#006022',
-    fontSize: 14,
-    fontWeight: '800',
-    marginBottom: 2,
-  },
-  statusDesc: {
-    color: '#137333',
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 6,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  card: {
-    borderRadius: 18,
-    borderWidth: 1,
-    padding: 16,
-    gap: 12,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 4,
-  },
-  rowTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  rowDesc: {
-    fontSize: 11,
-  },
-  divider: {
-    height: 1,
-    marginVertical: 4,
-  },
-  keyInfoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  keyLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.6,
-    marginBottom: 2,
-  },
-  keyValue: {
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  activeKeyBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#EAF5E2',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  activeKeyBadgeText: {
-    color: '#006022',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  rotateBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginTop: 6,
-  },
-  rotateBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  sessionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  sessionIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deviceName: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  deviceSub: {
-    fontSize: 11,
-    marginTop: 2,
-  },
-  terminateBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    marginTop: 6,
-  },
-  terminateBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
+  backBtn: { padding: 4 },
+  title: { fontSize: 17, fontWeight: '800' },
+  scrollContent: { padding: 16, gap: 12, paddingBottom: 48 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  sectionTitle: { fontSize: 15, fontWeight: '800' },
+  card: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
+  rowTitle: { fontSize: 14, fontWeight: '700' },
+  rowDesc: { fontSize: 12, marginTop: 2 },
+  divider: { height: 1 },
+  linkRow: { padding: 16 },
+  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14 },
+  primaryBtn: { paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+  primaryBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  terminateBtn: { padding: 16, alignItems: 'center' },
+  terminateBtnText: { fontSize: 14, fontWeight: '700' },
 });
