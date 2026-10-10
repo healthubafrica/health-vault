@@ -271,7 +271,12 @@ export class PatientsService {
     if (!patient) throw new NotFoundException('Patient profile not found');
 
     const appointments = await this.prisma.appointment.findMany({
-      where: { patientId: patient.id, providerId: { not: null } },
+      where: {
+        patientId: patient.id,
+        providerId: { not: null },
+        // A provider the patient never actually saw is not on their care team.
+        status: { notIn: ['cancelled', 'no_show'] },
+      },
       select: {
         providerId: true,
         scheduledAt: true,

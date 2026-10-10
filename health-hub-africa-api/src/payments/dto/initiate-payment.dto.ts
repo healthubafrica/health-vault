@@ -1,4 +1,4 @@
-import { IsString, IsInt, IsOptional, IsEnum, IsBoolean, Min } from 'class-validator';
+import { IsString, IsInt, IsOptional, IsEnum, IsBoolean, IsIn, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaymentGateway } from '@prisma/client';
 
@@ -48,4 +48,12 @@ export class InitiatePaymentDto {
   @IsOptional()
   @IsString()
   paymentMethodId?: string;
+
+  @ApiPropertyOptional({
+    enum: ['web', 'mobile'],
+    description: "Calling client. 'mobile' makes the gateway return to the app via the portal's deep-link redirect. Defaults to web.",
+  })
+  @IsOptional()
+  @IsIn(['web', 'mobile'])
+  client?: 'web' | 'mobile';
 }

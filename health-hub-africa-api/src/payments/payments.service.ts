@@ -8,8 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PaymentGateway, PaymentStatus, Prisma, UserRole } from '@prisma/client';
-import { createHmac, timingSafeEqual } from 'crypto';
-import { randomUUID } from 'crypto';
+import { createHmac, timingSafeEqual, randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OpenemrService } from '../openemr/openemr.service';
@@ -45,6 +44,12 @@ export class PaymentsService {
     return `${prefix}${String(seq).padStart(6, '0')}`;
   }
 
+  // Unguessable server-side gateway reference (letters, digits, "-" only, so
+  // valid for both Paystack and Flutterwave).
+  private newGatewayRef(): string {
+    return `HHA-${randomUUID()}`;
+  }
+
   // ── Initiate Payment ───────────────────────────────────────────────────────
 
   async initiate(
@@ -66,6 +71,12 @@ export class PaymentsService {
     // same stored result regardless of outcome; a genuine new attempt after
     // a failure is the client's responsibility to key freshly.
     const clientIdempotencyKey = options?.idempotencyKey?.trim() || undefined;
+    const fingerprint = {
+      purpose: dto.purpose,
+      referenceId: dto.referenceId ?? null,
+      billingCycle:
+        ((options?.metadata as Record<string, unknown> | undefined)?.billingCycle as string | undefined) ?? null,
+    };
     // This value bypasses class-validator (it arrives as a raw header, not a
     // DTO field) and is later forwarded verbatim to Flutterwave as tx_ref —
     // bound its shape before it touches the unique-indexed DB column or the
@@ -73,23 +84,40 @@ export class PaymentsService {
     if (clientIdempotencyKey && !/^[A-Za-z0-9_-]{1,128}$/.test(clientIdempotencyKey)) {
       throw new BadRequestException('Idempotency-Key must be 1-128 characters: letters, numbers, "-", or "_".');
     }
+    // A key reused for a genuinely different request (different patient, amount,
+    // currency, gateway, purpose, plan or billing cycle) is a client bug or a stale
+    // key from an edited form; replaying it would return a response for the wrong
+    // request, so reject rather than guess. purpose / referenceId / billingCycle are
+    // compared via the fingerprint stored at create time (absent on legacy rows).
+    const assertSameRequest = (existing: {
+      patientId: string;
+      amountKobo: number;
+      currency: string;
+      gateway: PaymentGateway;
+      metadata: Prisma.JsonValue | null;
+    }) => {
+      const storedFp = (existing.metadata as { idemFingerprint?: Record<string, unknown> } | null)?.idemFingerprint;
+      const sameFingerprint =
+        !storedFp ||
+        (storedFp.purpose === fingerprint.purpose &&
+          (storedFp.referenceId ?? null) === fingerprint.referenceId &&
+          (storedFp.billingCycle ?? null) === fingerprint.billingCycle);
+      const sameRequest =
+        existing.patientId === patient.id &&
+        existing.amountKobo === dto.amountKobo &&
+        existing.currency === dto.currency &&
+        existing.gateway === dto.gateway &&
+        sameFingerprint;
+      if (!sameRequest) {
+        throw new BadRequestException(
+          'This idempotency key was already used for a different request. Please retry with a fresh key.',
+        );
+      }
+    };
     if (clientIdempotencyKey) {
       const existing = await this.prisma.payment.findUnique({ where: { idempotencyKey: clientIdempotencyKey } });
       if (existing) {
-        // A key reused for a genuinely different request (different patient,
-        // amount, currency, or gateway) is either a client bug or a stale key
-        // left over from an edited form — replaying it would silently return
-        // a response for the wrong amount. Reject rather than guess.
-        const sameRequest =
-          existing.patientId === patient.id &&
-          existing.amountKobo === dto.amountKobo &&
-          existing.currency === dto.currency &&
-          existing.gateway === dto.gateway;
-        if (!sameRequest) {
-          throw new BadRequestException(
-            'This idempotency key was already used for a different request. Please retry with a fresh key.',
-          );
-        }
+        assertSameRequest(existing);
         return this.replayInitiateResponse(existing);
       }
     }
@@ -105,6 +133,9 @@ export class PaymentsService {
     }
 
     const idempotencyKey = clientIdempotencyKey ?? randomUUID();
+    // Gateway reference is always server-generated and unguessable; the
+    // client key is never forwarded to Paystack/Flutterwave.
+    const gatewayRef = this.newGatewayRef();
     const amountKobo = dto.amountKobo;
     const description =
       dto.description?.trim() ||
@@ -114,6 +145,7 @@ export class PaymentsService {
     const metadata: Prisma.InputJsonValue = {
       ...(options?.metadata as Record<string, unknown> | undefined),
       ...(dto.savePaymentMethod && { savePaymentMethod: true }),
+      idemFingerprint: fingerprint,
     };
 
     const { payment, conflicted } = await this.createPaymentGuarded(
@@ -135,7 +167,10 @@ export class PaymentsService {
     // unique constraint on idempotencyKey already stopped a duplicate row
     // from existing; replay the winner's result instead of surfacing its
     // uncaught constraint violation as a 500.
-    if (conflicted) return this.replayInitiateResponse(payment);
+    if (conflicted) {
+      assertSameRequest(payment);
+      return this.replayInitiateResponse(payment);
+    }
 
     // Initiate charge with the selected gateway
     if (dto.gateway === PaymentGateway.Flutterwave) {
@@ -144,9 +179,10 @@ export class PaymentsService {
         patient.user.email,
         amountKobo,
         dto.currency,
-        idempotencyKey,
+        gatewayRef,
         description,
         metadata,
+        dto.client,
       );
     }
     if (dto.gateway === PaymentGateway.Paystack) {
@@ -155,15 +191,23 @@ export class PaymentsService {
         patient.user.email,
         amountKobo,
         dto.currency,
-        idempotencyKey,
+        gatewayRef,
         description,
         metadata,
+        dto.client,
       );
     }
 
+    // Manual / bank-transfer: expose the human payment reference the patient
+    // quotes on the transfer, never the internal UUID idempotency key (only a
+    // client-supplied key is echoed back). `reference` is the gateway
+    // reference everywhere else; for MANUAL payments only it is kept equal to
+    // hhaRef so existing clients keep working. New clients should read `hhaRef`.
     return {
       paymentId: payment.id,
-      idempotencyKey,
+      hhaRef: payment.hhaRef,
+      reference: payment.hhaRef,
+      ...(clientIdempotencyKey && { idempotencyKey: clientIdempotencyKey }),
       gateway: dto.gateway,
       amountKobo,
       currency: dto.currency,
@@ -213,6 +257,7 @@ export class PaymentsService {
     gateway: PaymentGateway;
     gatewayRef: string | null;
     idempotencyKey: string | null;
+    hhaRef?: string;
     amountKobo: number;
     currency: string;
     status: PaymentStatus;
@@ -245,6 +290,8 @@ export class PaymentsService {
     }
     return {
       paymentId: payment.id,
+      hhaRef: payment.hhaRef,
+      reference: payment.hhaRef, // manual only; see initiate()
       idempotencyKey: payment.idempotencyKey,
       gateway: payment.gateway,
       amountKobo: payment.amountKobo,
@@ -253,19 +300,24 @@ export class PaymentsService {
     };
   }
 
+  // Where the gateway sends the browser back. client=mobile makes the portal's
+  // /payments/verify page hand off to the app's deep link.
+  private checkoutReturnUrl(client?: 'web' | 'mobile'): string {
+    const base = `${this.config.get('FRONTEND_URL')}/payments/verify`;
+    return client === 'mobile' ? `${base}?client=mobile` : base;
+  }
+
   private async initiatePaystack(
     paymentId: string,
     email: string,
     amountKobo: number,
     currency: string,
-    idempotencyKey: string,
+    reference: string,
     description: string,
     metadata: Prisma.InputJsonValue,
+    client?: 'web' | 'mobile',
   ) {
     const secret = this.config.getOrThrow<string>('PAYSTACK_SECRET_KEY');
-    // Paystack only accepts letters, digits, "-", "." and "=" in a reference;
-    // client idempotency keys may also contain "_".
-    const reference = idempotencyKey.replace(/_/g, '-');
     const res = await fetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',
       headers: {
@@ -277,7 +329,7 @@ export class PaymentsService {
         amount: amountKobo,
         currency,
         reference,
-        callback_url: `${this.config.get('FRONTEND_URL')}/payments/verify`,
+        callback_url: this.checkoutReturnUrl(client),
         metadata: { paymentId, description },
       }),
     });
@@ -320,6 +372,7 @@ export class PaymentsService {
     txRef: string,
     description: string,
     metadata: Prisma.InputJsonValue,
+    client?: 'web' | 'mobile',
   ) {
     const secret = this.config.getOrThrow<string>('FLUTTERWAVE_SECRET_KEY');
     // Flutterwave amounts are in the currency's major unit (naira), not kobo.
@@ -334,7 +387,7 @@ export class PaymentsService {
         tx_ref: txRef,
         amount,
         currency,
-        redirect_url: `${this.config.get('FRONTEND_URL')}/payments/verify`,
+        redirect_url: this.checkoutReturnUrl(client),
         customer: { email },
         customizations: { title: 'Health Hub Africa' },
         meta: { paymentId, description },
@@ -454,6 +507,7 @@ export class PaymentsService {
     const token = decryptCardToken(method.gatewayToken, encryptionKey);
 
     const idempotencyKey = clientIdempotencyKey ?? randomUUID();
+    const gatewayRef = this.newGatewayRef();
     const amountKobo = dto.amountKobo;
     const description =
       dto.description?.trim() || `${dto.purpose} — ${dto.currency} ${(amountKobo / 100).toFixed(2)}`;
@@ -466,8 +520,11 @@ export class PaymentsService {
         amountKobo,
         currency: dto.currency,
         idempotencyKey,
-        gatewayRef: idempotencyKey,
+        gatewayRef,
         description,
+        metadata: {
+          idemFingerprint: { purpose: dto.purpose, referenceId: dto.referenceId ?? null, billingCycle: null },
+        },
         status: PaymentStatus.pending,
       },
       clientIdempotencyKey,
@@ -486,7 +543,7 @@ export class PaymentsService {
           currency: dto.currency,
           amount,
           email,
-          tx_ref: idempotencyKey,
+          tx_ref: gatewayRef,
           narration: description,
         }),
       });
@@ -531,7 +588,7 @@ export class PaymentsService {
     if (body.data.status === 'successful') {
       const syntheticEvent = {
         event: 'charge.success',
-        data: { reference: idempotencyKey, status: body.data.status, id: body.data.id },
+        data: { reference: gatewayRef, status: body.data.status, id: body.data.id },
       };
       await this.processWebhookEvent(syntheticEvent, PaymentGateway.Flutterwave);
       return { paymentId: payment.id, gateway: PaymentGateway.Flutterwave, status: 'paid', amountKobo, currency: dto.currency };
@@ -571,7 +628,7 @@ export class PaymentsService {
 
     const syntheticEvent = {
       event: 'charge.success',
-      data: { reference: body.data.tx_ref ?? payment.idempotencyKey, status: body.data.status, id: body.data.id },
+      data: { reference: body.data.tx_ref ?? payment.gatewayRef, status: body.data.status, id: body.data.id },
     };
     await this.processWebhookEvent(syntheticEvent, PaymentGateway.Flutterwave);
     return { status: 'paid', paymentId: payment.id };
@@ -736,11 +793,16 @@ export class PaymentsService {
   // PSP, so no ownership check is needed. Returns minimal status info only.
   async verifyPayment(reference: string) {
     const payment = await this.prisma.payment.findFirst({
-      where: { gatewayRef: reference },
-      select: { id: true, status: true, gateway: true },
+      // The idempotency-key fallback is for legacy rows (no stored gatewayRef) only: keys are
+      // client-chosen and must not be usable to poll or re-verify newer payments.
+      where: { OR: [{ gatewayRef: reference }, { idempotencyKey: reference, gatewayRef: null }] },
+      select: { id: true, status: true, gateway: true, gatewayRef: true },
     });
 
     if (!payment) throw new NotFoundException('Payment not found');
+    // Legacy payments were looked up by idempotency key; always talk to the
+    // gateway with the stored gateway reference.
+    const gatewayRef = payment.gatewayRef ?? reference;
 
     // Already confirmed — return current state without re-querying PSP
     if (payment.status === PaymentStatus.paid) {
@@ -753,7 +815,7 @@ export class PaymentsService {
       const secret = this.config.getOrThrow<string>('PAYSTACK_SECRET_KEY');
       let res: Response;
       try {
-        res = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+        res = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(gatewayRef)}`, {
           headers: { Authorization: `Bearer ${secret}` },
         });
       } catch (err) {
@@ -784,7 +846,7 @@ export class PaymentsService {
       let res: Response;
       try {
         res = await fetch(
-          `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(reference)}`,
+          `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(gatewayRef)}`,
           { headers: { Authorization: `Bearer ${secret}` } },
         );
       } catch (err) {
@@ -793,11 +855,18 @@ export class PaymentsService {
       }
 
       if (res.ok) {
-        const body = (await res.json()) as { data: { status: string; tx_ref: string; id: number; amount_refunded?: number } };
+        const body = (await res.json()) as { data: { status: string; tx_ref: string; id: number; amount_refunded?: number; card?: Record<string, unknown> } };
         if (body.data?.status === 'successful') {
           const syntheticEvent = {
             event: 'charge.success',
-            data: { reference: body.data.tx_ref, status: body.data.status, id: body.data.id },
+            // card carries the reusable token so a save-card request that only
+            // resolves through this fallback still saves the card.
+            data: {
+              reference: body.data.tx_ref,
+              status: body.data.status,
+              id: body.data.id,
+              ...(body.data.card && { card: body.data.card }),
+            },
           };
           await this.processWebhookEvent(syntheticEvent, PaymentGateway.Flutterwave);
           return { status: 'paid', paymentId: payment.id, gateway: payment.gateway };
@@ -971,11 +1040,8 @@ export class PaymentsService {
     });
 
     // Capture and save the card token, only if the patient opted in when
-    // initiating this payment. Only present on the real Flutterwave webhook
-    // (which carries the full `card` object) — not on the verifyPayment
-    // client-side fallback's synthetic event, so a save-card request that
-    // resolves only through that fallback won't save a card; the normal
-    // webhook path covers the common case.
+    // initiating this payment. Present on the real Flutterwave webhook and
+    // on verifyPayment's synthetic event (copied from verify_by_reference).
     const meta = finalMetadata as { savePaymentMethod?: boolean } | null;
     if (meta?.savePaymentMethod && gateway === PaymentGateway.Flutterwave) {
       await this.saveCardFromWebhook(payment.id, payment.patientId, eventData).catch((err) =>

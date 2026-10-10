@@ -93,3 +93,16 @@ describe('PatientsService.update — declared country', () => {
     );
   });
 });
+
+describe('PatientsService.findMyCareTeam — status filter', () => {
+  it('excludes cancelled and no_show appointments so such providers never appear', async () => {
+    const { service, prisma } = buildService({ findUniqueForUpdate: { id: 'patient-1' } });
+    (prisma as any).appointment = { findMany: jest.fn().mockResolvedValue([]) };
+
+    await service.findMyCareTeam(currentUser);
+
+    const where = (prisma as any).appointment.findMany.mock.calls[0][0].where;
+    expect(where.status).toEqual({ notIn: ['cancelled', 'no_show'] });
+    expect(where.patientId).toBe('patient-1');
+  });
+});

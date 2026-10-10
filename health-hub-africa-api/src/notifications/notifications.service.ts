@@ -14,6 +14,10 @@ export const NOTIFICATIONS_QUEUE = 'notifications';
 // has no FK constraint, so this is safe to use purely for admin-panel display.
 export const OPS_NOTIFICATION_USER_ID = '00000000-0000-0000-0000-000000000099';
 
+// Lock-screen previews are visible to anyone holding the phone, so alert pushes
+// carry the title only — clinical detail stays behind the app's own login.
+const PUSH_PREVIEW_BODY = 'Open Health Hub Africa to view details.';
+
 export type NotificationChannel = 'email' | 'sms' | 'push' | 'whatsapp';
 
 export interface NotificationJobData {
@@ -174,6 +178,36 @@ export class NotificationsService {
       { userId, channel: 'push', to: fcmToken, subject, body, deliveryId },
       { attempts: 3 },
     );
+  }
+
+  // ── Push device tokens (mobile app) ──────────────────────────────────────
+
+  async registerPushToken(userId: string, data: { token: string; platform: 'ios' | 'android' }) {
+    await this.prisma.deviceToken.upsert({
+      where: { token: data.token },
+      create: { userId, token: data.token, platform: data.platform },
+      update: { userId, platform: data.platform, lastSeenAt: new Date() },
+    });
+    return { registered: true };
+  }
+
+  async unregisterPushToken(userId: string, token: string) {
+    await this.prisma.deviceToken.deleteMany({ where: { userId, token } });
+    return { registered: false };
+  }
+
+  // Best-effort fan-out to every device a user registered. Never throws: a push
+  // failure must not roll back the alert/booking that triggered it.
+  async pushToUser(userId: string, subject: string, body: string): Promise<void> {
+    try {
+      if (!(await this.isNotificationAllowed(userId, 'push'))) return;
+      const devices = await this.prisma.deviceToken.findMany({ where: { userId }, select: { token: true } });
+      for (const { token } of devices) {
+        await this.sendPush(token, subject, body, userId);
+      }
+    } catch (err) {
+      this.logger.warn(`Push fan-out failed for user ${userId}: ${(err as Error).message}`);
+    }
   }
 
   async sendOtpEmail(email: string, otp: string, userId: string) {
@@ -493,7 +527,7 @@ export class NotificationsService {
     actionUrl?: string;
     severity?: AlertSeverity;
   }) {
-    return this.prisma.patientAlert.create({
+    const alert = await this.prisma.patientAlert.create({
       data: {
         patientId: data.patientId,
         referenceType: data.category,
@@ -503,6 +537,14 @@ export class NotificationsService {
         severity: data.severity ?? AlertSeverity.info,
       },
     });
+
+    // Mirror the in-app alert to the patient's phones. Fire-and-forget.
+    void this.prisma.patient
+      .findUnique({ where: { id: data.patientId }, select: { userId: true } })
+      .then((p) => (p ? this.pushToUser(p.userId, data.title, PUSH_PREVIEW_BODY) : undefined))
+      .catch((err) => this.logger.warn(`Alert push lookup failed: ${(err as Error).message}`));
+
+    return alert;
   }
 
   async listPatientAlerts(patientId: string, opts?: { unreadOnly?: boolean; limit?: number }) {

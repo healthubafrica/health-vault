@@ -159,3 +159,18 @@ describe('RecordsService — redacting the OpenEMR file path from API responses'
     expect(results[1].fileUrl).toBe('records/user-1/abc.pdf');
   });
 });
+
+describe('RecordsService — provider relation on responses', () => {
+  it('findRecords selects a minimal provider (no contact PII)', async () => {
+    const { service, prisma } = buildService({
+      clinicalRecord: { findMany: jest.fn().mockResolvedValue([]) },
+    });
+
+    await service.findRecords(undefined, patientUser);
+
+    const select = prisma.clinicalRecord.findMany.mock.calls[0][0].select;
+    expect(select.provider).toEqual({
+      select: { id: true, title: true, firstName: true, lastName: true, specialty: true },
+    });
+  });
+});

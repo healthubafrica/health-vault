@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { UserRole } from '@prisma/client';
@@ -8,6 +8,7 @@ import { RecordVisitDto } from './dto/record-visit.dto';
 import { TrackEventDto } from './dto/track-event.dto';
 import { Roles, Public } from '../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
+import { OptionalJwtAuthGuard } from '../common/guards/optional-jwt-auth.guard';
 import { IsString, IsOptional } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -72,6 +73,7 @@ export class AnalyticsController {
   // can be captured too — trackEvent() keys anonymous rows off
   // dto.anonymousVisitorId instead when no access token is attached.
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Roles()
   @Post('events')
   @HttpCode(HttpStatus.NO_CONTENT)
