@@ -319,8 +319,46 @@ export class RecordsService {
     return this.prisma.prescription.findMany({
       where: { patientId: resolvedPatientId },
       orderBy: { createdAt: 'desc' },
-      include: { record: true },
+      include: {
+        record: true,
+        provider: { select: { id: true, title: true, firstName: true, lastName: true, specialty: true } },
+      },
     });
+  }
+
+  // Patients cannot self-serve a refill: it needs clinician sign-off. This
+  // records the ask as a care-team alert (one open request per prescription).
+  async requestRefill(prescriptionId: string, currentUser: JwtPayload) {
+    const patient = await this.prisma.patient.findUnique({
+      where: { userId: currentUser.sub },
+      select: { id: true },
+    });
+    if (!patient) throw new NotFoundException('Patient profile not found');
+
+    const prescription = await this.prisma.prescription.findFirst({
+      where: { id: prescriptionId, patientId: patient.id },
+      select: { id: true, drugName: true, dosage: true },
+    });
+    if (!prescription) throw new NotFoundException('Prescription not found');
+
+    const open = await this.prisma.adminAlert.findFirst({
+      where: {
+        type: 'refill_request',
+        isRead: false,
+        metadata: { path: ['prescriptionId'], equals: prescription.id },
+      },
+      select: { id: true },
+    });
+    if (open) return { requested: true, alreadyRequested: true };
+
+    await this.prisma.adminAlert.create({
+      data: {
+        type: 'refill_request',
+        title: `Refill requested: ${prescription.drugName} ${prescription.dosage}`,
+        metadata: { prescriptionId: prescription.id, patientId: patient.id },
+      },
+    });
+    return { requested: true, alreadyRequested: false };
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
