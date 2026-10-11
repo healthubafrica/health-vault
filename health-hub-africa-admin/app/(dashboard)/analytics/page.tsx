@@ -25,7 +25,7 @@ import { Bar, Line } from 'react-chartjs-2'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Tooltip, Legend, Filler)
 
-const PERIODS = ['7d', '30d', '90d']
+const PERIODS = ['today', 'yesterday', '7d', '30d', '90d', 'month', 'quarter', 'ytd']
 const SECTIONS = ['Overview', 'Funnels', 'Acquisition', 'Geography', 'Demographics', 'Digital Experience', 'Security'] as const
 type Section = (typeof SECTIONS)[number]
 
@@ -374,6 +374,11 @@ function GeoHierarchyTree({ hierarchy }: { hierarchy: TrafficAnalytics['hierarch
 export default function AnalyticsPage() {
   const [section, setSection] = useState<Section>('Overview')
   const [period, setPeriod] = useState('30d')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [funnelRegion, setFunnelRegion] = useState('')
+  const [funnelCity, setFunnelCity] = useState('')
+  const [funnelService, setFunnelService] = useState('')
   const [revenue, setRevenue] = useState<RevenueDataPoint[]>([])
   const [usage, setUsage] = useState<UsageDataPoint[]>([])
   const [marketing, setMarketing] = useState<MarketingAnalytics | null>(null)
@@ -386,6 +391,7 @@ export default function AnalyticsPage() {
   const [mapMetricKey, setMapMetricKey] = useState<keyof GeoMapCountry>('visitors')
   const [mapBasis, setMapBasis] = useState<GeoBasis>('access')
   const [retention, setRetention] = useState<RetentionAnalytics | null>(null)
+  const [retentionGroup, setRetentionGroup] = useState<RetentionAnalytics['groupBy']>('registrationMonth')
   const [digitalExperience, setDigitalExperience] = useState<DigitalExperienceAnalytics | null>(null)
   const [security, setSecurity] = useState<SecurityAnalytics | null>(null)
   const [funnelCountry, setFunnelCountry] = useState('')
@@ -431,6 +437,7 @@ export default function AnalyticsPage() {
         adminApi.analytics.marketing(period),
         adminApi.analytics.traffic(period),
         adminApi.analytics.funnel(period, {
+          region: funnelRegion || undefined, city: funnelCity || undefined, serviceType: funnelService || undefined,
           country: funnelCountry || undefined,
           continent: funnelContinent || undefined,
           device: funnelDevice || undefined,
@@ -451,7 +458,7 @@ export default function AnalyticsPage() {
         adminApi.analytics.clickstream(period),
         adminApi.analytics.geoComparison(period),
         adminApi.analytics.geoMap(period, mapBasis),
-        adminApi.analytics.retention(),
+        adminApi.analytics.retention(undefined, retentionGroup),
         adminApi.analytics.digitalExperience(period),
         adminApi.analytics.security(period),
         adminApi.analytics.coreKpis(period),
@@ -482,7 +489,7 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false)
     }
-  }, [period, funnelCountry, funnelContinent, funnelDevice, funnelAgeBand, funnelPlanTier, funnelGender, funnelNationality, funnelBrowser, funnelOs, funnelFeatureArea, funnelTimezone, funnelAcquisitionSource, funnelUtmCampaign, funnelLifecycleStage, funnelCompare, mapBasis])
+  }, [period, funnelRegion, funnelCity, funnelService, funnelCountry, funnelContinent, funnelDevice, funnelAgeBand, funnelPlanTier, funnelGender, funnelNationality, funnelBrowser, funnelOs, funnelFeatureArea, funnelTimezone, funnelAcquisitionSource, funnelUtmCampaign, funnelLifecycleStage, funnelCompare, mapBasis, retentionGroup])
 
   useEffect(() => {
     setLoading(true)
@@ -626,7 +633,13 @@ export default function AnalyticsPage() {
             Acquisition, funnels, geography, revenue, and service usage
           </p>
         </div>
-        <FilterTabs tabs={PERIODS} active={period} onChange={setPeriod} />
+        <div className="flex flex-wrap items-center gap-2">
+          <FilterTabs tabs={PERIODS} active={period} onChange={setPeriod} />
+          <label className="text-xs">From <input aria-label="Report start date" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} /></label>
+          <label className="text-xs">To <input aria-label="Report end date" type="date" value={dateTo} min={dateFrom} onChange={e => setDateTo(e.target.value)} /></label>
+          <button className="text-xs px-3 py-2 rounded border" disabled={!dateFrom || !dateTo || dateFrom > dateTo} onClick={() => setPeriod(`custom:${dateFrom}:${dateTo}`)}>Apply dates</button>
+          <span className="text-xs">Africa/Lagos</span>
+        </div>
       </div>
 
       <FilterTabs tabs={[...SECTIONS]} active={section} onChange={(s) => setSection(s as Section)} className="mb-5 w-fit" />
@@ -670,6 +683,17 @@ export default function AnalyticsPage() {
               title="Retention"
               subtitle={`Registered patients who returned N+ days later, out of ${retention?.cohortSize ?? 0} registered in the last ${retention?.lookbackDays ?? 120} days (cohort definition v${retention?.cohortDefinitionVersion ?? 1})`}
             />
+            <div className="px-5 pb-4">
+              <label className="text-xs mr-2" htmlFor="retention-group">Group cohorts by</label>
+              <select id="retention-group" value={retentionGroup} onChange={(event) => setRetentionGroup(event.target.value as RetentionAnalytics['groupBy'])} className="h-8 text-xs rounded border px-2">
+                <option value="registrationMonth">Registration month</option>
+                <option value="country">Country</option>
+                <option value="device">Device</option>
+                <option value="source">Acquisition source</option>
+                <option value="plan">Plan</option>
+                <option value="firstFeature">First feature</option>
+              </select>
+            </div>
             {!loading && !retention?.windows.some((w) => w.eligibleCohortSize > 0) ? (
               <Empty>No cohort has reached a retention window yet — check back once patients have been registered for a few days.</Empty>
             ) : (
@@ -686,6 +710,18 @@ export default function AnalyticsPage() {
                     detail={w.eligibleCohortSize === 0 ? 'No eligible cohort yet' : `${w.retainedUsers} of ${w.eligibleCohortSize}`}
                   />
                 ))}
+              </div>
+            )}
+            {(retention?.cohorts.length ?? 0) > 0 && (
+              <div className="overflow-x-auto px-5 py-4">
+                <table className="w-full text-xs">
+                  <thead><tr className="text-left"><th className="py-2">Segment</th><th>Patients</th><th>D1</th><th>D7</th><th>D30</th><th>2nd session</th><th>2nd action</th><th>2nd booking</th></tr></thead>
+                  <tbody>{retention?.cohorts.map((cohort) => {
+                    const duration = (seconds: number | null) => seconds === null ? '—' : seconds < 3600 ? `${Math.round(seconds / 60)}m` : `${Math.round(seconds / 3600)}h`
+                    const rate = (days: number) => { const value = cohort.windows.find((window) => window.days === days)?.rate; return value === null || value === undefined ? '—' : `${value}%` }
+                    return <tr key={cohort.segment} className="border-t" style={{ borderColor: 'var(--color-border)' }}><td className="py-2">{cohort.segment}</td><td>{cohort.cohortSize}</td><td>{rate(1)}</td><td>{rate(7)}</td><td>{rate(30)}</td><td>{duration(cohort.medianSecondsToSecondSession)}</td><td>{duration(cohort.medianSecondsToSecondAction)}</td><td>{duration(cohort.medianSecondsToSecondBooking)}</td></tr>
+                  })}</tbody>
+                </table>
               </div>
             )}
           </Card>
@@ -962,9 +998,35 @@ export default function AnalyticsPage() {
                 active={funnelCompare ? 'Compare' : 'Off'}
                 onChange={(t) => setFunnelCompare(t === 'Compare')}
               />
+              <select aria-label="Filter funnels by region" value={funnelRegion} onChange={e => { setFunnelRegion(e.target.value); setFunnelCity('') }} className="h-8 text-xs rounded border">
+                <option value="">All regions</option>{Array.from(new Set((traffic?.locations ?? []).filter(l => !funnelCountry || l.countryCode === funnelCountry).map(l => l.region).filter(Boolean))).sort().map(region => <option key={region} value={region ?? ''}>{region}</option>)}
+              </select>
+              <select aria-label="Filter funnels by city" value={funnelCity} onChange={e => setFunnelCity(e.target.value)} className="h-8 text-xs rounded border">
+                <option value="">All cities</option>{Array.from(new Set((traffic?.locations ?? []).filter(l => (!funnelCountry || l.countryCode === funnelCountry) && (!funnelRegion || l.region === funnelRegion)).map(l => l.city).filter(Boolean))).sort().map(city => <option key={city} value={city ?? ''}>{city}</option>)}
+              </select>
+              <select aria-label="Filter funnels by service" value={funnelService} onChange={e => setFunnelService(e.target.value)} className="h-8 text-xs rounded border">
+                <option value="">All services</option>{['TeleCare','MinuteCare','CareTest','HealthConsult','ExpertReview','NeuroFlex','DispatchCare','TravelSafe'].map(service => <option key={service}>{service}</option>)}
+              </select>
               <ExportButton onExport={exportFunnelSteps} />
             </div>
           </div>
+
+          {funnel?.journeys && (
+            <div className="space-y-4 mb-6">
+              <h3 className="font-semibold">Ordered journeys</h3>
+              <p className="text-xs">Only users completing stages in order progress. Median steps to conversion: {funnel.journeys.medianStepsToConversion ?? '—'}.</p>
+              {funnel.journeys.funnels.map(journey => <Card key={journey.name}>
+                <h4 className="font-semibold capitalize mb-2">{journey.name}</h4>
+                <div className="overflow-x-auto"><table className="w-full text-xs text-left"><thead><tr><th>Stage</th><th>Users</th><th>Conversion</th><th>Abandonment</th><th>Median seconds</th><th>Retries</th><th>Errors</th></tr></thead>
+                  <tbody>{journey.stages.map(stage => <tr key={stage.eventName}><td className="py-2">{stage.eventName}</td><td>{stage.users}</td><td>{stage.conversionRate ?? '—'}%</td><td>{stage.abandonmentRate ?? '—'}%</td><td>{stage.medianElapsedSeconds ?? '—'}</td><td>{stage.retryCount}</td><td>{stage.errorCount}</td></tr>)}</tbody>
+                </table></div>
+              </Card>)}
+              <Card><h4 className="font-semibold mb-2">Paths and exits</h4>
+                {funnel.journeys.topPaths.map(path => <p key={path.path} className="text-xs py-1">{path.path} · {path.count} sessions · {path.converted} converted · {path.abandoned} abandoned</p>)}
+                {funnel.journeys.exits.map(exit => <p key={exit.page} className="text-xs py-1">Exit: {exit.page} · {exit.count}</p>)}
+              </Card>
+            </div>
+          )}
 
           {!loading && !funnel?.steps.length ? (
             <Card className="mb-6"><Empty>No instrumented events yet for this filter combination.</Empty></Card>

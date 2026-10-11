@@ -13,6 +13,7 @@ export class AnalyticsReconciliationProcessor {
       await this.reconciliation.runDailyReconciliation();
     } catch (err) {
       this.logger.error(`Daily reconciliation job failed: ${err instanceof Error ? err.message : String(err)}`);
+      throw err;
     }
   }
 }

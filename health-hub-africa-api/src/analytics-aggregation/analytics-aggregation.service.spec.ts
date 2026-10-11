@@ -19,6 +19,11 @@ function buildService(overrides: {
   }>;
 } = {}) {
   const prisma = {
+    analyticsPipelineRun: {
+      create: jest.fn().mockResolvedValue({ id: 'run-1' }),
+      update: jest.fn().mockResolvedValue({}),
+      findFirst: jest.fn().mockResolvedValue(null),
+    },
     appointment: { findMany: jest.fn().mockResolvedValue(overrides.appointments ?? []) },
     dispatchRequest: { findMany: jest.fn().mockResolvedValue(overrides.dispatches ?? []) },
     travelSafeTrip: { findMany: jest.fn().mockResolvedValue(overrides.travelSafeTrips ?? []) },
@@ -247,51 +252,36 @@ describe('AnalyticsAggregationService.runBackfill', () => {
 });
 
 describe('AnalyticsAggregationService.getPipelineHealth', () => {
-  it('reports the most recent updatedAt across the 4 pre-aggregate tables', async () => {
+  it.each(['failed', 'running'])('reports %s runs as stale even with recent writes', async (status) => {
     const { service, prisma } = buildService();
-    prisma.serviceUsageDaily.findFirst.mockResolvedValue({
-      updatedAt: new Date('2026-09-20T01:16:00Z'),
-      reportDate: new Date('2026-09-19T00:00:00Z'),
-    });
-    prisma.dimensionDailyMetric.findFirst.mockResolvedValue({
-      updatedAt: new Date('2026-09-21T01:16:00Z'), // the latest of the 4
-      reportDate: new Date('2026-09-20T00:00:00Z'),
-    });
-
-    const health = await service.getPipelineHealth();
-
-    expect(health).toEqual({
-      lastRunAt: '2026-09-21T01:16:00.000Z',
-      lastReportDate: '2026-09-20',
-      isStale: expect.any(Boolean),
-    });
+    prisma.analyticsPipelineRun.findFirst.mockResolvedValue({ status, completedAt: new Date(), reportDate: new Date() });
+    expect((await service.getPipelineHealth()).isStale).toBe(true);
   });
-
-  it('is not stale when the most recent run is within the last 30 hours', async () => {
+  it('only uses scheduled successful complete runs', async () => {
     const { service, prisma } = buildService();
-    prisma.funnelEventDaily.findFirst.mockResolvedValue({
-      updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      reportDate: new Date(),
-    });
-
-    const health = await service.getPipelineHealth();
-    expect(health.isStale).toBe(false);
+    prisma.analyticsPipelineRun.findFirst.mockResolvedValue({ status: 'succeeded', completedAt: new Date(), reportDate: new Date() });
+    expect((await service.getPipelineHealth()).isStale).toBe(false);
+    expect(prisma.analyticsPipelineRun.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { source: 'scheduled' } }));
   });
-
-  it('is stale when the most recent run is more than 30 hours old', async () => {
+  it('reports old successful runs as stale', async () => {
     const { service, prisma } = buildService();
-    prisma.funnelEventDaily.findFirst.mockResolvedValue({
-      updatedAt: new Date(Date.now() - 40 * 60 * 60 * 1000),
-      reportDate: new Date(),
-    });
-
-    const health = await service.getPipelineHealth();
-    expect(health.isStale).toBe(true);
+    prisma.analyticsPipelineRun.findFirst.mockResolvedValue({ status: 'succeeded', completedAt: new Date(Date.now() - 40 * 3600000), reportDate: new Date() });
+    expect((await service.getPipelineHealth()).isStale).toBe(true);
   });
-
-  it('reports stale with null timestamps when no pre-aggregate table has any rows yet', async () => {
+  it('reports stale before the first complete run, including empty databases', async () => {
     const { service } = buildService();
-    const health = await service.getPipelineHealth();
-    expect(health).toEqual({ lastRunAt: null, lastReportDate: null, isStale: true });
+    expect(await service.getPipelineHealth()).toEqual({ lastRunAt: null, lastReportDate: null, isStale: true });
+  });
+  it('persists partial failures and propagates them to the queue', async () => {
+    const { service, prisma } = buildService();
+    prisma.payment.findMany.mockRejectedValue(new Error('db down'));
+    await expect(service.runDailyAggregation()).rejects.toThrow('db down');
+    expect(prisma.analyticsPipelineRun.update).toHaveBeenCalledWith(expect.objectContaining({ data: { status: 'failed', completedAt: expect.any(Date) } }));
+  });
+  it('replays three business days on scheduled runs', async () => {
+    const { service, prisma } = buildService();
+    await service.runDailyAggregation();
+    expect(prisma.payment.findMany).toHaveBeenCalledTimes(3);
+    expect(prisma.analyticsPipelineRun.update).toHaveBeenCalledWith(expect.objectContaining({ data: { status: 'succeeded', completedAt: expect.any(Date) } }));
   });
 });

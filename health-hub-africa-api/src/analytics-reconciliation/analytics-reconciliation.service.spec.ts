@@ -20,6 +20,7 @@ function buildService(overrides: {
   };
   const prisma = {
     patientActivityEvent: {
+      findMany: jest.fn().mockImplementation(({ where }: any) => Promise.resolve(Array.from({ length: eventCountByName[where.eventName] ?? 0 }, (_, i) => ({ properties: { paymentId: `p${i}` } })))),
       count: jest.fn().mockImplementation(({ where }: any) => Promise.resolve(eventCountByName[where.eventName] ?? 0)),
     },
     payment: {
@@ -28,7 +29,7 @@ function buildService(overrides: {
         if (where.status === 'failed') return Promise.resolve(overrides.paymentFailedCount ?? 0);
         return Promise.resolve(0);
       }),
-      findMany: jest.fn().mockResolvedValue(overrides.paymentRows ?? []),
+      findMany: jest.fn().mockImplementation(({ where, select }: any) => Promise.resolve(select.id ? Array.from({ length: (where.status === 'paid' ? overrides.paymentCount : overrides.paymentFailedCount) ?? 0 }, (_, i) => ({ id: `p${i}` })) : (overrides.paymentRows ?? []))),
     },
     appointment: {
       count: jest.fn().mockImplementation(({ where }: any) => {
@@ -132,4 +133,11 @@ describe('AnalyticsReconciliationService.runDailyReconciliation', () => {
     const revenueResult = results.find((r) => r.pair === 'revenue_summary_vs_payments')!;
     expect(revenueResult.mismatched).toBe(false);
   });
+});
+
+it('reconciliation uses Lagos boundaries and matches outcomes without an occurrence-day cutoff', async () => {
+  const { service, prisma } = buildService({ paymentCount: 2, paymentSuccessEvents: 2 });
+  await service.runDailyReconciliation(new Date('2026-09-28T02:30:00Z'));
+  expect(prisma.payment.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: 'paid', paidAt: { gte: new Date('2026-09-26T23:00:00Z'), lt: new Date('2026-09-27T23:00:00Z') } } }));
+  expect(prisma.patientActivityEvent.findMany.mock.calls[0][0].where.occurredAt).toBeUndefined();
 });

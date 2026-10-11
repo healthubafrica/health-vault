@@ -1,0 +1,45 @@
+# Inaccessible and system dirs
+.gstack
+.gstack/
+.claude/
+.playwright-cli/
+.playwright-mcp/
+.superpowers/
+.agents/
+graphify-out/
+
+# Monorepo sibling projects (not needed for mobile build)
+/admin/
+/health-hub-africa/
+/health-hub-africa-admin/
+/health-hub-africa-api/
+/Landing/
+/Prototype/
+/myvaultplus-web/
+/docs/
+/implementation_artifacts/
+
+# Loose files in workspace root only
+/*.jpeg
+/*.png
+/*.jpg
+/*.md
+/*.ps1
+
+# Build outputs & dependencies
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+dist/
+**/dist/
+.expo/
+**/.expo/
+web-build/
+expo-env.d.ts
+*.tsbuildinfo
+
+# Whitelist mobile assets and configs
+!mobile/assets/**
+!mobile/google-services.json
+!mobile/GoogleService-Info.plist

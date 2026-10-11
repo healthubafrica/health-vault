@@ -3,6 +3,7 @@ import { LabsService } from './labs.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { OpenemrService } from '../openemr/openemr.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 
 // Regression coverage for the integration remediation plan's negative
@@ -14,16 +15,21 @@ import { JwtPayload } from '../common/decorators/current-user.decorator';
 // correctly; LabsService now matches it.
 
 const mockPrisma = {
-  labOrder: { findUnique: jest.fn(), findMany: jest.fn() },
+  labOrder: { findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+  labResult: { update: jest.fn() },
+  $transaction: jest.fn(),
   patientProviderAssignment: { findFirst: jest.fn() },
   patient: { findUnique: jest.fn() },
 };
+const mockNotifications = { createPatientAlert: jest.fn().mockResolvedValue(undefined) };
+const mockAnalytics = { emitServerEvent: jest.fn().mockResolvedValue(undefined) };
 
 function buildService() {
   return new LabsService(
     mockPrisma as unknown as PrismaService,
     {} as OpenemrService,
-    {} as NotificationsService,
+    mockNotifications as unknown as NotificationsService,
+    mockAnalytics as unknown as AnalyticsService,
   );
 }
 
@@ -122,5 +128,28 @@ describe('LabsService — provider relation on responses', () => {
 
     const arg = mockPrisma.labOrder.findUnique.mock.calls[0][0];
     expect(arg.include.provider).toEqual(providerSelect);
+  });
+});
+
+describe('LabsService.createResult — analytics', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('emits an idempotent result_available event after the result is persisted', async () => {
+    const reportedAt = new Date('2026-09-29T10:00:00Z');
+    mockPrisma.labOrder.findUnique.mockResolvedValue({ id: 'order-1', hhaRef: 'LAB-2026-000001', patientId: 'patient-16' });
+    mockPrisma.$transaction.mockResolvedValue([]);
+    mockPrisma.labOrder.update.mockResolvedValue({ id: 'order-1', reportedAt, results: [] });
+
+    await buildService().createResult({
+      labOrderId: 'order-1',
+      items: [{ labOrderItemId: 'result-1', resultValue: 'Normal', isAbnormal: false }],
+    }, { sub: 'admin-1', email: 'admin@test.com', role: 'admin' });
+
+    expect(mockAnalytics.emitServerEvent).toHaveBeenCalledWith('result_available', {
+      eventId: 'lab-result:order-1',
+      patientId: 'patient-16',
+      occurredAt: reportedAt,
+      properties: { labOrderId: 'order-1', resultCount: 1, hasFlaggedResult: false },
+    });
   });
 });

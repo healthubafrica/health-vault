@@ -87,7 +87,8 @@
         {
           "locationWhenInUsePermission": "MyHealth Vault+ uses your location only when you request emergency dispatch, so responders can find you."
         }
-      ]
+      ],
+      "@sentry/react-native/expo"
     ],
     "experiments": {
       "typedRoutes": true

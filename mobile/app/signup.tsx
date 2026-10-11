@@ -1,6 +1,7 @@
 import { genderForApi, isValidPassword, normalizePhone, parseIsoDob, PASSWORD_HINT } from '@/lib/validation';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  Linking,
   StyleSheet,
   Text,
   View,
@@ -38,6 +39,14 @@ export default function SignUpScreen() {
 
   // Current Step: 1 = Personal Details, 2 = Contact & Password, 3 = Medical Aid & OTP
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+
+  useEffect(() => { analytics.track('registration_start'); }, []);
+  useEffect(() => { analytics.track('registration_step_view', { step: String(currentStep) }); }, [currentStep]);
+
+  const openPolicy = (kind: 'terms' | 'privacy') => {
+    analytics.track(kind === 'terms' ? 'terms_viewed' : 'privacy_notice_viewed', { version: 1 });
+    void Linking.openURL(`https://myvaultplus.com/${kind}`);
+  };
 
   // Form State
   const [fullName, setFullName] = useState('');
@@ -88,6 +97,7 @@ export default function SignUpScreen() {
         Alert.alert('Required', 'Please tell us how you first heard about Health-Hub Africa.');
         return;
       }
+      analytics.track('registration_step_complete', { step: '1' });
       setCurrentStep(2);
     } else if (currentStep === 2) {
       if (!email.trim() || !password || !confirmPassword) {
@@ -118,6 +128,7 @@ export default function SignUpScreen() {
         );
         analytics.track('otp_requested', { channel: 'email' });
         resendCooldown.start();
+        analytics.track('registration_step_complete', { step: '2' });
         setCurrentStep(3);
       } catch (err) {
         analytics.track('registration_error');
@@ -472,9 +483,13 @@ export default function SignUpScreen() {
                 </View>
 
                 {/* Terms Consent */}
+                <View style={{ flexDirection: 'row', gap: 16, marginVertical: 12 }}>
+                  <TouchableOpacity onPress={() => openPolicy('terms')}><Text style={{ color: theme.primary }}>Terms of Service</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={() => openPolicy('privacy')}><Text style={{ color: theme.primary }}>Privacy Policy</Text></TouchableOpacity>
+                </View>
                 <TouchableOpacity
                   activeOpacity={0.8}
-                  onPress={() => setAgreedToTerms(!agreedToTerms)}
+                  onPress={() => { if (!agreedToTerms) { analytics.track('terms_accepted', { version: 1 }); } setAgreedToTerms(!agreedToTerms); }}
                   style={styles.termsRow}>
                   <View
                     style={[
