@@ -5,6 +5,7 @@ import { AlertSeverity, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { fetchLoginAttemptsSince, detectLoginLocationAnomalies } from '../analytics/login-anomaly.util';
+import { AnalyticsAggregationService } from '../analytics-aggregation/analytics-aggregation.service';
 
 export const ALERTS_QUEUE = 'admin-alerts';
 
@@ -50,6 +51,7 @@ export class AlertsService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     @InjectQueue(ALERTS_QUEUE) private readonly queue: Queue,
+    private readonly aggregation: AnalyticsAggregationService,
   ) {}
 
   async onModuleInit() {
@@ -68,6 +70,7 @@ export class AlertsService implements OnModuleInit {
     await this.checkRepeatedFailedLoginPerAccount();
     await this.checkCredentialStuffingPattern();
     await this.checkLoginLocationAnomaly();
+    await this.checkAnalyticsPipelineHealth();
   }
 
   // ── Detectors ────────────────────────────────────────────────────────────
@@ -186,6 +189,29 @@ export class AlertsService implements OnModuleInit {
       title: `${anomalies.length} account${anomalies.length === 1 ? '' : 's'} logged in from a new country in the last ${LOGIN_ANOMALY_WINDOW_MIN} minutes`,
       body: `Consecutive successful logins from different countries for the same account — can be legitimate travel or VPN use, or a compromised credential; review before acting: ${preview}${overflow}.`,
       metadata: { count: anomalies.length, anomalies: anomalies.slice(0, 20) },
+    });
+  }
+
+  // Closes the gap left by getPipelineHealth() being pull-only (admin
+  // dashboard badge) — the daily aggregation job can fail silently for days
+  // with nobody the wiser unless someone thinks to open the dashboard.
+  // Reuses the exact same staleness definition the badge already shows, so
+  // the email and the dashboard never disagree about what "stale" means.
+  private async checkAnalyticsPipelineHealth(): Promise<void> {
+    const health = await this.aggregation.getPipelineHealth();
+    if (!health.isStale) return;
+    if (await this.recentlyAlerted('analytics_pipeline_stale')) return;
+
+    await this.raise({
+      type: 'analytics_pipeline_stale',
+      severity: AlertSeverity.warning,
+      title: health.lastRunAt
+        ? `Analytics aggregation pipeline is stale — last succeeded ${health.lastRunAt}`
+        : 'Analytics aggregation pipeline has never completed a scheduled run',
+      body: health.lastRunAt
+        ? `The last successful scheduled aggregation run completed at ${health.lastRunAt} for report date ${health.lastReportDate}, older than expected. The daily job (1:15 AM WAT) may be failing — check the admin dashboard's pipeline health badge and the API's ECS task logs.`
+        : 'No scheduled aggregation run has ever completed successfully. Pre-aggregated dashboard metrics may be empty or out of date — check the admin dashboard and the API\'s ECS task logs.',
+      metadata: { lastRunAt: health.lastRunAt, lastReportDate: health.lastReportDate },
     });
   }
 

@@ -1,3 +1,4 @@
+import { AnalyticsModule } from '../analytics/analytics.module';
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bull';
 import { ConfigService } from '@nestjs/config';
@@ -11,7 +12,7 @@ import {
 import { createRedisClient } from '../common/redis/redis.factory';
 
 @Module({
-  imports: [
+  imports: [AnalyticsModule,
     // Queue-level limiter caps how fast jobs leave the queue, independent of
     // concurrency. Binding constraint is Resend's free tier (10 req/sec). SMS
     // (Africa's Talking) and FCM (push) are more permissive, but they share

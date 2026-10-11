@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
-import BookAppointmentStep1Screen from './book-appointment-step1';
+import BookAppointmentStep1Screen from '@/app/book-appointment-step1';
 
 const mockPush = jest.fn();
 const mockBack = jest.fn();

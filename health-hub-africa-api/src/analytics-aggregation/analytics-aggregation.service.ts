@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
+import { previousReportingDay, DAY_MS } from '../analytics/reporting-window';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   aggregateAppointmentRows,
@@ -61,7 +62,7 @@ export class AnalyticsAggregationService implements OnModuleInit {
     // Runs once a day at 01:15 UTC — 2h15m after the prior WAT business day
     // ends (WAT midnight = UTC 23:00, see dayWindow()), giving it time to
     // settle rather than racing still-in-flight late-night rows.
-    await this.queue.add('aggregate-daily', {}, { repeat: { cron: '15 1 * * *' }, removeOnComplete: 10 });
+    await this.queue.add('aggregate-daily', {}, { repeat: { cron: '15 1 * * *' }, attempts: 3, backoff: { type: 'exponential', delay: 60000 }, removeOnComplete: 10 });
   }
 
   /** Aggregates the previous WAT (Africa/Lagos, UTC+1) business day — see
@@ -70,17 +71,28 @@ export class AnalyticsAggregationService implements OnModuleInit {
    * unique keys), which is what lets a redeploy or manual retrigger
    * recompute a day without duplicating rows. */
   async runDailyAggregation(forDate?: Date): Promise<void> {
-    const { start, end, reportDate } = this.dayWindow(forDate ?? new Date());
-
+    const reference = forDate ?? new Date();
+    const { reportDate } = previousReportingDay(reference);
+    const run = await this.prisma.analyticsPipelineRun.create({
+      data: { reportDate, source: forDate ? 'backfill' : 'scheduled', status: 'running' },
+    });
     try {
-      await this.aggregateServiceUsage(start, end, reportDate);
-      await this.aggregateRevenue(start, end, reportDate);
-      await this.aggregateFunnelMetrics(start, end, reportDate);
-      await this.aggregateDimensionMetrics(start, end, reportDate);
+      // Replay the last three days for delayed beacons and updated outcomes.
+      // Explicit backfills process exactly the requested day.
+      for (let offset = forDate ? 0 : 2; offset >= 0; offset--) {
+        const window = previousReportingDay(new Date(reference.getTime() - offset * DAY_MS));
+        await this.aggregateServiceUsage(window.start, window.end, window.reportDate);
+        await this.aggregateRevenue(window.start, window.end, window.reportDate);
+        await this.aggregateFunnelMetrics(window.start, window.end, window.reportDate);
+        await this.aggregateDimensionMetrics(window.start, window.end, window.reportDate);
+      }
+      await this.prisma.analyticsPipelineRun.update({
+        where: { id: run.id }, data: { status: 'succeeded', completedAt: new Date() },
+      });
     } catch (err) {
-      this.logger.error(
-        `Daily analytics aggregation failed for ${reportDate.toISOString().slice(0, 10)}: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      await this.prisma.analyticsPipelineRun.update({
+        where: { id: run.id }, data: { status: 'failed', completedAt: new Date() },
+      }).catch(() => this.logger.error('Unable to persist failed analytics run'));
       throw err;
     }
   }
@@ -122,64 +134,21 @@ export class AnalyticsAggregationService implements OnModuleInit {
     return results;
   }
 
-  /** Data-freshness signal for the admin dashboard (spec §25) — the most
-   * recent `updatedAt` across the 4 pre-aggregate tables, since there's no
-   * dedicated job-run log and the cron processor already swallows per-run
-   * errors (logs, doesn't rethrow), so Bull's own job-completion history
-   * wouldn't reliably distinguish a real success from a silent failure
-   * either. Whichever table a run actually wrote to is a fine proxy for
-   * "the pipeline ran" in practice, since a real production day almost
-   * always produces at least a page_view row. */
+  /** Only a completely successful scheduled run can make the pipeline fresh.
+   * Backfills and partial writes never replace this operational signal. */
   async getPipelineHealth(): Promise<PipelineHealth> {
-    const [usage, revenue, funnel, dimension] = await Promise.all([
-      this.prisma.serviceUsageDaily.findFirst({ orderBy: { updatedAt: 'desc' }, select: { updatedAt: true, reportDate: true } }),
-      this.prisma.revenueSummary.findFirst({ orderBy: { updatedAt: 'desc' }, select: { updatedAt: true, reportDate: true } }),
-      this.prisma.funnelEventDaily.findFirst({ orderBy: { updatedAt: 'desc' }, select: { updatedAt: true, reportDate: true } }),
-      this.prisma.dimensionDailyMetric.findFirst({ orderBy: { updatedAt: 'desc' }, select: { updatedAt: true, reportDate: true } }),
-    ]);
-
-    const candidates = [usage, revenue, funnel, dimension].filter(
-      (row): row is { updatedAt: Date; reportDate: Date } => row !== null,
-    );
-    if (candidates.length === 0) {
-      return { lastRunAt: null, lastReportDate: null, isStale: true };
-    }
-
-    const latest = candidates.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a));
-    const ageHours = (Date.now() - latest.updatedAt.getTime()) / (60 * 60 * 1000);
-
+    const latest = await this.prisma.analyticsPipelineRun.findFirst({
+      where: { source: 'scheduled' }, orderBy: { startedAt: 'desc' },
+    });
+    if (!latest) return { lastRunAt: null, lastReportDate: null, isStale: true };
+    const ageHours = latest.completedAt ? (Date.now() - latest.completedAt.getTime()) / 3600000 : Infinity;
+    const expected = previousReportingDay().reportDate.getTime();
     return {
-      lastRunAt: latest.updatedAt.toISOString(),
+      lastRunAt: latest.completedAt?.toISOString() ?? null,
       lastReportDate: latest.reportDate.toISOString().slice(0, 10),
-      // Cron runs once every 24h — 30h tolerates normal jitter without
-      // false-positiving, while still catching a genuinely missed run.
-      isStale: ageHours > STALE_AFTER_HOURS,
+      isStale: latest.status !== 'succeeded' || ageHours > STALE_AFTER_HOURS
+        || latest.reportDate.getTime() < expected - DAY_MS,
     };
-  }
-
-  // Business timezone alignment (spec §25 gap): Africa/Lagos (WAT) is a
-  // fixed UTC+1 offset with no DST, so a WAT calendar day is a UTC calendar
-  // day shifted by exactly 1 hour — no timezone-library complexity needed.
-  // Deliberately scoped to just this daily cron's day boundaries; the many
-  // "last Nd" rolling-window API endpoints (getFunnelAnalytics, etc.) stay
-  // UTC-relative, since a 1-hour shift barely moves a 30-day window's edge.
-  private static readonly WAT_OFFSET_MS = 60 * 60 * 1000;
-
-  private dayWindow(referenceDate: Date): { start: Date; end: Date; reportDate: Date } {
-    // Shift into WAT wall-clock time (still a UTC-labeled Date) so
-    // getUTC*() below reads back the WAT calendar date, not the UTC one.
-    const watReference = new Date(referenceDate.getTime() + AnalyticsAggregationService.WAT_OFFSET_MS);
-    const watToday = Date.UTC(watReference.getUTCFullYear(), watReference.getUTCMonth(), watReference.getUTCDate());
-    const watYesterday = watToday - 24 * 60 * 60 * 1000;
-
-    // reportDate is a pure calendar-date label (WAT's "yesterday") — not
-    // shifted back into a UTC instant, since @db.Date only stores Y/M/D.
-    const reportDate = new Date(watYesterday);
-    // start/end ARE true UTC instants, offset by the WAT gap, so the
-    // event-window query lines up with real WAT midnight-to-midnight.
-    const start = new Date(watYesterday - AnalyticsAggregationService.WAT_OFFSET_MS);
-    const end = new Date(watToday - AnalyticsAggregationService.WAT_OFFSET_MS);
-    return { start, end, reportDate };
   }
 
   private async aggregateServiceUsage(start: Date, end: Date, reportDate: Date): Promise<void> {

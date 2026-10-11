@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -24,7 +24,7 @@ import {
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
-import { appointments, ApiError, BookableFacility } from '@/lib/api';
+import { appointments, ApiError, BookableFacility, analytics } from '@/lib/api';
 import { BOOKING_DURATION_MINUTES, isVideoService, localDateKey } from '@/lib/booking';
 import { fallbackSlots, slotsForSelection } from '@/lib/slots';
 
@@ -115,6 +115,11 @@ export default function BookAppointmentStep3Screen() {
   );
   const usingRequestedTimes = !isLoading && !isError && scheduledSlots.length === 0;
   const availableSlots = usingRequestedTimes ? fallbackSlots(selectedDate) : scheduledSlots;
+
+  useEffect(() => { analytics.track('slot_search', { feature_area: 'appointments', serviceType }); }, [selectedDate, serviceType]);
+  useEffect(() => {
+    if (!isLoading && availableSlots.length) analytics.track('slot_impression', { feature_area: 'appointments', serviceType, count: availableSlots.length });
+  }, [isLoading, availableSlots, serviceType]);
 
   const morningSlots = availableSlots.filter((s) => slotHour(s) < 12);
   const afternoonSlots = availableSlots.filter((s) => slotHour(s) >= 12 && slotHour(s) < 17);
@@ -368,7 +373,7 @@ export default function BookAppointmentStep3Screen() {
                         return (
                           <TouchableOpacity
                             key={iso}
-                            onPress={() => setSelectedSlotIso(iso)}
+                            onPress={() => { setSelectedSlotIso(iso); analytics.track('slot_selected', { feature_area: 'appointments', serviceType }); }}
                             activeOpacity={0.85}
                             style={[
                               styles.slotPill,

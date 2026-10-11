@@ -18,6 +18,7 @@ import { CreateDocumentDto } from './dto/create-document.dto';
 import { QueryDocumentsDto } from './dto/query-documents.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 import { ReplaceDocumentDto } from './dto/replace-document.dto';
+import { AnalyticsService } from '../analytics/analytics.service';
 import {
   DOCUMENT_MIME_TO_EXT,
   PRESIGNED_UPLOAD_EXPIRY_SECONDS,
@@ -31,6 +32,7 @@ export class DocumentsService {
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
     private readonly s3Service: S3Service,
+    private readonly analytics: AnalyticsService,
   ) {}
 
   // ── Upload URL ─────────────────────────────────────────────────────────────
@@ -101,6 +103,13 @@ export class DocumentsService {
         isDownloadable: true,
       },
       select: this.documentSelect(),
+    });
+
+    void this.analytics.emitServerEvent('upload_success', {
+      eventId: `document-upload:${created.id}`,
+      patientId,
+      occurredAt: created.createdAt,
+      properties: { documentId: created.id, category: created.category, sizeBytes: created.fileSizeBytes },
     });
 
     return created;

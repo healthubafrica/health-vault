@@ -90,8 +90,11 @@ health-hub-africa-api/logs-*.txt
 
 # Claude Code internal state
 .claude/
+.gstack/
+.playwright-cli/
 .playwright-mcp/
 .superpowers/
+graphify-out/
 
 # MCP server configs — contain bearer tokens/API keys in headers (e.g. Banani)
 .agents/

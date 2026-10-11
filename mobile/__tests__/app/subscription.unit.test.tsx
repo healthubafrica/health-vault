@@ -2,7 +2,7 @@ import React from 'react';
 import { Alert } from 'react-native';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import SubscriptionScreen from './subscription';
+import SubscriptionScreen from '@/app/subscription';
 import { ApiError } from '@/lib/api';
 
 jest.setTimeout(30000);

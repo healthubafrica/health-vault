@@ -11,6 +11,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { CreateLabOrderDto } from './dto/create-lab-order.dto';
 import { CreateLabResultDto } from './dto/create-lab-result.dto';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 // Name/title/specialty only: no contact details or credentials.
 const PROVIDER_SUMMARY_SELECT = {
@@ -42,6 +43,7 @@ export class LabsService {
     private readonly prisma: PrismaService,
     private readonly openemrService: OpenemrService,
     private readonly notifications: NotificationsService,
+    private readonly analytics: AnalyticsService,
   ) {}
 
   // ── Orders ─────────────────────────────────────────────────────────────────
@@ -189,6 +191,13 @@ export class LabsService {
         overallStatus: anyFlagged ? LabStatus.review : LabStatus.normal,
       },
       include: { results: { include: { items: true } } },
+    });
+
+    void this.analytics.emitServerEvent('result_available', {
+      eventId: `lab-result:${order.id}`,
+      patientId: order.patientId,
+      occurredAt: updated.reportedAt ?? undefined,
+      properties: { labOrderId: order.id, resultCount: dto.items.length, hasFlaggedResult: anyFlagged },
     });
 
     // Best-effort in-app alert — a failure here must not undo the results
