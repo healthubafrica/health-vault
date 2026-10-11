@@ -49,6 +49,7 @@ export default function DispatchHistoryScreen() {
         ) : cases.length === 0 ? (
           <EmptyState
             icon={Siren}
+            animation="ambulance"
             title="No dispatch requests"
             description="Emergency requests you send through DispatchCare will be listed here."
           />

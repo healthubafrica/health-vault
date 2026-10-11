@@ -106,6 +106,7 @@ export default function PaymentMethodsScreen() {
         ) : (cards ?? []).length === 0 ? (
           <EmptyState
             icon={CreditCard}
+            animation="payment"
             title="No saved cards yet"
             description="When you pay by card with Flutterwave and keep &quot;Save this card&quot; on, it appears here after the payment completes."
             primaryActionLabel="Make a Payment"

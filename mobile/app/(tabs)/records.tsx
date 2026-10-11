@@ -375,6 +375,7 @@ export default function RecordsHubScreen() {
               ) : (
                 <EmptyState
                   icon={Lock}
+                  animation="uploadFiles"
                   title="No vault documents found"
                   description="Upload your first clinical record, lab report, or discharge letter above."
                 />
@@ -439,6 +440,7 @@ export default function RecordsHubScreen() {
             ) : ((Array.isArray(prescriptionsData) ? prescriptionsData.length : (prescriptionsData as unknown as { data?: PrescriptionItem[] })?.data?.length ?? 0) === 0) ? (
               <EmptyState
                 icon={Pill}
+                animation="records"
                 title="No active prescriptions"
                 description="Your prescriptions from clinician consultations will appear here."
               />
@@ -523,6 +525,7 @@ export default function RecordsHubScreen() {
             ) : (labOrdersData?.data?.length ?? 0) === 0 ? (
               <EmptyState
                 icon={FlaskConical}
+                animation="lab"
                 title="No lab results found"
                 description="Pathology and diagnostic lab orders will sync automatically here."
               />
@@ -583,6 +586,7 @@ export default function RecordsHubScreen() {
             ) : (visitNotesData?.data?.length ?? 0) === 0 ? (
               <EmptyState
                 icon={ClipboardList}
+                animation="summary"
                 title="No visit summaries yet"
                 description="Clinical encounter summaries and discharge instructions appear here."
               />

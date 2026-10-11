@@ -95,6 +95,7 @@ export default function MyCareTeamScreen() {
           ) : careTeam.length === 0 ? (
             <EmptyState
               icon={Users}
+              animation="provider"
               title="No providers yet"
               description="Providers appear here after your first appointment."
               primaryActionLabel="Book Care"

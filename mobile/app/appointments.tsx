@@ -1,4 +1,4 @@
-import { ErrorState } from '@/components/states';
+import { ErrorState, EmptyAnimation } from '@/components/states';
 import React, { useState } from 'react';
 import {
   StyleSheet,
@@ -210,7 +210,7 @@ export default function AppointmentsScreen() {
           <ErrorState onRetry={() => retry()} />
         ) : currentList.length === 0 ? (
           <View style={styles.emptyState}>
-            <Calendar size={48} color={theme.textMuted} style={{ marginBottom: 12 }} />
+            <EmptyAnimation name="calendar" />
             <Text style={[styles.emptyTitle, { color: theme.text }]}>
               {activeTab === 'upcoming' ? 'No upcoming appointments' : 'No past appointments'}
             </Text>

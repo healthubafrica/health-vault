@@ -167,6 +167,7 @@ export default function TravelSafeScreen() {
         ) : trips.length === 0 ? (
           <EmptyState
             icon={Plane}
+            animation="travel"
             title="No trips planned"
             description="Prepare a trip abroad with your health profile, allergies, and emergency contacts ready for international providers."
             primaryActionLabel="Plan a Trip"

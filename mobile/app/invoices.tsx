@@ -178,6 +178,7 @@ export default function InvoicesScreen() {
           ) : filteredInvoices.length === 0 ? (
             <EmptyState
               icon={Receipt}
+              animation="invoice"
               title={activeFilter === 'all' ? 'No payments yet' : `No ${activeFilter} payments`}
               description="Your payment history and receipts will appear here once you make a payment."
               primaryActionLabel="Make a Payment"

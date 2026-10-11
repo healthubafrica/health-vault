@@ -164,6 +164,7 @@ export default function VitalsListFull() {
         ) : VITALS_DATA.length === 0 ? (
           <EmptyState
             icon={Activity}
+            animation="vital"
             title="No vitals recorded yet"
             description="Tap + to log your first reading."
             primaryActionLabel="Record a Reading"
