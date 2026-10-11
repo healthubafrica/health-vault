@@ -282,6 +282,7 @@ export function RecordsScreen() {
         {filtered.length === 0 ? (
           <div className="py-8">
             <EmptyState
+              animation="records"
               title={`No ${tab !== 'All' ? tab.toLowerCase() : 'clinical'} records found`}
               description="There are no health records logged under this category yet."
               icon={FileText}

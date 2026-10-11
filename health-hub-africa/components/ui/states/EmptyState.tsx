@@ -4,11 +4,15 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import { Inbox, Plus, RefreshCw, FileQuestion } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import type { EmptyArtKey } from '@/lib/emptyArt'
+import { EmptyArt } from './EmptyArt'
 
 export interface EmptyStateProps {
   title?: string
   description?: string
   icon?: React.ElementType
+  /** Artwork shown instead of the icon on the card/full variants. */
+  animation?: EmptyArtKey
   badgeText?: string
   primaryActionLabel?: string
   onPrimaryAction?: () => void
@@ -22,6 +26,7 @@ export function EmptyState({
   title = 'No records found',
   description = 'There are no items to display right now. Get started by creating a new entry.',
   icon: Icon = Inbox,
+  animation,
   badgeText,
   primaryActionLabel = 'Add New',
   onPrimaryAction,
@@ -71,6 +76,9 @@ export function EmptyState({
       className={`${containerClasses} ${className}`}
     >
       <div className="relative mb-4">
+        {animation ? (
+          <EmptyArt name={animation} />
+        ) : (
         <motion.div
           animate={{ scale: [1, 1.05, 1] }}
           transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
@@ -78,6 +86,7 @@ export function EmptyState({
         >
           <Icon className="w-8 h-8" />
         </motion.div>
+        )}
 
         {badgeText && (
           <span className="absolute -top-2 -right-2 px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-[var(--color-gold)] text-white shadow-sm">

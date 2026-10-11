@@ -118,6 +118,7 @@ export function SupportScreen() {
         <Card>
           <div className="py-6">
             <EmptyState
+              animation="support"
               title="No support tickets yet"
               description="Need assistance with billing, appointments, or medical records? Create your first ticket above."
               icon={LifeBuoy}
