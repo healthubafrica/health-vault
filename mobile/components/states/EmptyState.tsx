@@ -3,11 +3,15 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Inbox, Plus, type LucideIcon } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
+import type { EmptyAnimationKey } from '@/lib/emptyAnimations';
+import { EmptyAnimation } from './EmptyAnimation';
 
 export interface EmptyStateProps {
   title?: string;
   description?: string;
   icon?: LucideIcon;
+  /** Artwork shown above the text (card variant); falls back to the icon when omitted. */
+  animation?: EmptyAnimationKey;
   primaryActionLabel?: string;
   onPrimaryAction?: () => void;
   secondaryActionLabel?: string;
@@ -20,6 +24,7 @@ export function EmptyState({
   title = 'No records found',
   description = 'There are no items to display right now.',
   icon: Icon = Inbox,
+  animation,
   primaryActionLabel,
   onPrimaryAction,
   secondaryActionLabel,
@@ -53,9 +58,13 @@ export function EmptyState({
 
   return (
     <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-      <View style={[styles.iconBox, { backgroundColor: theme.primaryLight }]}>
-        <Icon size={28} color={theme.primary} />
-      </View>
+      {animation ? (
+        <EmptyAnimation name={animation} />
+      ) : (
+        <View style={[styles.iconBox, { backgroundColor: theme.primaryLight }]}>
+          <Icon size={28} color={theme.primary} />
+        </View>
+      )}
       <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
       <Text style={[styles.desc, { color: theme.textMuted }]}>{description}</Text>
 

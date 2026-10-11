@@ -157,11 +157,18 @@ describe('No provider chosen (the care team assigns one, like the web portal)', 
   });
 
   it('step 3 offers requested times when nobody has a schedule, so booking is never blocked', async () => {
+    // The fallback only offers hours still to come today, so pin the clock to the morning
+    // (keeping real timers) or this test fails after 17:00.
+    jest.useFakeTimers({
+      now: new Date(2026, 9, 12, 7, 0, 0),
+      doNotFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'clearImmediate', 'nextTick', 'queueMicrotask', 'requestAnimationFrame', 'cancelAnimationFrame', 'performance', 'hrtime'],
+    });
     appointments.getSlots.mockResolvedValue([]);
     mockParams = { ...mockParams, providerId: '' };
     const { findByText } = renderWithClient(<BookAppointmentStep3Screen />);
 
     expect(await findByText(/No fixed schedule for this day/)).toBeTruthy();
+    jest.useRealTimers();
   });
 
   it('step 4 books without a providerId and says a clinician will be assigned', async () => {

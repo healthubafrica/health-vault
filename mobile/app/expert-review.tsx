@@ -69,6 +69,7 @@ export default function ExpertReviewScreen() {
         ) : cases.length === 0 ? (
           <EmptyState
             icon={Stethoscope}
+            animation="expert"
             title="No Expert Review Cases"
             description="Request a specialist second opinion on your medical diagnosis and treatment plan."
             primaryActionLabel="Book Expert Review"
