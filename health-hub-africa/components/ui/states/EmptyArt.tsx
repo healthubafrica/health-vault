@@ -1,10 +1,7 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
-import dynamic from 'next/dynamic'
+import React, { useEffect, useRef, useState } from 'react'
 import { EMPTY_ART, type EmptyArtKey } from '@/lib/emptyArt'
-
-const Lottie = dynamic(() => import('lottie-react'), { ssr: false })
 
 interface EmptyArtProps {
   name: EmptyArtKey
@@ -14,24 +11,38 @@ interface EmptyArtProps {
 /** Decorative artwork: hidden from screen readers, still frame under "reduce motion". */
 export function EmptyArt({ name, size = 160 }: EmptyArtProps) {
   const art = EMPTY_ART[name]
-  const [data, setData] = useState<object | null>(null)
   const [reduceMotion, setReduceMotion] = useState(false)
 
   useEffect(() => {
     setReduceMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   }, [])
 
+  const host = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (art.kind !== 'lottie') return
+    if (art.kind !== 'lottie' || !host.current) return
     let alive = true
-    fetch(art.src)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => alive && j && setData(j))
+    let destroy: (() => void) | undefined
+    const el = host.current
+    Promise.all([import('lottie-web'), fetch(art.src).then((r) => (r.ok ? r.json() : null))])
+      .then(([lottie, data]) => {
+        if (!alive || !data) return
+        const anim = lottie.default.loadAnimation({
+          container: el,
+          renderer: 'svg',
+          loop: !reduceMotion,
+          autoplay: !reduceMotion,
+          animationData: data,
+        })
+        // Reduced motion: hold a mid frame instead of playing.
+        if (reduceMotion) anim.goToAndStop(Math.floor(anim.totalFrames / 2), true)
+        destroy = () => anim.destroy()
+      })
       .catch(() => undefined)
     return () => {
       alive = false
+      destroy?.()
     }
-  }, [art])
+  }, [art, reduceMotion])
 
   const box = { width: size, height: size }
 
@@ -52,9 +63,5 @@ export function EmptyArt({ name, size = 160 }: EmptyArtProps) {
     )
   }
 
-  return (
-    <div aria-hidden="true" style={box} data-testid={`empty-art-${name}`}>
-      {data ? <Lottie animationData={data} loop={!reduceMotion} autoplay={!reduceMotion} style={box} /> : null}
-    </div>
-  )
+  return <div ref={host} aria-hidden="true" style={box} data-testid={`empty-art-${name}`} />
 }
