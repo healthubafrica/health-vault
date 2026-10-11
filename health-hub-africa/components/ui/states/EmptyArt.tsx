@@ -6,10 +6,12 @@ import { EMPTY_ART, type EmptyArtKey } from '@/lib/emptyArt'
 interface EmptyArtProps {
   name: EmptyArtKey
   size?: number
+  /** Show a still frame instead of playing (for small, repeated spots like dashboard panels). */
+  still?: boolean
 }
 
 /** Decorative artwork: hidden from screen readers, still frame under "reduce motion". */
-export function EmptyArt({ name, size = 160 }: EmptyArtProps) {
+export function EmptyArt({ name, size = 160, still = false }: EmptyArtProps) {
   const art = EMPTY_ART[name]
   const [reduceMotion, setReduceMotion] = useState(false)
 
@@ -17,6 +19,7 @@ export function EmptyArt({ name, size = 160 }: EmptyArtProps) {
     setReduceMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   }, [])
 
+  const hold = reduceMotion || still
   const host = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (art.kind !== 'lottie' || !host.current) return
@@ -29,12 +32,12 @@ export function EmptyArt({ name, size = 160 }: EmptyArtProps) {
         const anim = lottie.default.loadAnimation({
           container: el,
           renderer: 'svg',
-          loop: !reduceMotion,
-          autoplay: !reduceMotion,
+          loop: !hold,
+          autoplay: !hold,
           animationData: data,
         })
         // Reduced motion: hold a mid frame instead of playing.
-        if (reduceMotion) anim.goToAndStop(Math.floor(anim.totalFrames / 2), true)
+        if (hold) anim.goToAndStop(Math.floor(anim.totalFrames / 2), true)
         destroy = () => anim.destroy()
       })
       .catch(() => undefined)
@@ -42,7 +45,7 @@ export function EmptyArt({ name, size = 160 }: EmptyArtProps) {
       alive = false
       destroy?.()
     }
-  }, [art, reduceMotion])
+  }, [art, hold])
 
   const box = { width: size, height: size }
 
@@ -52,7 +55,7 @@ export function EmptyArt({ name, size = 160 }: EmptyArtProps) {
         <source media="(prefers-reduced-motion: reduce)" srcSet={art.still} />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={art.src}
+          src={still ? art.still : art.src}
           alt=""
           width={size}
           height={size}

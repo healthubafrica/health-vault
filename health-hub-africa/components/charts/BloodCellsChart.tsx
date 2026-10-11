@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyHint } from '@/components/ui/states/EmptyHint'
 import { Bar } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -19,7 +20,7 @@ export function BloodCellsChart({ data }: BloodCellsChartProps) {
   if (!data || data.length === 0) {
     return (
       <div className="h-[80px] flex items-center justify-center">
-        <p className="text-xs font-medium text-[var(--color-text-muted)]">No blood test results yet</p>
+        <EmptyHint art="lab" size={56}>No blood test results yet</EmptyHint>
       </div>
     )
   }

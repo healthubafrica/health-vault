@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyHint } from '@/components/ui/states/EmptyHint'
 import { Doughnut } from 'react-chartjs-2'
 import { Chart as ChartJS, ArcElement, Tooltip } from 'chart.js'
 
@@ -15,7 +16,7 @@ export function WeightGauge({ value, min, max }: WeightGaugeProps) {
   if (value == null) {
     return (
       <div className="flex flex-col items-center justify-center h-[170px]">
-        <p className="text-xs font-medium text-[var(--color-text-muted)]">No weight readings yet</p>
+        <EmptyHint art="measure" size={96} stacked>No weight readings yet</EmptyHint>
       </div>
     )
   }

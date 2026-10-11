@@ -11,6 +11,7 @@ export type EmptyArtKey =
   | 'ambulance' | 'expert' | 'invoice' | 'lab' | 'notification' | 'payment'
   | 'provider' | 'share' | 'summary' | 'support' | 'travel' | 'vital'
   | 'calendar' | 'records' | 'uploadFiles'
+  | 'sleep' | 'measure' | 'security' | 'people'
 
 export type EmptyArt =
   | { kind: 'webp'; src: string; still: string; mono: boolean }
@@ -39,4 +40,8 @@ export const EMPTY_ART: Record<EmptyArtKey, EmptyArt> = {
   calendar: { kind: 'lottie', src: '/empty-states/calendar.json' },
   records: { kind: 'lottie', src: '/empty-states/records.json' },
   uploadFiles: { kind: 'lottie', src: '/empty-states/upload-files.json' },
+  sleep: webp('sleep'),
+  measure: webp('measure'),
+  security: webp('security'),
+  people: webp('people'),
 }

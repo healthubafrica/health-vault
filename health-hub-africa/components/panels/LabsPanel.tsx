@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyHint } from '@/components/ui/states/EmptyHint'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
@@ -29,7 +30,7 @@ export function LabsPanel() {
       </p>
 
       {results.length === 0 ? (
-        <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>No lab results yet.</p>
+        <EmptyHint art="lab" size={72} stacked>No lab results yet.</EmptyHint>
       ) : (
         <div className="flex flex-col gap-2">
           {results.slice(0, 5).map(lab => (
