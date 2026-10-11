@@ -25,7 +25,7 @@ jest.mock('bcryptjs', () => ({
 
 const mockPrisma = {
   user: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
-  verificationToken: { findFirst: jest.fn(), create: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }), update: jest.fn() },
+  verificationToken: { findFirst: jest.fn(), count: jest.fn().mockResolvedValue(0), create: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }), update: jest.fn() },
   notificationPreference: { upsert: jest.fn() },
   userSession: {
     create: jest.fn().mockResolvedValue({ id: 'session-1' }),
@@ -305,7 +305,101 @@ describe('AuthService', () => {
 
     it('rejects for an unknown email', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
-      await expect(service.resetPassword('nobody@test.com', '123456', 'NewPass1!')).rejects.toThrow('Invalid request');
+      await expect(service.resetPassword('nobody@test.com', '123456', 'NewPass1!')).rejects.toThrow('Invalid or expired OTP');
+    });
+
+    it('marks the account verified, since the emailed OTP proves mailbox ownership', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-9', email: 'x@test.com', isVerified: false });
+      mockPrisma.verificationToken.findFirst.mockResolvedValue({ id: 'tok-9', token: 'hashed' });
+
+      await service.resetPassword('x@test.com', '123456', 'NewPass1!');
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ isVerified: true }) }),
+      );
+    });
+  });
+
+  describe('resendVerificationOtp', () => {
+    const GENERIC = 'If the account exists and is not yet verified, a new code has been sent.';
+    const flush = () => new Promise((r) => setImmediate(r));
+    beforeEach(() => mockPrisma.verificationToken.count.mockResolvedValue(0));
+
+    it('sends nothing for a soft-deleted account', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'u-3', email: 'd@test.com', isVerified: false, isActive: true, deletedAt: new Date() });
+      expect((await service.resendVerificationOtp('d@test.com')).message).toBe(GENERIC);
+      await flush();
+      expect(mockNotifications.sendEmail).not.toHaveBeenCalled();
+    });
+
+    it('uses a 60s cooldown window', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'u-1', email: 'a@test.com', isVerified: false, isActive: true });
+      mockPrisma.verificationToken.findFirst.mockResolvedValue(null);
+      await service.resendVerificationOtp('a@test.com');
+      const gt: Date = mockPrisma.verificationToken.findFirst.mock.calls.at(-1)[0].where.createdAt.gt;
+      expect(Date.now() - gt.getTime()).toBeGreaterThanOrEqual(59_000);
+    });
+
+    it('caps resends at 5 per hour per account', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'u-1', email: 'a@test.com', isVerified: false, isActive: true });
+      mockPrisma.verificationToken.findFirst.mockResolvedValue(null);
+      mockPrisma.verificationToken.count.mockResolvedValue(5);
+      mockNotifications.sendEmail.mockClear();
+      expect((await service.resendVerificationOtp('a@test.com')).message).toBe(GENERIC);
+      await flush();
+      expect(mockNotifications.sendEmail).not.toHaveBeenCalled();
+    });
+
+    it('does not await the send and swallows send errors without logging the code', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'u-1', email: 'a@test.com', isVerified: false, isActive: true });
+      mockPrisma.verificationToken.findFirst.mockResolvedValue(null);
+      mockPrisma.verificationToken.create.mockRejectedValueOnce(new Error('db down 123456'));
+      await expect(service.resendVerificationOtp('a@test.com')).resolves.toEqual({ message: GENERIC });
+      await flush();
+    });
+
+    it('sends an email-type OTP to an unverified account', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'u-1', email: 'a@test.com', isVerified: false, isActive: true, role: UserRole.patient });
+      mockPrisma.verificationToken.findFirst.mockResolvedValue(null);
+
+      const result = await service.resendVerificationOtp('a@test.com');
+      await flush();
+
+      expect(result.message).toBe(GENERIC);
+      expect(mockPrisma.verificationToken.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ userId: 'u-1', type: 'email' }) }),
+      );
+      expect(mockNotifications.sendEmail).toHaveBeenCalled();
+    });
+
+    it('does not issue a password_reset token (the old request-otp bug)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'u-1', email: 'a@test.com', isVerified: false, isActive: true });
+      mockPrisma.verificationToken.findFirst.mockResolvedValue(null);
+
+      await service.resendVerificationOtp('a@test.com');
+      await flush();
+
+      expect(mockPrisma.verificationToken.create).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ type: 'password_reset' }) }),
+      );
+    });
+
+    it('returns the same message and sends nothing for unknown or already-verified accounts', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      expect((await service.resendVerificationOtp('nobody@test.com')).message).toBe(GENERIC);
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'u-2', isVerified: true, isActive: true });
+      expect((await service.resendVerificationOtp('v@test.com')).message).toBe(GENERIC);
+      expect(mockNotifications.sendEmail).not.toHaveBeenCalled();
+    });
+
+    it('enforces a per-account cooldown when a code was issued moments ago', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'u-1', email: 'a@test.com', isVerified: false, isActive: true });
+      mockPrisma.verificationToken.findFirst.mockResolvedValue({ createdAt: new Date() });
+
+      const result = await service.resendVerificationOtp('a@test.com');
+
+      expect(result.message).toBe(GENERIC);
+      expect(mockNotifications.sendEmail).not.toHaveBeenCalled();
     });
   });
 

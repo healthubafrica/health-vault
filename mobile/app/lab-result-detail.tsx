@@ -25,6 +25,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
 import EmergencyFAB from '@/components/EmergencyFAB';
 import { labs } from '@/lib/api';
+import { ErrorState } from '@/components/states';
 
 export default function LabResultDetailScreen() {
   const router = useRouter();
@@ -32,7 +33,7 @@ export default function LabResultDetailScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['lab-order', params.orderId],
     queryFn: () => labs.getOrder(params.orderId as string),
     enabled: !!params.orderId,
@@ -91,6 +92,7 @@ export default function LabResultDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {isError && !data ? <ErrorState title="Couldn't load this lab order" onRetry={() => refetch()} /> : null}
         
         {/* Test Metadata Card */}
         <View style={[styles.metaCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
-import ServicesTabScreen from './services';
+import ServicesTabScreen from '@/app/(tabs)/services';
 import { useAuthStore } from '@/lib/stores/authStore';
 
 const mockPush = jest.fn();

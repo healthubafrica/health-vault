@@ -131,7 +131,7 @@ export class SubscriptionsService {
   // with a structured `metadata` blob so the gateway webhook can activate the
   // subscription on success. Free plan stays self-service via the existing
   // `subscribe()` path (no money to charge).
-  async upgrade(dto: UpgradeSubscriptionDto, currentUser: JwtPayload) {
+  async upgrade(dto: UpgradeSubscriptionDto, currentUser: JwtPayload, idempotencyKey?: string) {
     const patient = await this.prisma.patient.findUnique({
       where: { userId: currentUser.sub },
       select: { id: true },
@@ -168,9 +168,11 @@ export class SubscriptionsService {
         amountKobo,
         currency: 'NGN',
         referenceId: plan.id,
+        client: dto.client,
       },
       currentUser,
       {
+        idempotencyKey,
         description: `${plan.name} subscription — ${dto.billingCycle}`,
         metadata: {
           kind: 'subscription_upgrade',

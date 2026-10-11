@@ -1,11 +1,11 @@
 import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, SafeAreaView, StatusBar, Switch } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, SafeAreaView, StatusBar, Switch, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, Mail, MessageSquare, Bell, Smartphone } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
-import { notificationPrefs, NotificationPrefs } from '@/lib/api';
+import { notificationPrefs, NotificationPrefs, ApiError } from '@/lib/api';
 import { ListSkeleton, ErrorState } from '@/components/states';
 
 const CHANNELS: { key: keyof NotificationPrefs; title: string; desc: string; icon: typeof Mail }[] = [
@@ -47,8 +47,9 @@ export default function NotificationPreferencesScreen() {
       }
       return { previous };
     },
-    onError: (_err, _patch, context) => {
+    onError: (err, _patch, context) => {
       if (context?.previous) qc.setQueryData(['notification-prefs'], context.previous);
+      Alert.alert('Could not save preference', err instanceof ApiError ? err.message : 'Please try again.');
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ['notification-prefs'] }),
   });

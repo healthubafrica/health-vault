@@ -1,7 +1,7 @@
-import { BadRequestException, Controller, Get, Headers, HttpCode, HttpStatus, Param, Patch, Post, Query, RawBodyRequest, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Headers, HttpCode, HttpStatus, Param, Patch, Post, Query, RawBodyRequest, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
-import { IsBooleanString, IsOptional, IsNumberString } from 'class-validator';
+import { IsBooleanString, IsIn, IsNotEmpty, IsOptional, IsNumberString, IsString, MaxLength } from 'class-validator';
 import { Request } from 'express';
 import { Public } from '../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
@@ -17,6 +17,16 @@ class ListNotificationsQuery {
   @IsOptional()
   @IsNumberString()
   limit?: string;
+}
+
+class PushTokenDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(512)
+  token!: string;
+
+  @IsIn(['ios', 'android'])
+  platform!: 'ios' | 'android';
 }
 
 @ApiTags('Notifications')
@@ -36,6 +46,22 @@ export class NotificationsController {
       unreadOnly: query.unreadOnly === 'true',
       limit: query.limit ? parseInt(query.limit, 10) : undefined,
     });
+  }
+
+  @ApiBearerAuth()
+  @Post('push-token')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Register this device for push notifications' })
+  registerPushToken(@Body() dto: PushTokenDto, @CurrentUser() user: JwtPayload) {
+    return this.notifications.registerPushToken(user.sub, dto);
+  }
+
+  @ApiBearerAuth()
+  @Delete('push-token')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Stop push notifications to this device (call on sign-out)' })
+  unregisterPushToken(@Body() dto: Pick<PushTokenDto, 'token'>, @CurrentUser() user: JwtPayload) {
+    return this.notifications.unregisterPushToken(user.sub, dto.token);
   }
 
   @ApiBearerAuth()

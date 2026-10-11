@@ -20,31 +20,47 @@ import {
   MicOff,
   Phone,
   Video,
+  UserPlus,
 } from 'lucide-react-native';
 
+import { ErrorState } from '@/components/states';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
-import { appointments, analytics } from '@/lib/api';
+import GuestInviteSheet from '@/components/GuestInviteSheet';
+import { appointments, telecare, analytics, ApiError } from '@/lib/api';
+import { canJoinCall, findSessionForAppointment, isPastStatus, statusPill } from '@/lib/appointments';
 
 export default function TeleCareWaitingRoomScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  const [cameraOn, setCameraOn] = useState(true);
-  const [micOn, setMicOn] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['appointments', 'upcoming'],
-    queryFn: () => appointments.list({ upcoming: true }),
+  const { data, isLoading, isError, refetch } = useQuery({
+    // `upcoming` hides an appointment the moment its start time passes, which would
+    // drop a call that is late or already in progress. Look back a few hours instead.
+    queryKey: ['appointments', 'telecare-next'],
+    queryFn: () => appointments.list({ fromDate: new Date(Date.now() - 3 * 3600 * 1000).toISOString() }),
   });
 
   const nextTelecare = (data?.data ?? [])
-    .filter((a) => a.isTelecare)
+    .filter((a) => a.isTelecare && !isPastStatus(a.status))
     .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())[0];
+
+  // Guest invites hang off the TelecareSession (not the appointment); the session
+  // only exists once the appointment is confirmed.
+  const { data: sessionsData } = useQuery({
+    queryKey: ['telecare', 'sessions'],
+    queryFn: () => telecare.list(),
+    enabled: !!nextTelecare,
+  });
+  const inviteSession = nextTelecare
+    ? findSessionForAppointment(sessionsData?.data ?? [], nextTelecare.id)
+    : undefined;
 
   const providerName = nextTelecare?.provider
     ? `${nextTelecare.provider.title ?? 'Dr.'} ${nextTelecare.provider.firstName} ${nextTelecare.provider.lastName}`
@@ -53,10 +69,24 @@ export default function TeleCareWaitingRoomScreen() {
     ? `${nextTelecare.provider.firstName[0] ?? ''}${nextTelecare.provider.lastName[0] ?? ''}`.toUpperCase()
     : '—';
 
-  const handleJoinCall = () => {
+  const joinable = !!nextTelecare && canJoinCall(nextTelecare);
+
+  const handleJoinCall = async () => {
     if (!nextTelecare) return;
     analytics.track('ui_click', { element_id: 'join_telecare_cta', feature_area: 'telecare' });
-    router.push({ pathname: '/telecare-call', params: { sessionId: nextTelecare.id } });
+    try {
+      // The video token is issued per TelecareSession; nextTelecare.id is the
+      // APPOINTMENT id and was being sent to the token endpoint (always failing).
+      const sessions = (await telecare.list()).data;
+      const session = findSessionForAppointment(sessions, nextTelecare.id);
+      if (!session) {
+        Alert.alert('Session not ready', 'Your video room opens once the appointment is confirmed. Please check back shortly.');
+        return;
+      }
+      router.push({ pathname: '/telecare-call', params: { sessionId: session.id } });
+    } catch (err) {
+      Alert.alert('Could not join', err instanceof ApiError ? err.message : 'Please try again.');
+    }
   };
 
   const handleEndSession = () => {
@@ -75,12 +105,6 @@ export default function TeleCareWaitingRoomScreen() {
         <Text style={[styles.title, { color: theme.text }]}>TeleCare</Text>
         <View style={styles.headerRight}>
           <TopHeaderEmergency />
-          <TouchableOpacity
-            onPress={() => router.push('/telecare-settings')}
-            style={styles.settingsBtn}
-            activeOpacity={0.7}>
-            <Settings size={20} color={theme.text} />
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -90,6 +114,8 @@ export default function TeleCareWaitingRoomScreen() {
           <View style={{ alignItems: 'center', paddingVertical: 40 }}>
             <ActivityIndicator size="large" color={theme.primary} />
           </View>
+        ) : isError && !data ? (
+          <ErrorState onRetry={() => refetch()} />
         ) : !nextTelecare ? (
           <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, alignItems: 'center', paddingVertical: 24 }]}>
             <Video size={32} color={theme.textMuted} />
@@ -115,9 +141,11 @@ export default function TeleCareWaitingRoomScreen() {
             </View>
             <View style={styles.providerInfo}>
               <Text style={[styles.providerName, { color: theme.text }]}>{providerName}</Text>
-              <Text style={[styles.specialtyText, { color: theme.textMuted }]}>{nextTelecare.provider?.specialty || 'General Practitioner'}</Text>
+              {nextTelecare.provider?.specialty ? (
+                <Text style={[styles.specialtyText, { color: theme.textMuted }]}>{nextTelecare.provider.specialty}</Text>
+              ) : null}
             </View>
-            <StatusPill status="green" label={nextTelecare.status === 'confirmed' ? 'Confirmed' : nextTelecare.status} />
+            <StatusPill {...statusPill(nextTelecare.status)} />
           </View>
 
           <View style={[styles.metaTable, { borderTopColor: theme.border }]}>
@@ -138,146 +166,53 @@ export default function TeleCareWaitingRoomScreen() {
           </View>
         </View>
 
-        {/* Camera Preview Placeholder Box */}
-        <View style={styles.cameraBox}>
-          <View style={styles.cameraContent}>
-            {cameraOn ? (
-              <Camera size={44} color="#A0A0A0" opacity={0.6} />
-            ) : (
-              <CameraOff size={44} color="#A0A0A0" opacity={0.6} />
-            )}
-            <Text style={styles.cameraStateText}>
-              {cameraOn ? 'Camera preview active' : 'Camera turned off'}
-            </Text>
-
-            {/* Provider Waiting Badge */}
-            <View style={styles.waitingBadge}>
-              <View style={styles.pulsingDot} />
-              <Text style={styles.waitingBadgeText}>Waiting for provider</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Waiting Status Notice */}
+        {/* Honest status: we cannot see the provider or the camera from here */}
         <View style={[styles.noticeCard, { backgroundColor: theme.primaryLight }]}>
           <Text style={[styles.noticeText, { color: theme.primaryDark }]}>
-            The provider has not joined the session yet. Your camera and microphone are ready. Please wait a moment.
+            {joinable
+              ? "Tap Join Call when you're ready. You'll be asked to allow camera and microphone access, and your clinician will join from their side."
+              : 'Your video room opens once this appointment is confirmed. We will notify you.'}
           </Text>
-        </View>
-
-        {/* Device Status Checks */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>DEVICE STATUS</Text>
-          <View style={styles.deviceList}>
-            <View style={[styles.deviceItem, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <View style={styles.deviceLeft}>
-                <Camera size={20} color={cameraOn ? theme.status.success.border : theme.textMuted} />
-                <Text style={[styles.deviceName, { color: theme.text }]}>Camera</Text>
-              </View>
-              <View style={styles.deviceRight}>
-                <View
-                  style={[
-                    styles.statusIndicator,
-                    { backgroundColor: cameraOn ? theme.status.success.border : theme.border },
-                  ]}
-                />
-                <Text style={[styles.statusText, { color: theme.textMuted }]}>{cameraOn ? 'On' : 'Off'}</Text>
-              </View>
-            </View>
-
-            <View style={[styles.deviceItem, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <View style={styles.deviceLeft}>
-                <Mic size={20} color={micOn ? theme.status.success.border : theme.textMuted} />
-                <Text style={[styles.deviceName, { color: theme.text }]}>Microphone</Text>
-              </View>
-              <View style={styles.deviceRight}>
-                <View
-                  style={[
-                    styles.statusIndicator,
-                    { backgroundColor: micOn ? theme.status.success.border : theme.border },
-                  ]}
-                />
-                <Text style={[styles.statusText, { color: theme.textMuted }]}>{micOn ? 'On' : 'Off'}</Text>
-              </View>
-            </View>
-          </View>
         </View>
 
         {/* Media Controls & Join CTAs */}
         <View style={styles.controlsSection}>
-          {/* Media Toggles */}
-          <View style={styles.toggleRow}>
-            <TouchableOpacity
-              onPress={() => setCameraOn(!cameraOn)}
-              activeOpacity={0.8}
-              style={[
-                styles.toggleBtn,
-                {
-                  borderColor: cameraOn ? theme.primary : theme.border,
-                  backgroundColor: cameraOn ? theme.primaryLight : theme.surface,
-                },
-              ]}>
-              {cameraOn ? (
-                <Camera size={18} color={theme.primary} />
-              ) : (
-                <CameraOff size={18} color={theme.textMuted} />
-              )}
-              <Text
-                style={[
-                  styles.toggleBtnText,
-                  { color: cameraOn ? theme.primary : theme.textMuted },
-                ]}>
-                {cameraOn ? 'Camera On' : 'Camera Off'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setMicOn(!micOn)}
-              activeOpacity={0.8}
-              style={[
-                styles.toggleBtn,
-                {
-                  borderColor: micOn ? theme.primary : theme.border,
-                  backgroundColor: micOn ? theme.primaryLight : theme.surface,
-                },
-              ]}>
-              {micOn ? (
-                <Mic size={18} color={theme.primary} />
-              ) : (
-                <MicOff size={18} color={theme.textMuted} />
-              )}
-              <Text
-                style={[
-                  styles.toggleBtnText,
-                  { color: micOn ? theme.primary : theme.textMuted },
-                ]}>
-                {micOn ? 'Mic On' : 'Mic Off'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
           {/* Join Call Button */}
           <TouchableOpacity
             onPress={handleJoinCall}
-            disabled={isConnecting}
+            disabled={isConnecting || !joinable}
             activeOpacity={0.85}
-            style={[styles.joinBtn, { backgroundColor: '#006022' }]}>
+            style={[styles.joinBtn, { backgroundColor: '#006022', opacity: joinable ? 1 : 0.5 }]}>
             <Phone size={18} color="#FFFFFF" />
             <Text style={styles.joinBtnText}>{isConnecting ? 'Connecting...' : 'Join Call'}</Text>
           </TouchableOpacity>
+
+          {inviteSession && (
+            <TouchableOpacity
+              onPress={() => setInviteOpen(true)}
+              activeOpacity={0.85}
+              style={[styles.endBtn, { backgroundColor: theme.surface, borderColor: theme.border, flexDirection: 'row', gap: 8 }]}>
+              <UserPlus size={16} color={theme.text} />
+              <Text style={[styles.endBtnText, { color: theme.text }]}>Invite a guest</Text>
+            </TouchableOpacity>
+          )}
 
           {/* End Session Button */}
           <TouchableOpacity
             onPress={handleEndSession}
             activeOpacity={0.85}
             style={[styles.endBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.endBtnText, { color: theme.text }]}>End Session</Text>
+            <Text style={[styles.endBtnText, { color: theme.text }]}>Leave</Text>
           </TouchableOpacity>
         </View>
         </>
         )}
 
       </ScrollView>
+
+      {inviteSession && (
+        <GuestInviteSheet sessionId={inviteSession.id} visible={inviteOpen} onClose={() => setInviteOpen(false)} />
+      )}
     </SafeAreaView>
   );
 }

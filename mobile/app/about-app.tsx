@@ -11,6 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import Constants from 'expo-constants';
 import {
   ChevronLeft,
   Info,
@@ -29,15 +30,7 @@ export default function AboutAppScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  const [isChecking, setIsChecking] = useState(false);
-
-  const handleCheckUpdate = () => {
-    setIsChecking(true);
-    setTimeout(() => {
-      setIsChecking(false);
-      Alert.alert('Up to Date', 'You are running the latest version of MyHealth Vault+ (v2.1.0).');
-    }, 600);
-  };
+  const version = Constants.expoConfig?.version ?? '';
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -70,48 +63,8 @@ export default function AboutAppScreen() {
           </View>
           <Text style={[styles.appTitle, { color: theme.text }]}>MyHealth Vault+</Text>
           <Text style={[styles.appTagline, { color: theme.primary }]}>Health Hub Africa Ecosystem</Text>
-          <Text style={[styles.versionText, { color: theme.textMuted }]}>Version 2.1.0 • Build 8492</Text>
+          <Text style={[styles.versionText, { color: theme.textMuted }]}>{version ? `Version ${version}` : ''}</Text>
 
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={handleCheckUpdate}
-            style={[styles.updateBtn, { backgroundColor: theme.primaryLight }]}>
-            <RotateCw size={14} color={theme.primary} />
-            <Text style={[styles.updateBtnText, { color: theme.primary }]}>
-              {isChecking ? 'Checking...' : 'Check for Updates'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Key Platform Accreditations */}
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <View style={styles.specRow}>
-            <ShieldCheck size={18} color="#006022" />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.specTitle, { color: theme.text }]}>ISO 27001 & SOC-2 Type II</Text>
-              <Text style={[styles.specDesc, { color: theme.textMuted }]}>Audited health information security</Text>
-            </View>
-          </View>
-
-          <View style={[styles.divider, { backgroundColor: theme.border }]} />
-
-          <View style={styles.specRow}>
-            <Globe size={18} color={theme.primary} />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.specTitle, { color: theme.text }]}>HL7® FHIR® Interoperability</Text>
-              <Text style={[styles.specDesc, { color: theme.textMuted }]}>Cross-border electronic health record exchange</Text>
-            </View>
-          </View>
-
-          <View style={[styles.divider, { backgroundColor: theme.border }]} />
-
-          <View style={styles.specRow}>
-            <Heart size={18} color="#D92D20" />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.specTitle, { color: theme.text }]}>HPCSA Compliant TeleCare</Text>
-              <Text style={[styles.specDesc, { color: theme.textMuted }]}>Licensed telemedicine practitioner standards</Text>
-            </View>
-          </View>
         </View>
 
         {/* Mission Statement */}

@@ -159,13 +159,15 @@ export class AuthController {
     return this.authService.verify2fa(body.userId, body.otp, loginContext(req));
   }
 
+  // request-otp is kept as a backward-compatible alias; both previously
+  // (wrongly) issued a password-reset code that verify-otp could not consume.
   @Public()
-  @Post('request-otp')
+  @Post(['resend-otp', 'request-otp'])
   @HttpCode(HttpStatus.OK)
   @Throttle({ auth: { ttl: 60_000, limit: 3 } })
-  @ApiOperation({ summary: 'Re-send email verification OTP' })
-  requestOtp(@Body() dto: RequestOtpDto) {
-    return this.authService.requestPasswordReset(dto.email);
+  @ApiOperation({ summary: 'Re-send email verification OTP (unverified accounts)' })
+  resendOtp(@Body() dto: RequestOtpDto) {
+    return this.authService.resendVerificationOtp(dto.email);
   }
 
   @Public()

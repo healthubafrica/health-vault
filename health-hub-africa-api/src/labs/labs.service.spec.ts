@@ -15,10 +15,11 @@ import { JwtPayload } from '../common/decorators/current-user.decorator';
 // correctly; LabsService now matches it.
 
 const mockPrisma = {
-  labOrder: { findUnique: jest.fn(), update: jest.fn() },
+  labOrder: { findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
   labResult: { update: jest.fn() },
   $transaction: jest.fn(),
   patientProviderAssignment: { findFirst: jest.fn() },
+  patient: { findUnique: jest.fn() },
 };
 const mockNotifications = { createPatientAlert: jest.fn().mockResolvedValue(undefined) };
 const mockAnalytics = { emitServerEvent: jest.fn().mockResolvedValue(undefined) };
@@ -98,6 +99,35 @@ describe('LabsService.findOrder — authorization', () => {
     const patient16: JwtPayload = { sub: 'user-16', email: 'p16@test.com', role: 'patient' };
 
     await expect(service.findOrder('missing', patient16)).rejects.toThrow(NotFoundException);
+  });
+});
+
+describe('LabsService — provider relation on responses', () => {
+  const providerSelect = {
+    select: { id: true, title: true, firstName: true, lastName: true, specialty: true },
+  };
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('findOrders includes a minimal provider select', async () => {
+    mockPrisma.patient.findUnique.mockResolvedValue({ id: 'patient-16' });
+    mockPrisma.labOrder.findMany.mockResolvedValue([]);
+    const patient16: JwtPayload = { sub: 'user-16', email: 'p16@test.com', role: 'patient' };
+
+    await buildService().findOrders(undefined, patient16);
+
+    const arg = mockPrisma.labOrder.findMany.mock.calls[0][0];
+    expect(arg.include.provider).toEqual(providerSelect);
+  });
+
+  it('findOrder includes a minimal provider select', async () => {
+    mockPrisma.labOrder.findUnique.mockResolvedValue(order);
+    const patient16: JwtPayload = { sub: 'user-16', email: 'p16@test.com', role: 'patient' };
+
+    await buildService().findOrder('order-1', patient16);
+
+    const arg = mockPrisma.labOrder.findUnique.mock.calls[0][0];
+    expect(arg.include.provider).toEqual(providerSelect);
   });
 });
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,7 +9,7 @@ import {
   StatusBar,
   Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft,
@@ -21,7 +21,7 @@ import {
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { paymentMethods, PaymentMethod, ApiError } from '@/lib/api';
-import { EmptyState, ListSkeleton } from '@/components/states';
+import { EmptyState, ListSkeleton, ErrorState } from '@/components/states';
 
 export default function PaymentMethodsScreen() {
   const router = useRouter();
@@ -29,10 +29,17 @@ export default function PaymentMethodsScreen() {
   const theme = Colors[colorScheme];
   const qc = useQueryClient();
 
-  const { data: cards, isLoading } = useQuery({
+  const { data: cards, isLoading, isError, refetch } = useQuery({
     queryKey: ['payment-methods'],
     queryFn: () => paymentMethods.list(),
   });
+
+  // Coming back from checkout (or the browser) must show a card saved by that payment.
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch]),
+  );
 
   const setDefaultMutation = useMutation({
     mutationFn: (id: string) => paymentMethods.setDefault(id),
@@ -94,11 +101,13 @@ export default function PaymentMethodsScreen() {
 
         {isLoading ? (
           <ListSkeleton rows={2} />
+        ) : isError ? (
+          <ErrorState onRetry={() => refetch()} />
         ) : (cards ?? []).length === 0 ? (
           <EmptyState
             icon={CreditCard}
             title="No saved cards yet"
-            description="A card is saved automatically the next time you pay and choose &quot;Save this card&quot; at checkout."
+            description="When you pay by card with Flutterwave and keep &quot;Save this card&quot; on, it appears here after the payment completes."
             primaryActionLabel="Make a Payment"
             onPrimaryAction={() => router.push('/make-payment')}
           />

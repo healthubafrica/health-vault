@@ -11,6 +11,7 @@ jest.mock('@/lib/api', () => ({
   vitals: { list: jest.fn() },
   appointments: { list: jest.fn() },
   payments: { list: jest.fn() },
+  notifications: { list: jest.fn().mockResolvedValue({ data: [] }) },
   analytics: { track: jest.fn() },
 }));
 
@@ -41,6 +42,15 @@ describe('HomeDashboardScreen', () => {
   it('greets the signed-in user by name', async () => {
     const { findByText } = renderHome();
     expect(await findByText('Ada Okafor')).toBeTruthy();
+  });
+
+  it('shows a retryable error instead of "No upcoming appointments" when the request fails', async () => {
+    appointments.list.mockRejectedValueOnce(new Error('network'));
+    const { findByText, queryByText } = renderHome();
+    expect(await findByText("Couldn't load appointments")).toBeTruthy();
+    expect(queryByText('No upcoming appointments')).toBeNull();
+    fireEvent.press(await findByText('Try Again'));
+    expect(await findByText('No upcoming appointments')).toBeTruthy();
   });
 
   it('shows an empty state and books a first appointment when there are none upcoming', async () => {

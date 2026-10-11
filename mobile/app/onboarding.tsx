@@ -51,8 +51,8 @@ const FEATURE_SLIDES: OnboardingSlide[] = [
     tagline: 'Records & Vitals',
     description:
       'Store, access, and share your complete medical history, verified lab results, and prescriptions securely in one encrypted place.',
-    badgeLabel: 'Vitals: Normal',
-    badgeSub: '122/78 mmHg · 72 bpm',
+    badgeLabel: 'Records & Vitals',
+    badgeSub: 'Secure and encrypted',
     iconBg: '#EAF5E2',
     iconColor: '#006022',
     icon: Activity,
@@ -64,8 +64,8 @@ const FEATURE_SLIDES: OnboardingSlide[] = [
     tagline: '24/7 Clinical Access',
     description:
       'Connect with certified medical specialists in minutes via secure HD video consultations from the comfort of your home.',
-    badgeLabel: 'Dr. Maposa • Live Call',
-    badgeSub: 'General Practitioner · Connected',
+    badgeLabel: 'Video Consultations',
+    badgeSub: 'Talk to a clinician',
     iconBg: '#EBF5EC',
     iconColor: '#0E4A30',
     icon: Video,
@@ -77,8 +77,8 @@ const FEATURE_SLIDES: OnboardingSlide[] = [
     tagline: 'DispatchCare Response',
     description:
       'One-tap emergency response with instant access to your emergency medical profile and real-time paramedic GPS tracking.',
-    badgeLabel: 'Dispatch ETA: 08:30',
-    badgeSub: 'Unit #412 En Route · Cape Town',
+    badgeLabel: 'Emergency Dispatch',
+    badgeSub: 'Request help in one tap',
     iconBg: '#FDECEA',
     iconColor: '#C0392B',
     icon: Ambulance,

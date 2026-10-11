@@ -17,7 +17,6 @@ import {
   Clock,
   Video,
   MapPin,
-  CreditCard,
   CheckCircle2,
   ShieldCheck,
   Check,
@@ -28,7 +27,9 @@ import {
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
-import { appointments, analytics, ApiError } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { appointments, analytics, ApiError, generateIdempotencyKey } from '@/lib/api';
+import { BOOKING_DURATION_MINUTES, isVideoService } from '@/lib/booking';
 import { queryClient } from '@/lib/queryClient';
 
 export default function BookAppointmentStep4Screen() {
@@ -40,9 +41,10 @@ export default function BookAppointmentStep4Screen() {
     providerId?: string;
     providerName?: string;
     providerSpecialty?: string;
-    providerFee?: string;
     providerInitials?: string;
     consultationFormat?: string;
+    facilityId?: string;
+    facilityName?: string;
     appointmentDate?: string;
     appointmentTime?: string;
     scheduledAtIso?: string;
@@ -52,32 +54,35 @@ export default function BookAppointmentStep4Screen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'medical_aid' | 'eft'>('card');
+  const [idempotencyKey] = useState(() => generateIdempotencyKey());
+  const { data: policy } = useQuery({
+    queryKey: ['scheduling-policy'],
+    queryFn: () => appointments.getSchedulingPolicy(),
+    staleTime: 5 * 60_000,
+  });
   const [isProcessing, setIsProcessing] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [bookingRef, setBookingRef] = useState('');
 
-  const feeAmount = params.providerFee || '₦15,000.00';
 
-  const handlePayAndConfirm = async () => {
+  const handleConfirm = async () => {
     if (!params.scheduledAtIso) {
       Alert.alert('Missing time slot', 'Please go back and choose an appointment slot.');
       return;
     }
     setIsProcessing(true);
     try {
-      const isTelecare = params.consultationFormat === 'virtual' || (params.serviceName || '').includes('TeleCare');
       analytics.track('ui_click', { element_id: 'book_appointment_cta', feature_area: 'appointments' });
       analytics.track('booking_started', { serviceType: params.serviceType, hasProvider: !!params.providerId });
       const res = await appointments.create({
-        appointmentType: isTelecare ? 'virtual' : 'in_person',
+        appointmentType: isVideoService(params.serviceType) ? 'virtual' : 'in_person',
         serviceType: params.serviceType || 'TeleCare',
         scheduledAt: params.scheduledAtIso,
-        durationMinutes: 45,
+        durationMinutes: BOOKING_DURATION_MINUTES,
         chiefComplaint: params.reason || 'General checkup',
-        notes: `Payment method: ${selectedPaymentMethod}`,
         ...(params.providerId && { providerId: params.providerId }),
-      });
+        ...(params.consultationFormat === 'in_person' && params.facilityId && { facilityId: params.facilityId }),
+      }, idempotencyKey);
       analytics.track('booking_confirmed', { serviceType: params.serviceType });
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       setBookingRef(res.hhaRef);
@@ -142,12 +147,12 @@ export default function BookAppointmentStep4Screen() {
               <View style={styles.doctorHeaderRow}>
                 <View style={[styles.avatarBox, { backgroundColor: theme.primaryLight }]}>
                   <Text style={[styles.avatarText, { color: theme.primary }]}>
-                    {params.providerInitials || 'ND'}
+                    {params.providerInitials || ''}
                   </Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.doctorName, { color: theme.text }]}>
-                    {params.providerName || 'Dr. Naledi Dlamini'}
+                    {params.providerName || 'Care team will assign a clinician'}
                   </Text>
                   <Text style={[styles.doctorSpecialty, { color: theme.textMuted }]}>
                     {params.providerSpecialty || 'General Practitioner'}
@@ -158,6 +163,13 @@ export default function BookAppointmentStep4Screen() {
                 </View>
               </View>
 
+              {params.serviceType === 'ExpertReview' ? (
+                <Text style={[styles.doctorSpecialty, { color: theme.textMuted, marginTop: 10 }]}>
+                  This books a scheduled specialist consultation appointment. It is not a written case review or
+                  second-opinion report.
+                </Text>
+              ) : null}
+
               <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
               <View style={styles.detailsTable}>
@@ -167,7 +179,7 @@ export default function BookAppointmentStep4Screen() {
                     <Text style={[styles.detailLabel, { color: theme.textMuted }]}>Date</Text>
                   </View>
                   <Text style={[styles.detailVal, { color: theme.text }]}>
-                    {params.appointmentDate || 'Today, 21 Jul 2025'}
+                    {params.appointmentDate || '—'}
                   </Text>
                 </View>
 
@@ -177,7 +189,7 @@ export default function BookAppointmentStep4Screen() {
                     <Text style={[styles.detailLabel, { color: theme.textMuted }]}>Time</Text>
                   </View>
                   <Text style={[styles.detailVal, { color: theme.text }]}>
-                    {params.appointmentTime || '02:30 PM'}
+                    {params.appointmentTime || '—'}
                   </Text>
                 </View>
 
@@ -192,54 +204,10 @@ export default function BookAppointmentStep4Screen() {
                   </View>
                   <Text style={[styles.detailVal, { color: theme.text }]}>
                     {params.consultationFormat === 'in_person'
-                      ? 'In-Person Clinic Visit'
+                      ? `In-person${params.facilityName ? ` · ${params.facilityName}` : ''}`
                       : 'HD Video Consultation'}
                   </Text>
                 </View>
-              </View>
-            </View>
-
-            {/* Price Breakdown Card */}
-            <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>PAYMENT BREAKDOWN</Text>
-
-              <View style={styles.priceRow}>
-                <Text style={[styles.priceLabel, { color: theme.text }]}>Consultation Fee</Text>
-                <Text style={[styles.priceValue, { color: theme.text }]}>{feeAmount}</Text>
-              </View>
-
-              <View style={styles.priceRow}>
-                <Text style={[styles.priceLabel, { color: theme.textMuted }]}>
-                  Platform & Records Encryption Fee
-                </Text>
-                <Text style={[styles.priceValue, { color: '#006022' }]}>FREE</Text>
-              </View>
-
-              <View style={[styles.divider, { backgroundColor: theme.border }]} />
-
-              <View style={styles.totalRow}>
-                <Text style={[styles.totalLabel, { color: theme.text }]}>Total Due</Text>
-                <Text style={[styles.totalAmount, { color: theme.primaryDark }]}>{feeAmount}</Text>
-              </View>
-            </View>
-
-            {/* Payment Method Selector */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>PAYMENT METHOD</Text>
-
-              <View
-                style={[
-                  styles.paymentOption,
-                  { backgroundColor: theme.surface, borderColor: theme.primary, borderWidth: 2 },
-                ]}>
-                <CreditCard size={20} color={theme.primary} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.payTitle, { color: theme.text }]}>Card, via Flutterwave</Text>
-                  <Text style={[styles.paySub, { color: theme.textMuted }]}>
-                    You'll confirm payment securely on Flutterwave's checkout page.
-                  </Text>
-                </View>
-                <Check size={18} color={theme.primary} />
               </View>
             </View>
 
@@ -247,7 +215,9 @@ export default function BookAppointmentStep4Screen() {
             <View style={[styles.policyBox, { backgroundColor: theme.primaryLight }]}>
               <ShieldCheck size={16} color={theme.primary} />
               <Text style={[styles.policyText, { color: theme.primaryDark }]}>
-                Free cancellation up to 2 hours before the appointment. 100% money-back guarantee.
+                {policy?.selfServiceEnabled === false
+                  ? 'To change or cancel this appointment, please contact support.'
+                  : `You can cancel free of charge up to ${policy?.cancellationWindowHours ?? 24} hours before the appointment.`}
               </Text>
             </View>
           </ScrollView>
@@ -257,13 +227,13 @@ export default function BookAppointmentStep4Screen() {
             <TouchableOpacity
               activeOpacity={0.85}
               disabled={isProcessing}
-              onPress={handlePayAndConfirm}
+              onPress={handleConfirm}
               style={[styles.payBtn, { backgroundColor: theme.primary }]}>
               {isProcessing ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <>
-                  <Text style={styles.payBtnText}>Pay {feeAmount} & Confirm</Text>
+                  <Text style={styles.payBtnText}>Confirm appointment</Text>
                   <ArrowRight size={18} color="#FFFFFF" />
                 </>
               )}
@@ -281,14 +251,14 @@ export default function BookAppointmentStep4Screen() {
             Appointment Booked!
           </Text>
           <Text style={[styles.successSubheading, { color: theme.textMuted }]}>
-            Your consultation with {params.providerName || 'Dr. Naledi Dlamini'} is confirmed.
+            Your request {params.providerName ? `with ${params.providerName} ` : ''}has been received. A clinician will be assigned if you did not choose one. You'll be notified once it is confirmed.
           </Text>
 
           <View style={[styles.refCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <Text style={[styles.refLabel, { color: theme.textMuted }]}>BOOKING REFERENCE</Text>
             <Text style={[styles.refNumber, { color: theme.primaryDark }]}>#{bookingRef}</Text>
             <Text style={[styles.refTime, { color: theme.textMuted }]}>
-              {params.appointmentDate || 'Today, 21 Aug'} at {params.appointmentTime || '02:30 PM'}
+              {params.appointmentDate || '—'} at {params.appointmentTime || '—'}
             </Text>
           </View>
 

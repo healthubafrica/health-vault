@@ -30,6 +30,7 @@ export default function TravelSafeScreen() {
   const [departureDate, setDepartureDate] = useState('');
   const [returnDate, setReturnDate] = useState('');
   const [purpose, setPurpose] = useState('');
+  const PURPOSES = ['Business', 'Vacation', 'Medical', 'Education', 'Family', 'Pilgrimage', 'Other'] as const;
 
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['travelsafe-trips'],
@@ -125,13 +126,28 @@ export default function TravelSafeScreen() {
 
             <View style={styles.field}>
               <Text style={[styles.label, { color: theme.text }]}>Purpose (optional)</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
-                placeholder="e.g. Study, business, holiday"
-                placeholderTextColor={theme.textMuted}
-                value={purpose}
-                onChangeText={setPurpose}
-              />
+              {/* The API only accepts these seven values; free text was rejected with a 400. */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {PURPOSES.map((p) => {
+                  const picked = purpose === p;
+                  return (
+                    <TouchableOpacity
+                      key={p}
+                      activeOpacity={0.85}
+                      onPress={() => setPurpose(picked ? '' : p)}
+                      style={{
+                        paddingVertical: 8,
+                        paddingHorizontal: 14,
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: picked ? theme.primary : theme.border,
+                        backgroundColor: picked ? theme.primary : theme.background,
+                      }}>
+                      <Text style={{ color: picked ? '#FFFFFF' : theme.text, fontWeight: '600', fontSize: 13 }}>{p}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
 
             <TouchableOpacity

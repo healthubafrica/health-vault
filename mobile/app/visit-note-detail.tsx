@@ -14,7 +14,6 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import {
   ChevronLeft,
   Share2,
-  Download,
   Calendar,
 } from 'lucide-react-native';
 
@@ -28,24 +27,10 @@ export default function VisitNoteDetailScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  const noteType = (params.type as string) || 'After-Visit Summary';
-  const noteDate = (params.date as string) || '14 Jul 2025';
-  const noteProvider = (params.provider as string) || 'Dr. Naledi Dlamini';
-  const noteSummary = (params.summary as string) || 'Follow-up for hypertension management';
-  const facility = 'Medi Health Clinic - Midrand';
-  const visitType = 'TeleCare (Virtual)';
-  const followUpDate = '14 Oct 2025';
-
-  const findings = [
-    'Vital Signs: BP 124/80 mmHg, HR 72 bpm, RR 16/min',
-    'Physical Exam: Patient alert and oriented, no acute distress',
-    'Lab Review: Full Blood Panel from 14 Jul 2025 within normal limits',
-  ];
-
-  const medications = [
-    'Lisinopril 10mg - continue once daily',
-    'Metformin 500mg - continue twice daily',
-  ];
+  const noteType = (params.type as string) || 'Visit note';
+  const noteDate = (params.date as string) || '';
+  const noteProvider = (params.provider as string) || 'Clinician';
+  const noteSummary = ((params.summary as string) || '').trim();
 
   const handleShare = async () => {
     try {
@@ -54,10 +39,6 @@ export default function VisitNoteDetailScreen() {
         message: `Clinical Encounter Summary: ${noteType} with ${noteProvider} on ${noteDate}. Secured via MyHealth Vault+.`,
       });
     } catch {}
-  };
-
-  const handleDownload = () => {
-    Alert.alert('Download Note', `Downloading official signed clinical summary from ${noteProvider}.`);
   };
 
   return (
@@ -84,7 +65,6 @@ export default function VisitNoteDetailScreen() {
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.cardTop}>
             <Text style={[styles.cardTitle, { color: theme.text }]}>{noteType}</Text>
-            <Text style={[styles.cardFacility, { color: theme.textMuted }]}>{facility}</Text>
           </View>
 
           <View style={[styles.metaTable, { borderTopColor: theme.border }]}>
@@ -94,100 +74,28 @@ export default function VisitNoteDetailScreen() {
             </View>
             <View style={styles.metaRow}>
               <Text style={[styles.metaLabel, { color: theme.textMuted }]}>DATE & TIME</Text>
-              <Text style={[styles.metaValue, { color: theme.text }]}>{noteDate} at 2:45 PM</Text>
-            </View>
-            <View style={styles.metaRow}>
-              <Text style={[styles.metaLabel, { color: theme.textMuted }]}>VISIT TYPE</Text>
-              <Text style={[styles.metaValue, { color: theme.text }]}>{visitType}</Text>
+              <Text style={[styles.metaValue, { color: theme.text }]}>{noteDate}</Text>
             </View>
           </View>
         </View>
 
-        {/* Chief Complaint */}
+        {/* Real note content only */}
         <View style={styles.section}>
-          <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>CHIEF COMPLAINT</Text>
-          <Text style={[styles.bodyText, { color: theme.text }]}>{noteSummary}</Text>
-        </View>
-
-        {/* Assessment */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>ASSESSMENT</Text>
+          <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>SUMMARY</Text>
           <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <Text style={[styles.bodyText, { color: theme.text }]}>
-              Patient presents for routine follow-up of hypertension. BP readings have been stable over the past month, averaging 128/82 mmHg. Patient reports good compliance with medication.
+              {noteSummary || 'No written summary was recorded for this visit.'}
             </Text>
           </View>
         </View>
 
-        {/* Clinical Findings */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>CLINICAL FINDINGS</Text>
-          <View style={styles.findingsList}>
-            {findings.map((finding, idx) => (
-              <View
-                key={idx}
-                style={[styles.findingItem, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                <View style={[styles.bulletDot, { backgroundColor: theme.primary }]} />
-                <Text style={[styles.findingText, { color: theme.text }]}>{finding}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Current Medications */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>CURRENT MEDICATIONS</Text>
-          <View style={styles.medsList}>
-            {medications.map((med, idx) => (
-              <View
-                key={idx}
-                style={[styles.medCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                <Text style={[styles.medName, { color: theme.text }]}>{med}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Treatment Plan & Follow-Up */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>TREATMENT PLAN</Text>
-          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, marginBottom: 14 }]}>
-            <Text style={[styles.bodyText, { color: theme.text }]}>
-              Continue current medications. Schedule follow-up appointment in 3 months. Patient advised to maintain sodium-restricted diet and regular exercise. Provided with blood pressure tracking app recommendation.
-            </Text>
-          </View>
-
-          <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>FOLLOW-UP</Text>
-          <View style={[styles.followUpCard, { backgroundColor: theme.primaryLight, borderColor: theme.primary }]}>
-            <Text style={[styles.followUpText, { color: theme.primaryDark }]}>
-              Next appointment scheduled for <Text style={{ fontWeight: '800' }}>{followUpDate}</Text>
-            </Text>
-          </View>
-
-          <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>NEXT STEPS</Text>
-          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.bodyText, { color: theme.text }]}>
-              Monitor BP weekly. Report any unusual symptoms. Contact clinic if BP exceeds 140/90 mmHg.
-            </Text>
-          </View>
-        </View>
-
-        {/* Action Buttons */}
         <View style={styles.actionGroup}>
           <TouchableOpacity
-            onPress={handleDownload}
-            activeOpacity={0.85}
-            style={[styles.primaryBtn, { backgroundColor: theme.primary }]}>
-            <Download size={18} color="#FFFFFF" />
-            <Text style={styles.primaryBtnText}>Download Note</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => router.push('/(tabs)/telecare')}
+            onPress={() => router.push('/book-appointment-step1')}
             activeOpacity={0.85}
             style={[styles.secondaryBtn, { backgroundColor: theme.primaryLight }]}>
             <Calendar size={18} color={theme.primary} />
-            <Text style={[styles.secondaryBtnText, { color: theme.primaryDark }]}>Schedule Follow-up</Text>
+            <Text style={[styles.secondaryBtnText, { color: theme.primaryDark }]}>Book a follow-up</Text>
           </TouchableOpacity>
         </View>
 

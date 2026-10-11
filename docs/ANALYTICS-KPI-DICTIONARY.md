@@ -2,7 +2,7 @@
 
 Spec §32 deliverable: "KPI Dictionary with formulas." Covers every KPI named in spec §26 ("KPI Definitions — Minimum Required"), plus two related scored metrics (Engagement Score, §17) that aren't in §26's list but are commonly asked about alongside it. For each KPI, §26 requires numerator, denominator, exclusions, timestamp basis, dimensions, refresh interval, owner and version — this doc gives all of those, grounded directly in the current `AnalyticsService` implementation, not aspirational. Update it when the formulas change; it will drift otherwise.
 
-**Metric owner:** Health Hub Africa Product Analytics. **Technical owner:** Health Hub Africa Platform Engineering. These are accountable teams; an individual assignee may be recorded in the operational ticketing system without changing metric semantics.
+**Owner:** unassigned — the spec requires every KPI to have a named owner; this is an organizational decision, not something inferable from code. Fill in per-KPI as ownership is assigned.
 
 **Global exclusion (applies to every KPI below unless noted):** rows with `is_test_event = true` are excluded via `AnalyticsService.PRODUCTION_EVENT_FILTER` (`{ isTestEvent: false }`). See spec §20/§30 ("Test exclusion"). One method (`getClickstreamAnalytics`, backing CTA CTR) was missing this filter until this doc's companion PR — flagged and fixed rather than documented as a known gap.
 
@@ -17,11 +17,9 @@ Spec §32 deliverable: "KPI Dictionary with formulas." Covers every KPI named in
 | | |
 |---|---|
 | **Spec formula** | `registration_complete` unique users ÷ `registration_start` unique users |
-| **Numerator** | Unique linked users who fired server-authoritative `registration_complete` |
-| **Denominator** | Unique users or anonymous visitors who fired `registration_start` |
-| **Status** | Implemented on web and mobile; anonymous registration activity is linked to the patient identity when authentication completes. |
-| **Formula** | `numerator ÷ denominator`, rounded to 1 decimal place; `null` when the denominator is 0 |
-| **Version** | 1 |
+| **Status** | **Not implemented — not currently buildable.** |
+| **Why** | `registration_start` is catalogued (`analytics-events.catalog.ts`) as a planned event but nothing in the web or mobile client ever emits it — there is no "landing on the registration form" instrumentation point today, only `registration_complete` (server-authoritative, fired on account creation). Computing this KPI today would silently divide by an empty/undefined denominator or require fabricating the missing numerator population. |
+| **To close this gap** | Instrument `registration_start` client-side (web `OnboardingScreen.tsx` step 1 mount, mobile signup screen mount), then this becomes a direct unique-user ratio exactly like OTP Verification Rate below. |
 
 ## 2. OTP Verification Rate
 
@@ -34,7 +32,7 @@ Spec §32 deliverable: "KPI Dictionary with formulas." Covers every KPI named in
 | **Timestamp basis** | `occurredAt`, scoped to the funnel's `period` window (default 30d) |
 | **Dimensions** | Every spec §J filter (country, continent, device, os, browser, featureArea, timezone, ageBand, planTier, gender, nationality, acquisitionSource, utmCampaign, lifecycleStage), plus optional date-range comparison (`compare=true`) |
 | **Refresh interval** | Live per request |
-| **Owner** | Health Hub Africa Product Analytics |
+| **Owner** | Unassigned |
 | **Version** | 1 (no versioning scheme on individual `KPI_DEFINITIONS` entries — see Engagement Score/Retention below for the two KPIs that do carry an explicit version number) |
 | **Implementation** | `AnalyticsService.KPI_DEFINITIONS` entry `otpVerificationRate`, computed in `getFunnelAnalytics` / exposed via `GET /admin/analytics/funnel` |
 
@@ -46,12 +44,12 @@ Spec §32 deliverable: "KPI Dictionary with formulas." Covers every KPI named in
 | **Denominator** | Unique patients who fired `registration_complete` |
 | **Formula** | `numerator ÷ denominator`, rounded to 1 decimal place; `null` when denominator is 0 |
 | **Exclusions** | Global. Anonymous events excluded from both numerator and denominator — there is no patient to attribute activation to. |
-| **Timestamp basis** | Registration `occurredAt`; the qualifying action must occur after registration and within the configured activation window (`ANALYTICS_ACTIVATION_WINDOW_DAYS`, default 30 days). |
+| **Timestamp basis** | `occurredAt`, scoped to the funnel's `period` window. **Known simplification** (documented in code): both the registration and the qualifying action must fall within the *same* reporting window — this is not a true "ever activated after registering" measure. A correct unbounded version needs per-user registration timestamps carried forward across periods, which nothing in this pipeline tracks today. |
 | **Dimensions** | Same as OTP Verification Rate |
 | **Refresh interval** | Live per request |
-| **Owner** | Health Hub Africa Product Analytics |
-| **Version** | 2, configurable with `ANALYTICS_ACTIVATION_POLICY_VERSION` |
-| **Implementation** | `activation-policy.ts` and the `activationKpi` block inside `getFunnelAnalytics` |
+| **Owner** | Unassigned |
+| **Version** | 1 |
+| **Implementation** | `activationKpi` block inside `getFunnelAnalytics`; also broken out per-country inside `getGeoMapAnalytics` (`activationRate` field, same `ACTIVATION_QUALIFYING_EVENTS` list, same "within-window" simplification) |
 
 ## 4. MAU (Monthly Active Users)
 
@@ -62,7 +60,7 @@ Spec §32 deliverable: "KPI Dictionary with formulas." Covers every KPI named in
 | **Timestamp basis** | `occurredAt`, over a **fixed rolling 30-day window ending now** — this is deliberately **not** the dashboard's period selector (`7d`/`30d`/`90d`), per the spec's own wording ("rolling/configured 30-day period"). Same fixed-window convention `RETENTION_WINDOWS` already uses for D30/D60/D90. |
 | **Dimensions** | None currently — a single headline number, not filterable by §J dimensions yet |
 | **Refresh interval** | Live per request |
-| **Owner** | Health Hub Africa Product Analytics |
+| **Owner** | Unassigned |
 | **Version** | 1 |
 | **Implementation** | `AnalyticsService.getCoreKpis` → `GET /admin/analytics/core-kpis`, `mau` field |
 
@@ -77,7 +75,7 @@ Spec §32 deliverable: "KPI Dictionary with formulas." Covers every KPI named in
 | **Timestamp basis** | `AnalyticsSession.startedAt`, scoped to the dashboard's `period` selector |
 | **Dimensions** | None currently |
 | **Refresh interval** | Live per request |
-| **Owner** | Health Hub Africa Product Analytics |
+| **Owner** | Unassigned |
 | **Version** | 1 |
 | **Implementation** | `AnalyticsService.getCoreKpis` → `GET /admin/analytics/core-kpis`, `clicksPerSession` field |
 
@@ -92,7 +90,7 @@ Spec §32 deliverable: "KPI Dictionary with formulas." Covers every KPI named in
 | **Timestamp basis** | `occurredAt`, scoped to the dashboard's `period` selector |
 | **Dimensions** | Broken out by `featureArea` (one row per feature observed) |
 | **Refresh interval** | Live per request |
-| **Owner** | Health Hub Africa Product Analytics |
+| **Owner** | Unassigned |
 | **Version** | 1 |
 | **Implementation** | `AnalyticsService.getCoreKpis` → `GET /admin/analytics/core-kpis`, `featureAdoption` array |
 
@@ -107,7 +105,7 @@ Spec §32 deliverable: "KPI Dictionary with formulas." Covers every KPI named in
 | **Timestamp basis** | `occurredAt`, scoped to the `period` param |
 | **Dimensions** | Broken out by `elementId`; no further §J segmentation yet |
 | **Refresh interval** | Live per request |
-| **Owner** | Health Hub Africa Product Analytics |
+| **Owner** | Unassigned |
 | **Version** | 1 |
 | **Implementation** | `AnalyticsService.getClickstreamAnalytics` → `GET /admin/analytics/clickstream` |
 
@@ -122,7 +120,7 @@ Spec §32 deliverable: "KPI Dictionary with formulas." Covers every KPI named in
 | **Timestamp basis** | `occurredAt`, scoped to the funnel's `period` window |
 | **Dimensions** | Full §J filter set, same as OTP Verification Rate; also broken out per-country in `getGeoMapAnalytics` (`bookingConversionRate` field) |
 | **Refresh interval** | Live per request |
-| **Owner** | Health Hub Africa Product Analytics |
+| **Owner** | Unassigned |
 | **Version** | 1 |
 | **Implementation** | `AnalyticsService.KPI_DEFINITIONS` entry `bookingConversionRate` |
 
@@ -130,14 +128,14 @@ Spec §32 deliverable: "KPI Dictionary with formulas." Covers every KPI named in
 
 | | |
 |---|---|
-| **Numerator** | Distinct eligible payment attempts with a server-authoritative `payment_success`, keyed by stable `paymentId` |
-| **Denominator** | Distinct server-authoritative `payment_attempted` events, keyed by stable `paymentId` |
+| **Numerator** | Unique users who fired `payment_success` (server-authoritative — see `PaymentsService.handleChargeSuccess`) |
+| **Denominator** | Unique users who fired `checkout_started` (client beacon) |
 | **Formula** | `numerator ÷ denominator`, rounded to 1 decimal place; `null` when denominator is 0 |
 | **Exclusions** | Global |
 | **Timestamp basis** | `occurredAt`, scoped to the funnel's `period` window |
 | **Dimensions** | Full §J filter set; also broken out per-country in `getGeoMapAnalytics` (`paymentSuccessRate` field) |
 | **Refresh interval** | Live per request |
-| **Owner** | Health Hub Africa Product Analytics |
+| **Owner** | Unassigned |
 | **Version** | 1 |
 | **Implementation** | `AnalyticsService.KPI_DEFINITIONS` entry `paymentSuccessRate` (labeled `Payment Success Rate`) |
 
@@ -150,9 +148,9 @@ Spec §32 deliverable: "KPI Dictionary with formulas." Covers every KPI named in
 | **Formula** | `numerator ÷ denominator`, rounded to 1 decimal place; `null` when the eligible cohort is empty |
 | **Exclusions** | Global. A patient's cohort start date is their **first** `registration_complete` — a duplicate/retried registration event does not reset it. |
 | **Timestamp basis** | `occurredAt`; default `lookbackDays` is 120 (max retention window [90] + a 30-day buffer, so a D90-eligible cohort actually has 90 days to return before the window closes) |
-| **Dimensions** | Overall plus registration month, country, device, acquisition source, plan, and first feature. Each cohort also reports median time to second session, qualifying action, and booking. |
+| **Dimensions** | None — a single cohort-wide number per window (D1/D7/D30/D60/D90 all computed together, D30 is the one spec §26 names explicitly) |
 | **Refresh interval** | Live per request |
-| **Owner** | Health Hub Africa Product Analytics |
+| **Owner** | Unassigned |
 | **Version** | `cohortDefinitionVersion` = 1 (`RETENTION_COHORT_DEFINITION_VERSION` — bump this whenever `RETENTION_WINDOWS` or the eligibility/return-window logic changes, so historical retention reports don't change silently, per spec §16) |
 | **Implementation** | `AnalyticsService.getRetentionAnalytics` → `GET /admin/analytics/retention` |
 
@@ -167,7 +165,7 @@ Spec §32 deliverable: "KPI Dictionary with formulas." Covers every KPI named in
 | **Timestamp basis** | `occurredAt`, scoped to the map's `period` param |
 | **Dimensions** | Broken out per `countryCode`; `basis: 'access' \| 'declared'` selects IP-derived vs. patient-declared geography (spec §D/§F) |
 | **Refresh interval** | Live per request |
-| **Owner** | Health Hub Africa Product Analytics |
+| **Owner** | Unassigned |
 | **Version** | 1 |
 | **Implementation** | `AnalyticsService.getGeoMapAnalytics` → `GET /admin/analytics/geo-map`, `bookingConversionRate`/`paymentSuccessRate`/`activationRate` fields per country |
 
@@ -175,15 +173,15 @@ Spec §32 deliverable: "KPI Dictionary with formulas." Covers every KPI named in
 
 | | |
 |---|---|
-| **Numerator** | Failed qualifying action outcomes (`*_error`, `*_failure`, and failed OTP/payment/booking/upload/share/dispatch/telecare/subscription outcomes) |
-| **Denominator** | All qualifying action attempts and terminal outcomes used by `journey-metrics.ts` |
+| **Numerator** | Count of `client_error` events (uncaught JS error or unhandled promise rejection — `ErrorTracker`, window-level) |
+| **Denominator** | Total events in the digital-experience query (all page/device/browser telemetry, not just error-qualifying attempts) |
 | **Formula** | `numerator ÷ denominator × 100`, rounded to 1 decimal place; `null` when there is no traffic at all |
 | **Exclusions** | Global |
 | **Timestamp basis** | `occurredAt`, scoped to the `period` param |
 | **Dimensions** | None currently — a single rate plus a top-20 ranked list of error messages (`topErrors`) |
 | **Refresh interval** | Live per request |
-| **Owner** | Health Hub Africa Product Analytics |
-| **Version** | 2 |
+| **Owner** | Unassigned |
+| **Version** | 1 |
 | **Implementation** | `AnalyticsService.getDigitalExperienceAnalytics` → `GET /admin/analytics/digital-experience`, `errorRate` field |
 
 ---

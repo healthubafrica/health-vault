@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
   Query,
@@ -140,6 +142,13 @@ export class RecordsController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.recordsService.createPrescription(dto, user);
+  }
+
+  @Post('prescriptions/:id/refill-request')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Ask the care team to refill one of my prescriptions' })
+  requestRefill(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.recordsService.requestRefill(id, user);
   }
 
   @Get('prescriptions/list')

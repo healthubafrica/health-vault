@@ -22,16 +22,19 @@ export default function ReadingSavedConfirmationScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  const metric = (params.metric as string) || 'Heart Rate';
-  const value = (params.value as string) || '72';
-  const unit = (params.unit as string) || 'bpm';
+  const metric = (params.metric as string) || '';
+  const value = (params.value as string) || '';
+  const unit = (params.unit as string) || '';
   const status = ((params.status as string) || 'green') as 'green' | 'amber' | 'red';
   const source = (params.source as string) || 'Manual entry';
   const normalRange = (params.normalRange as string) || (metric === 'Heart Rate' ? '60–100 bpm' : 'Standard clinical range');
 
-  const now = new Date();
-  const timeStr = `Today, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  const dateStr = now.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+  // Show when the reading was actually recorded, not when this screen happened to render.
+  const recorded = params.recordedAt ? new Date(String(params.recordedAt)) : new Date();
+  const isToday = recorded.toDateString() === new Date().toDateString();
+  const clock = recorded.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const timeStr = isToday ? `Today, ${clock}` : clock;
+  const dateStr = recorded.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
 
   const getStatusColor = () => {
     if (status === 'green') return '#006022';
@@ -111,7 +114,7 @@ export default function ReadingSavedConfirmationScreen() {
 
           <View style={[styles.detailRow, { borderBottomColor: theme.border }]}>
             <Text style={[styles.detailLabel, { color: theme.textMuted }]}>DATE & TIME</Text>
-            <Text style={[styles.detailValue, { color: theme.text }]}>{dateStr}, {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+            <Text style={[styles.detailValue, { color: theme.text }]}>{dateStr}, {clock}</Text>
           </View>
 
           <View style={[styles.detailRow, { borderBottomColor: theme.border }]}>

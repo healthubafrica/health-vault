@@ -1,3 +1,5 @@
+import { classifyBloodPressure } from '@/lib/vitalStatus';
+import { latestWith } from '@/lib/vitals';
 import React from 'react';
 import {
   StyleSheet,
@@ -16,9 +18,8 @@ import { useQuery } from '@tanstack/react-query';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
-import MiniSparkline from '@/components/MiniSparkline';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
-import { EmptyState, CardSkeleton } from '@/components/states';
+import { EmptyState, CardSkeleton, ErrorState } from '@/components/states';
 import { vitals, VitalsReading } from '@/lib/api';
 
 
@@ -42,22 +43,30 @@ function timeAgo(isoString: string): string {
   return 'Just now';
 }
 
-function mapVitalsToMetrics(reading: VitalsReading): VitalMetric[] {
+function mapVitalsToMetrics(readings: VitalsReading[]): VitalMetric[] {
   const metrics: VitalMetric[] = [];
-  const ts = timeAgo(reading.recordedAt);
+  const num = (v: unknown) => Number(v); // Prisma Decimals arrive as strings
 
-  if (reading.heartRate != null)
-    metrics.push({ metric: 'Heart Rate', value: reading.heartRate, unit: 'bpm', status: reading.heartRate > 100 ? 'amber' : 'green', lastUpdate: ts, source: 'Manual' });
-  if (reading.systolicBp != null && reading.diastolicBp != null)
-    metrics.push({ metric: 'Blood Pressure', value: `${reading.systolicBp}/${reading.diastolicBp}`, unit: 'mmHg', status: reading.systolicBp > 140 ? 'red' : reading.systolicBp > 130 ? 'amber' : 'green', lastUpdate: ts, source: 'Manual' });
-  if (reading.spo2 != null)
-    metrics.push({ metric: 'SpO₂', value: reading.spo2, unit: '%', status: reading.spo2 < 94 ? 'red' : reading.spo2 < 96 ? 'amber' : 'green', lastUpdate: ts, source: 'Manual' });
-  if (reading.temperatureC != null)
-    metrics.push({ metric: 'Temperature', value: reading.temperatureC, unit: '°C', status: reading.temperatureC > 38 ? 'amber' : 'green', lastUpdate: ts, source: 'Manual' });
-  if (reading.weightKg != null)
-    metrics.push({ metric: 'Weight', value: reading.weightKg, unit: 'kg', status: 'green', lastUpdate: ts, source: 'Manual' });
-  if (reading.bloodGlucose != null)
-    metrics.push({ metric: 'Blood Glucose', value: reading.bloodGlucose, unit: 'mmol/L', status: reading.bloodGlucose > 11 ? 'red' : reading.bloodGlucose > 7.8 ? 'amber' : 'green', lastUpdate: ts, source: 'Manual' });
+  // Each metric comes from the newest reading that actually contains it, with
+  // its own "x ago" — not just from whichever row was saved last.
+  const hr = latestWith(readings, (r) => r.heartRate != null);
+  if (hr) metrics.push({ metric: 'Heart Rate', value: hr.heartRate!, unit: 'bpm', status: num(hr.heartRate) > 100 ? 'amber' : 'green', lastUpdate: timeAgo(hr.recordedAt), source: 'Manual' });
+
+  const bp = latestWith(readings, (r) => r.systolicBp != null && r.diastolicBp != null);
+  if (bp) metrics.push({ metric: 'Blood Pressure', value: `${bp.systolicBp}/${bp.diastolicBp}`, unit: 'mmHg', status: classifyBloodPressure(num(bp.systolicBp), num(bp.diastolicBp)), lastUpdate: timeAgo(bp.recordedAt), source: 'Manual' });
+
+  const sp = latestWith(readings, (r) => r.spo2 != null);
+  if (sp) metrics.push({ metric: 'SpO₂', value: num(sp.spo2), unit: '%', status: num(sp.spo2) < 94 ? 'red' : num(sp.spo2) < 96 ? 'amber' : 'green', lastUpdate: timeAgo(sp.recordedAt), source: 'Manual' });
+
+  const t = latestWith(readings, (r) => r.temperatureC != null);
+  if (t) metrics.push({ metric: 'Temperature', value: num(t.temperatureC), unit: '°C', status: num(t.temperatureC) > 38 ? 'amber' : 'green', lastUpdate: timeAgo(t.recordedAt), source: 'Manual' });
+
+  const w = latestWith(readings, (r) => r.weightKg != null);
+  if (w) metrics.push({ metric: 'Weight', value: num(w.weightKg), unit: 'kg', status: 'green', lastUpdate: timeAgo(w.recordedAt), source: 'Manual' });
+
+  // Glucose is stored in mg/dL platform-wide (web portal, clinician alerts).
+  const g = latestWith(readings, (r) => r.bloodGlucose != null);
+  if (g) metrics.push({ metric: 'Blood Glucose', value: num(g.bloodGlucose), unit: 'mg/dL', status: num(g.bloodGlucose) > 180 || num(g.bloodGlucose) < 70 ? 'red' : num(g.bloodGlucose) > 140 ? 'amber' : 'green', lastUpdate: timeAgo(g.recordedAt), source: 'Manual' });
 
   return metrics;
 }
@@ -68,13 +77,12 @@ export default function VitalsListFull() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['vitals'],
     queryFn: () => vitals.list(),
   });
 
-  const latestReading = data?.data?.[0];
-  const VITALS_DATA: VitalMetric[] = latestReading ? mapVitalsToMetrics(latestReading) : [];
+  const VITALS_DATA: VitalMetric[] = mapVitalsToMetrics(data?.data ?? []);
 
 
   const getStatusColor = (status: 'green' | 'amber' | 'red') => {
@@ -151,6 +159,8 @@ export default function VitalsListFull() {
 
         {isLoading ? (
           <CardSkeleton />
+        ) : isError ? (
+          <ErrorState onRetry={() => refetch()} />
         ) : VITALS_DATA.length === 0 ? (
           <EmptyState
             icon={Activity}
@@ -200,7 +210,6 @@ export default function VitalsListFull() {
                     </Text>
                     <Text style={[styles.unitText, { color: theme.textMuted }]}>{vital.unit}</Text>
                   </View>
-                  <MiniSparkline status={vital.status} width={64} height={20} />
                   <View style={styles.footerRow}>
                     <StatusPill
                       status={vital.status}

@@ -81,7 +81,6 @@ export const SERVICE_CATALOG: ServiceCatalogItem[] = [
     icon: Bike,
     iconColor: '#C0392B',
     iconBg: '#FDECEA',
-    serviceType: 'DispatchCare',
     hubRoute: '/emergency',
     hubActionText: 'Dispatch Emergency',
   },
@@ -114,7 +113,6 @@ export const SERVICE_CATALOG: ServiceCatalogItem[] = [
     icon: Plane,
     iconColor: '#0D9488',
     iconBg: '#CCFBF1',
-    serviceType: 'TravelSafe',
     hubRoute: '/book-appointment-step1',
     hubActionText: 'Book TravelSafe',
   },
@@ -138,4 +136,6 @@ export const HUB_SERVICES = SERVICE_CATALOG.filter((s) =>
   ['telecare', 'minute-care', 'care-test', 'health-consult', 'dispatch-care', 'myhealth-vault'].includes(s.id)
 );
 
+// DispatchCare (SOS) and TravelSafe (trip preparation) have their own flows and
+// no provider/slot pipeline, so they carry no serviceType and are not bookable here.
 export const BOOKABLE_SERVICES = SERVICE_CATALOG.filter((s) => !!s.serviceType);

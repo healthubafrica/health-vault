@@ -13,6 +13,15 @@ import { CreateLabOrderDto } from './dto/create-lab-order.dto';
 import { CreateLabResultDto } from './dto/create-lab-result.dto';
 import { AnalyticsService } from '../analytics/analytics.service';
 
+// Name/title/specialty only: no contact details or credentials.
+const PROVIDER_SUMMARY_SELECT = {
+  id: true,
+  title: true,
+  firstName: true,
+  lastName: true,
+  specialty: true,
+} as const;
+
 // LAB-YYYY-000001 sequential order reference
 async function generateOrderRef(prisma: PrismaService): Promise<string> {
   const year = new Date().getFullYear();
@@ -102,7 +111,10 @@ export class LabsService {
     return this.prisma.labOrder.findMany({
       where: { patientId: resolvedPatientId },
       orderBy: { orderedAt: 'desc' },
-      include: { results: { include: { items: true } } },
+      include: {
+        results: { include: { items: true } },
+        provider: { select: PROVIDER_SUMMARY_SELECT },
+      },
     });
   }
 
@@ -111,6 +123,7 @@ export class LabsService {
       where: { id },
       include: {
         results: { include: { items: true } },
+        provider: { select: PROVIDER_SUMMARY_SELECT },
         patient: { select: { userId: true } },
       },
     });

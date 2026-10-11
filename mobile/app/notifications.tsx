@@ -28,11 +28,11 @@ import { useColorScheme } from '@/components/useColorScheme';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
 import { notifications as notifApi, Notification as ApiNotification } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { EmptyState, ListSkeleton } from '@/components/states';
+import { EmptyState, ListSkeleton, ErrorState } from '@/components/states';
 
 interface NotificationItem {
   id: string;
-  category: 'clinical' | 'appointment' | 'medication' | 'telecare' | 'security';
+  category: 'clinical' | 'appointment' | 'medication' | 'telecare' | 'security' | 'system';
   title: string;
   body: string;
   time: string;
@@ -59,7 +59,7 @@ export default function NotificationsScreen() {
 
   const [activeFilter, setActiveFilter] = useState('all');
 
-  const { data: apiNotifsData, isLoading } = useQuery({
+  const { data: apiNotifsData, isLoading, isError, refetch } = useQuery({
     queryKey: ['notifications'],
     queryFn: () => notifApi.list(),
   });
@@ -74,14 +74,29 @@ export default function NotificationsScreen() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
   });
 
-  const KNOWN_CATEGORIES = new Set(['clinical', 'appointment', 'medication', 'telecare', 'security']);
-  function categoryOf(type: string): NotificationItem['category'] {
-    return KNOWN_CATEGORIES.has(type) ? (type as NotificationItem['category']) : 'clinical';
-  }
+  // Backend alert categories → this screen's categories.
+  const CATEGORY_MAP: Record<string, NotificationItem['category']> = {
+    appointment: 'appointment',
+    lab: 'clinical',
+    record: 'clinical',
+    telecare: 'telecare',
+    alert: 'security',
+    payment: 'system',
+    system: 'system',
+  };
+  // actionUrl is a web-portal path; map the ones that exist in the app.
+  const ROUTE_MAP: Record<string, string> = {
+    '/appointments': '/appointments',
+    '/payments': '/invoices',
+    '/subscriptions': '/subscription',
+    '/records': '/(tabs)/records',
+    '/telecare': '/(tabs)/telecare',
+  };
 
   const notifications: NotificationItem[] = (apiNotifsData?.data ?? []).map((n: ApiNotification) => ({
     id: n.id,
-    category: categoryOf(n.type),
+    category: CATEGORY_MAP[n.category] ?? 'system',
+    route: n.actionUrl ? ROUTE_MAP[n.actionUrl.split('?')[0]] : undefined,
     title: n.title,
     body: n.body,
     time: new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -202,6 +217,8 @@ export default function NotificationsScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {isLoading ? (
           <ListSkeleton rows={4} />
+        ) : isError ? (
+          <ErrorState onRetry={() => refetch()} />
         ) : filteredNotifications.length === 0 ? (
           <EmptyState
             icon={BellOff}

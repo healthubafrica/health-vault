@@ -1,3 +1,4 @@
+import { classifyBloodPressure } from '@/lib/vitalStatus';
 import React, { useState } from 'react';
 import {
   StyleSheet,
@@ -19,6 +20,7 @@ import StatusPill from '@/components/StatusPill';
 import EmergencyFAB from '@/components/EmergencyFAB';
 import { vitals, analytics, CreateVitalsPayload, ApiError } from '@/lib/api';
 import { queryClient } from '@/lib/queryClient';
+import { buildVitalsPayload } from '@/lib/vitals';
 
 interface MetricOption {
   label: string;
@@ -36,7 +38,7 @@ const METRIC_OPTIONS: MetricOption[] = [
   { label: 'Temperature', unit: '°C', min: 36.0, normalMax: 37.5, defaultValue: '36.8', rangeText: 'Normal range: 36.0–37.5 °C' },
   { label: 'Respiratory Rate', unit: 'breaths/min', min: 12, normalMax: 20, defaultValue: '16', rangeText: 'Normal range: 12–20 breaths/min' },
   { label: 'Weight', unit: 'kg', min: 40, normalMax: 150, defaultValue: '72.5', rangeText: 'Target range based on BMI' },
-  { label: 'Blood Glucose', unit: 'mmol/L', min: 3.5, normalMax: 6.0, defaultValue: '5.4', rangeText: 'Fasting normal: 3.5–6.0 mmol/L' },
+  { label: 'Blood Glucose', unit: 'mg/dL', min: 70, normalMax: 100, defaultValue: '95', rangeText: 'Fasting normal: 70–100 mg/dL' },
   { label: 'Pain Score', unit: '/10', min: 0, normalMax: 10, defaultValue: '2', rangeText: 'Scale: 0 (no pain) to 10 (worst)' },
 ];
 
@@ -50,7 +52,9 @@ export default function RecordVitalsEntryScreen() {
   const [selectedMetric, setSelectedMetric] = useState<MetricOption>(
     METRIC_OPTIONS.find((m) => m.label === initialMetric) || METRIC_OPTIONS[0]
   );
-  const [value, setValue] = useState(selectedMetric.defaultValue);
+  // Empty on purpose: defaultValue is only an example shown as a placeholder.
+  // Pre-filling it let a single tap on Save record a reading nobody measured.
+  const [value, setValue] = useState('');
   const [note, setNote] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -61,9 +65,7 @@ export default function RecordVitalsEntryScreen() {
         const sys = parseFloat(parts[0]);
         const dia = parseFloat(parts[1]);
         if (!isNaN(sys) && !isNaN(dia)) {
-          if (sys <= 120 && dia <= 80) return 'green';
-          if (sys <= 139 || dia <= 89) return 'amber';
-          return 'red';
+          return classifyBloodPressure(sys, dia);
         }
       }
       return 'green';
@@ -80,41 +82,20 @@ export default function RecordVitalsEntryScreen() {
 
   const handleSelectMetric = (metric: MetricOption) => {
     setSelectedMetric(metric);
-    setValue(metric.defaultValue);
+    setValue('');
   };
 
   const handleSave = async () => {
-    if (!value.trim()) {
-      Alert.alert('Missing Value', 'Please enter a vital reading value.');
+    const built = buildVitalsPayload(selectedMetric.label, value, note, new Date().toISOString());
+    if (!built.ok) {
+      Alert.alert('Check your reading', built.error);
       return;
     }
 
     setIsSaving(true);
     try {
-      const payload: CreateVitalsPayload = {
-        notes: note.trim() || undefined,
-        recordedAt: new Date().toISOString(),
-      };
-
-      if (selectedMetric.label === 'Heart Rate') {
-        payload.heartRate = parseFloat(value);
-      } else if (selectedMetric.label === 'Blood Pressure') {
-        const parts = value.split('/');
-        if (parts.length === 2) {
-          payload.bloodPressureSystolic = parseFloat(parts[0]);
-          payload.bloodPressureDiastolic = parseFloat(parts[1]);
-        }
-      } else if (selectedMetric.label === 'SpO₂') {
-        payload.oxygenSaturation = parseFloat(value);
-      } else if (selectedMetric.label === 'Temperature') {
-        payload.temperatureCelsius = parseFloat(value);
-      } else if (selectedMetric.label === 'Weight') {
-        payload.weightKg = parseFloat(value);
-      } else if (selectedMetric.label === 'Blood Glucose') {
-        payload.bloodGlucose = parseFloat(value);
-      }
-
-      await vitals.create(payload);
+      const recordedAt = new Date().toISOString();
+      await vitals.create({ ...built.payload, recordedAt });
       analytics.track('manual_entry_success', { metric: selectedMetric.label });
       queryClient.invalidateQueries({ queryKey: ['vitals'] });
 
@@ -127,27 +108,13 @@ export default function RecordVitalsEntryScreen() {
           status: currentStatus,
           normalRange: selectedMetric.rangeText,
           source: 'Manual entry',
+          recordedAt,
         },
       });
     } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : 'Failed to record vital. Saved locally for review.';
-      Alert.alert('Vital Saved', msg, [
-        {
-          text: 'OK',
-          onPress: () =>
-            router.replace({
-              pathname: '/reading-confirmation',
-              params: {
-                metric: selectedMetric.label,
-                value,
-                unit: selectedMetric.unit,
-                status: currentStatus,
-                normalRange: selectedMetric.rangeText,
-                source: 'Manual entry',
-              },
-            }),
-        },
-      ]);
+      // The reading was NOT saved: say so and stay on the form so it can be retried.
+      const msg = err instanceof ApiError ? err.message : 'Could not save this reading. Please try again.';
+      Alert.alert('Not saved', msg);
     } finally {
       setIsSaving(false);
     }
@@ -218,7 +185,8 @@ export default function RecordVitalsEntryScreen() {
                 <TextInput
                   value={value}
                   onChangeText={setValue}
-                  keyboardType={selectedMetric.label === 'Blood Pressure' ? 'default' : 'numeric'}
+                  placeholder={`e.g. ${selectedMetric.defaultValue}`}
+                  keyboardType={selectedMetric.label === 'Blood Pressure' ? 'numbers-and-punctuation' : 'decimal-pad'}
                   style={[styles.numericInput, { color: theme.text }]}
                   placeholderTextColor={theme.textFaint}
                 />
