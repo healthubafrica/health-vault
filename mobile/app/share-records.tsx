@@ -295,6 +295,7 @@ export default function ShareRecordsScreen() {
           ) : (activeShares ?? []).filter((s) => !s.isRevoked).length === 0 ? (
             <EmptyState
               icon={ShieldCheck}
+              animation="share"
               title="No active shares"
               description="Records you share will appear here so you can review or revoke access anytime."
             />

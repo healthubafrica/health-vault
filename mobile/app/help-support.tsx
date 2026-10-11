@@ -228,6 +228,7 @@ export default function HelpSupportScreen() {
         ) : tickets.length === 0 ? (
           <EmptyState
             icon={Inbox}
+            animation="support"
             title="No tickets yet"
             description="Messages you send to support will show up here with their replies."
           />

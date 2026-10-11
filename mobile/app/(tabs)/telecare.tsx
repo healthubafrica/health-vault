@@ -23,7 +23,7 @@ import {
   UserPlus,
 } from 'lucide-react-native';
 
-import { ErrorState } from '@/components/states';
+import { ErrorState, EmptyAnimation } from '@/components/states';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
@@ -118,7 +118,7 @@ export default function TeleCareWaitingRoomScreen() {
           <ErrorState onRetry={() => refetch()} />
         ) : !nextTelecare ? (
           <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, alignItems: 'center', paddingVertical: 24 }]}>
-            <Video size={32} color={theme.textMuted} />
+            <EmptyAnimation name="calendar" />
             <Text style={[styles.providerName, { color: theme.text, marginTop: 10 }]}>No upcoming TeleCare session</Text>
             <Text style={[styles.specialtyText, { color: theme.textMuted, marginTop: 4, textAlign: 'center' }]}>
               Book a TeleCare appointment to see your waiting room here.

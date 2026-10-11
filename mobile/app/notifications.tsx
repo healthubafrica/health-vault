@@ -222,6 +222,7 @@ export default function NotificationsScreen() {
         ) : filteredNotifications.length === 0 ? (
           <EmptyState
             icon={BellOff}
+            animation="notification"
             title="No notifications"
             description={
               activeFilter === 'all'
