@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Alert, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { EmptyAnimation } from '@/components/states';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { ApiError, emergencyContacts, EmergencyContact } from '@/lib/api';
@@ -77,7 +78,10 @@ export default function EmergencyContactsCard() {
           <Text style={{ color: theme.primary, fontWeight: '700' }}>Could not load contacts. Tap to retry.</Text>
         </TouchableOpacity>
       ) : contacts.length === 0 ? (
-        <Text style={{ color: theme.textMuted }}>No emergency contact saved yet.</Text>
+        <View style={{ alignItems: 'center' }}>
+          <EmptyAnimation name="people" size={96} />
+          <Text style={{ color: theme.textMuted }}>No emergency contact saved yet.</Text>
+        </View>
       ) : (
         contacts.map((c) => (
           <View key={c.id} style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}>

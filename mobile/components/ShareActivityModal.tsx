@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal, StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
+import { EmptyAnimation } from '@/components/states';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { shares, RecordShare, ApiError } from '@/lib/api';
@@ -41,7 +42,10 @@ export default function ShareActivityModal({ share, onClose }: { share: RecordSh
                 {notFound ? 'Activity for this share is no longer available.' : 'Could not load activity. Please try again.'}
               </Text>
             ) : accesses.length === 0 ? (
-              <Text style={[styles.note, { color: theme.textMuted }]}>No one has opened this share yet.</Text>
+              <View style={{ alignItems: 'center' }}>
+                <EmptyAnimation name="share" size={96} />
+                <Text style={[styles.note, { color: theme.textMuted }]}>No one has opened this share yet.</Text>
+              </View>
             ) : (
               accesses.map((a) => (
                 <View key={a.id} style={[styles.row, { borderBottomColor: theme.border }]}>

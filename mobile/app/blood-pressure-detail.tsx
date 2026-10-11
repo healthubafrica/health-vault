@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft } from 'lucide-react-native';
 
-import { ErrorState } from '@/components/states';
+import { ErrorState, EmptyAnimation } from '@/components/states';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
@@ -88,7 +88,10 @@ export default function BloodPressureTrendDetailScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {readings.length === 0 ? (
           <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }]}>
-            <Text style={[styles.summaryLabel, { color: theme.text }]}>No blood pressure readings yet</Text>
+            <View style={{ alignItems: 'center' }}>
+              <EmptyAnimation name="measure" size={120} />
+              <Text style={[styles.summaryLabel, { color: theme.text }]}>No blood pressure readings yet</Text>
+            </View>
           </View>
         ) : (
           <>

@@ -20,7 +20,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import { auth, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { isValidPassword, PASSWORD_HINT } from '@/lib/validation';
-import { ErrorState } from '@/components/states';
+import { ErrorState, EmptyAnimation } from '@/components/states';
 
 // Everything on this screen is backed by a real endpoint. (The previous version
 // showed "Security: Excellent", fake devices, an AES key-rotation button and a
@@ -156,7 +156,10 @@ export default function PrivacySecurityScreen() {
             {sessions.isLoading ? (
               <ActivityIndicator color={theme.primary} style={{ margin: 16 }} />
             ) : sessionList.length === 0 ? (
-              <Text style={[styles.rowDesc, { color: theme.textMuted, padding: 16 }]}>No active sessions.</Text>
+              <View style={{ alignItems: 'center', padding: 16 }}>
+                <EmptyAnimation name="security" size={96} />
+                <Text style={[styles.rowDesc, { color: theme.textMuted }]}>No active sessions.</Text>
+              </View>
             ) : (
               sessionList.map((s, i) => (
                 <View key={s.id}>

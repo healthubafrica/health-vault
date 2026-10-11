@@ -21,7 +21,10 @@ export type EmptyAnimationKey =
   | 'vital'
   | 'calendar'
   | 'records'
-  | 'uploadFiles';
+  | 'uploadFiles'
+  | 'measure'
+  | 'security'
+  | 'people';
 
 export type EmptyAnimationSource =
   | { kind: 'webp'; source: number; monochrome: boolean }
@@ -44,5 +47,8 @@ export const EMPTY_ANIMATIONS: Record<EmptyAnimationKey, EmptyAnimationSource> =
   calendar: { kind: 'lottie', source: require('@/assets/empty-states/calendar.json') },
   records: { kind: 'lottie', source: require('@/assets/empty-states/records.json') },
   uploadFiles: { kind: 'lottie', source: require('@/assets/empty-states/upload-files.json') },
+  measure: { kind: 'webp', source: require('@/assets/empty-states/measure.webp'), monochrome: true },
+  security: { kind: 'webp', source: require('@/assets/empty-states/security.webp'), monochrome: true },
+  people: { kind: 'webp', source: require('@/assets/empty-states/people.webp'), monochrome: true },
 };
 /* eslint-enable @typescript-eslint/no-require-imports */
