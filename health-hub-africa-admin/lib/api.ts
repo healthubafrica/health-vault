@@ -183,6 +183,11 @@ export const auth = {
       body: JSON.stringify({ profilePhotoUrl }),
     }),
 
+  // Stops using the current photo (clears the active reference only; the
+  // stored file is kept).
+  removeProfilePhoto: () =>
+    request<{ profilePhotoUrl: null }>('/auth/me/profile-photo', { method: 'DELETE' }),
+
   logout: () => bffFetch<void>('/api/auth/logout'),
 
   forgotPassword: (email: string) =>
@@ -665,7 +670,10 @@ export interface CreateProviderPayload {
   bio?: string
   acceptsVirtualConsults?: boolean
   profilePhotoUrl?: string
+  gender?: ProviderGender
 }
+
+export type ProviderGender = 'Male' | 'Female' | 'Other' | 'Prefer_not_to_say'
 
 export interface ImportProviderResult {
   imported: number
@@ -708,7 +716,7 @@ export interface ProviderSession {
     profilePhotoUrl?: string | null
     subscriptions?: Array<{ plan: { name: string; tier: string } }> | null
   } | null
-  provider?: { firstName: string; lastName: string; title: string; profilePhotoUrl?: string | null } | null
+  provider?: { firstName: string; lastName: string; title: string; profilePhotoUrl?: string | null; gender?: string | null } | null
   notes?: SessionNote[]
 }
 
@@ -796,7 +804,7 @@ export interface ClinicalQueueItem {
 // ── Admin: Support Tickets ────────────────────────────────────────────────
 
 type NameRecord = { firstName: string; lastName: string; gender?: string | null } | null
-type TicketPerson = { email: string; profilePhotoUrl?: string | null; patient?: NameRecord; provider?: NameRecord }
+type TicketPerson = { email: string; profilePhotoUrl?: string | null; gender?: string | null; patient?: NameRecord; provider?: NameRecord }
 
 export interface AdminSupportTicket {
   id: string
@@ -808,6 +816,10 @@ export interface AdminSupportTicket {
   createdAt: string
   updatedAt: string
   submittedBy: string
+  /** Signed photo URL of the submitter (list items). Absent on older API builds. */
+  userProfilePhotoUrl?: string | null
+  /** Patient gender when the submitter is a patient, else null. */
+  userGender?: string | null
   submitter: TicketPerson
   assignee?: TicketPerson | null
   _count: { messages: number }
@@ -1355,7 +1367,7 @@ export const adminApi = {
       request<{ data: AdminProvider }>(`/providers/${id}/verify`, { method: 'PATCH' }),
     // Edit the provider profile itself (name, specialty, license) — distinct
     // from availability, which only flips the booking toggle.
-    update: (id: string, dto: Partial<{ title: string; firstName: string; lastName: string; specialty: string; licenseNumber: string }>) =>
+    update: (id: string, dto: Partial<{ title: string; firstName: string; lastName: string; specialty: string; licenseNumber: string; gender: ProviderGender }>) =>
       request<{ data: AdminProvider }>(`/providers/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(dto),
@@ -1702,6 +1714,7 @@ export interface ProviderProfileUpdate {
   clinicState?: string
   acceptsVirtualConsults?: boolean
   profilePhotoUrl?: string
+  gender?: ProviderGender
 }
 
 export const providerSelf = {
@@ -1725,6 +1738,8 @@ export const providerSelf = {
       method: 'PATCH',
       body: JSON.stringify({ profilePhotoUrl }),
     }),
+  removeProfilePhoto: () =>
+    request<{ profilePhotoUrl: null }>('/auth/me/profile-photo', { method: 'DELETE' }),
 
   notificationEmails: {
     list: () => request<ProviderNotificationEmail[]>('/providers/me/notification-emails'),

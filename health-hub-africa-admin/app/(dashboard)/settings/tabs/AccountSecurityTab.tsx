@@ -10,6 +10,7 @@ import { SkeletonBox } from '@/components/ui/Skeleton'
 import { auth } from '@/lib/api'
 import { useAuthStore } from '@/lib/stores/authStore'
 import { Avatar } from '@/components/ui/Avatar'
+import { RemovePhotoButton } from '@/components/profile/RemovePhotoButton'
 import { PhotoCropModal } from '@/components/profile/PhotoCropModal'
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024
@@ -130,6 +131,7 @@ export function AccountSecurityTab() {
         <div className="flex items-center gap-4 mb-4">
           <Avatar name={user?.fullName ?? user?.email} src={user?.profilePhotoUrl} gender={user?.gender} size="lg" onImageError={() => void fetchMe()} />
           <div>
+            <div className="flex items-center gap-2">
             <label
               className="inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-xl border cursor-pointer transition-colors hover:bg-[var(--color-bg)]"
               style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
@@ -143,6 +145,8 @@ export function AccountSecurityTab() {
                 onChange={handleFileSelected}
               />
             </label>
+            {user?.profilePhotoUrl && <RemovePhotoButton disabled={uploadingPhoto} />}
+            </div>
             <p className="text-[11px] mt-1.5" style={{ color: 'var(--color-text-faint)' }}>
               JPEG, PNG, or WebP up to 5MB. Shown across all Health Hub dashboards.
             </p>
