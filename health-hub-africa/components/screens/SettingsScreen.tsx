@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyHint } from '@/components/ui/states/EmptyHint'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardTitle } from '@/components/ui/Card'
@@ -585,7 +586,7 @@ export function SettingsScreen() {
             <Loader2 size={18} className="animate-spin" style={{ color: 'var(--color-text-muted)' }} />
           </div>
         ) : sessions.length === 0 ? (
-          <p className="text-sm py-3" style={{ color: 'var(--color-text-muted)' }}>No active sessions found.</p>
+          <EmptyHint art="security" size={72} className="py-3">No active sessions found.</EmptyHint>
         ) : (
           <div className="flex flex-col gap-0">
             {sessions.map(session => (

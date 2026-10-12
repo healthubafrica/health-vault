@@ -330,6 +330,7 @@ export function PaymentsScreen() {
           {allPayments.length === 0 ? (
             <div className="py-6">
               <EmptyState
+                animation="invoice"
                 title="No transactions yet"
                 description="Your payment history and receipts will be displayed here."
                 icon={Receipt}

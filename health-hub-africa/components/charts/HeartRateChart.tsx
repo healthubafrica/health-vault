@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyHint } from '@/components/ui/states/EmptyHint'
 import { Line } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -21,7 +22,7 @@ export function HeartRateChart({ data }: HeartRateChartProps) {
   if (!data || data.length === 0) {
     return (
       <div className="h-[80px] flex items-center justify-center">
-        <p className="text-xs font-medium text-[var(--color-text-muted)]">No heart rate readings yet</p>
+        <EmptyHint art="vital" size={56}>No heart rate readings yet</EmptyHint>
       </div>
     )
   }

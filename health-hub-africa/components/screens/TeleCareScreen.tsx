@@ -454,6 +454,7 @@ export function TeleCareScreen() {
         ) : sessions.filter(s => s.status !== 'completed' && s.status !== 'cancelled').length === 0 ? (
           <div className="py-6">
             <EmptyState
+              animation="provider"
               title="No TeleCare Consultations"
               description="You currently have no active or upcoming virtual telecare sessions."
               icon={Video}

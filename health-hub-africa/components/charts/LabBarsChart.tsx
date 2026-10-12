@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyHint } from '@/components/ui/states/EmptyHint'
 import { Bar } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -20,7 +21,7 @@ export function LabBarsChart({ data }: LabBarsChartProps) {
   if (!data || data.labels.length === 0) {
     return (
       <div className="h-[140px] flex items-center justify-center">
-        <p className="text-xs font-medium text-gray-400">No lab results yet</p>
+        <EmptyHint art="lab" size={72}>No lab results yet</EmptyHint>
       </div>
     )
   }

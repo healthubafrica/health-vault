@@ -55,6 +55,7 @@ export function ExpertReviewScreen() {
         <Card>
           <div className="py-6">
             <EmptyState
+              animation="expert"
               title="No Expert Review Cases"
               description="Request a specialist second opinion on your medical diagnosis and treatment plan."
               icon={Stethoscope}

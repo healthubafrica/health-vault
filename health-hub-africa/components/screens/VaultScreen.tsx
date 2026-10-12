@@ -194,6 +194,7 @@ export function VaultScreen() {
               />
             ) : (
               <EmptyState
+                animation="uploadFiles"
                 title="No vault documents found"
                 description="Upload your first clinical record, lab report, or prescription file above."
                 icon={Lock}

@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyHint } from '@/components/ui/states/EmptyHint'
 import { Bar } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -20,7 +21,7 @@ export function SleepChart({ data, labels }: SleepChartProps) {
   if (!data || data.length === 0) {
     return (
       <div className="h-[80px] flex items-center justify-center">
-        <p className="text-xs font-medium text-[var(--color-text-muted)]">No sleep data yet</p>
+        <EmptyHint art="sleep" size={56}>No sleep data yet</EmptyHint>
       </div>
     )
   }

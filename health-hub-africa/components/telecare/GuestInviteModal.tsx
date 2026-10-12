@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyHint } from '@/components/ui/states/EmptyHint'
 import { useEffect, useState } from 'react'
 import { UserPlus, X, Mail, ShieldCheck, Clock, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -108,7 +109,7 @@ export function GuestInviteModal({ sessionId, onClose }: GuestInviteModalProps) 
           {loading ? (
             <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Loading…</p>
           ) : invites.length === 0 ? (
-            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>No guests invited yet.</p>
+            <EmptyHint art="people" size={64}>No guests invited yet.</EmptyHint>
           ) : (
             <div className="flex flex-col gap-2">
               {invites.map((invite) => (
