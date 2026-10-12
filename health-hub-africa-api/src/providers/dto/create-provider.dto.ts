@@ -9,6 +9,7 @@ import {
   IsUrl,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Gender } from '@prisma/client';
 import { ProviderType } from '../../common/enums';
 
 export class CreateProviderDto {
@@ -192,4 +193,9 @@ export class CreateProviderDto {
   @IsOptional()
   @IsUrl()
   profilePhotoUrl?: string;
+
+  @ApiPropertyOptional({ enum: Gender })
+  @IsOptional()
+  @IsEnum(Gender)
+  gender?: Gender;
 }

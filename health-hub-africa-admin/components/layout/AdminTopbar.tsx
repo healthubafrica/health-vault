@@ -13,7 +13,7 @@ const ROLE_LABELS: Record<string, string> = {
 }
 
 export function AdminTopbar() {
-  const { user, logout } = useAuthStore()
+  const { user, logout, fetchMe } = useAuthStore()
   const router = useRouter()
 
   const handleLogout = async () => {
@@ -47,7 +47,7 @@ export function AdminTopbar() {
           title="Profile settings — change your photo here"
           className="flex items-center gap-2 rounded-xl px-1.5 py-1 transition-colors hover:bg-[var(--color-bg)] cursor-pointer"
         >
-          <Avatar name={user?.fullName ?? user?.email} src={user?.profilePhotoUrl ?? undefined} size="sm" />
+          <Avatar name={user?.fullName ?? user?.email} src={user?.profilePhotoUrl} gender={user?.gender} size="sm" onImageError={() => void fetchMe()} />
           {user && (
             <div className="hidden sm:flex flex-col text-left">
               <span className="text-xs font-semibold leading-tight" style={{ color: 'var(--color-text)' }}>

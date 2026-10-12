@@ -11,6 +11,7 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Camera } from 'lucide-react'
 import { toast } from 'sonner'
 import { patients, analytics, ApiError } from '@/lib/api'
+import { PROFILE_UPDATED_EVENT } from '@/lib/avatar'
 import { useApi } from '@/lib/hooks/useApi'
 import { ProfileSkeleton } from '@/components/skeletons/ProfileSkeleton'
 import { ErrorState } from '@/components/ui/ErrorState'
@@ -49,7 +50,7 @@ export function ProfileScreen() {
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [dob, setDob] = useState('')
-  const [gender, setGender] = useState('Female')
+  const [gender, setGender] = useState('')
   const [address, setAddress] = useState('')
   // '' = leave unchanged / not declared, same convention as onboarding.
   const [countryCode, setCountryCode] = useState('')
@@ -77,7 +78,7 @@ export function ProfileScreen() {
     setLastName(profile.lastName ?? '')
     setDob(profile.dateOfBirth?.slice(0, 10) ?? '')
     // Prisma Gender enum uses underscores for multi-word values
-    setGender(profile.gender === 'Prefer_not_to_say' ? 'Prefer not to say' : (profile.gender ?? 'Female'))
+    setGender(profile.gender === 'Prefer_not_to_say' ? 'Prefer not to say' : (profile.gender ?? ''))
     setAddress(profile.address ?? '')
     setBloodGroup(BLOOD_GROUP_TO_DISPLAY[profile.bloodGroup ?? ''] ?? profile.bloodGroup ?? '')
     setGenotype(profile.genotype ?? '')
@@ -107,7 +108,10 @@ export function ProfileScreen() {
   const phone = profile?.user?.phone ?? ''
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
+    const input = e.target
+    const file = input.files?.[0]
+    // Reset so re-picking the same file after a failure still fires onChange.
+    input.value = ''
     if (!file) return
 
     const allowedTypes = ['image/png', 'image/jpeg', 'image/webp']
@@ -125,7 +129,7 @@ export function ProfileScreen() {
     const toastId = toast.loading('Uploading profile picture...')
 
     try {
-      const { uploadUrl, publicUrl } = await patients.getProfilePhotoUploadUrl({
+      const { uploadUrl, objectKey } = await patients.getProfilePhotoUploadUrl({
         contentType: file.type,
         sizeBytes: file.size,
       })
@@ -138,15 +142,31 @@ export function ProfileScreen() {
 
       if (!uploadRes.ok) throw new Error('S3 upload failed')
 
-      if (!profile?.id) throw new Error('No active profile to update')
-
-      await patients.update(profile.id, { profilePhotoUrl: publicUrl })
+      // Server resizes, converts to WebP and swaps the active photo (earlier uploads stay stored).
+      await patients.processProfilePhoto(objectKey)
       toast.success('Profile photo updated', { id: toastId, description: 'Your changes have been saved.' })
       refetch()
+      window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT))
     } catch (err: unknown) {
       toast.error('Upload failed', {
         id: toastId,
         description: err instanceof Error ? err.message : 'An error occurred during file upload.',
+      })
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  async function handleRemovePhoto() {
+    setIsUploading(true)
+    try {
+      await patients.removeProfilePhoto()
+      toast.success('Profile photo removed', { description: 'You can upload a new one any time.' })
+      refetch()
+      window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT))
+    } catch (err: unknown) {
+      toast.error("Couldn't remove photo", {
+        description: err instanceof Error ? err.message : 'Please try again.',
       })
     } finally {
       setIsUploading(false)
@@ -220,6 +240,7 @@ export function ProfileScreen() {
             <Avatar
               seed={displayName}
               src={profile?.profilePhotoUrl}
+              gender={profile?.gender}
               size="lg"
               shape="rounded"
               alt={`Avatar for ${displayName}`}
@@ -243,6 +264,17 @@ export function ProfileScreen() {
             <Camera size={12} />
             {isUploading ? 'Uploading…' : 'Change Photo'}
           </label>
+          {profile?.profilePhotoUrl && (
+            <button
+              type="button"
+              onClick={handleRemovePhoto}
+              disabled={isUploading}
+              className="text-[11px] font-semibold underline disabled:opacity-50"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              Remove photo
+            </button>
+          )}
           <input
             id="profile-photo-input"
             type="file"
@@ -262,6 +294,7 @@ export function ProfileScreen() {
           <FormInput label="Last Name" value={lastName} onChange={e => setLastName(e.target.value)} />
           <FormInput label="Date of Birth" type="date" value={dob} onChange={e => setDob(e.target.value)} />
           <FormSelect label="Gender" value={gender} onChange={e => setGender(e.target.value)}>
+            <option value="" disabled>Select</option>
             <option>Male</option>
             <option>Female</option>
             <option>Other</option>

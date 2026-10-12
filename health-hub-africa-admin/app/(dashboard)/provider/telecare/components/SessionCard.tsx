@@ -4,12 +4,12 @@ import { useState } from 'react'
 import type { ProviderSession } from '@/lib/api'
 import { Card } from '@/components/ui/Card'
 import { Pill } from '@/components/ui/Pill'
+import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { formatDateTime } from '@/lib/utils'
 import {
   Video,
   Clock,
-  User,
   FileText,
   ChevronDown,
   ChevronUp,
@@ -57,20 +57,12 @@ export function SessionCard({
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex items-center gap-4">
-        {session.patient?.profilePhotoUrl ? (
-          <img
-            src={session.patient.profilePhotoUrl}
-            alt={patientName}
-            className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-          />
-        ) : (
-          <div
-            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ background: 'var(--color-border)' }}
-          >
-            <User className="w-5 h-5" style={{ color: 'var(--color-text-muted)' }} />
-          </div>
-        )}
+        <Avatar
+          name={patientName}
+          src={session.patient?.profilePhotoUrl}
+          gender={session.patient?.gender}
+          size="md"
+        />
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">

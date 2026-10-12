@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start --port 3001",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:avatar": "node --experimental-strip-types scripts/check-avatar.mjs"
   },
   "dependencies": {
     "@livekit/components-react": "^2.9.21",

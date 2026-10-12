@@ -19,14 +19,12 @@ import {
 } from 'lucide-react-native';
 
 import Colors from '@/constants/Colors';
+import Avatar from '@/components/Avatar';
+import { providerAvatarProps } from '@/lib/avatar';
 import { useColorScheme } from '@/components/useColorScheme';
 import EmergencyFAB from '@/components/EmergencyFAB';
 import { patients, CareTeamMember } from '@/lib/api';
 import { EmptyState, ListSkeleton, ErrorState } from '@/components/states';
-
-function initialsOf(m: CareTeamMember) {
-  return `${m.firstName[0] ?? ''}${m.lastName[0] ?? ''}`.toUpperCase();
-}
 
 export default function MyCareTeamScreen() {
   const router = useRouter();
@@ -110,10 +108,7 @@ export default function MyCareTeamScreen() {
                 onPress={() => handleProviderPress(provider)}
                 style={[styles.providerCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
 
-                {/* Avatar Initials Box */}
-                <View style={[styles.avatarBox, { backgroundColor: theme.primaryLight }]}>
-                  <Text style={[styles.avatarText, { color: theme.primary }]}>{initialsOf(provider)}</Text>
-                </View>
+                <Avatar {...providerAvatarProps(provider)} size={52} />
 
                 {/* Details */}
                 <View style={styles.providerInfo}>
@@ -240,17 +235,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     gap: 12,
-  },
-  avatarBox: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 18,
-    fontWeight: '800',
   },
   providerInfo: {
     flex: 1,

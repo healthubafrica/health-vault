@@ -25,6 +25,7 @@ import {
 } from 'lucide-react-native';
 
 import Colors from '@/constants/Colors';
+import Avatar from '@/components/Avatar';
 import { useColorScheme } from '@/components/useColorScheme';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
 import { useQuery } from '@tanstack/react-query';
@@ -41,7 +42,8 @@ export default function BookAppointmentStep4Screen() {
     providerId?: string;
     providerName?: string;
     providerSpecialty?: string;
-    providerInitials?: string;
+    providerPhotoUrl?: string;
+    providerGender?: string;
     consultationFormat?: string;
     facilityId?: string;
     facilityName?: string;
@@ -145,11 +147,7 @@ export default function BookAppointmentStep4Screen() {
               <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>APPOINTMENT DETAILS</Text>
 
               <View style={styles.doctorHeaderRow}>
-                <View style={[styles.avatarBox, { backgroundColor: theme.primaryLight }]}>
-                  <Text style={[styles.avatarText, { color: theme.primary }]}>
-                    {params.providerInitials || ''}
-                  </Text>
-                </View>
+                <Avatar uri={params.providerPhotoUrl || undefined} gender={params.providerGender || undefined} name={params.providerName} size={48} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.doctorName, { color: theme.text }]}>
                     {params.providerName || 'Care team will assign a clinician'}
@@ -363,17 +361,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-  },
-  avatarBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 16,
-    fontWeight: '800',
   },
   doctorName: {
     fontSize: 15,

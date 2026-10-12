@@ -20,6 +20,8 @@ export interface UserProfile {
   phone?: string;
   role?: string;
   avatarUrl?: string;
+  /** API Gender enum value (Male | Female | Other | Prefer_not_to_say). */
+  gender?: string;
 }
 
 interface AuthState {
@@ -132,6 +134,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           lastName: profile.lastName,
           phone: profile.user.phone ?? undefined,
           avatarUrl: profile.profilePhotoUrl ?? undefined,
+          gender: profile.gender,
         },
         isAuthenticated: true,
         isLoading: false,

@@ -3,9 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { Gender, UserRole } from '@prisma/client';
 import { SupportTicketStatus } from '../common/enums';
 import { PrismaService } from '../prisma/prisma.service';
+import { S3Service } from '../storage/s3.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
 import { CreateTicketDto, AddMessageDto, UpdateTicketStatusDto } from './dto/create-ticket.dto';
 
@@ -24,9 +25,42 @@ async function generateTicketRef(prisma: PrismaService): Promise<string> {
   return `${prefix}${String(seq).padStart(6, '0')}`;
 }
 
+const PERSON_SELECT = {
+  email: true,
+  profilePhotoUrl: true,
+  patient: { select: { firstName: true, lastName: true, gender: true, profilePhotoUrl: true } },
+  provider: { select: { firstName: true, lastName: true, gender: true, profilePhotoUrl: true } },
+} as const;
+
+type PersonRow = {
+  email: string;
+  profilePhotoUrl: string | null;
+  patient: { firstName: string; lastName: string; gender: Gender; profilePhotoUrl: string | null } | null;
+  provider: { firstName: string; lastName: string; gender: Gender | null; profilePhotoUrl: string | null } | null;
+};
+
 @Injectable()
 export class SupportService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly s3: S3Service,
+  ) {}
+
+  // Ticket people carry just enough for an avatar: signed photo (patient row
+  // wins, like the rest of the app) and the patient's gender. Raw stored
+  // photo URLs never leave the service.
+  private async shapePerson(u: PersonRow | null) {
+    if (!u) return u;
+    const { profilePhotoUrl, patient, provider, ...rest } = u;
+    return {
+      ...rest,
+      patient: patient ? { firstName: patient.firstName, lastName: patient.lastName, gender: patient.gender } : null,
+      provider: provider ? { firstName: provider.firstName, lastName: provider.lastName, gender: provider.gender } : null,
+      profilePhotoUrl: await this.s3.signStoredUrl(
+        patient?.profilePhotoUrl || provider?.profilePhotoUrl || profilePhotoUrl,
+      ),
+    };
+  }
 
   async createTicket(dto: CreateTicketDto, currentUser: JwtPayload) {
     const hhaRef = await generateTicketRef(this.prisma);
@@ -56,29 +90,35 @@ export class SupportService {
     const isAdmin = ADMIN_ROLES.includes(currentUser.role as UserRole);
     const statusFilter = status ? { status } : {};
 
-    return this.prisma.supportTicket.findMany({
+    const tickets = await this.prisma.supportTicket.findMany({
       where: isAdmin
         ? statusFilter
         : { submittedBy: currentUser.sub, ...statusFilter },
       orderBy: { updatedAt: 'desc' },
       include: {
         submitter: {
-          select: {
-            email: true,
-            patient: { select: { firstName: true, lastName: true } },
-            provider: { select: { firstName: true, lastName: true } },
-          },
+          select: PERSON_SELECT,
         },
         assignee: {
-          select: {
-            email: true,
-            patient: { select: { firstName: true, lastName: true } },
-            provider: { select: { firstName: true, lastName: true } },
-          },
+          select: PERSON_SELECT,
         },
         _count: { select: { messages: isAdmin ? true : { where: { isInternal: false } } } },
       },
     });
+
+    return Promise.all(
+      tickets.map(async (t) => {
+        const submitter = await this.shapePerson(t.submitter);
+        return {
+          ...t,
+          submitter,
+          assignee: await this.shapePerson(t.assignee),
+          // Flat avatar fields for list rows (photo already signed above).
+          userProfilePhotoUrl: submitter?.profilePhotoUrl ?? null,
+          userGender: submitter?.patient?.gender ?? null,
+        };
+      }),
+    );
   }
 
   async findOne(id: string, currentUser: JwtPayload) {

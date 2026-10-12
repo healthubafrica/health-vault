@@ -16,6 +16,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery } from '@tanstack/react-query';
 
 import Colors from '@/constants/Colors';
+import Avatar from '@/components/Avatar';
+import { useMyAvatar } from '@/lib/useMyAvatar';
 import { useColorScheme } from '@/components/useColorScheme';
 import QuickActionButton from '@/components/QuickActionButton';
 import AppointmentCard from '@/components/AppointmentCard';
@@ -49,9 +51,7 @@ export default function HomeDashboardScreen() {
   const user = useAuthStore((s) => s.user);
 
   const displayName = user ? `${user.firstName} ${user.lastName}` : '—';
-  const initials = user
-    ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase()
-    : '?';
+  const avatar = useMyAvatar();
 
   // ── Data queries ──────────────────────────────────────────────────────────
 
@@ -112,9 +112,7 @@ export default function HomeDashboardScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.userRow}>
-            <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
-              <Text style={styles.avatarText}>{initials}</Text>
-            </View>
+            <Avatar {...avatar} size={42} />
             <View>
               <Text style={[styles.subGreeting, { color: theme.textMuted }]}>{getTimeGreeting()}</Text>
               <Text style={[styles.greeting, { color: theme.text }]}>{displayName}</Text>
@@ -250,15 +248,12 @@ export default function HomeDashboardScreen() {
                   : 'Provider TBC'
               }
               specialty={upcomingAppt.provider?.specialty ?? upcomingAppt.serviceType}
+              photoUri={upcomingAppt.provider?.profilePhotoUrl}
+              gender={upcomingAppt.provider?.gender}
               time={formatAppointmentTime(upcomingAppt.scheduledAt)}
               type={upcomingAppt.isTelecare ? 'TeleCare' : 'In-Person'}
               status={upcomingAppt.status}
               actionLabel={upcomingAppt.isTelecare ? 'Join Call' : 'View'}
-              initials={
-                upcomingAppt.provider
-                  ? `${upcomingAppt.provider.firstName[0]}${upcomingAppt.provider.lastName[0]}`
-                  : '?'
-              }
               onActionPress={() => {
                 if (upcomingAppt.isTelecare) {
                   analytics.track('ui_click', { element_id: 'join_telecare_cta', feature_area: 'telecare' });
@@ -350,8 +345,6 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 20, paddingBottom: 110 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   userRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
   subGreeting: { fontSize: 12, fontWeight: '500' },
   greeting: { fontSize: 19, fontWeight: '800', marginTop: 1 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },

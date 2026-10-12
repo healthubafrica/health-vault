@@ -54,7 +54,7 @@ export function ProviderDetailsModal({ provider, onClose, onChoose }: ProviderDe
         <div className="p-5 space-y-4">
           {/* Identity */}
           <div className="flex items-center gap-3">
-            <Avatar seed={`${provider.firstName} ${provider.lastName}`} src={provider.profilePhotoUrl ?? undefined} size="lg" />
+            <Avatar seed={`${provider.firstName} ${provider.lastName}`} src={provider.profilePhotoUrl} gender={provider.gender} size="lg" />
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <p className="text-base font-bold" style={{ color: 'var(--color-text)' }}>{buildProviderDisplayName(provider)}</p>

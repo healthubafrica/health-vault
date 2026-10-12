@@ -136,6 +136,7 @@ export class AdminService {
               hhaPatientId: true,
               openemrPatientUuid: true,
               profilePhotoUrl: true,
+              gender: true,
               subscriptions: {
                 where: { status: { in: ['active', 'trial'] } },
                 take: 1,
@@ -149,7 +150,7 @@ export class AdminService {
             },
           },
           provider: {
-            select: { id: true, firstName: true, lastName: true, isAvailable: true, profilePhotoUrl: true },
+            select: { id: true, firstName: true, lastName: true, isAvailable: true, profilePhotoUrl: true, gender: true },
           },
         },
       }),
@@ -181,8 +182,9 @@ export class AdminService {
           ? { step: u.onboardingProgress.currentStep, name: u.onboardingProgress.stepName }
           : undefined,
         profilePhotoUrl: await this.s3.signStoredUrl(
-          u.patient?.profilePhotoUrl ?? u.provider?.profilePhotoUrl ?? u.profilePhotoUrl,
+          u.patient?.profilePhotoUrl || u.provider?.profilePhotoUrl || u.profilePhotoUrl,
         ),
+        gender: u.patient?.gender ?? u.provider?.gender ?? null,
         patient: u.patient
           ? {
               id: u.patient.id,
@@ -198,6 +200,7 @@ export class AdminService {
               firstName: u.provider.firstName,
               lastName: u.provider.lastName,
               isAvailable: u.provider.isAvailable,
+              gender: u.provider.gender ?? null,
             }
           : undefined,
         subscription: sub
@@ -370,12 +373,15 @@ export class AdminService {
         lastLoginAt: true,
         createdAt: true,
         updatedAt: true,
+        profilePhotoUrl: true,
         patient: {
           select: {
             id: true,
             hhaPatientId: true,
             firstName: true,
             lastName: true,
+            gender: true,
+            profilePhotoUrl: true,
             openemrSyncStatus: true,
             openemrPatientUuid: true,
             subscriptions: {
@@ -397,6 +403,8 @@ export class AdminService {
             firstName: true,
             lastName: true,
             isAvailable: true,
+            profilePhotoUrl: true,
+            gender: true,
           },
         },
       },
@@ -405,6 +413,9 @@ export class AdminService {
     if (!raw) throw new NotFoundException('User not found');
 
     const { phone, patient, provider, ...rest } = raw;
+    const profilePhotoUrl = await this.s3.signStoredUrl(
+      patient?.profilePhotoUrl || provider?.profilePhotoUrl || raw.profilePhotoUrl,
+    );
 
     const latestSub = patient?.subscriptions?.[0];
     const subscription = latestSub
@@ -431,6 +442,8 @@ export class AdminService {
     return {
       data: {
         ...rest,
+        profilePhotoUrl,
+        gender: patient?.gender ?? provider?.gender ?? null,
         phoneNumber: phone ?? undefined,
         fullName,
         subscription,
@@ -1895,7 +1908,7 @@ export class AdminService {
       : [];
     const clinicalBytesMap = new Map(clinicalAggs.map((a) => [a.patientId, Number(a._sum.fileSizeBytes ?? 0)]));
 
-    const data = rows.map((r) => {
+    const data = await Promise.all(rows.map(async (r) => {
       const clinicalBytes = clinicalBytesMap.get(r.id) ?? 0;
       const photoBytes = r.profilePhotoSizeBytes ?? 0;
       const usedBytes = clinicalBytes + photoBytes;
@@ -1910,6 +1923,8 @@ export class AdminService {
         hhaPatientId: r.hhaPatientId,
         firstName: r.firstName,
         lastName: r.lastName,
+        gender: r.gender,
+        profilePhotoUrl: await this.s3.signStoredUrl(r.profilePhotoUrl),
         email: r.user.email,
         phone: r.user.phone,
         openemrSyncStatus: r.openemrSyncStatus,
@@ -1921,7 +1936,7 @@ export class AdminService {
         storageQuotaOverrideBytes: override != null ? Number(override) : null,
         createdAt: r.createdAt,
       };
-    });
+    }));
 
     return { data, meta: { total, page, limit } };
   }
@@ -2173,7 +2188,7 @@ export class AdminService {
       title: r.title,
       specialty: r.specialty,
       email: r.user.email,
-      profilePhotoUrl: await this.s3.signStoredUrl(r.profilePhotoUrl ?? r.user.profilePhotoUrl),
+      profilePhotoUrl: await this.s3.signStoredUrl(r.profilePhotoUrl || r.user.profilePhotoUrl),
       isAvailable: r.isAvailable,
       totalPatients: r.totalPatients,
       rating: r.rating ? Number(r.rating) : null,

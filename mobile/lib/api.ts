@@ -280,7 +280,7 @@ export interface Appointment {
   isTelecare: boolean;
   meetingUrl?: string | null;
   providerId?: string | null;
-  provider?: { firstName: string; lastName: string; specialty: string; title: string } | null;
+  provider?: { firstName: string; lastName: string; specialty: string; title: string; profilePhotoUrl?: string | null; gender?: string | null } | null;
 }
 
 export interface ServiceProvider {
@@ -293,6 +293,7 @@ export interface ServiceProvider {
   rating?: number | string | null;
   isAvailable: boolean;
   profilePhotoUrl?: string | null;
+  gender?: string | null;
   bio?: string | null;
   yearsExperience?: number | null;
   languages?: string[] | null;
@@ -389,6 +390,7 @@ export interface CareTeamMember {
   title?: string | null;
   specialty?: string | null;
   profilePhotoUrl?: string | null;
+  gender?: string | null;
   rating?: number | null;
   isAvailable: boolean;
   yearsExperience?: number | null;
@@ -439,7 +441,7 @@ export interface TelecareSession {
   startedAt?: string | null;
   endedAt?: string | null;
   meetingUrl?: string | null;
-  provider?: { firstName: string; lastName: string; title?: string | null } | null;
+  provider?: { firstName: string; lastName: string; title?: string | null; profilePhotoUrl?: string | null; gender?: string | null } | null;
 }
 
 export type AcquisitionSource = 'social_media' | 'friend' | 'referral' | 'family';

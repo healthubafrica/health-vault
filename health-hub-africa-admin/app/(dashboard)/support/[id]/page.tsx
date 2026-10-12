@@ -242,6 +242,8 @@ export default function SupportTicketDetailPage() {
                 >
                   <Avatar
                     name={isPatient ? submitterName : 'Support Team'}
+                    src={isPatient ? ticket?.submitter.profilePhotoUrl : undefined}
+                    gender={isPatient ? (ticket?.submitter.patient?.gender ?? ticket?.submitter.provider?.gender) : undefined}
                     size="sm"
                     className="flex-shrink-0"
                   />

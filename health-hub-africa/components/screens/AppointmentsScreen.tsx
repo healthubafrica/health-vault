@@ -476,7 +476,7 @@ export function AppointmentsScreen() {
                           onClick={() => setSelectedProviderId(p.id)}
                           className="flex items-center gap-3 flex-1 min-w-0 text-left disabled:cursor-not-allowed"
                         >
-                          <Avatar seed={`${p.firstName} ${p.lastName}`} src={p.profilePhotoUrl ?? undefined} size="md" />
+                          <Avatar seed={`${p.firstName} ${p.lastName}`} src={p.profilePhotoUrl} gender={p.gender} size="md" />
                           <div className="min-w-0">
                             <p className="text-sm font-semibold truncate" style={{ color: 'var(--color-text)' }}>
                               {buildProviderDisplayName(p)}{!p.isAvailable ? ' · Unavailable' : ''}

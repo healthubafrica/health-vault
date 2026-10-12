@@ -55,6 +55,7 @@ export default function LoginScreen() {
       lastName: profile.lastName,
       phone: profile.user.phone ?? undefined,
       avatarUrl: profile.profilePhotoUrl ?? undefined,
+      gender: profile.gender,
     });
 
     router.replace('/(tabs)');

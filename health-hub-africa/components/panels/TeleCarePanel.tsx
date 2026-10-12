@@ -27,7 +27,7 @@ export function TeleCarePanel() {
 
       <div className="p-3 rounded-xl border flex flex-col gap-3" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
         <div className="flex items-center gap-3">
-          <Avatar seed="Care Provider" size="md" shape="rounded" alt="Care provider" />
+          <Avatar seed={nextSession?.provider ? `${nextSession.provider.firstName} ${nextSession.provider.lastName}` : ''} src={nextSession?.provider?.profilePhotoUrl} gender={nextSession?.provider?.gender} size="md" shape="rounded" alt="Care provider" />
           <div>
             <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>Your Care Provider</p>
             <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Connects when your session starts</p>
