@@ -142,7 +142,7 @@ export function ProfileScreen() {
 
       if (!uploadRes.ok) throw new Error('S3 upload failed')
 
-      // Server resizes, converts to WebP, saves and cleans up the old object.
+      // Server resizes, converts to WebP and swaps the active photo (earlier uploads stay stored).
       await patients.processProfilePhoto(objectKey)
       toast.success('Profile photo updated', { id: toastId, description: 'Your changes have been saved.' })
       refetch()
@@ -161,7 +161,7 @@ export function ProfileScreen() {
     setIsUploading(true)
     try {
       await patients.removeProfilePhoto()
-      toast.success('Profile photo removed')
+      toast.success('Profile photo removed', { description: 'You can upload a new one any time.' })
       refetch()
       window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT))
     } catch (err: unknown) {
