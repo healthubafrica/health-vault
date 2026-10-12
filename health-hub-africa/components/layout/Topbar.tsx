@@ -1,10 +1,11 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Bell, PanelRightOpen, Search, LogOut } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
 import { Avatar } from '@/components/ui/Avatar'
+import { PROFILE_UPDATED_EVENT } from '@/lib/avatar'
 import { Tooltip } from '@/components/ui/Tooltip'
 import { patients, subscriptions, notifications as notificationsApi } from '@/lib/api'
 import { useApi } from '@/lib/hooks/useApi'
@@ -48,10 +49,14 @@ export function Topbar() {
   const pathname = usePathname()
   const openMobilePanel = useAppStore((s) => s.openMobilePanel)
   const crumbs = BREADCRUMBS[pathname] ?? ['MyHealth Vault+™']
-  const { data: profileRes } = useApi(() => patients.getMyProfile())
+  const { data: profileRes, refetch: refetchProfile } = useApi(() => patients.getMyProfile())
   const { data: subRes } = useApi(() => subscriptions.getMy())
   const { data: notifRes } = useApi(() => notificationsApi.list({ limit: 20 }), [], { pollIntervalMs: 60_000 })
   const logout = useAuthStore((s) => s.logout)
+  useEffect(() => {
+    window.addEventListener(PROFILE_UPDATED_EVENT, refetchProfile)
+    return () => window.removeEventListener(PROFILE_UPDATED_EVENT, refetchProfile)
+  }, [refetchProfile])
   const router = useRouter()
 
   // Notifications panel toggle
@@ -145,7 +150,7 @@ export function Topbar() {
           onClick={() => router.push('/profile')}
           className="shrink-0 cursor-pointer shadow-sm rounded-full overflow-hidden border border-[var(--color-border)] flex items-center justify-center hover:scale-105 transition-transform"
         >
-          <Avatar seed={displayName} src={profile?.profilePhotoUrl} size="sm" shape="circle" />
+          <Avatar seed={displayName} src={profile?.profilePhotoUrl} gender={profile?.gender} size="sm" shape="circle" />
         </button>
 
         {/* Plan badge — colour follows the active tier */}

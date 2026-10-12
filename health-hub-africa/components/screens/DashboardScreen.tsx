@@ -543,6 +543,8 @@ export function DashboardScreen() {
               <div className="flex items-center gap-3.5">
                 <Avatar
                   seed={`${nextAppt.provider.firstName} ${nextAppt.provider.lastName}`}
+                  src={nextAppt.provider.profilePhotoUrl}
+                  gender={nextAppt.provider.gender}
                   size="md"
                   shape="circle"
                   alt={`${nextAppt.provider.firstName} ${nextAppt.provider.lastName}`}
