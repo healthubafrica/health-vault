@@ -6,7 +6,7 @@ describe('SupportService internal notes', () => {
   const findUnique = jest.fn();
   const findMany = jest.fn().mockResolvedValue([]);
   const prisma: any = { supportTicket: { findUnique, findMany } };
-  const service = new SupportService(prisma);
+  const service = new SupportService(prisma, { signStoredUrl: async (u: any) => u } as any);
   const patient = { sub: 'u1', role: UserRole.patient } as any;
   const staff = { sub: 's1', role: UserRole.admin } as any;
 
@@ -35,5 +35,26 @@ describe('SupportService internal notes', () => {
     expect(findMany.mock.calls[0][0].include._count.select.messages).toEqual({ where: { isInternal: false } });
     await service.findAll(staff);
     expect(findMany.mock.calls[1][0].include._count.select.messages).toBe(true);
+  });
+
+  it('list exposes signed submitter/assignee photos and patient gender without raw stored URLs', async () => {
+    findMany.mockResolvedValueOnce([
+      {
+        id: 't1',
+        submitter: {
+          email: 'a@b.com', profilePhotoUrl: 'user-raw',
+          patient: { firstName: 'A', lastName: 'B', gender: 'Female', profilePhotoUrl: 'patient-raw' },
+          provider: null,
+        },
+        assignee: {
+          email: 's@b.com', profilePhotoUrl: 'staff-raw', patient: null, provider: null,
+        },
+      },
+    ]);
+    const [t] = await service.findAll(staff);
+    expect(t.submitter?.profilePhotoUrl).toBe('patient-raw');
+    expect(t.submitter?.patient?.gender).toBe('Female');
+    expect(t.assignee?.profilePhotoUrl).toBe('staff-raw');
+    expect(JSON.stringify(t.submitter?.patient)).not.toContain('patient-raw');
   });
 });

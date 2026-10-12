@@ -779,12 +779,13 @@ export class AuthService {
         id: true,
         email: true,
         role: true,
+        fullName: true,
         profilePhotoUrl: true,
         // Role-profile photos win over the user-level one so a patient who
         // uploaded via the portal (which writes the patient row) is shown
         // consistently everywhere.
-        patient: { select: { profilePhotoUrl: true } },
-        provider: { select: { profilePhotoUrl: true } },
+        patient: { select: { firstName: true, lastName: true, gender: true, profilePhotoUrl: true } },
+        provider: { select: { firstName: true, lastName: true, profilePhotoUrl: true } },
       },
     });
     if (!user) throw new NotFoundException('User not found');
@@ -792,6 +793,13 @@ export class AuthService {
       id: user.id,
       email: user.email,
       role: user.role,
+      fullName:
+        user.fullName?.trim() ||
+        [user.patient, user.provider]
+          .map((p) => (p ? `${p.firstName} ${p.lastName}`.trim() : ''))
+          .find(Boolean) ||
+        null,
+      gender: user.patient?.gender ?? null,
       profilePhotoUrl:
         user.patient?.profilePhotoUrl ??
         user.provider?.profilePhotoUrl ??

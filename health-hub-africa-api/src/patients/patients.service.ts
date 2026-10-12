@@ -25,6 +25,7 @@ import { UpdateOnboardingProgressDto } from './dto/onboarding-progress.dto';
 import { declaredCountryFromCode } from '../common/utils/country.util';
 import { OpenemrService } from '../openemr/openemr.service';
 import { StorageService } from '../storage/storage.service';
+import { S3Service } from '../storage/s3.service';
 import { PaymentRequiredException } from '../common/exceptions/payment-required.exception';
 
 // HHA Patient ID: HHA-{REGION}-{YYYYMM}-{4-digit-seq}  e.g. HHA-CAN-2605-0004
@@ -50,6 +51,7 @@ export class PatientsService {
     private readonly config: ConfigService,
     private readonly openemrService: OpenemrService,
     private readonly storageService: StorageService,
+    private readonly s3Service: S3Service,
   ) {
     // Static keys are optional — when absent the SDK default credential
     // provider chain resolves the ECS task role (or local AWS profile).
@@ -65,7 +67,7 @@ export class PatientsService {
     this.bucket = config.getOrThrow('S3_BUCKET');
   }
 
-  // Canonical bucket URL prefix — same shape signProfilePhotoUrl derives keys
+  // Canonical bucket URL prefix — same shape signStoredUrl derives keys
   // from and the same one requestProfilePhotoUploadUrl mints publicUrls with.
   private get photoUrlBase(): string {
     const endpoint = this.config.get<string>('S3_ENDPOINT');
@@ -195,7 +197,7 @@ export class PatientsService {
       this.logger.error(`Failed to enqueue OpenEMR patient sync: ${err.message}`),
     );
 
-    return { ...patient, profilePhotoUrl: await this.signProfilePhotoUrl(patient.profilePhotoUrl) };
+    return { ...patient, profilePhotoUrl: await this.s3Service.signStoredUrl(patient.profilePhotoUrl) };
   }
 
   // ── Find All (Admin/Coordinator only) ─────────────────────────────────────
@@ -231,7 +233,8 @@ export class PatientsService {
       this.prisma.patient.count({ where }),
     ]);
 
-    return { data, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
+    const signed = await Promise.all(data.map((row) => this.s3Service.withSignedPhoto(row)));
+    return { data: signed, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
   }
 
   // ── Find One ──────────────────────────────────────────────────────────────
@@ -246,7 +249,7 @@ export class PatientsService {
 
     this.assertAccess(patient, currentUser);
 
-    return patient;
+    return this.s3Service.withSignedPhoto(patient);
   }
 
   async findMyProfile(currentUser: JwtPayload) {
@@ -256,7 +259,7 @@ export class PatientsService {
     });
 
     if (!patient) throw new NotFoundException('Patient profile not found');
-    return { ...patient, profilePhotoUrl: await this.signProfilePhotoUrl(patient.profilePhotoUrl) };
+    return { ...patient, profilePhotoUrl: await this.s3Service.signStoredUrl(patient.profilePhotoUrl) };
   }
 
   // There is no dedicated care-team assignment flow yet (the
@@ -309,11 +312,13 @@ export class PatientsService {
       }
     }
 
-    return Array.from(team.values()).map(({ provider, lastVisitAt, visitCount }) => ({
-      ...provider,
-      lastVisitAt,
-      visitCount,
-    }));
+    return Promise.all(
+      Array.from(team.values()).map(async ({ provider, lastVisitAt, visitCount }) => ({
+        ...(await this.s3Service.withSignedPhoto(provider)),
+        lastVisitAt,
+        visitCount,
+      })),
+    );
   }
 
   // ── Update ────────────────────────────────────────────────────────────────
@@ -420,27 +425,7 @@ export class PatientsService {
       this.logger.error(`Failed to enqueue OpenEMR patient sync: ${err.message}`),
     );
 
-    return { ...updated, profilePhotoUrl: await this.signProfilePhotoUrl(updated.profilePhotoUrl) };
-  }
-
-  // Generates a short-lived presigned GET URL from the stored profile photo URL.
-  // The object is private on S3; the stored publicUrl is the canonical key-based
-  // URL we derive the object key from.
-  private async signProfilePhotoUrl(storedUrl: string | null | undefined): Promise<string | null> {
-    if (!storedUrl) return null;
-    const base = this.photoUrlBase;
-    if (!storedUrl.startsWith(base)) return storedUrl; // external image — not our object
-    const objectKey = storedUrl.slice(base.length);
-    // Same avatar-only gate as S3Service.signStoredUrl: never presign a
-    // non-avatar bucket object (e.g. a clinical record) that ended up in a
-    // photo column — return null so the UI falls back to initials.
-    if (!/^profile-photos\/[0-9a-f-]{36}\/[A-Za-z0-9._-]+$/i.test(objectKey)) return null;
-    try {
-      const command = new GetObjectCommand({ Bucket: this.bucket, Key: objectKey });
-      return await getSignedUrl(this.s3, command, { expiresIn: 3600 });
-    } catch {
-      return null;
-    }
+    return { ...updated, profilePhotoUrl: await this.s3Service.signStoredUrl(updated.profilePhotoUrl) };
   }
 
   async requestProfilePhotoUploadUrl(dto: RequestProfilePhotoUrlDto, currentUser: JwtPayload) {
@@ -509,7 +494,9 @@ export class PatientsService {
     const inputBuffer = Buffer.concat(chunks);
 
     // Build Sharp pipeline
-    let pipeline = sharp(inputBuffer);
+    // rotate() with no args auto-orients from EXIF; it must run before extract
+    // so client crop coordinates apply to the upright image.
+    let pipeline = sharp(inputBuffer).rotate();
 
     if (
       dto.cropLeft !== undefined &&
@@ -554,6 +541,10 @@ export class PatientsService {
     });
 
     await this.prisma.$transaction([
+      this.prisma.provider.updateMany({
+        where: { userId: currentUser.sub },
+        data: { profilePhotoUrl: newPublicUrl },
+      }),
       this.prisma.patient.update({
         where: { userId: currentUser.sub },
         data: {
@@ -568,9 +559,7 @@ export class PatientsService {
     ]);
 
     // Clean up: delete original upload and previous photo (best-effort)
-    const oldPhotoKey = patient?.profilePhotoUrl
-      ? this.extractObjectKey(patient.profilePhotoUrl)
-      : null;
+    const oldPhotoKey = this.ownObjectKey(patient?.profilePhotoUrl, currentUser.sub);
 
     const keysToDelete = [dto.objectKey];
     if (oldPhotoKey && oldPhotoKey !== dto.objectKey) keysToDelete.push(oldPhotoKey);
@@ -586,29 +575,35 @@ export class PatientsService {
         .catch(err => this.logger.error(`Failed to enqueue OpenEMR sync after photo update: ${err instanceof Error ? err.message : err}`));
     }
 
-    return { profilePhotoUrl: await this.signProfilePhotoUrl(newPublicUrl) };
+    return { profilePhotoUrl: await this.s3Service.signStoredUrl(newPublicUrl) };
   }
 
   async removeProfilePhoto(currentUser: JwtPayload) {
-    const patient = await this.prisma.patient.findUnique({
-      where: { userId: currentUser.sub },
-      select: { id: true, profilePhotoUrl: true },
-    });
-    if (!patient?.profilePhotoUrl) {
+    const userId = currentUser.sub;
+    const [patient, user] = await Promise.all([
+      this.prisma.patient.findUnique({
+        where: { userId },
+        select: { id: true, profilePhotoUrl: true },
+      }),
+      this.prisma.user.findUnique({ where: { id: userId }, select: { profilePhotoUrl: true } }),
+    ]);
+    // The photo may live only on the user row (set via PATCH /auth/me/profile-photo
+    // before a patient row existed, or by a provider/admin).
+    const storedUrl = patient?.profilePhotoUrl ?? user?.profilePhotoUrl;
+    if (!storedUrl) {
       throw new BadRequestException('No profile photo to remove');
     }
 
-    const key = this.extractObjectKey(patient.profilePhotoUrl);
+    // Only ever delete an object under the caller's own profile-photos prefix.
+    const key = this.ownObjectKey(storedUrl, userId);
 
     await this.prisma.$transaction([
-      this.prisma.patient.update({
-        where: { userId: currentUser.sub },
+      this.prisma.patient.updateMany({
+        where: { userId },
         data: { profilePhotoUrl: null, profilePhotoSizeBytes: null },
       }),
-      this.prisma.user.update({
-        where: { id: currentUser.sub },
-        data: { profilePhotoUrl: null },
-      }),
+      this.prisma.provider.updateMany({ where: { userId }, data: { profilePhotoUrl: null } }),
+      this.prisma.user.update({ where: { id: userId }, data: { profilePhotoUrl: null } }),
     ]);
 
     if (key) {
@@ -616,10 +611,20 @@ export class PatientsService {
         .catch(err => this.logger.warn(`Could not delete photo S3 object ${key}: ${err instanceof Error ? err.message : err}`));
     }
 
-    void this.openemrService.enqueuePatientSync(patient.id)
-      .catch(err => this.logger.error(`Failed to enqueue OpenEMR sync after photo removal: ${err instanceof Error ? err.message : err}`));
+    if (patient) {
+      void this.openemrService.enqueuePatientSync(patient.id)
+        .catch(err => this.logger.error(`Failed to enqueue OpenEMR sync after photo removal: ${err instanceof Error ? err.message : err}`));
+    }
 
     return { message: 'Profile photo removed' };
+  }
+
+  // Object key for a stored photo URL, only when it is in this user's own
+  // profile-photos folder (never delete anything else).
+  private ownObjectKey(url: string | null | undefined, userId: string): string | null {
+    if (!url) return null;
+    const key = this.extractObjectKey(url);
+    return key?.startsWith(`profile-photos/${userId}/`) ? key : null;
   }
 
   // Extract the S3 object key from a stored public photo URL.

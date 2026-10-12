@@ -21,7 +21,8 @@ function buildService(overrides: { existingPatient?: unknown; findUniqueForUpdat
   const config = { get: jest.fn().mockReturnValue(undefined), getOrThrow: jest.fn().mockReturnValue('hha-bucket') };
   const openemr = { enqueuePatientSync: jest.fn().mockResolvedValue(undefined) };
   const storage = {};
-  const service = new PatientsService(prisma as any, notifications as any, config as any, openemr as any, storage as any);
+  const s3Service = { withSignedPhoto: async (r: any) => r, signStoredUrl: async (u: any) => u };
+  const service = new PatientsService(prisma as any, notifications as any, config as any, openemr as any, storage as any, s3Service as any);
   return { service, prisma };
 }
 

@@ -245,6 +245,8 @@ export class AuthController {
         id: dbUser.id,
         email: dbUser.email,
         role: dbUser.role,
+        fullName: dbUser.fullName,
+        gender: dbUser.gender,
         profilePhotoUrl: await this.s3.signStoredUrl(dbUser.profilePhotoUrl),
       },
     };

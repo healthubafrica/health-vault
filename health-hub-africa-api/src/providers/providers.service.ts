@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -6,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { OpenemrService } from '../openemr/openemr.service';
+import { S3Service } from '../storage/s3.service';
 import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/decorators/current-user.decorator';
@@ -77,7 +79,18 @@ export class ProvidersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly openemrService: OpenemrService,
+    private readonly s3: S3Service,
   ) {}
+
+  // A provider photo must be an object uploaded by the profile's own user via
+  // the presign flow; anything else would be served (and signed) to patients.
+  private assertOwnPhotoUrl(url: string, userId: string): void {
+    if (!url.startsWith(this.s3.publicUrlFor(`profile-photos/${userId}/`))) {
+      throw new BadRequestException(
+        'profilePhotoUrl must be the publicUrl returned by the profile-photo upload endpoint',
+      );
+    }
+  }
 
   // ── Create ─────────────────────────────────────────────────────────────────
 
@@ -96,6 +109,8 @@ export class ProvidersService {
         'Admins cannot create a provider profile for themselves through this endpoint',
       );
     }
+
+    if (dto.profilePhotoUrl) this.assertOwnPhotoUrl(dto.profilePhotoUrl, dto.userId);
 
     const targetUser = await this.prisma.user.findUnique({
       where: { id: dto.userId },
@@ -151,11 +166,18 @@ export class ProvidersService {
       });
     });
 
+    if (dto.profilePhotoUrl) {
+      await this.prisma.user.update({
+        where: { id: dto.userId },
+        data: { profilePhotoUrl: dto.profilePhotoUrl },
+      });
+    }
+
     this.logger.log(
       `Provider ${provider.id} created by admin ${currentUser.sub} for user ${dto.userId} — awaiting verification`,
     );
 
-    return provider;
+    return this.s3.withSignedPhoto(provider);
   }
 
   // ── Find All ──────────────────────────────────────────────────────────────
@@ -201,7 +223,8 @@ export class ProvidersService {
       this.prisma.provider.count({ where }),
     ]);
 
-    return { data, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
+    const signed = await Promise.all(data.map((row) => this.s3.withSignedPhoto(row)));
+    return { data: signed, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
   }
 
   // ── Find One ──────────────────────────────────────────────────────────────
@@ -213,7 +236,7 @@ export class ProvidersService {
     });
 
     if (!provider) throw new NotFoundException('Provider not found');
-    return provider;
+    return this.s3.withSignedPhoto(provider);
   }
 
   async findMyProfile(currentUser: JwtPayload) {
@@ -223,7 +246,7 @@ export class ProvidersService {
     });
 
     if (!provider) throw new NotFoundException('Provider profile not found');
-    return provider;
+    return this.s3.withSignedPhoto(provider);
   }
 
   // ── Update ────────────────────────────────────────────────────────────────
@@ -236,6 +259,7 @@ export class ProvidersService {
 
     if (!provider) throw new NotFoundException('Provider not found');
     this.assertOwnerOrAdmin(provider, currentUser);
+    if (dto.profilePhotoUrl) this.assertOwnPhotoUrl(dto.profilePhotoUrl, provider.userId);
 
     const profileData = buildProfileData(dto);
 
@@ -276,6 +300,14 @@ export class ProvidersService {
       select: this.safeSelect(),
     });
 
+    // Keep the user-level canonical photo in sync (auth/me and admin lists read it).
+    if (dto.profilePhotoUrl) {
+      await this.prisma.user.update({
+        where: { id: provider.userId },
+        data: { profilePhotoUrl: dto.profilePhotoUrl },
+      });
+    }
+
     if (isCredentialChange) {
       this.logger.warn(
         `Provider ${updated.id} credentials changed — verification reset, OpenEMR sync paused until admin re-verifies`,
@@ -291,7 +323,7 @@ export class ProvidersService {
       );
     }
 
-    return updated;
+    return this.s3.withSignedPhoto(updated);
   }
 
   // Self-service update — resolves the caller's own provider id, then reuses
@@ -323,10 +355,12 @@ export class ProvidersService {
       this.logger.error(`Failed to enqueue OpenEMR provider sync after verify: ${err.message}`),
     );
 
-    return this.prisma.provider.findUnique({
-      where: { id },
-      select: this.safeSelect(),
-    });
+    return this.s3.withSignedPhoto(
+      await this.prisma.provider.findUnique({
+        where: { id },
+        select: this.safeSelect(),
+      }),
+    );
   }
 
   // ── Soft Delete (Admin only) ──────────────────────────────────────────────

@@ -10,7 +10,8 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { ConfigService } from '@nestjs/config';
 
 const PUT_URL_EXPIRY_SECONDS = 600; // 10 min
-const GET_URL_EXPIRY_SECONDS = 300; // 5 min
+// One expiry for every avatar/GET URL so clients never mix lifetimes.
+const GET_URL_EXPIRY_SECONDS = 3600; // 1 h
 
 @Injectable()
 export class S3Service {
@@ -67,6 +68,14 @@ export class S3Service {
     }
   }
 
+  /** Copy of `row` with its `profilePhotoUrl` signed (null/undefined rows pass through). */
+  async withSignedPhoto<T extends { profilePhotoUrl?: string | null }>(row: T): Promise<T>;
+  async withSignedPhoto<T extends { profilePhotoUrl?: string | null }>(row: T | null | undefined): Promise<T | null | undefined>;
+  async withSignedPhoto<T extends { profilePhotoUrl?: string | null }>(row: T | null | undefined) {
+    if (!row) return row;
+    return { ...row, profilePhotoUrl: await this.signStoredUrl(row.profilePhotoUrl) };
+  }
+
   /** Presigned PUT URL for direct client upload (10-minute expiry). */
   async presignPut(
     key: string,
@@ -84,7 +93,7 @@ export class S3Service {
     return getSignedUrl(this.s3, command, { expiresIn: PUT_URL_EXPIRY_SECONDS });
   }
 
-  /** Presigned GET URL for direct client download (5-minute expiry). */
+  /** Presigned GET URL for direct client download (1-hour expiry). */
   async presignGet(key: string): Promise<string> {
     const command = new GetObjectCommand({ Bucket: this.bucket, Key: key });
     return getSignedUrl(this.s3, command, { expiresIn: GET_URL_EXPIRY_SECONDS });
