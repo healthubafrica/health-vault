@@ -118,7 +118,8 @@ function ProviderDetailDialog({
           <div className="flex items-center gap-3">
             <Avatar
               name={`${provider.firstName} ${provider.lastName}`}
-              src={provider.profilePhotoUrl ?? undefined}
+              src={provider.profilePhotoUrl}
+              gender={provider.gender}
               size="md"
             />
             <div>
@@ -580,7 +581,8 @@ export default function ProvidersPage() {
               <div className="flex items-start gap-3">
                 <Avatar
                   name={`${prov.firstName} ${prov.lastName}`}
-                  src={prov.profilePhotoUrl ?? undefined}
+                  src={prov.profilePhotoUrl}
+                  gender={prov.gender}
                   size="md"
                 />
                 <div className="min-w-0 flex-1">

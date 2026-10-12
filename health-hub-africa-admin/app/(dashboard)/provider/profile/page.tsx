@@ -112,9 +112,10 @@ export default function ProviderProfilePage() {
       const { uploadUrl, publicUrl } = await providerSelf.requestPhotoUploadUrl(blob.type, blob.size)
       const put = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': blob.type }, body: blob })
       if (!put.ok) throw new Error('Upload to storage failed')
-      await providerSelf.setProfilePhoto(publicUrl)
+      const saved = await providerSelf.setProfilePhoto(publicUrl)
       await fetchMe()
-      setProfile((prev) => (prev ? { ...prev, profilePhotoUrl: publicUrl } : prev))
+      // Use the signed URL from the API; the canonical publicUrl is private.
+      setProfile((prev) => (prev ? { ...prev, profilePhotoUrl: saved.profilePhotoUrl ?? null } : prev))
       toast.success('Profile photo updated')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Photo upload failed')
@@ -182,7 +183,7 @@ export default function ProviderProfilePage() {
       <Card className="mb-4">
         <div className="flex items-center gap-4">
           <div className="relative">
-            <Avatar name={`${profile.firstName} ${profile.lastName}`} src={profile.profilePhotoUrl ?? undefined} size="lg" />
+            <Avatar name={`${profile.firstName} ${profile.lastName}`} src={profile.profilePhotoUrl} gender={profile.gender} size="lg" onImageError={() => void fetchMe()} />
             <label
               className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full flex items-center justify-center cursor-pointer border-2"
               style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}

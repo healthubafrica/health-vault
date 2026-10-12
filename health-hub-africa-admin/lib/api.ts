@@ -136,6 +136,7 @@ export interface User {
   role: 'super_admin' | 'admin' | 'coordinator' | 'patient' | 'provider'
   fullName?: string
   profilePhotoUrl?: string | null
+  gender?: string | null
 }
 
 export interface Session {
@@ -247,6 +248,7 @@ export interface AdminUser {
   lastActivityAt?: string
   onboardingStep?: { step: number; name: string }
   profilePhotoUrl?: string | null
+  gender?: string | null
   subscription?: {
     plan: string
     tier: string
@@ -649,6 +651,7 @@ export interface AdminProvider {
   verifiedAt?: string | null
   openemrProviderUuid?: string | null
   profilePhotoUrl?: string | null
+  gender?: string | null
 }
 
 export interface CreateProviderPayload {
@@ -792,7 +795,8 @@ export interface ClinicalQueueItem {
 
 // ── Admin: Support Tickets ────────────────────────────────────────────────
 
-type NameRecord = { firstName: string; lastName: string } | null
+type NameRecord = { firstName: string; lastName: string; gender?: string | null } | null
+type TicketPerson = { email: string; profilePhotoUrl?: string | null; patient?: NameRecord; provider?: NameRecord }
 
 export interface AdminSupportTicket {
   id: string
@@ -804,8 +808,8 @@ export interface AdminSupportTicket {
   createdAt: string
   updatedAt: string
   submittedBy: string
-  submitter: { email: string; patient?: NameRecord; provider?: NameRecord }
-  assignee?: { email: string; patient?: NameRecord; provider?: NameRecord } | null
+  submitter: TicketPerson
+  assignee?: TicketPerson | null
   _count: { messages: number }
 }
 
@@ -1676,6 +1680,7 @@ export interface ProviderProfile {
   isAvailable: boolean
   verifiedAt?: string | null
   profilePhotoUrl?: string | null
+  gender?: string | null
   user?: { email: string; phone?: string; isVerified: boolean }
 }
 

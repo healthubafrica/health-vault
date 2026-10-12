@@ -129,7 +129,9 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'hha-admin-auth',
-      partialize: (s) => ({ user: s.user }),
+      // The signed photo URL expires in minutes; never persist it. It is refetched
+      // via /auth/me on mount, tab focus and image error.
+      partialize: (s) => ({ user: s.user ? { ...s.user, profilePhotoUrl: null } : null }),
       merge: (persistedState, currentState) => ({
         ...currentState,
         user: (persistedState as Partial<AuthState> | undefined)?.user ?? null,

@@ -128,7 +128,7 @@ export function AccountSecurityTab() {
       <Card>
         <CardTitle>Profile</CardTitle>
         <div className="flex items-center gap-4 mb-4">
-          <Avatar name={user?.fullName ?? user?.email} src={user?.profilePhotoUrl ?? undefined} size="lg" />
+          <Avatar name={user?.fullName ?? user?.email} src={user?.profilePhotoUrl} gender={user?.gender} size="lg" onImageError={() => void fetchMe()} />
           <div>
             <label
               className="inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-xl border cursor-pointer transition-colors hover:bg-[var(--color-bg)]"

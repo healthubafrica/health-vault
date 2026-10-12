@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { uploadCmsImage, pickImageFile } from '@/lib/cms-upload'
 import { Button } from './Button'
 import { Upload, X } from 'lucide-react'
@@ -14,6 +14,8 @@ interface ImageUploadFieldProps {
 
 export function ImageUploadField({ label, value, onChange }: ImageUploadFieldProps) {
   const [uploading, setUploading] = useState(false)
+  const [broken, setBroken] = useState(false)
+  useEffect(() => setBroken(false), [value])
 
   const handleUpload = async () => {
     const file = await pickImageFile()
@@ -35,10 +37,10 @@ export function ImageUploadField({ label, value, onChange }: ImageUploadFieldPro
         {label}
       </label>
       <div className="flex items-center gap-3">
-        {value ? (
+        {value && !broken ? (
           <div className="relative w-16 h-16 rounded-xl overflow-hidden border flex-shrink-0" style={{ borderColor: 'var(--color-border)' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={value} alt="" className="w-full h-full object-cover" />
+            <img src={value} alt="" onError={() => setBroken(true)} className="w-full h-full object-cover" />
             <button
               type="button"
               onClick={() => onChange('')}

@@ -222,7 +222,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
       {/* Profile header */}
       <Card className="mb-4">
         <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-          <Avatar name={user.fullName ?? user.email} size="lg" />
+          <Avatar name={user.fullName ?? user.email} src={user.profilePhotoUrl} gender={user.gender} size="lg" />
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2 mb-1">
               <h1 className="text-base font-bold" style={{ color: 'var(--color-text)' }}>

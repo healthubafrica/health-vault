@@ -5,6 +5,7 @@ import { useRef, useState } from 'react'
 import { LiveKitRoom, VideoConference } from '@livekit/components-react'
 import type { ProviderSession, LiveKitJoinInfo } from '@/lib/api'
 import { Button } from '@/components/ui/Button'
+import { Avatar } from '@/components/ui/Avatar'
 import { PhoneOff, ExternalLink, AlertCircle, Sparkles } from 'lucide-react'
 import { calcAge, buildOpenEmrUrl, isPermissionError } from './helpers'
 import { BackgroundBlurEffect } from './BackgroundBlurEffect'
@@ -41,13 +42,12 @@ export function CallOverlay({
         style={{ borderColor: '#222', background: '#111' }}
       >
         <div className="flex items-center gap-3">
-          {session.patient?.profilePhotoUrl && (
-            <img
-              src={session.patient.profilePhotoUrl}
-              alt=""
-              className="w-9 h-9 rounded-full object-cover flex-shrink-0"
-            />
-          )}
+          <Avatar
+            name={session.patient ? `${session.patient.firstName} ${session.patient.lastName}` : session.hhaRef}
+            src={session.patient?.profilePhotoUrl}
+            gender={session.patient?.gender}
+            size="md"
+          />
           <div>
           <div className="flex items-center gap-2">
             <p className="text-sm font-semibold text-white">
