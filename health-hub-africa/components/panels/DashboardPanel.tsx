@@ -218,7 +218,7 @@ export function DashboardPanel() {
                 onClick={() => selectProvider(p)}
                 className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--color-primary-light)] transition-colors text-left"
               >
-                <Avatar seed={`${p.firstName} ${p.lastName}`} size="sm" shape="circle" alt={`${p.firstName} ${p.lastName}`} />
+                <Avatar seed={`${p.firstName} ${p.lastName}`} src={p.profilePhotoUrl} gender={p.gender} size="sm" shape="circle" alt={`${p.firstName} ${p.lastName}`} />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold truncate" title={buildProviderDisplayName(p)} style={{ color: 'var(--color-text)' }}>
                     {buildProviderDisplayName(p)}
@@ -248,7 +248,7 @@ export function DashboardPanel() {
 
       {/* Selected Provider Card */}
       <div className="flex gap-3.5 p-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm">
-        <Avatar seed={displayName} size="md" shape="circle" alt={displayName} />
+        <Avatar seed={selectedProvider ? displayName : ''} src={selectedProvider?.profilePhotoUrl} gender={selectedProvider?.gender} size="md" shape="circle" alt={displayName} />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-extrabold text-[var(--color-text)] leading-tight">
             {displayName}

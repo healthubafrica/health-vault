@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { EmptyState } from '@/components/ui/states'
 import {
   Plane,
   Globe,
@@ -131,20 +132,18 @@ export function TravelSafeScreen() {
         <h1 className="text-xl font-bold" style={{ color: 'var(--color-text)', fontFamily: 'var(--font-display)' }}>
           TravelSafe™
         </h1>
-        <div className="flex flex-col items-center gap-4 py-12 text-center">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: 'var(--color-success-bg)' }}>
-            <Plane size={32} style={{ color: '#6DC43F' }} />
+        <Card>
+          <div className="py-6">
+            <EmptyState
+              animation="travel"
+              icon={Plane}
+              title="Travel prepared. Health protected."
+              description="Build your travel health profile, upload documents, and get a portable health summary before departure."
+              primaryActionLabel="Start TravelSafe Prep"
+              onPrimaryAction={() => setView('create')}
+            />
           </div>
-          <div>
-            <p className="font-semibold text-base" style={{ color: 'var(--color-text)' }}>Travel prepared. Health protected.</p>
-            <p className="text-sm mt-1 max-w-xs" style={{ color: 'var(--color-text-muted)' }}>
-              Build your travel health profile, upload documents, and get a portable health summary before departure.
-            </p>
-          </div>
-          <Button variant="primary" size="lg" onClick={() => setView('create')}>
-            <Plus size={16} /> Start TravelSafe Prep
-          </Button>
-        </div>
+        </Card>
       </div>
     )
   }

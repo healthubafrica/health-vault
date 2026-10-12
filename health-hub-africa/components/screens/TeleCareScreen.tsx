@@ -390,7 +390,7 @@ export function TeleCareScreen() {
           style={{ background: '#0a1a0a' }}
           aria-label="Video consultation area"
         >
-          <Avatar seed={providerLabel(nextSession) ?? 'Care Provider'} size="lg" shape="circle" alt="Care provider" />
+          <Avatar seed={providerLabel(nextSession) ?? ''} src={nextSession?.provider?.profilePhotoUrl} gender={nextSession?.provider?.gender} size="lg" shape="circle" alt={providerLabel(nextSession) ?? 'Care provider'} />
           <div className="text-center">
             <p className="text-white font-semibold text-sm">{providerLabel(nextSession) ?? 'Your Care Provider'}</p>
             <p className="text-white/50 text-xs">Connects when your session starts</p>

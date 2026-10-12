@@ -30,6 +30,13 @@ import {
 } from 'lucide-react'
 
 // Avatar Options
+const GENDER_TO_ENUM: Record<string, string> = {
+  Male: 'Male',
+  Female: 'Female',
+  'Non-binary': 'Other',
+  'Prefer not to say': 'Prefer_not_to_say',
+}
+
 const AVATAR_OPTIONS = [
   { id: 'care_receiver', label: 'Care Receiver', icon: Heart, desc: 'Receive chronic care and regular vitals monitoring.', color: '#EF4444' },
   { id: 'wellness_pioneer', label: 'Wellness Pioneer', icon: Dna, desc: 'Proactive wellness, genetic monitoring, and fitness.', color: '#3B82F6' },
@@ -123,7 +130,7 @@ export function OnboardingScreen() {
 
   // Step 2: Basic Vitals
   const [dob, setDob] = useState('')
-  const [gender, setGender] = useState('Female')
+  const [gender, setGender] = useState('')
   const [bloodGroup, setBloodGroup] = useState('O+')
   const [genotype, setGenotype] = useState('')
   const [heightCm, setHeightCm] = useState('')
@@ -406,7 +413,9 @@ export function OnboardingScreen() {
                       label="Biological Gender"
                       value={gender}
                       onChange={e => setGender(e.target.value)}
+                      required
                     >
+                      <option value="" disabled>Select</option>
                       <option value="Female">Female</option>
                       <option value="Male">Male</option>
                       <option value="Non-binary">Non-binary</option>
@@ -936,7 +945,7 @@ export function OnboardingScreen() {
                 <Button
                   variant="primary"
                   size="sm"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || ((step === 2 || step === 3) && (!gender || !dob))}
                   onClick={async () => {
                     // Submit patient profile after step 3
                     if (step === 3) {
@@ -948,8 +957,8 @@ export function OnboardingScreen() {
                           ...(countryCode ? { countryCode } : {}),
                           firstName: firstName || name,
                           lastName: rest.join(' ') || 'Patient',
-                          dateOfBirth: dob || '1990-01-01',
-                          gender: gender === 'Male' ? 'Male' : gender === 'Female' ? 'Female' : 'Other',
+                          dateOfBirth: dob,
+                          gender: GENDER_TO_ENUM[gender],
                           bloodGroup: bloodGroup.replace('+', '_PLUS').replace('-', '_MINUS'),
                           ...(genotype ? { genotype } : {}),
                           regionCode: 'LAG',

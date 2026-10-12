@@ -317,8 +317,8 @@ export interface PatientProfile {
   firstName: string
   lastName: string
   dateOfBirth: string
-  gender: string
-  profilePhotoUrl?: string
+  gender?: string | null
+  profilePhotoUrl?: string | null
   bloodGroup?: string
   genotype?: string | null
   address?: string
@@ -385,6 +385,15 @@ export const patients = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  processProfilePhoto: (objectKey: string) =>
+    request<{ data?: { profilePhotoUrl?: string | null } }>('/patients/me/profile-photo/process', {
+      method: 'POST',
+      body: JSON.stringify({ objectKey }),
+    }),
+
+  removeProfilePhoto: () =>
+    request<{ message: string }>('/patients/me/profile-photo', { method: 'DELETE' }),
 
   requestExport: () =>
     request<{ message: string }>('/patients/me/request-export', { method: 'POST' }),
@@ -469,7 +478,7 @@ export interface Appointment {
   isTelecare: boolean
   meetingUrl?: string
   providerId?: string | null
-  provider?: { firstName: string; lastName: string; specialty: string; title: string } | null
+  provider?: { firstName: string; lastName: string; specialty: string; title: string; profilePhotoUrl?: string | null; gender?: string | null } | null
 }
 
 export interface BookableFacility {
@@ -490,6 +499,7 @@ export interface ServiceProvider {
   priority: number
   // Professional profile shown to patients when choosing a provider.
   profilePhotoUrl?: string | null
+  gender?: string | null
   bio?: string | null
   yearsExperience?: number
   subspecialties?: string[]
@@ -999,7 +1009,7 @@ export interface TelecareSession {
   recordingUrl?: string
   patientRating?: number
   patientFeedback?: string
-  provider?: { firstName: string; lastName: string; title?: string }
+  provider?: { firstName: string; lastName: string; title?: string; profilePhotoUrl?: string | null; gender?: string | null }
   notes?: {
     chiefComplaint?: string
     assessment?: string
@@ -1150,6 +1160,8 @@ export interface Provider {
   specialty?: string
   rating?: number
   isAvailable: boolean
+  profilePhotoUrl?: string | null
+  gender?: string | null
 }
 
 export const providers = {

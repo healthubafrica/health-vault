@@ -57,7 +57,7 @@ export function AppointmentsPanel() {
         </p>
         {nextAppt?.provider ? (
           <div className="flex items-center gap-3">
-            <Avatar seed={`${nextAppt.provider.firstName} ${nextAppt.provider.lastName}`} size="md" shape="rounded" alt={`${nextAppt.provider.firstName} ${nextAppt.provider.lastName}`} />
+            <Avatar seed={`${nextAppt.provider.firstName} ${nextAppt.provider.lastName}`} src={nextAppt.provider.profilePhotoUrl} gender={nextAppt.provider.gender} size="md" shape="rounded" alt={`${nextAppt.provider.firstName} ${nextAppt.provider.lastName}`} />
             <div>
               <p className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>{buildProviderDisplayName(nextAppt.provider)}</p>
               <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{nextAppt.provider.specialty}</p>
