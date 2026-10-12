@@ -43,11 +43,17 @@ export class S3Service {
     return `${this.publicBase}${key}`;
   }
 
-  // Any object in our bucket is signable (legacy photos were stored under
-  // other key formats and must keep showing). Only keys that could escape
-  // the bucket are refused. New photo values are validated on write, not here.
-  private static isSafeKey(key: string): boolean {
-    return key.length > 0 && !key.startsWith('/') && !key.split('/').some((seg) => seg === '..');
+  // Only profile photos are signable. Every photo ever uploaded lives under
+  // profile-photos/ (any sub-folder or file name, so older uploads keep showing);
+  // clinical records, exports and anything else in the bucket are never signed
+  // through the avatar path, even if a bad value ended up in profilePhotoUrl.
+  private static readonly SIGNABLE_PREFIX = 'profile-photos/';
+  private static isSignableKey(key: string): boolean {
+    return (
+      key.startsWith(S3Service.SIGNABLE_PREFIX) &&
+      key.length > S3Service.SIGNABLE_PREFIX.length &&
+      !key.split('/').some((seg) => seg === '..' || seg === '')
+    );
   }
 
   /**
@@ -86,14 +92,14 @@ export class S3Service {
   /**
    * Converts a stored canonical avatar URL into a short-lived presigned GET
    * URL. Objects are private on S3, so raw stored URLs 403 in a browser.
-   * External (non-bucket) URLs pass through untouched; every object in our
-   * bucket is signed so previously uploaded photos always keep showing.
+   * External (non-bucket) URLs pass through untouched; every object under
+   * profile-photos/ is signed so previously uploaded photos always keep showing.
    */
   async signStoredUrl(storedUrl: string | null | undefined): Promise<string | null> {
     if (!storedUrl) return null;
     if (!storedUrl.startsWith(this.publicBase)) return storedUrl;
     const key = storedUrl.slice(this.publicBase.length);
-    if (!S3Service.isSafeKey(key)) return null;
+    if (!S3Service.isSignableKey(key)) return null;
     try {
       return await this.presignGet(key);
     } catch {

@@ -31,18 +31,26 @@ describe('S3Service avatar signing', () => {
     expect(mockGetSignedUrl).not.toHaveBeenCalled();
   });
 
-  it('still signs legacy-format bucket photos that are not profile-photos/<uuid>/...', async () => {
+  it('still signs older photos anywhere under profile-photos/ (any folder or file name)', async () => {
     const s3 = build();
-    for (const key of ['avatars/old-user.png', 'profile-photos/not-a-uuid/My Photo.jpg', 'uploads/2024/a/b.jpeg']) {
+    for (const key of ['profile-photos/not-a-uuid/My Photo.jpg', 'profile-photos/legacy.png', 'profile-photos/a/b/c.jpeg']) {
       mockGetSignedUrl.mockClear();
       await expect(s3.signStoredUrl(s3.publicUrlFor(key))).resolves.toBe('https://signed.example/x');
       expect(mockGetSignedUrl).toHaveBeenCalledTimes(1);
     }
   });
 
-  it('refuses keys that escape the bucket', async () => {
+  it('never signs objects outside profile-photos/ (clinical records, exports, other files)', async () => {
     const s3 = build();
-    await expect(s3.signStoredUrl(s3.publicUrlFor('a/../../etc'))).resolves.toBeNull();
+    for (const key of ['records/abc/report.pdf', 'avatars/old.png', 'MyHealth_Vault_True_V4.zip', 'profile-photos/', 'profile-photos//x.png']) {
+      await expect(s3.signStoredUrl(s3.publicUrlFor(key))).resolves.toBeNull();
+    }
+    expect(mockGetSignedUrl).not.toHaveBeenCalled();
+  });
+
+  it('refuses keys that escape the folder', async () => {
+    const s3 = build();
+    await expect(s3.signStoredUrl(s3.publicUrlFor('profile-photos/../records/x.pdf'))).resolves.toBeNull();
     expect(mockGetSignedUrl).not.toHaveBeenCalled();
   });
 
