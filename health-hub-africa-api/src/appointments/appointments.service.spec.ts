@@ -12,6 +12,7 @@ function buildService(mockPrisma: any) {
     {} as any, // notifications
     {} as any, // analytics
     {} as any, // reminderQueue
+    {} as any, // s3
   );
 }
 
@@ -119,6 +120,7 @@ describe('AppointmentsService.create (idempotency + double-booking)', () => {
       notifications as any,
       analytics as any,
       {} as any,
+      { withSignedPhoto: async (r: any) => r, signStoredUrl: async (u: any) => u } as any,
     );
     return { service, prisma };
   }
@@ -135,7 +137,7 @@ describe('AppointmentsService.create (idempotency + double-booking)', () => {
 
     const result = await service.create(baseDto, currentUser, 'retry-key-1');
 
-    expect(result).toBe(existing);
+    expect(result).toEqual(existing);
     expect(prisma.appointment.create).not.toHaveBeenCalled();
   });
 
@@ -179,7 +181,7 @@ describe('AppointmentsService.create (idempotency + double-booking)', () => {
 
     const result = await service.create(baseDto, currentUser, 'race-key');
 
-    expect(result).toBe(savedAppointment);
+    expect(result).toEqual(savedAppointment);
     expect(prisma.appointment.findUniqueOrThrow).toHaveBeenCalledWith(
       expect.objectContaining({ where: { idempotencyKey: 'race-key' } }),
     );

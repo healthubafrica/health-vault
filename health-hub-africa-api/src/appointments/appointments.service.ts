@@ -15,6 +15,7 @@ import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { QueryAppointmentsDto } from './dto/query-appointments.dto';
 import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
+import { S3Service } from '../storage/s3.service';
 import { OpenemrService } from '../openemr/openemr.service';
 import { NotificationsService, AppointmentNotificationData } from '../notifications/notifications.service';
 import { AnalyticsService } from '../analytics/analytics.service';
@@ -91,6 +92,7 @@ export class AppointmentsService {
     private readonly notifications: NotificationsService,
     private readonly analytics: AnalyticsService,
     @InjectQueue(APPOINTMENT_REMINDERS_QUEUE) private readonly reminderQueue: Queue,
+    private readonly s3: S3Service,
   ) {}
 
   // ── Create ─────────────────────────────────────────────────────────────────
@@ -140,7 +142,7 @@ export class AppointmentsService {
             'This idempotency key was already used for a different request. Please retry with a fresh key.',
           );
         }
-        return existing;
+        return this.withSignedPeople(existing);
       }
     }
 
@@ -225,7 +227,7 @@ export class AppointmentsService {
       });
     }
 
-    return appointment;
+    return this.withSignedPeople(appointment);
   }
 
   // The existence check above and this create() are not atomic — two
@@ -294,7 +296,8 @@ export class AppointmentsService {
       this.prisma.appointment.count({ where }),
     ]);
 
-    return { data, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
+    const signed = await Promise.all(data.map((a) => this.withSignedPeople(a)));
+    return { data: signed, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
   }
 
   // ── Find One ──────────────────────────────────────────────────────────────
@@ -308,7 +311,7 @@ export class AppointmentsService {
     if (!appt) throw new NotFoundException('Appointment not found');
     this.assertAccess(appt, currentUser);
 
-    return appt;
+    return this.withSignedPeople(appt);
   }
 
   // ── Update / FSM transition ───────────────────────────────────────────────
@@ -506,7 +509,7 @@ export class AppointmentsService {
         .catch((err) => this.logger.error(`Failed to enqueue calendar sync: ${err.message}`));
     }
 
-    return updatedAppointment;
+    return this.withSignedPeople(updatedAppointment);
   }
 
   // TLC-YYYY-0001 sequential session reference. Duplicates the helper in
@@ -684,6 +687,7 @@ export class AppointmentsService {
             verifiedAt: true,
             deletedAt: true,
             profilePhotoUrl: true,
+            gender: true,
             bio: true,
             yearsExperience: true,
             subspecialties: true,
@@ -716,14 +720,14 @@ export class AppointmentsService {
       },
     });
 
-    return groups
+    const eligible = groups
       .filter(
         (g) =>
           !g.provider.deletedAt &&
           g.provider.verifiedAt &&
           (!requestedAt || g.shiftAssignments!.length > 0),
       )
-      .map((g) => ({
+      .map(async (g) => ({
         id: g.provider.id,
         firstName: g.provider.firstName,
         lastName: g.provider.lastName,
@@ -734,7 +738,8 @@ export class AppointmentsService {
         priority: g.priority,
         // Professional profile — lets the patient make an informed choice
         // directly in the booking picker without a second round-trip.
-        profilePhotoUrl: g.provider.profilePhotoUrl,
+        profilePhotoUrl: await this.s3.signStoredUrl(g.provider.profilePhotoUrl),
+        gender: g.provider.gender,
         bio: g.provider.bio,
         yearsExperience: g.provider.yearsExperience,
         subspecialties: g.provider.subspecialties,
@@ -748,6 +753,8 @@ export class AppointmentsService {
         clinicCity: g.provider.clinicCity,
         clinicState: g.provider.clinicState,
       }));
+
+    return Promise.all(eligible);
   }
 
   // ── Scheduling policy (patient-facing read) ────────────────────────────────
@@ -1299,6 +1306,20 @@ export class AppointmentsService {
     }
   }
 
+  // Signs the avatar URLs of the patient/provider embedded in an appointment.
+  private async withSignedPeople<
+    T extends {
+      patient?: { profilePhotoUrl?: string | null } | null;
+      provider?: { profilePhotoUrl?: string | null } | null;
+    },
+  >(appt: T): Promise<T> {
+    const [patient, provider] = await Promise.all([
+      this.s3.withSignedPhoto(appt.patient),
+      this.s3.withSignedPhoto(appt.provider),
+    ]);
+    return { ...appt, patient, provider };
+  }
+
   private safeSelect() {
     return {
       id: true,
@@ -1326,6 +1347,8 @@ export class AppointmentsService {
           firstName: true,
           lastName: true,
           hhaPatientId: true,
+          gender: true,
+          profilePhotoUrl: true,
         },
       },
       provider: {
@@ -1335,6 +1358,8 @@ export class AppointmentsService {
           lastName: true,
           title: true,
           specialty: true,
+          profilePhotoUrl: true,
+          gender: true,
         },
       },
     };

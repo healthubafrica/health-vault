@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   S3Client,
   PutObjectCommand,
@@ -10,7 +10,8 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { ConfigService } from '@nestjs/config';
 
 const PUT_URL_EXPIRY_SECONDS = 600; // 10 min
-const GET_URL_EXPIRY_SECONDS = 300; // 5 min
+// One expiry for every avatar/GET URL so clients never mix lifetimes.
+const GET_URL_EXPIRY_SECONDS = 3600; // 1 h
 
 @Injectable()
 export class S3Service {
@@ -42,29 +43,76 @@ export class S3Service {
     return `${this.publicBase}${key}`;
   }
 
-  // Only avatar objects are signable through signStoredUrl. Without this
-  // gate, any bucket URL that lands in a *_photo_url column (however it got
-  // there) would be presigned and served — turning avatar fields into an
-  // arbitrary-object read against clinical records and exports.
-  private static readonly SIGNABLE_KEY = /^profile-photos\/[0-9a-f-]{36}\/[A-Za-z0-9._-]+$/i;
+  // Only profile photos are signable. Every photo ever uploaded lives under
+  // profile-photos/ (any sub-folder or file name, so older uploads keep showing);
+  // clinical records, exports and anything else in the bucket are never signed
+  // through the avatar path, even if a bad value ended up in profilePhotoUrl.
+  private static readonly SIGNABLE_PREFIX = 'profile-photos/';
+  private static isSignableKey(key: string): boolean {
+    return (
+      key.startsWith(S3Service.SIGNABLE_PREFIX) &&
+      key.length > S3Service.SIGNABLE_PREFIX.length &&
+      !key.split('/').some((seg) => seg === '..' || seg === '')
+    );
+  }
+
+  /**
+   * Strips a presigned query string from one of our bucket URLs so a client
+   * echoing back the signed form of its current photo resolves to the stored
+   * canonical value. Other URLs are returned unchanged.
+   */
+  canonicalPhotoUrl(url: string): string {
+    if (!url.startsWith(this.publicBase)) return url;
+    const q = url.indexOf('?');
+    return q === -1 ? url : url.slice(0, q);
+  }
+
+  /**
+   * Validates a photo URL submitted by a client. Returns the canonical value
+   * to store, or undefined when nothing should change (empty input, or the
+   * user's existing stored value re-submitted, in either raw or signed form).
+   * A genuinely new value must be an object under the owner's own prefix.
+   */
+  resolvePhotoInput(
+    input: string | null | undefined,
+    ownerId: string,
+    existing: Array<string | null | undefined>,
+  ): string | undefined {
+    if (!input) return undefined;
+    const canonical = this.canonicalPhotoUrl(input);
+    if (existing.some((e) => e && (e === input || e === canonical))) return undefined;
+    if (!canonical.startsWith(this.publicUrlFor(`profile-photos/${ownerId}/`))) {
+      throw new BadRequestException(
+        'profilePhotoUrl must be the publicUrl returned by the profile-photo upload endpoint',
+      );
+    }
+    return canonical;
+  }
 
   /**
    * Converts a stored canonical avatar URL into a short-lived presigned GET
    * URL. Objects are private on S3, so raw stored URLs 403 in a browser.
-   * External (non-bucket) URLs pass through untouched; bucket URLs that are
-   * not avatar objects resolve to null so the UI falls back to initials
-   * rather than exposing a signed link to something else.
+   * External (non-bucket) URLs pass through untouched; every object under
+   * profile-photos/ is signed so previously uploaded photos always keep showing.
    */
   async signStoredUrl(storedUrl: string | null | undefined): Promise<string | null> {
     if (!storedUrl) return null;
     if (!storedUrl.startsWith(this.publicBase)) return storedUrl;
     const key = storedUrl.slice(this.publicBase.length);
-    if (!S3Service.SIGNABLE_KEY.test(key)) return null;
+    if (!S3Service.isSignableKey(key)) return null;
     try {
       return await this.presignGet(key);
     } catch {
       return null;
     }
+  }
+
+  /** Copy of `row` with its `profilePhotoUrl` signed (null/undefined rows pass through). */
+  async withSignedPhoto<T extends { profilePhotoUrl?: string | null }>(row: T): Promise<T>;
+  async withSignedPhoto<T extends { profilePhotoUrl?: string | null }>(row: T | null | undefined): Promise<T | null | undefined>;
+  async withSignedPhoto<T extends { profilePhotoUrl?: string | null }>(row: T | null | undefined) {
+    if (!row) return row;
+    return { ...row, profilePhotoUrl: await this.signStoredUrl(row.profilePhotoUrl) };
   }
 
   /** Presigned PUT URL for direct client upload (10-minute expiry). */
@@ -84,7 +132,7 @@ export class S3Service {
     return getSignedUrl(this.s3, command, { expiresIn: PUT_URL_EXPIRY_SECONDS });
   }
 
-  /** Presigned GET URL for direct client download (5-minute expiry). */
+  /** Presigned GET URL for direct client download (1-hour expiry). */
   async presignGet(key: string): Promise<string> {
     const command = new GetObjectCommand({ Bucket: this.bucket, Key: key });
     return getSignedUrl(this.s3, command, { expiresIn: GET_URL_EXPIRY_SECONDS });

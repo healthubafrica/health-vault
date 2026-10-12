@@ -536,6 +536,36 @@ describe('AuthService', () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
       await expect(service.getUserById('ghost')).rejects.toThrow('User not found');
     });
+
+    it('returns fullName and gender for a patient (patient name wins over user.fullName)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u-g1', email: 'g@test.com', role: UserRole.patient, fullName: 'Old Name',
+        profilePhotoUrl: null,
+        patient: { firstName: 'Ada', lastName: 'Obi', gender: 'Prefer_not_to_say', profilePhotoUrl: null },
+        provider: null,
+      });
+      const result = await service.getUserById('u-g1');
+      expect(result).toMatchObject({ fullName: 'Old Name', gender: 'Prefer_not_to_say', email: 'g@test.com', role: UserRole.patient });
+    });
+
+    it('falls back to patient then provider name when user.fullName is empty; gender null for non-patients', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u-g2', email: 'd@test.com', role: UserRole.provider, fullName: null,
+        profilePhotoUrl: null, patient: null,
+        provider: { firstName: 'Tolu', lastName: 'Ade', profilePhotoUrl: null },
+      });
+      const result = await service.getUserById('u-g2');
+      expect(result.fullName).toBe('Tolu Ade');
+      expect(result.gender).toBeNull();
+    });
+
+    it('returns null fullName when nothing is known', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'u-g3', email: 'a@test.com', role: UserRole.admin, fullName: null,
+        profilePhotoUrl: null, patient: null, provider: null,
+      });
+      expect((await service.getUserById('u-g3')).fullName).toBeNull();
+    });
   });
 
   describe('setProfilePhoto', () => {

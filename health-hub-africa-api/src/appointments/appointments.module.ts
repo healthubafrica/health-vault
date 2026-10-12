@@ -6,12 +6,14 @@ import { AppointmentReminderProcessor } from './appointment-reminders.processor'
 import { OpenemrModule } from '../openemr/openemr.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
+import { StorageModule } from '../storage/storage.module';
 
 @Module({
   imports: [
     OpenemrModule,
     NotificationsModule,
     AnalyticsModule,
+    StorageModule,
     BullModule.registerQueue({ name: APPOINTMENT_REMINDERS_QUEUE }),
   ],
   providers: [AppointmentsService, AppointmentReminderProcessor],
