@@ -174,3 +174,8 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Black line-art empty-state illustrations: invert on dark surfaces. */
+.dark .empty-art-mono {
+  filter: invert(1);
+}

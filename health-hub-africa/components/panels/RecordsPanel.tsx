@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyHint } from '@/components/ui/states/EmptyHint'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { records } from '@/lib/api'
@@ -23,7 +24,7 @@ export function RecordsPanel() {
       </p>
 
       {downloadable.length === 0 ? (
-        <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>No downloadable records yet.</p>
+        <EmptyHint art="summary" size={72} stacked>No downloadable records yet.</EmptyHint>
       ) : (
         <div className="flex flex-col gap-2">
           {downloadable.map(r => (

@@ -110,6 +110,7 @@ export function LabsScreen() {
         {results.length === 0 ? (
           <div className="py-8">
             <EmptyState
+              animation="lab"
               title="No lab results yet"
               description="Your diagnostic test history will appear here once CareTest™ results are uploaded."
               icon={FlaskConical}

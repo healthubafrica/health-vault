@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyHint } from '@/components/ui/states/EmptyHint'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { payments } from '@/lib/api'
@@ -34,7 +35,7 @@ export function PaymentsPanel() {
           Recent
         </p>
         {allPayments.length === 0 ? (
-          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>No transactions yet.</p>
+          <EmptyHint art="invoice" size={72} stacked>No transactions yet.</EmptyHint>
         ) : (
           <div className="flex flex-col gap-2">
             {allPayments.slice(0, 3).map(p => (

@@ -260,6 +260,7 @@ export function AppointmentsScreen() {
         {filtered.length === 0 ? (
           <div className="py-8">
             <EmptyState
+              animation="calendar"
               title={`No ${tab !== 'All' ? tab.toLowerCase() : ''} appointments`}
               description="You have no appointments listed under this view. Book a visit using the form below."
               icon={CalendarDays}

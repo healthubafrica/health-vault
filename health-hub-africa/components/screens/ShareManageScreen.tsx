@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyHint } from '@/components/ui/states/EmptyHint'
 import { useState } from 'react'
 import { useApi } from '@/lib/hooks/useApi'
 import { shares, analytics, type RecordShare, type CreateShareParams, type ShareAccessMode } from '@/lib/api'
@@ -456,7 +457,7 @@ function AuditDrawer({ shareId, onClose }: { shareId: string; onClose: () => voi
         {isInitialLoad && <p className="text-sm text-center py-4" style={{ color: 'var(--color-text-muted)' }}>Loading…</p>}
         {error && <p className="text-sm text-center py-4" style={{ color: 'var(--color-error)' }}>{error}</p>}
         {data && data.accesses.length === 0 && (
-          <p className="text-sm text-center py-4" style={{ color: 'var(--color-text-muted)' }}>No access events yet</p>
+          <EmptyHint art="share" size={72} className="py-4">No access events yet</EmptyHint>
         )}
         {data?.accesses.map(a => (
           <div key={a.id} className="flex items-start justify-between gap-3 py-2 border-b" style={{ borderColor: 'var(--color-border)' }}>
