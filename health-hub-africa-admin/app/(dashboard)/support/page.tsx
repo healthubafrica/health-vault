@@ -21,6 +21,8 @@ interface SupportTicket {
   subject: string
   userEmail: string
   userName?: string
+  userPhotoUrl?: string | null
+  userGender?: string | null
   assigneeName?: string
   category?: string
   status: TicketStatus
@@ -80,6 +82,8 @@ export default function SupportPage() {
           subject: t.subject,
           userEmail: t.submitter.email,
           userName: submitterName,
+          userPhotoUrl: t.userProfilePhotoUrl ?? t.submitter.profilePhotoUrl ?? null,
+          userGender: t.userGender ?? t.submitter.patient?.gender ?? t.submitter.provider?.gender ?? null,
           assigneeName,
           category: t.category,
           status: t.status as TicketStatus,
@@ -198,7 +202,7 @@ export default function SupportPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
-                        <Avatar name={t.userName ?? t.userEmail} size="xs" />
+                        <Avatar name={t.userName ?? t.userEmail} src={t.userPhotoUrl} gender={t.userGender} size="xs" />
                         <span className="text-xs truncate" style={{ color: 'var(--color-text-muted)' }}>
                           {t.userEmail}
                         </span>

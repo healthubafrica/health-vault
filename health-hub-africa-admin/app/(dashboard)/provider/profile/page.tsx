@@ -1,13 +1,15 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { providerSelf, type ProviderProfile, type ProviderProfileUpdate } from '@/lib/api'
+import { providerSelf, type ProviderGender, type ProviderProfile, type ProviderProfileUpdate } from '@/lib/api'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Pill } from '@/components/ui/Pill'
 import { FormInput } from '@/components/ui/FormInput'
 import { Avatar } from '@/components/ui/Avatar'
 import { SkeletonBox } from '@/components/ui/Skeleton'
+import { GenderSelect } from '@/components/ui/GenderSelect'
+import { RemovePhotoButton } from '@/components/profile/RemovePhotoButton'
 import { PhotoCropModal } from '@/components/profile/PhotoCropModal'
 import { useAuthStore } from '@/lib/stores/authStore'
 import { Camera, Loader2, ShieldCheck, ShieldAlert } from 'lucide-react'
@@ -49,6 +51,7 @@ export default function ProviderProfilePage() {
   const [clinicCity, setClinicCity] = useState('')
   const [clinicState, setClinicState] = useState('')
   const [acceptsVirtual, setAcceptsVirtual] = useState(true)
+  const [gender, setGender] = useState('')
 
   const hydrate = useCallback((p: ProviderProfile | null | undefined) => {
     if (!p) {
@@ -63,6 +66,7 @@ export default function ProviderProfilePage() {
     setClinicCity(p.clinicCity ?? '')
     setClinicState(p.clinicState ?? '')
     setAcceptsVirtual(p.isAvailable)
+    setGender(p.gender ?? '')
     const initial: Record<string, string> = {}
     for (const f of LIST_FIELDS) initial[f.key] = toLines(p[f.from] as string[])
     setLists(initial)
@@ -112,9 +116,10 @@ export default function ProviderProfilePage() {
       const { uploadUrl, publicUrl } = await providerSelf.requestPhotoUploadUrl(blob.type, blob.size)
       const put = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': blob.type }, body: blob })
       if (!put.ok) throw new Error('Upload to storage failed')
-      await providerSelf.setProfilePhoto(publicUrl)
+      const saved = await providerSelf.setProfilePhoto(publicUrl)
       await fetchMe()
-      setProfile((prev) => (prev ? { ...prev, profilePhotoUrl: publicUrl } : prev))
+      // Use the signed URL from the API; the canonical publicUrl is private.
+      setProfile((prev) => (prev ? { ...prev, profilePhotoUrl: saved.profilePhotoUrl ?? null } : prev))
       toast.success('Profile photo updated')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Photo upload failed')
@@ -138,6 +143,7 @@ export default function ProviderProfilePage() {
       clinicCity: clinicCity.trim(),
       clinicState: clinicState.trim(),
       acceptsVirtualConsults: acceptsVirtual,
+      ...(gender ? { gender: gender as ProviderGender } : {}),
     }
     for (const f of LIST_FIELDS) {
       ;(dto as Record<string, unknown>)[f.key] = fromLines(lists[f.key] ?? '')
@@ -182,7 +188,7 @@ export default function ProviderProfilePage() {
       <Card className="mb-4">
         <div className="flex items-center gap-4">
           <div className="relative">
-            <Avatar name={`${profile.firstName} ${profile.lastName}`} src={profile.profilePhotoUrl ?? undefined} size="lg" />
+            <Avatar name={`${profile.firstName} ${profile.lastName}`} src={profile.profilePhotoUrl} gender={profile.gender} size="lg" onImageError={() => void fetchMe()} />
             <label
               className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full flex items-center justify-center cursor-pointer border-2"
               style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
@@ -208,6 +214,14 @@ export default function ProviderProfilePage() {
               )}
             </div>
             <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{profile.specialty}</p>
+            {profile.profilePhotoUrl && (
+              <div className="mt-2">
+                <RemovePhotoButton
+                  disabled={uploadingPhoto}
+                  onRemoved={() => setProfile((prev) => (prev ? { ...prev, profilePhotoUrl: null } : prev))}
+                />
+              </div>
+            )}
             <p className="text-[11px] mt-1" style={{ color: 'var(--color-text-faint)' }}>
               JPG, PNG or WebP · max 5MB. Name, specialty and license are managed by an administrator.
             </p>
@@ -242,6 +256,7 @@ export default function ProviderProfilePage() {
               value={years}
               onChange={(e) => setYears(e.target.value)}
             />
+            <GenderSelect value={gender} onChange={setGender} label="Gender" />
             <div className="flex items-end pb-2">
               <label className="flex items-center gap-2 cursor-pointer text-sm" style={{ color: 'var(--color-text)' }}>
                 <input type="checkbox" checked={acceptsVirtual} onChange={(e) => setAcceptsVirtual(e.target.checked)} />

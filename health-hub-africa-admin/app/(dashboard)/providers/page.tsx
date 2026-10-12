@@ -2,7 +2,8 @@
 
 import { toast } from 'sonner'
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { adminApi, type AdminProvider, type AdminUser, type ImportProviderResult, type ProviderNotificationEmail } from '@/lib/api'
+import { adminApi, type AdminProvider, type AdminUser, type ImportProviderResult, type ProviderNotificationEmail, type ProviderGender } from '@/lib/api'
+import { GenderSelect } from '@/components/ui/GenderSelect'
 import { Card } from '@/components/ui/Card'
 import { Pill } from '@/components/ui/Pill'
 import { Avatar } from '@/components/ui/Avatar'
@@ -31,6 +32,7 @@ function ProviderDetailDialog({
     lastName: provider.lastName,
     specialty: provider.specialty ?? '',
     licenseNumber: provider.licenseNumber ?? '',
+    gender: provider.gender ?? '',
   })
   const [savingProfile, setSavingProfile] = useState(false)
 
@@ -47,6 +49,7 @@ function ProviderDetailDialog({
         lastName: editForm.lastName.trim(),
         specialty: editForm.specialty.trim(),
         licenseNumber: editForm.licenseNumber.trim() || undefined,
+        gender: (editForm.gender || undefined) as ProviderGender | undefined,
       })
       toast.success('Provider profile updated')
       onUpdated()
@@ -118,7 +121,8 @@ function ProviderDetailDialog({
           <div className="flex items-center gap-3">
             <Avatar
               name={`${provider.firstName} ${provider.lastName}`}
-              src={provider.profilePhotoUrl ?? undefined}
+              src={provider.profilePhotoUrl}
+              gender={provider.gender}
               size="md"
             />
             <div>
@@ -212,6 +216,7 @@ function ProviderDetailDialog({
                 onChange={(e) => setEditForm(f => ({ ...f, licenseNumber: e.target.value }))}
               />
             </div>
+            <GenderSelect value={editForm.gender} onChange={(gender) => setEditForm(f => ({ ...f, gender }))} />
             <Button size="sm" onClick={handleSaveProfile} disabled={savingProfile}>
               {savingProfile ? 'Saving…' : 'Save profile'}
             </Button>
@@ -580,7 +585,8 @@ export default function ProvidersPage() {
               <div className="flex items-start gap-3">
                 <Avatar
                   name={`${prov.firstName} ${prov.lastName}`}
-                  src={prov.profilePhotoUrl ?? undefined}
+                  src={prov.profilePhotoUrl}
+                  gender={prov.gender}
                   size="md"
                 />
                 <div className="min-w-0 flex-1">
@@ -1021,6 +1027,7 @@ function CreateProviderDialog({
   const [specialization, setSpecialization] = useState('')
   const [licenseNumber, setLicenseNumber] = useState('')
   const [yearsOfExperience, setYearsOfExperience] = useState<string>('')
+  const [gender, setGender] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -1058,6 +1065,7 @@ function CreateProviderDialog({
         specialization: specialization.trim() || undefined,
         licenseNumber: licenseNumber.trim() || undefined,
         yearsOfExperience: yearsOfExperience ? parseInt(yearsOfExperience, 10) : undefined,
+        gender: (gender || undefined) as ProviderGender | undefined,
       })
       onCreated()
     } catch (err) {
@@ -1065,7 +1073,7 @@ function CreateProviderDialog({
     } finally {
       setSaving(false)
     }
-  }, [selectedUser, firstName, lastName, providerType, specialization, licenseNumber, yearsOfExperience, onCreated])
+  }, [selectedUser, firstName, lastName, providerType, specialization, licenseNumber, yearsOfExperience, gender, onCreated])
 
   return (
     <div
@@ -1124,6 +1132,7 @@ function CreateProviderDialog({
             <FormInput label="License / NPI (optional)" value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} />
             <FormInput label="Years of experience" type="number" min={0} value={yearsOfExperience} onChange={(e) => setYearsOfExperience(e.target.value)} />
           </div>
+          <GenderSelect value={gender} onChange={setGender} />
 
           {error && (
             <p className="text-xs" style={{ color: 'var(--color-emergency)' }}>{error}</p>
