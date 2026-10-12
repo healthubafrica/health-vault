@@ -16,6 +16,8 @@ interface AppointmentCardProps {
   onActionPress?: () => void;
   /** Provider photo, when the API provides one. */
   photoUri?: string | null;
+  /** Provider gender (API Gender enum), used for default artwork when there is no photo. */
+  gender?: string | null;
 }
 
 export default function AppointmentCard({
@@ -27,6 +29,7 @@ export default function AppointmentCard({
   actionLabel = 'Join Call',
   onActionPress,
   photoUri,
+  gender,
 }: AppointmentCardProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
@@ -36,7 +39,7 @@ export default function AppointmentCard({
     <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <View style={styles.topRow}>
         {/* Avatar */}
-        <Avatar uri={photoUri} name={providerName} size={44} />
+        <Avatar uri={photoUri} gender={gender} name={providerName} size={44} />
 
         {/* Info */}
         <View style={styles.info}>

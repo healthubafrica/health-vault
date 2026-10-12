@@ -248,6 +248,8 @@ export default function HomeDashboardScreen() {
                   : 'Provider TBC'
               }
               specialty={upcomingAppt.provider?.specialty ?? upcomingAppt.serviceType}
+              photoUri={upcomingAppt.provider?.profilePhotoUrl}
+              gender={upcomingAppt.provider?.gender}
               time={formatAppointmentTime(upcomingAppt.scheduledAt)}
               type={upcomingAppt.isTelecare ? 'TeleCare' : 'In-Person'}
               status={upcomingAppt.status}

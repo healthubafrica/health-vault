@@ -20,7 +20,7 @@ import {
 
 import Colors from '@/constants/Colors';
 import Avatar from '@/components/Avatar';
-import { fullName } from '@/lib/avatar';
+import { providerAvatarProps } from '@/lib/avatar';
 import { useColorScheme } from '@/components/useColorScheme';
 import EmergencyFAB from '@/components/EmergencyFAB';
 import { patients, CareTeamMember } from '@/lib/api';
@@ -108,7 +108,7 @@ export default function MyCareTeamScreen() {
                 onPress={() => handleProviderPress(provider)}
                 style={[styles.providerCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
 
-                <Avatar uri={provider.profilePhotoUrl} name={fullName(provider.firstName, provider.lastName)} size={52} />
+                <Avatar {...providerAvatarProps(provider)} size={52} />
 
                 {/* Details */}
                 <View style={styles.providerInfo}>

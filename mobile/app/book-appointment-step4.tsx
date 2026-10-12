@@ -43,6 +43,7 @@ export default function BookAppointmentStep4Screen() {
     providerName?: string;
     providerSpecialty?: string;
     providerPhotoUrl?: string;
+    providerGender?: string;
     consultationFormat?: string;
     facilityId?: string;
     facilityName?: string;
@@ -146,7 +147,7 @@ export default function BookAppointmentStep4Screen() {
               <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>APPOINTMENT DETAILS</Text>
 
               <View style={styles.doctorHeaderRow}>
-                <Avatar uri={params.providerPhotoUrl} name={params.providerName} size={48} />
+                <Avatar uri={params.providerPhotoUrl || undefined} gender={params.providerGender || undefined} name={params.providerName} size={48} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.doctorName, { color: theme.text }]}>
                     {params.providerName || 'Care team will assign a clinician'}

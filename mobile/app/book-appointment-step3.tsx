@@ -71,6 +71,7 @@ export default function BookAppointmentStep3Screen() {
     providerName?: string;
     providerSpecialty?: string;
     providerPhotoUrl?: string;
+    providerGender?: string;
     rescheduleId?: string;
   }>();
 
@@ -165,6 +166,7 @@ export default function BookAppointmentStep3Screen() {
         providerName: params.providerName || '',
         providerSpecialty: params.providerSpecialty || '',
         providerPhotoUrl: params.providerPhotoUrl || '',
+        providerGender: params.providerGender || '',
         consultationFormat: selectedFormat,
         facilityId,
         facilityName,
@@ -208,7 +210,7 @@ export default function BookAppointmentStep3Screen() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Selected Provider Mini Summary Card */}
         <View style={[styles.selectedProviderChip, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Avatar uri={params.providerPhotoUrl} name={params.providerName} size={44} />
+          <Avatar uri={params.providerPhotoUrl || undefined} gender={params.providerGender || undefined} name={params.providerName} size={44} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.docName, { color: theme.text }]}>
               {params.providerName || 'Care team will assign a clinician'}

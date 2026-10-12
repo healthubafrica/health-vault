@@ -1,4 +1,4 @@
-import { genderArt, initialsOf, fullName } from './avatar';
+import { genderArt, initialsOf, fullName, providerAvatarProps } from './avatar';
 
 describe('genderArt', () => {
   it.each([
@@ -41,5 +41,23 @@ describe('fullName', () => {
     expect(fullName('Ada', 'Obi')).toBe('Ada Obi');
     expect(fullName('Ada', undefined)).toBe('Ada');
     expect(fullName(null, null)).toBe('');
+  });
+});
+
+describe('providerAvatarProps', () => {
+  it('maps photo, gender and full name', () => {
+    expect(
+      providerAvatarProps({ firstName: 'Ada', lastName: 'Obi', profilePhotoUrl: 'https://x/a.jpg', gender: 'Female' }),
+    ).toEqual({ uri: 'https://x/a.jpg', gender: 'Female', name: 'Ada Obi' });
+  });
+  it('degrades when photo and gender are absent', () => {
+    expect(providerAvatarProps({ firstName: 'Ada', lastName: 'Obi' })).toEqual({
+      uri: undefined,
+      gender: undefined,
+      name: 'Ada Obi',
+    });
+  });
+  it('handles a missing provider', () => {
+    expect(providerAvatarProps(null)).toEqual({ uri: undefined, gender: undefined, name: '' });
   });
 });

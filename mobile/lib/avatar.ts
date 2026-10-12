@@ -35,3 +35,19 @@ export function initialsOf(name?: string | null): string {
 export function fullName(first?: string | null, last?: string | null): string {
   return [first, last].filter((p) => p && p.trim()).join(' ');
 }
+
+interface ProviderPerson {
+  firstName: string;
+  lastName: string;
+  profilePhotoUrl?: string | null;
+  gender?: string | null;
+}
+
+/** Avatar props for any API provider shape; photo/gender may be absent on older payloads. */
+export function providerAvatarProps(provider?: ProviderPerson | null) {
+  return {
+    uri: provider?.profilePhotoUrl ?? undefined,
+    gender: provider?.gender ?? undefined,
+    name: provider ? fullName(provider.firstName, provider.lastName) : '',
+  };
+}

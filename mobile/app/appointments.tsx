@@ -22,7 +22,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import Colors from '@/constants/Colors';
 import Avatar from '@/components/Avatar';
-import { fullName } from '@/lib/avatar';
+import { providerAvatarProps } from '@/lib/avatar';
 import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
@@ -132,6 +132,8 @@ export default function AppointmentsScreen() {
                   providerName: item.provider
                     ? `${item.provider.title ?? 'Dr.'} ${item.provider.firstName} ${item.provider.lastName}`
                     : '',
+                  providerPhotoUrl: item.provider?.profilePhotoUrl ?? '',
+                  providerGender: item.provider?.gender ?? '',
                 },
               }),
           },
@@ -229,9 +231,6 @@ export default function AppointmentsScreen() {
               const providerName = appointment.provider
                 ? `${appointment.provider.title} ${appointment.provider.firstName} ${appointment.provider.lastName}`
                 : 'Provider TBC';
-              const providerPersonName = appointment.provider
-                ? fullName(appointment.provider.firstName, appointment.provider.lastName)
-                : '';
               const specialty = appointment.provider?.specialty ?? appointment.serviceType;
 
               return (
@@ -240,7 +239,7 @@ export default function AppointmentsScreen() {
                   style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                   {/* Provider Info Row */}
                   <View style={styles.providerRow}>
-                    <Avatar name={providerPersonName} size={52} />
+                    <Avatar {...providerAvatarProps(appointment.provider)} size={52} />
                     <View style={styles.providerDetails}>
                       <Text style={[styles.providerName, { color: theme.text }]}>
                         {providerName}

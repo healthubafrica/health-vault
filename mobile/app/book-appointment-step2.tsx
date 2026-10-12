@@ -23,7 +23,7 @@ import {
 
 import Colors from '@/constants/Colors';
 import Avatar from '@/components/Avatar';
-import { fullName } from '@/lib/avatar';
+import { providerAvatarProps } from '@/lib/avatar';
 import { useColorScheme } from '@/components/useColorScheme';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
 import { appointments, ServiceProvider, ApiError } from '@/lib/api';
@@ -75,8 +75,9 @@ export default function BookAppointmentStep2Screen() {
               providerName: `${provider.title ?? 'Dr.'} ${provider.firstName} ${provider.lastName}`,
               providerSpecialty: provider.specialty || 'General Practitioner',
               providerPhotoUrl: provider.profilePhotoUrl ?? '',
+              providerGender: provider.gender ?? '',
             }
-          : { providerId: '', providerName: '', providerSpecialty: '', providerPhotoUrl: '' }),
+          : { providerId: '', providerName: '', providerSpecialty: '', providerPhotoUrl: '', providerGender: '' }),
       },
     });
   };
@@ -230,7 +231,7 @@ export default function BookAppointmentStep2Screen() {
                 ]}>
                 {/* Top Row: Avatar, Info, and Radio Selection */}
                 <View style={styles.providerTopRow}>
-                  <Avatar uri={provider.profilePhotoUrl} name={fullName(provider.firstName, provider.lastName)} size={52} />
+                  <Avatar {...providerAvatarProps(provider)} size={52} />
 
                   <View style={styles.providerMetaCol}>
                     <Text style={[styles.providerName, { color: theme.text }]}>

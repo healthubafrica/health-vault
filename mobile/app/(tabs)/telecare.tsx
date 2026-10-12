@@ -26,7 +26,7 @@ import {
 import { ErrorState, EmptyAnimation } from '@/components/states';
 import Colors from '@/constants/Colors';
 import Avatar from '@/components/Avatar';
-import { fullName } from '@/lib/avatar';
+import { providerAvatarProps } from '@/lib/avatar';
 import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
@@ -67,9 +67,6 @@ export default function TeleCareWaitingRoomScreen() {
   const providerName = nextTelecare?.provider
     ? `${nextTelecare.provider.title ?? 'Dr.'} ${nextTelecare.provider.firstName} ${nextTelecare.provider.lastName}`
     : 'Provider TBD';
-  const providerPersonName = nextTelecare?.provider
-    ? fullName(nextTelecare.provider.firstName, nextTelecare.provider.lastName)
-    : '';
 
   const joinable = !!nextTelecare && canJoinCall(nextTelecare);
 
@@ -138,7 +135,7 @@ export default function TeleCareWaitingRoomScreen() {
         {/* Appointment Summary Card */}
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.providerRow}>
-            <Avatar name={providerPersonName} size={46} />
+            <Avatar {...providerAvatarProps(nextTelecare.provider)} size={46} />
             <View style={styles.providerInfo}>
               <Text style={[styles.providerName, { color: theme.text }]}>{providerName}</Text>
               {nextTelecare.provider?.specialty ? (
