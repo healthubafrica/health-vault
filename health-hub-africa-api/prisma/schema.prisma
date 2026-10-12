@@ -444,6 +444,7 @@ model Provider {
   specialty       String
   licenseNumber   String?  @unique @map("license_number")
   profilePhotoUrl String?  @map("profile_photo_url")
+  gender          Gender?
   bio             String?
   rating          Decimal? @db.Decimal(3, 2)
   totalPatients   Int      @default(0) @map("total_patients")

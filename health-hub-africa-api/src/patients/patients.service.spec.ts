@@ -1,5 +1,6 @@
 import { PatientsService } from './patients.service';
 import { UserRole } from '@prisma/client';
+import { realPhotoResolvers } from '../storage/s3.test-helper';
 
 // First tests for this service — scoped to the new declared-country field
 // (create/update), not full coverage of everything else it does.
@@ -15,13 +16,13 @@ function buildService(overrides: { existingPatient?: unknown; findUniqueForUpdat
       ),
       findFirst: jest.fn().mockResolvedValue(null), // no prior HHA id this month
     },
-    user: { update: jest.fn().mockResolvedValue({}) },
+    user: { update: jest.fn().mockResolvedValue({}), findUnique: jest.fn().mockResolvedValue(null) },
   };
   const notifications = {};
   const config = { get: jest.fn().mockReturnValue(undefined), getOrThrow: jest.fn().mockReturnValue('hha-bucket') };
   const openemr = { enqueuePatientSync: jest.fn().mockResolvedValue(undefined) };
   const storage = {};
-  const s3Service = { withSignedPhoto: async (r: any) => r, signStoredUrl: async (u: any) => u };
+  const s3Service = { ...realPhotoResolvers(), withSignedPhoto: async (r: any) => r, signStoredUrl: async (u: any) => u };
   const service = new PatientsService(prisma as any, notifications as any, config as any, openemr as any, storage as any, s3Service as any);
   return { service, prisma };
 }

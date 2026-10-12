@@ -55,6 +55,8 @@ describe('SupportService internal notes', () => {
     expect(t.submitter?.profilePhotoUrl).toBe('patient-raw');
     expect(t.submitter?.patient?.gender).toBe('Female');
     expect(t.assignee?.profilePhotoUrl).toBe('staff-raw');
+    expect(t.userProfilePhotoUrl).toBe('patient-raw');
+    expect(t.userGender).toBe('Female');
     expect(JSON.stringify(t.submitter?.patient)).not.toContain('patient-raw');
   });
 });

@@ -284,14 +284,22 @@ export class AuthController {
     // Only accept objects this user uploaded through the presign flow —
     // an arbitrary URL here would let one user point their avatar at
     // another user's private object (or an external tracker).
-    const requiredPrefix = this.s3.publicUrlFor(`profile-photos/${user.sub}/`);
-    if (!dto.profilePhotoUrl.startsWith(requiredPrefix)) {
-      throw new BadRequestException(
-        'profilePhotoUrl must be the publicUrl returned by profile-photo-upload-url',
-      );
-    }
-    const saved = await this.authService.setProfilePhoto(user.sub, dto.profilePhotoUrl);
+    // Re-submitting the current stored value (raw or signed) is accepted.
+    const existing = await this.authService.getStoredPhotoUrls(user.sub);
+    const resolved =
+      this.s3.resolvePhotoInput(dto.profilePhotoUrl, user.sub, existing) ??
+      this.s3.canonicalPhotoUrl(dto.profilePhotoUrl);
+    const saved = await this.authService.setProfilePhoto(user.sub, resolved);
     return { profilePhotoUrl: await this.s3.signStoredUrl(saved.profilePhotoUrl) };
+  }
+
+  @ApiBearerAuth()
+  @Delete('me/profile-photo')
+  @ApiOperation({ summary: 'Stop using my current profile photo (any role); the stored file is kept' })
+  async clearProfilePhoto(@CurrentUser() user: JwtPayload) {
+    // Only the active reference is cleared; the stored file is kept.
+    await this.authService.clearProfilePhoto(user.sub);
+    return { profilePhotoUrl: null };
   }
 
   @ApiBearerAuth()

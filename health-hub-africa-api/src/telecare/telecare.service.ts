@@ -173,7 +173,7 @@ export class TelecareService implements OnModuleInit {
             },
           },
         },
-        provider: { select: { firstName: true, lastName: true, title: true, profilePhotoUrl: true } },
+        provider: { select: { firstName: true, lastName: true, title: true, profilePhotoUrl: true, gender: true } },
       },
     });
 

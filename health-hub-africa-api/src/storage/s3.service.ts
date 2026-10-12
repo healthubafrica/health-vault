@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   S3Client,
   PutObjectCommand,
@@ -43,24 +43,57 @@ export class S3Service {
     return `${this.publicBase}${key}`;
   }
 
-  // Only avatar objects are signable through signStoredUrl. Without this
-  // gate, any bucket URL that lands in a *_photo_url column (however it got
-  // there) would be presigned and served — turning avatar fields into an
-  // arbitrary-object read against clinical records and exports.
-  private static readonly SIGNABLE_KEY = /^profile-photos\/[0-9a-f-]{36}\/[A-Za-z0-9._-]+$/i;
+  // Any object in our bucket is signable (legacy photos were stored under
+  // other key formats and must keep showing). Only keys that could escape
+  // the bucket are refused. New photo values are validated on write, not here.
+  private static isSafeKey(key: string): boolean {
+    return key.length > 0 && !key.startsWith('/') && !key.split('/').some((seg) => seg === '..');
+  }
+
+  /**
+   * Strips a presigned query string from one of our bucket URLs so a client
+   * echoing back the signed form of its current photo resolves to the stored
+   * canonical value. Other URLs are returned unchanged.
+   */
+  canonicalPhotoUrl(url: string): string {
+    if (!url.startsWith(this.publicBase)) return url;
+    const q = url.indexOf('?');
+    return q === -1 ? url : url.slice(0, q);
+  }
+
+  /**
+   * Validates a photo URL submitted by a client. Returns the canonical value
+   * to store, or undefined when nothing should change (empty input, or the
+   * user's existing stored value re-submitted, in either raw or signed form).
+   * A genuinely new value must be an object under the owner's own prefix.
+   */
+  resolvePhotoInput(
+    input: string | null | undefined,
+    ownerId: string,
+    existing: Array<string | null | undefined>,
+  ): string | undefined {
+    if (!input) return undefined;
+    const canonical = this.canonicalPhotoUrl(input);
+    if (existing.some((e) => e && (e === input || e === canonical))) return undefined;
+    if (!canonical.startsWith(this.publicUrlFor(`profile-photos/${ownerId}/`))) {
+      throw new BadRequestException(
+        'profilePhotoUrl must be the publicUrl returned by the profile-photo upload endpoint',
+      );
+    }
+    return canonical;
+  }
 
   /**
    * Converts a stored canonical avatar URL into a short-lived presigned GET
    * URL. Objects are private on S3, so raw stored URLs 403 in a browser.
-   * External (non-bucket) URLs pass through untouched; bucket URLs that are
-   * not avatar objects resolve to null so the UI falls back to initials
-   * rather than exposing a signed link to something else.
+   * External (non-bucket) URLs pass through untouched; every object in our
+   * bucket is signed so previously uploaded photos always keep showing.
    */
   async signStoredUrl(storedUrl: string | null | undefined): Promise<string | null> {
     if (!storedUrl) return null;
     if (!storedUrl.startsWith(this.publicBase)) return storedUrl;
     const key = storedUrl.slice(this.publicBase.length);
-    if (!S3Service.SIGNABLE_KEY.test(key)) return null;
+    if (!S3Service.isSafeKey(key)) return null;
     try {
       return await this.presignGet(key);
     } catch {

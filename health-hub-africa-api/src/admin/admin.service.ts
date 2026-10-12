@@ -150,7 +150,7 @@ export class AdminService {
             },
           },
           provider: {
-            select: { id: true, firstName: true, lastName: true, isAvailable: true, profilePhotoUrl: true },
+            select: { id: true, firstName: true, lastName: true, isAvailable: true, profilePhotoUrl: true, gender: true },
           },
         },
       }),
@@ -182,9 +182,9 @@ export class AdminService {
           ? { step: u.onboardingProgress.currentStep, name: u.onboardingProgress.stepName }
           : undefined,
         profilePhotoUrl: await this.s3.signStoredUrl(
-          u.patient?.profilePhotoUrl ?? u.provider?.profilePhotoUrl ?? u.profilePhotoUrl,
+          u.patient?.profilePhotoUrl || u.provider?.profilePhotoUrl || u.profilePhotoUrl,
         ),
-        gender: u.patient?.gender ?? null,
+        gender: u.patient?.gender ?? u.provider?.gender ?? null,
         patient: u.patient
           ? {
               id: u.patient.id,
@@ -200,6 +200,7 @@ export class AdminService {
               firstName: u.provider.firstName,
               lastName: u.provider.lastName,
               isAvailable: u.provider.isAvailable,
+              gender: u.provider.gender ?? null,
             }
           : undefined,
         subscription: sub
@@ -403,6 +404,7 @@ export class AdminService {
             lastName: true,
             isAvailable: true,
             profilePhotoUrl: true,
+            gender: true,
           },
         },
       },
@@ -412,7 +414,7 @@ export class AdminService {
 
     const { phone, patient, provider, ...rest } = raw;
     const profilePhotoUrl = await this.s3.signStoredUrl(
-      patient?.profilePhotoUrl ?? provider?.profilePhotoUrl ?? raw.profilePhotoUrl,
+      patient?.profilePhotoUrl || provider?.profilePhotoUrl || raw.profilePhotoUrl,
     );
 
     const latestSub = patient?.subscriptions?.[0];
@@ -441,7 +443,7 @@ export class AdminService {
       data: {
         ...rest,
         profilePhotoUrl,
-        gender: patient?.gender ?? null,
+        gender: patient?.gender ?? provider?.gender ?? null,
         phoneNumber: phone ?? undefined,
         fullName,
         subscription,
@@ -2186,7 +2188,7 @@ export class AdminService {
       title: r.title,
       specialty: r.specialty,
       email: r.user.email,
-      profilePhotoUrl: await this.s3.signStoredUrl(r.profilePhotoUrl ?? r.user.profilePhotoUrl),
+      profilePhotoUrl: await this.s3.signStoredUrl(r.profilePhotoUrl || r.user.profilePhotoUrl),
       isAvailable: r.isAvailable,
       totalPatients: r.totalPatients,
       rating: r.rating ? Number(r.rating) : null,

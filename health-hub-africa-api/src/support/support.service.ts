@@ -29,14 +29,14 @@ const PERSON_SELECT = {
   email: true,
   profilePhotoUrl: true,
   patient: { select: { firstName: true, lastName: true, gender: true, profilePhotoUrl: true } },
-  provider: { select: { firstName: true, lastName: true, profilePhotoUrl: true } },
+  provider: { select: { firstName: true, lastName: true, gender: true, profilePhotoUrl: true } },
 } as const;
 
 type PersonRow = {
   email: string;
   profilePhotoUrl: string | null;
   patient: { firstName: string; lastName: string; gender: Gender; profilePhotoUrl: string | null } | null;
-  provider: { firstName: string; lastName: string; profilePhotoUrl: string | null } | null;
+  provider: { firstName: string; lastName: string; gender: Gender | null; profilePhotoUrl: string | null } | null;
 };
 
 @Injectable()
@@ -55,9 +55,9 @@ export class SupportService {
     return {
       ...rest,
       patient: patient ? { firstName: patient.firstName, lastName: patient.lastName, gender: patient.gender } : null,
-      provider: provider ? { firstName: provider.firstName, lastName: provider.lastName } : null,
+      provider: provider ? { firstName: provider.firstName, lastName: provider.lastName, gender: provider.gender } : null,
       profilePhotoUrl: await this.s3.signStoredUrl(
-        patient?.profilePhotoUrl ?? provider?.profilePhotoUrl ?? profilePhotoUrl,
+        patient?.profilePhotoUrl || provider?.profilePhotoUrl || profilePhotoUrl,
       ),
     };
   }
@@ -107,11 +107,17 @@ export class SupportService {
     });
 
     return Promise.all(
-      tickets.map(async (t) => ({
-        ...t,
-        submitter: await this.shapePerson(t.submitter),
-        assignee: await this.shapePerson(t.assignee),
-      })),
+      tickets.map(async (t) => {
+        const submitter = await this.shapePerson(t.submitter);
+        return {
+          ...t,
+          submitter,
+          assignee: await this.shapePerson(t.assignee),
+          // Flat avatar fields for list rows (photo already signed above).
+          userProfilePhotoUrl: submitter?.profilePhotoUrl ?? null,
+          userGender: submitter?.patient?.gender ?? null,
+        };
+      }),
     );
   }
 

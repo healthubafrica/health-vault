@@ -785,7 +785,7 @@ export class AuthService {
         // uploaded via the portal (which writes the patient row) is shown
         // consistently everywhere.
         patient: { select: { firstName: true, lastName: true, gender: true, profilePhotoUrl: true } },
-        provider: { select: { firstName: true, lastName: true, profilePhotoUrl: true } },
+        provider: { select: { firstName: true, lastName: true, gender: true, profilePhotoUrl: true } },
       },
     });
     if (!user) throw new NotFoundException('User not found');
@@ -799,11 +799,11 @@ export class AuthService {
           .map((p) => (p ? `${p.firstName} ${p.lastName}`.trim() : ''))
           .find(Boolean) ||
         null,
-      gender: user.patient?.gender ?? null,
+      gender: user.patient?.gender ?? user.provider?.gender ?? null,
       profilePhotoUrl:
-        user.patient?.profilePhotoUrl ??
-        user.provider?.profilePhotoUrl ??
-        user.profilePhotoUrl ??
+        user.patient?.profilePhotoUrl ||
+        user.provider?.profilePhotoUrl ||
+        user.profilePhotoUrl ||
         null,
     };
   }
@@ -831,5 +831,25 @@ export class AuthService {
       data: { profilePhotoUrl },
     });
     return { profilePhotoUrl };
+  }
+
+  // Currently stored photo references (user, patient, provider rows).
+  async getStoredPhotoUrls(userId: string): Promise<string[]> {
+    const [user, patient, provider] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: userId }, select: { profilePhotoUrl: true } }),
+      this.prisma.patient.findFirst({ where: { userId }, select: { profilePhotoUrl: true } }),
+      this.prisma.provider.findFirst({ where: { userId }, select: { profilePhotoUrl: true } }),
+    ]);
+    return [user?.profilePhotoUrl, patient?.profilePhotoUrl, provider?.profilePhotoUrl].filter(
+      (u): u is string => !!u,
+    );
+  }
+
+  // User-initiated: stop using the current photo. Clears the active reference
+  // only; the stored S3 object is never deleted.
+  async clearProfilePhoto(userId: string): Promise<void> {
+    await this.prisma.user.update({ where: { id: userId }, data: { profilePhotoUrl: null } });
+    await this.prisma.patient.updateMany({ where: { userId }, data: { profilePhotoUrl: null } });
+    await this.prisma.provider.updateMany({ where: { userId }, data: { profilePhotoUrl: null } });
   }
 }

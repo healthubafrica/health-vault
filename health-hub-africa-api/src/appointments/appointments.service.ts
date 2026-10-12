@@ -687,6 +687,7 @@ export class AppointmentsService {
             verifiedAt: true,
             deletedAt: true,
             profilePhotoUrl: true,
+            gender: true,
             bio: true,
             yearsExperience: true,
             subspecialties: true,
@@ -738,6 +739,7 @@ export class AppointmentsService {
         // Professional profile — lets the patient make an informed choice
         // directly in the booking picker without a second round-trip.
         profilePhotoUrl: await this.s3.signStoredUrl(g.provider.profilePhotoUrl),
+        gender: g.provider.gender,
         bio: g.provider.bio,
         yearsExperience: g.provider.yearsExperience,
         subspecialties: g.provider.subspecialties,
@@ -1357,6 +1359,7 @@ export class AppointmentsService {
           title: true,
           specialty: true,
           profilePhotoUrl: true,
+          gender: true,
         },
       },
     };

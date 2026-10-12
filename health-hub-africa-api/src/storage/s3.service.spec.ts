@@ -25,11 +25,48 @@ describe('S3Service avatar signing', () => {
     expect(mockGetSignedUrl).toHaveBeenCalledWith(expect.anything(), expect.anything(), { expiresIn: 3600 });
   });
 
-  it('passes external URLs through and nulls non-avatar bucket keys', async () => {
+  it('passes external URLs through unchanged', async () => {
     const s3 = build();
     await expect(s3.signStoredUrl('https://cdn.example/a.png')).resolves.toBe('https://cdn.example/a.png');
-    await expect(s3.signStoredUrl(s3.publicUrlFor('clinical/secret.pdf'))).resolves.toBeNull();
     expect(mockGetSignedUrl).not.toHaveBeenCalled();
+  });
+
+  it('still signs legacy-format bucket photos that are not profile-photos/<uuid>/...', async () => {
+    const s3 = build();
+    for (const key of ['avatars/old-user.png', 'profile-photos/not-a-uuid/My Photo.jpg', 'uploads/2024/a/b.jpeg']) {
+      mockGetSignedUrl.mockClear();
+      await expect(s3.signStoredUrl(s3.publicUrlFor(key))).resolves.toBe('https://signed.example/x');
+      expect(mockGetSignedUrl).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('refuses keys that escape the bucket', async () => {
+    const s3 = build();
+    await expect(s3.signStoredUrl(s3.publicUrlFor('a/../../etc'))).resolves.toBeNull();
+    expect(mockGetSignedUrl).not.toHaveBeenCalled();
+  });
+
+  describe('resolvePhotoInput', () => {
+    const OTHER = '22222222-2222-2222-2222-222222222222';
+    it('accepts an unchanged stored value, raw or signed, without requiring the owner prefix', () => {
+      const s3 = build();
+      const legacy = s3.publicUrlFor('avatars/old.png');
+      expect(s3.resolvePhotoInput(legacy, USER, [legacy])).toBeUndefined();
+      expect(s3.resolvePhotoInput(`${legacy}?X-Amz-Signature=z`, USER, [legacy])).toBeUndefined();
+    });
+    it('accepts a new value under the owner folder and strips any signature', () => {
+      const s3 = build();
+      const own = s3.publicUrlFor(`profile-photos/${USER}/n.webp`);
+      expect(s3.resolvePhotoInput(`${own}?sig=1`, USER, [])).toBe(own);
+    });
+    it('rejects a new value outside the owner folder', () => {
+      const s3 = build();
+      expect(() => s3.resolvePhotoInput(s3.publicUrlFor(`profile-photos/${OTHER}/x.webp`), USER, [])).toThrow();
+      expect(() => s3.resolvePhotoInput('https://tracker.example/p.png', USER, [])).toThrow();
+    });
+    it('ignores empty input', () => {
+      expect(build().resolvePhotoInput('', USER, [])).toBeUndefined();
+    });
   });
 
   describe('withSignedPhoto', () => {

@@ -82,16 +82,6 @@ export class ProvidersService {
     private readonly s3: S3Service,
   ) {}
 
-  // A provider photo must be an object uploaded by the profile's own user via
-  // the presign flow; anything else would be served (and signed) to patients.
-  private assertOwnPhotoUrl(url: string, userId: string): void {
-    if (!url.startsWith(this.s3.publicUrlFor(`profile-photos/${userId}/`))) {
-      throw new BadRequestException(
-        'profilePhotoUrl must be the publicUrl returned by the profile-photo upload endpoint',
-      );
-    }
-  }
-
   // ── Create ─────────────────────────────────────────────────────────────────
 
   async create(dto: CreateProviderDto, currentUser: JwtPayload) {
@@ -110,7 +100,7 @@ export class ProvidersService {
       );
     }
 
-    if (dto.profilePhotoUrl) this.assertOwnPhotoUrl(dto.profilePhotoUrl, dto.userId);
+    const newPhotoUrl = this.s3.resolvePhotoInput(dto.profilePhotoUrl, dto.userId, []);
 
     const targetUser = await this.prisma.user.findUnique({
       where: { id: dto.userId },
@@ -156,7 +146,8 @@ export class ProvidersService {
           licenseNumber: dto.licenseNumber,
           yearsExperience: dto.yearsOfExperience ?? 0,
           isAvailable: dto.acceptsVirtualConsults ?? true,
-          profilePhotoUrl: dto.profilePhotoUrl,
+          profilePhotoUrl: newPhotoUrl,
+          ...(dto.gender !== undefined && { gender: dto.gender }),
           ...buildProfileData(dto),
           // verifiedAt intentionally null — sync stays paused and the
           // appointment booking gate stays closed until an admin clicks
@@ -166,10 +157,10 @@ export class ProvidersService {
       });
     });
 
-    if (dto.profilePhotoUrl) {
+    if (newPhotoUrl) {
       await this.prisma.user.update({
         where: { id: dto.userId },
-        data: { profilePhotoUrl: dto.profilePhotoUrl },
+        data: { profilePhotoUrl: newPhotoUrl },
       });
     }
 
@@ -254,12 +245,18 @@ export class ProvidersService {
   async update(id: string, dto: UpdateProviderDto, currentUser: JwtPayload) {
     const provider = await this.prisma.provider.findUnique({
       where: { id },
-      select: { id: true, userId: true, firstName: true, lastName: true, title: true },
+      select: {
+        id: true, userId: true, firstName: true, lastName: true, title: true,
+        profilePhotoUrl: true, user: { select: { profilePhotoUrl: true } },
+      },
     });
 
     if (!provider) throw new NotFoundException('Provider not found');
     this.assertOwnerOrAdmin(provider, currentUser);
-    if (dto.profilePhotoUrl) this.assertOwnPhotoUrl(dto.profilePhotoUrl, provider.userId);
+    const newPhotoUrl = this.s3.resolvePhotoInput(dto.profilePhotoUrl, provider.userId, [
+      provider.profilePhotoUrl,
+      provider.user?.profilePhotoUrl,
+    ]);
 
     const profileData = buildProfileData(dto);
 
@@ -294,17 +291,18 @@ export class ProvidersService {
         ...(dto.acceptsVirtualConsults !== undefined && {
           isAvailable: dto.acceptsVirtualConsults,
         }),
-        ...(dto.profilePhotoUrl !== undefined && { profilePhotoUrl: dto.profilePhotoUrl }),
+        ...(newPhotoUrl !== undefined && { profilePhotoUrl: newPhotoUrl }),
+        ...(dto.gender !== undefined && { gender: dto.gender }),
         ...(isCredentialChange && { verifiedAt: null, verifiedBy: null }),
       },
       select: this.safeSelect(),
     });
 
     // Keep the user-level canonical photo in sync (auth/me and admin lists read it).
-    if (dto.profilePhotoUrl) {
+    if (newPhotoUrl) {
       await this.prisma.user.update({
         where: { id: provider.userId },
-        data: { profilePhotoUrl: dto.profilePhotoUrl },
+        data: { profilePhotoUrl: newPhotoUrl },
       });
     }
 
@@ -446,6 +444,7 @@ export class ProvidersService {
       isAvailable: true,
       verifiedAt: true,
       profilePhotoUrl: true,
+      gender: true,
       createdAt: true,
       updatedAt: true,
       user: {

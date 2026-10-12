@@ -3,6 +3,7 @@ import { UserRole } from '@prisma/client';
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { PatientsService } from './patients.service';
+import { realPhotoResolvers } from '../storage/s3.test-helper';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 
@@ -45,6 +46,7 @@ function build() {
   const config = { get: jest.fn((_k: string, d?: string) => d), getOrThrow: jest.fn().mockReturnValue('hha-bucket') };
   const openemr = { enqueuePatientSync: jest.fn().mockResolvedValue(undefined) };
   const s3Service = {
+    ...realPhotoResolvers(),
     signStoredUrl: jest.fn(async (u: string | null | undefined) => signed(u)),
     withSignedPhoto: jest.fn(async (r: any) => (r ? { ...r, profilePhotoUrl: signed(r.profilePhotoUrl) } : r)),
   };
@@ -109,12 +111,12 @@ describe('PatientsService.removeProfilePhoto', () => {
     await expect(service.removeProfilePhoto(me)).resolves.toEqual({ message: 'Profile photo removed' });
     expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: USER }, data: { profilePhotoUrl: null } });
     expect(prisma.provider.updateMany).toHaveBeenCalledWith({ where: { userId: USER }, data: { profilePhotoUrl: null } });
-    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).not.toHaveBeenCalled(); // stored file is kept
   });
 
-  it('never deletes an object outside the caller own profile-photos folder', async () => {
+  it('never deletes the stored object, including the caller own one', async () => {
     const { service, prisma, send } = build();
-    prisma.patient.findUnique.mockResolvedValue({ id: 'pat-1', profilePhotoUrl: `${BASE}profile-photos/someone-else/x.webp` });
+    prisma.patient.findUnique.mockResolvedValue({ id: 'pat-1', profilePhotoUrl: OWN_URL });
     prisma.user.findUnique.mockResolvedValue({ profilePhotoUrl: null });
     await service.removeProfilePhoto(me);
     expect(send).not.toHaveBeenCalled();
@@ -126,6 +128,51 @@ describe('PatientsService.removeProfilePhoto', () => {
     prisma.patient.findUnique.mockResolvedValue({ id: 'pat-1', profilePhotoUrl: null });
     prisma.user.findUnique.mockResolvedValue({ profilePhotoUrl: null });
     await expect(service.removeProfilePhoto(me)).rejects.toThrow(BadRequestException);
+  });
+});
+
+describe('PatientsService photo preservation', () => {
+  it('replacing a photo never deletes the previous object (only the staging upload)', async () => {
+    const { service, prisma, send } = build();
+    prisma.patient.findUnique.mockResolvedValue({ id: 'pat-1', profilePhotoUrl: OWN_URL });
+    await service.processProfilePhoto(
+      { objectKey: `profile-photos/${USER}/raw.jpg`, cropLeft: 1, cropTop: 2, cropWidth: 3, cropHeight: 4 } as any,
+      me,
+    );
+    const deleted = send.mock.calls
+      .map(([cmd]: any) => cmd)
+      .filter((cmd: any) => cmd?.constructor?.name === 'DeleteObjectCommand')
+      .map((cmd: any) => cmd.input.Key);
+    expect(deleted).toEqual([`profile-photos/${USER}/raw.jpg`]);
+  });
+
+  it('update accepts the existing stored value (raw or signed) and does not rewrite the photo', async () => {
+    const { service, prisma } = build();
+    prisma.patient.findUnique.mockResolvedValue({
+      id: 'pat-1', userId: USER, profilePhotoUrl: OWN_URL, user: { profilePhotoUrl: OWN_URL },
+    });
+    prisma.patient.update.mockResolvedValue({ id: 'pat-1', profilePhotoUrl: OWN_URL });
+    await service.update('pat-1', { profilePhotoUrl: `${OWN_URL}?X-Amz-Signature=abc` } as any, me);
+    expect(prisma.patient.update.mock.calls[0][0].data.profilePhotoUrl).toBeUndefined();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('update without a photo field never resets the photo', async () => {
+    const { service, prisma } = build();
+    prisma.patient.findUnique.mockResolvedValue({
+      id: 'pat-1', userId: USER, profilePhotoUrl: OWN_URL, user: { profilePhotoUrl: OWN_URL },
+    });
+    prisma.patient.update.mockResolvedValue({ id: 'pat-1' });
+    await service.update('pat-1', { firstName: 'Z' } as any, me);
+    expect(prisma.patient.update.mock.calls[0][0].data.profilePhotoUrl).toBeUndefined();
+  });
+
+  it('update still rejects a NEW photo outside the owner folder', async () => {
+    const { service, prisma } = build();
+    prisma.patient.findUnique.mockResolvedValue({ id: 'pat-1', userId: USER, profilePhotoUrl: OWN_URL, user: null });
+    await expect(
+      service.update('pat-1', { profilePhotoUrl: `${BASE}profile-photos/someone-else/x.webp` } as any, me),
+    ).rejects.toThrow(BadRequestException);
   });
 });
 

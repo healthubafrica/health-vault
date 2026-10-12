@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { ProvidersService } from './providers.service';
+import { realPhotoResolvers } from '../storage/s3.test-helper';
 
 const BASE = 'https://hha-bucket.s3.us-east-1.amazonaws.com/';
 const OWN = `${BASE}profile-photos/prov-user/p.webp`;
@@ -18,7 +19,7 @@ function build() {
   };
   const openemr = { enqueueProviderSync: jest.fn().mockResolvedValue(undefined) };
   const s3 = {
-    publicUrlFor: (k: string) => `${BASE}${k}`,
+    ...realPhotoResolvers(),
     withSignedPhoto: jest.fn(async (r: any) => (r ? { ...r, profilePhotoUrl: signed(r.profilePhotoUrl) } : r)),
   };
   const service = new ProvidersService(prisma, openemr as any, s3 as any);
@@ -71,5 +72,30 @@ describe('ProvidersService avatar signing', () => {
         { sub: 'admin-1', role: UserRole.admin } as any,
       ),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('update accepts the existing stored value (signed) and leaves the photo and user row untouched', async () => {
+    const { service, prisma } = build();
+    prisma.provider.findUnique.mockResolvedValue({
+      id: '1', userId: 'prov-user', firstName: 'A', lastName: 'B', title: 'Dr.',
+      profilePhotoUrl: OWN, user: { profilePhotoUrl: null },
+    });
+    prisma.provider.update.mockResolvedValue({ id: '1', profilePhotoUrl: OWN });
+    await service.update('1', { profilePhotoUrl: `${OWN}?X-Amz-Signature=abc`, gender: 'Female' } as any, owner);
+    const data = prisma.provider.update.mock.calls[0][0].data;
+    expect('profilePhotoUrl' in data).toBe(false);
+    expect(data.gender).toBe('Female');
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('update accepts a legacy-format stored value unchanged', async () => {
+    const { service, prisma } = build();
+    const legacy = `${BASE}avatars/old.png`;
+    prisma.provider.findUnique.mockResolvedValue({
+      id: '1', userId: 'prov-user', firstName: 'A', lastName: 'B', title: 'Dr.',
+      profilePhotoUrl: legacy, user: null,
+    });
+    prisma.provider.update.mockResolvedValue({ id: '1' });
+    await expect(service.update('1', { profilePhotoUrl: legacy } as any, owner)).resolves.toBeDefined();
   });
 });
