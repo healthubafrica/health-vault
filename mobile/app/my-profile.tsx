@@ -19,6 +19,8 @@ import {
 
 import { ErrorState } from '@/components/states';
 import Colors from '@/constants/Colors';
+import Avatar from '@/components/Avatar';
+import { useMyAvatar } from '@/lib/useMyAvatar';
 import { useColorScheme } from '@/components/useColorScheme';
 import EmergencyFAB from '@/components/EmergencyFAB';
 import EmergencyContactsCard from '@/components/EmergencyContactsCard';
@@ -41,7 +43,7 @@ export default function MyProfileScreen() {
 
   const profile = profileRes?.data;
   const displayName = profile ? `${profile.firstName} ${profile.lastName}` : (authUser ? `${authUser.firstName} ${authUser.lastName}` : 'My Profile');
-  const initials = profile ? `${profile.firstName?.[0] ?? ''}${profile.lastName?.[0] ?? ''}`.toUpperCase() : 'ME';
+  const avatar = useMyAvatar();
   const email = profile?.user?.email ?? authUser?.email ?? '';
   const phone = profile?.user?.phone ?? authUser?.phone ?? '—';
   const dob = profile?.dateOfBirth ? new Date(profile.dateOfBirth).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
@@ -98,8 +100,8 @@ export default function MyProfileScreen() {
         
         {/* Profile Avatar & Basic Info */}
         <View style={[styles.avatarCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <View style={[styles.bigAvatar, { backgroundColor: theme.primaryDark }]}>
-            <Text style={styles.bigAvatarText}>{initials}</Text>
+          <View style={styles.bigAvatar}>
+            <Avatar {...avatar} size={80} />
           </View>
           <Text style={[styles.userName, { color: theme.text }]}>{displayName}</Text>
           <Text style={[styles.userEmail, { color: theme.textMuted }]}>{email}</Text>
@@ -274,15 +276,7 @@ const styles = StyleSheet.create({
   bigAvatar: {
     width: 80,
     height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginBottom: 12,
-  },
-  bigAvatarText: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '800',
   },
   userName: {
     fontSize: 20,

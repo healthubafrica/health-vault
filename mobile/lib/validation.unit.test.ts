@@ -42,6 +42,7 @@ describe('genderForApi', () => {
     expect(genderForApi('female')).toBe('Female');
     expect(genderForApi('male')).toBe('Male');
     expect(genderForApi('other')).toBe('Other');
+    expect(genderForApi('prefer_not_to_say')).toBe('Prefer_not_to_say');
   });
 });
 

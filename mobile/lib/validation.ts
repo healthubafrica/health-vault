@@ -29,8 +29,20 @@ export function parseIsoDob(v: string, now: Date = new Date()): string | null {
   return v;
 }
 
-const GENDER = { female: 'Female', male: 'Male', other: 'Other' } as const;
-export function genderForApi(g: keyof typeof GENDER): (typeof GENDER)[keyof typeof GENDER] {
+const GENDER = {
+  female: 'Female',
+  male: 'Male',
+  other: 'Other',
+  prefer_not_to_say: 'Prefer_not_to_say',
+} as const;
+export type GenderChoice = keyof typeof GENDER;
+export const GENDER_CHOICES: { value: GenderChoice; label: string }[] = [
+  { value: 'female', label: 'Female' },
+  { value: 'male', label: 'Male' },
+  { value: 'other', label: 'Other' },
+  { value: 'prefer_not_to_say', label: 'Prefer not to say' },
+];
+export function genderForApi(g: GenderChoice): (typeof GENDER)[keyof typeof GENDER] {
   return GENDER[g];
 }
 

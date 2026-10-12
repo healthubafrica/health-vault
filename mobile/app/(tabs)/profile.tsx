@@ -35,6 +35,8 @@ import {
 } from 'lucide-react-native';
 
 import Colors from '@/constants/Colors';
+import Avatar from '@/components/Avatar';
+import { useMyAvatar } from '@/lib/useMyAvatar';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useAuthStore } from '@/lib/stores/authStore';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
@@ -54,9 +56,7 @@ export default function MoreMenuScreen() {
   const careTeamCount = careTeamData?.data.length ?? 0;
 
   const displayName = user ? `${user.firstName} ${user.lastName}` : 'My Account';
-  const initials = user
-    ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase()
-    : '?';
+  const avatar = useMyAvatar();
   const email = user?.email ?? '';
 
   const handleLogout = () => {
@@ -95,9 +95,7 @@ export default function MoreMenuScreen() {
             activeOpacity={0.75}
             onPress={() => router.push('/my-profile')}
             style={[styles.userCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <View style={[styles.avatarBox, { backgroundColor: theme.primary }]}>
-              <Text style={styles.avatarText}>{initials}</Text>
-            </View>
+            <Avatar {...avatar} size={48} />
             <View style={styles.userInfo}>
               <Text style={[styles.userName, { color: theme.text }]}>{displayName}</Text>
               <Text style={[styles.userEmail, { color: theme.textMuted }]}>{email}</Text>
@@ -348,18 +346,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 12,
     marginBottom: 8,
-  },
-  avatarBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '800',
   },
   userInfo: {
     flex: 1,

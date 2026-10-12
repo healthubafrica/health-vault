@@ -4,6 +4,7 @@ import { Clock, Video, MapPin } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from './StatusPill';
+import Avatar from './Avatar';
 
 interface AppointmentCardProps {
   providerName: string;
@@ -13,7 +14,8 @@ interface AppointmentCardProps {
   status?: string;
   actionLabel?: string;
   onActionPress?: () => void;
-  initials?: string;
+  /** Provider photo, when the API provides one. */
+  photoUri?: string | null;
 }
 
 export default function AppointmentCard({
@@ -24,9 +26,8 @@ export default function AppointmentCard({
   status = 'confirmed',
   actionLabel = 'Join Call',
   onActionPress,
-  initials,
+  photoUri,
 }: AppointmentCardProps) {
-  const shownInitials = initials || providerName.replace(/^Dr\.?\s*/i, '').slice(0, 2).toUpperCase();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
   const isTele = type === 'TeleCare';
@@ -35,9 +36,7 @@ export default function AppointmentCard({
     <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <View style={styles.topRow}>
         {/* Avatar */}
-        <View style={[styles.avatar, { backgroundColor: theme.primaryLight }]}>
-          <Text style={[styles.avatarText, { color: theme.primary }]}>{shownInitials}</Text>
-        </View>
+        <Avatar uri={photoUri} name={providerName} size={44} />
 
         {/* Info */}
         <View style={styles.info}>
@@ -94,17 +93,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 16,
-    fontWeight: '800',
   },
   info: {
     flex: 1,

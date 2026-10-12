@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
-  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -21,6 +20,8 @@ import {
 } from 'lucide-react-native';
 
 import Colors from '@/constants/Colors';
+import Avatar from '@/components/Avatar';
+import { useMyAvatar } from '@/lib/useMyAvatar';
 import { useColorScheme } from '@/components/useColorScheme';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
 import ServiceCard from '@/components/ServiceCard';
@@ -35,6 +36,7 @@ export default function ServicesTabScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
   const user = useAuthStore((s) => s.user);
+  const avatar = useMyAvatar();
   const cardWidth = getScreenCardWidth();
 
   const todayDateString = new Date().toLocaleDateString('en-GB', {
@@ -78,15 +80,7 @@ export default function ServicesTabScreen() {
           </View>
 
           <View style={styles.userGreetingRow}>
-            {user?.avatarUrl ? (
-              <Image source={{ uri: user.avatarUrl }} style={styles.userAvatar} />
-            ) : (
-              <View style={[styles.userAvatar, styles.avatarFallback, { backgroundColor: theme.primaryLight }]}>
-                <Text style={[styles.avatarInitials, { color: theme.primary }]}>
-                  {user ? `${user.firstName[0] ?? ''}${user.lastName[0] ?? ''}`.toUpperCase() : '?'}
-                </Text>
-              </View>
-            )}
+            <Avatar {...avatar} size={48} />
             <View style={styles.greetingTextCol}>
               <Text style={[styles.greetingTitle, { color: theme.text }]}>Hello, {displayName}!</Text>
             </View>
@@ -301,20 +295,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     marginBottom: 14,
-  },
-  userAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#EAEAEA',
-  },
-  avatarFallback: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarInitials: {
-    fontSize: 16,
-    fontWeight: '800',
   },
   greetingTextCol: {
     flex: 1,
