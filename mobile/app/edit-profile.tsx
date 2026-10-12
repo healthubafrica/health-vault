@@ -10,7 +10,6 @@ import {
   StatusBar,
   TextInput,
   Alert,
-  Image,
   ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -24,6 +23,8 @@ import {
 
 import { ErrorState } from '@/components/states';
 import Colors from '@/constants/Colors';
+import Avatar from '@/components/Avatar';
+import { useMyAvatar } from '@/lib/useMyAvatar';
 import { useColorScheme } from '@/components/useColorScheme';
 import EmergencyFAB from '@/components/EmergencyFAB';
 import { patients, ApiError } from '@/lib/api';
@@ -119,7 +120,8 @@ export default function EditProfileScreen() {
     updateMutation.mutate();
   };
 
-  const photoUrl = authUser?.avatarUrl ?? profile?.profilePhotoUrl ?? undefined;
+  const avatar = useMyAvatar();
+  const photoUrl = avatar.uri;
   const [photoBusy, setPhotoBusy] = useState(false);
 
   const setAvatar = (avatarUrl?: string) => {
@@ -205,13 +207,13 @@ export default function EditProfileScreen() {
         
         {/* Avatar Section */}
         <View style={styles.avatarSection}>
-          <View style={[styles.avatarBox, { backgroundColor: theme.primaryDark }]}>
-            {photoUrl ? (
-              <Image source={{ uri: photoUrl }} style={styles.avatarImage} accessibilityLabel="Profile photo" />
-            ) : (
-              <Text style={styles.avatarText}>{`${formData.firstName[0] ?? ''}${formData.lastName[0] ?? ''}`.toUpperCase() || '·'}</Text>
+          <View style={styles.avatarBox}>
+            <Avatar {...avatar} size={80} />
+            {photoBusy && (
+              <View style={styles.avatarBusy}>
+                <ActivityIndicator color="#FFFFFF" />
+              </View>
             )}
-            {photoBusy && <ActivityIndicator color="#FFFFFF" style={StyleSheet.absoluteFill} />}
           </View>
           <TouchableOpacity
             onPress={handleChangePhoto}
@@ -437,15 +439,14 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginBottom: 10,
   },
-  avatarImage: { width: 80, height: 80, borderRadius: 40 },
-  avatarText: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '800',
+  avatarBusy: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.35)',
   },
   changePhotoBtn: {
     flexDirection: 'row',

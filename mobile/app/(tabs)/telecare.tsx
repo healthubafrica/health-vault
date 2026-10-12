@@ -25,6 +25,8 @@ import {
 
 import { ErrorState, EmptyAnimation } from '@/components/states';
 import Colors from '@/constants/Colors';
+import Avatar from '@/components/Avatar';
+import { providerAvatarProps } from '@/lib/avatar';
 import { useColorScheme } from '@/components/useColorScheme';
 import StatusPill from '@/components/StatusPill';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
@@ -65,9 +67,6 @@ export default function TeleCareWaitingRoomScreen() {
   const providerName = nextTelecare?.provider
     ? `${nextTelecare.provider.title ?? 'Dr.'} ${nextTelecare.provider.firstName} ${nextTelecare.provider.lastName}`
     : 'Provider TBD';
-  const providerInitials = nextTelecare?.provider
-    ? `${nextTelecare.provider.firstName[0] ?? ''}${nextTelecare.provider.lastName[0] ?? ''}`.toUpperCase()
-    : '—';
 
   const joinable = !!nextTelecare && canJoinCall(nextTelecare);
 
@@ -136,9 +135,7 @@ export default function TeleCareWaitingRoomScreen() {
         {/* Appointment Summary Card */}
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.providerRow}>
-            <View style={[styles.avatarBox, { backgroundColor: theme.primaryLight }]}>
-              <Text style={[styles.avatarText, { color: theme.primary }]}>{providerInitials}</Text>
-            </View>
+            <Avatar {...providerAvatarProps(nextTelecare.provider)} size={46} />
             <View style={styles.providerInfo}>
               <Text style={[styles.providerName, { color: theme.text }]}>{providerName}</Text>
               {nextTelecare.provider?.specialty ? (
@@ -259,17 +256,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     marginBottom: 14,
-  },
-  avatarBox: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 16,
-    fontWeight: '800',
   },
   providerInfo: {
     flex: 1,

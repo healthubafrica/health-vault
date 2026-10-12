@@ -22,6 +22,7 @@ import {
 } from 'lucide-react-native';
 
 import Colors from '@/constants/Colors';
+import Avatar from '@/components/Avatar';
 import { useColorScheme } from '@/components/useColorScheme';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
 import { appointments, ApiError, BookableFacility, analytics } from '@/lib/api';
@@ -69,7 +70,8 @@ export default function BookAppointmentStep3Screen() {
     providerId?: string;
     providerName?: string;
     providerSpecialty?: string;
-    providerInitials?: string;
+    providerPhotoUrl?: string;
+    providerGender?: string;
     rescheduleId?: string;
   }>();
 
@@ -163,7 +165,8 @@ export default function BookAppointmentStep3Screen() {
         providerId: params.providerId || '',
         providerName: params.providerName || '',
         providerSpecialty: params.providerSpecialty || '',
-        providerInitials: params.providerInitials || '',
+        providerPhotoUrl: params.providerPhotoUrl || '',
+        providerGender: params.providerGender || '',
         consultationFormat: selectedFormat,
         facilityId,
         facilityName,
@@ -207,11 +210,7 @@ export default function BookAppointmentStep3Screen() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Selected Provider Mini Summary Card */}
         <View style={[styles.selectedProviderChip, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <View style={[styles.avatarBox, { backgroundColor: theme.primaryLight }]}>
-            <Text style={[styles.avatarText, { color: theme.primary }]}>
-              {params.providerInitials || (params.providerName ? params.providerName.replace(/^Dr\.?\s*/i, '').slice(0, 2).toUpperCase() : '')}
-            </Text>
-          </View>
+          <Avatar uri={params.providerPhotoUrl || undefined} gender={params.providerGender || undefined} name={params.providerName} size={44} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.docName, { color: theme.text }]}>
               {params.providerName || 'Care team will assign a clinician'}
@@ -498,17 +497,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     marginBottom: 20,
-  },
-  avatarBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 16,
-    fontWeight: '800',
   },
   docName: {
     fontSize: 14,

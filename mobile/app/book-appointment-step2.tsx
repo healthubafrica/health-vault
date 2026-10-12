@@ -22,15 +22,11 @@ import {
 } from 'lucide-react-native';
 
 import Colors from '@/constants/Colors';
+import Avatar from '@/components/Avatar';
+import { providerAvatarProps } from '@/lib/avatar';
 import { useColorScheme } from '@/components/useColorScheme';
 import TopHeaderEmergency from '@/components/TopHeaderEmergency';
 import { appointments, ServiceProvider, ApiError } from '@/lib/api';
-
-const AVATAR_BGS = ['#EBF5EC', '#E3F2FD', '#FFF4E0', '#FDECEA'];
-
-function initialsOf(provider: ServiceProvider) {
-  return `${provider.firstName[0] ?? ''}${provider.lastName[0] ?? ''}`.toUpperCase();
-}
 
 const SPECIALTY_FILTERS = ['All', 'General Practice', 'Cardiology', 'Endocrinology', 'Pediatrics'];
 
@@ -78,9 +74,10 @@ export default function BookAppointmentStep2Screen() {
               providerId: provider.id,
               providerName: `${provider.title ?? 'Dr.'} ${provider.firstName} ${provider.lastName}`,
               providerSpecialty: provider.specialty || 'General Practitioner',
-              providerInitials: initialsOf(provider),
+              providerPhotoUrl: provider.profilePhotoUrl ?? '',
+              providerGender: provider.gender ?? '',
             }
-          : { providerId: '', providerName: '', providerSpecialty: '', providerInitials: '' }),
+          : { providerId: '', providerName: '', providerSpecialty: '', providerPhotoUrl: '', providerGender: '' }),
       },
     });
   };
@@ -234,11 +231,7 @@ export default function BookAppointmentStep2Screen() {
                 ]}>
                 {/* Top Row: Avatar, Info, and Radio Selection */}
                 <View style={styles.providerTopRow}>
-                  <View style={[styles.avatarBox, { backgroundColor: AVATAR_BGS[index % AVATAR_BGS.length] }]}>
-                    <Text style={[styles.avatarText, { color: theme.primaryDark }]}>
-                      {initialsOf(provider)}
-                    </Text>
-                  </View>
+                  <Avatar {...providerAvatarProps(provider)} size={52} />
 
                   <View style={styles.providerMetaCol}>
                     <Text style={[styles.providerName, { color: theme.text }]}>
@@ -436,17 +429,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-  },
-  avatarBox: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 18,
-    fontWeight: '800',
   },
   providerMetaCol: {
     flex: 1,

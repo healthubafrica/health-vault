@@ -19,6 +19,11 @@ jest.mock('@/lib/api', () => ({
   analytics: { track: jest.fn() },
 }));
 
+// The avatar's profile query is covered by useMyAvatar's own tests.
+jest.mock('@/lib/useMyAvatar', () => ({
+  useMyAvatar: () => ({ uri: undefined, name: 'Ada Okafor', gender: undefined, onImageError: jest.fn() }),
+}));
+
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { analytics } = require('@/lib/api');
 

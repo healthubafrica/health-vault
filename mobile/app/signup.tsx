@@ -1,4 +1,4 @@
-import { genderForApi, isValidPassword, normalizePhone, parseIsoDob, PASSWORD_HINT } from '@/lib/validation';
+import { genderForApi, GENDER_CHOICES, type GenderChoice, isValidPassword, normalizePhone, parseIsoDob, PASSWORD_HINT } from '@/lib/validation';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Linking,
@@ -51,7 +51,7 @@ export default function SignUpScreen() {
   // Form State
   const [fullName, setFullName] = useState('');
   const [dob, setDob] = useState('');
-  const [gender, setGender] = useState<'female' | 'male' | 'other'>('female');
+  const [gender, setGender] = useState<GenderChoice | null>(null);
   const [idNumber, setIdNumber] = useState('');
   // The OTP is single-use. If creating the patient profile fails after it was verified,
   // a retry must reuse these tokens instead of asking for a code that is already spent.
@@ -91,6 +91,10 @@ export default function SignUpScreen() {
       }
       if (!parseIsoDob(dob.trim())) {
         Alert.alert('Date of birth', 'Enter your date of birth as YYYY-MM-DD (for example 1990-04-12).');
+        return;
+      }
+      if (!gender) {
+        Alert.alert('Required', 'Please select your gender.');
         return;
       }
       if (!acquisitionSource) {
@@ -173,7 +177,7 @@ export default function SignUpScreen() {
             firstName: fullName.trim().split(' ')[0] ?? fullName.trim(),
             lastName: fullName.trim().split(' ').slice(1).join(' ') || '',
             dateOfBirth: parseIsoDob(dob.trim()) as string,
-            gender: genderForApi(gender),
+            gender: genderForApi(gender as GenderChoice),
             country: 'Nigeria',
             ...(idNumber.trim() ? { nin: idNumber.trim() } : {}),
           });
@@ -189,6 +193,7 @@ export default function SignUpScreen() {
           lastName: profile.lastName,
           phone: profile.user.phone ?? undefined,
           avatarUrl: profile.profilePhotoUrl ?? undefined,
+          gender: profile.gender,
         });
 
         router.replace('/(tabs)');
@@ -319,12 +324,14 @@ export default function SignUpScreen() {
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Gender</Text>
-                  <View style={styles.genderRow}>
-                    {(['female', 'male', 'other'] as const).map((g) => (
+                  <View style={styles.genderRow} accessibilityRole="radiogroup">
+                    {GENDER_CHOICES.map(({ value: g, label }) => (
                       <TouchableOpacity
                         key={g}
                         onPress={() => setGender(g)}
                         activeOpacity={0.8}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: gender === g }}
                         style={[
                           styles.genderOption,
                           gender === g && styles.genderOptionSelected,
@@ -334,7 +341,7 @@ export default function SignUpScreen() {
                             styles.genderOptionText,
                             gender === g && styles.genderOptionTextSelected,
                           ]}>
-                          {g.charAt(0).toUpperCase() + g.slice(1)}
+                          {label}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -655,6 +662,7 @@ const styles = StyleSheet.create({
   },
   genderRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
   sourceGrid: {
@@ -672,7 +680,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   genderOption: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: '22%',
+    paddingHorizontal: 8,
     height: 44,
     borderRadius: 12,
     borderWidth: 1.2,
