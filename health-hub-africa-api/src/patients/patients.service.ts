@@ -642,15 +642,19 @@ export class PatientsService {
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) throw new BadRequestException('Incorrect password');
 
+    // Inactive only — no deletedAt: data is retained, and admin reactivation
+    // (which flips isActive back) must be able to restore access. Push devices
+    // are dropped so a deactivated patient's phone stops receiving alerts.
     await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: currentUser.sub },
-        data: { isActive: false, deletedAt: new Date() },
+        data: { isActive: false },
       }),
       this.prisma.userSession.updateMany({
         where: { userId: currentUser.sub, revokedAt: null },
         data: { revokedAt: new Date() },
       }),
+      this.prisma.deviceToken.deleteMany({ where: { userId: currentUser.sub } }),
     ]);
 
     await this.notifications.sendEmail(
