@@ -10,10 +10,14 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.myvaultplus.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
       "infoPlist": {
-        "NSCameraUsageDescription": "MyHealth Vault+ needs camera access for TeleCare video consultations.",
+        "UIBackgroundModes": ["audio"],
+        "NSCameraUsageDescription": "MyHealth Vault+ uses your camera for TeleCare video consultations and to scan medical documents into your vault.",
         "NSMicrophoneUsageDescription": "MyHealth Vault+ needs microphone access for TeleCare video consultations.",
         "NSLocationWhenInUseUsageDescription": "MyHealth Vault+ uses your location only when you request emergency dispatch, so responders can find you."
       }
@@ -34,7 +38,9 @@
         "BLUETOOTH",
         "POST_NOTIFICATIONS",
         "VIBRATE",
-        "RECEIVE_BOOT_COMPLETED"
+        "RECEIVE_BOOT_COMPLETED",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_MICROPHONE"
       ]
     },
     "web": {
@@ -64,7 +70,7 @@
       [
         "@config-plugins/react-native-webrtc",
         {
-          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera for TeleCare video calls",
+          "cameraPermission": "Allow $(PRODUCT_NAME) to use your camera for TeleCare video calls and to scan medical documents",
           "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone for TeleCare video calls"
         }
       ],
@@ -72,7 +78,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "MyHealth Vault+ needs access to your photos so you can choose a profile picture."
+          "photosPermission": "MyHealth Vault+ needs access to your photos so you can choose a profile picture.",
+          "cameraPermission": "MyHealth Vault+ uses your camera for TeleCare video consultations and to scan medical documents into your vault."
         }
       ],
       [
@@ -88,7 +95,8 @@
           "locationWhenInUsePermission": "MyHealth Vault+ uses your location only when you request emergency dispatch, so responders can find you."
         }
       ],
-      "@sentry/react-native/expo"
+      "@sentry/react-native/expo",
+      "./plugins/withCallForegroundService"
     ],
     "experiments": {
       "typedRoutes": true
