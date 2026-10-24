@@ -9,7 +9,8 @@
       "distribution": "internal",
       "channel": "development",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.myvaultplus.com"
+        "EXPO_PUBLIC_API_URL": "https://api.myvaultplus.com",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "preview": {
@@ -19,14 +20,16 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.myvaultplus.com"
+        "EXPO_PUBLIC_API_URL": "https://api.myvaultplus.com",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "production": {
       "autoIncrement": true,
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.myvaultplus.com"
+        "EXPO_PUBLIC_API_URL": "https://api.myvaultplus.com",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     }
   },
