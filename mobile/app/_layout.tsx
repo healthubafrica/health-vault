@@ -1,11 +1,11 @@
 import { useFonts } from 'expo-font';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Notifications from 'expo-notifications';
 import * as Sentry from '@sentry/react-native';
-import { useEffect, useRef } from 'react';
-import { Platform, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { AppState, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -23,6 +23,23 @@ export {
 export const unstable_settings = {
   initialRouteName: 'index',
 };
+
+const BIOMETRIC_RELOCK_MS = 5 * 60_000;
+
+// Top-level routes reachable without a session. `payments` is the gateway's
+// return deep link (its verify call is public); everything else needs sign-in.
+const PUBLIC_ROUTES = new Set([
+  'index',
+  'splash',
+  'onboarding',
+  'login',
+  'signup',
+  'reset-password',
+  'payments',
+  'privacy-policy',
+  'terms-conditions',
+  '+not-found',
+]);
 
 SplashScreen.preventAutoHideAsync();
 
@@ -87,43 +104,69 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
   const router = useRouter();
+  const segments = useSegments();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isRestoring = useAuthStore((s) => s.isLoading);
 
-  // If a signed-in session dies (refresh rejected), return to sign-in rather
-  // than leaving the user on screens that can no longer load anything.
-  const wasAuthenticated = useRef(false);
+  // Route guard: anything outside the public screens needs a session. Covers a
+  // dead session (refresh rejected), sign-out/deletion, and deep links or
+  // notification taps that land on a protected screen while signed out.
+  const topSegment = segments[0] ?? 'index';
   useEffect(() => {
-    if (wasAuthenticated.current && !isAuthenticated) router.replace('/login');
-    wasAuthenticated.current = isAuthenticated;
-  }, [isAuthenticated]);
+    if (!isRestoring && !isAuthenticated && !PUBLIC_ROUTES.has(topSegment)) router.replace('/login');
+  }, [isRestoring, isAuthenticated, topSegment]);
 
+  // Re-lock with biometrics after the app has been in the background for a
+  // while, same rule as cold start (only when biometrics are enrolled).
+  const [locked, setLocked] = useState(false);
+  const authenticateWithBiometrics = useAuthStore((s) => s.authenticateWithBiometrics);
+  const unlock = () => authenticateWithBiometrics().then((ok) => ok && setLocked(false));
+  const backgroundedAt = useRef<number | null>(null);
   useEffect(() => {
-    // 1. Register push notifications (FCM on Android / APNs on iOS)
+    const sub = AppState.addEventListener('change', async (state) => {
+      if (state === 'background') {
+        backgroundedAt.current = Date.now();
+        return;
+      }
+      if (state !== 'active' || backgroundedAt.current === null) return;
+      const away = Date.now() - backgroundedAt.current;
+      backgroundedAt.current = null;
+      if (useAuthStore.getState().isAuthenticated && away >= BIOMETRIC_RELOCK_MS && (await useAuthStore.getState().checkBiometrics())) {
+        setLocked(true);
+        unlock();
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  // Ask for push permission only once signed in, never on the first-launch splash.
+  useEffect(() => {
+    if (!isAuthenticated) return;
     registerForPushNotificationsAsync().then((result) => {
       if (result.success && (result.expoPushToken || result.devicePushToken)) {
-        if (isAuthenticated) {
-          syncPushTokenWithBackend({
-            expoPushToken: result.expoPushToken,
-            devicePushToken: result.devicePushToken,
-          });
-        }
+        syncPushTokenWithBackend({
+          expoPushToken: result.expoPushToken,
+          devicePushToken: result.devicePushToken,
+        });
       }
     });
-
-    // 2. Handle deep linking when user taps an incoming notification
-    const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data;
-      if (data?.route) {
-        router.push(data.route as any);
-      } else if (data?.url) {
-        router.push(data.url as any);
-      }
-    });
-
-    return () => {
-      responseSubscription.remove();
-    };
   }, [isAuthenticated]);
+
+  // Notification taps, including the one that cold-started the app. Only
+  // in-app paths are followed; each response is handled once.
+  const lastResponse = Notifications.useLastNotificationResponse();
+  const handledResponseId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!lastResponse || !isAuthenticated) return;
+    const id = lastResponse.notification.request.identifier;
+    if (handledResponseId.current === id) return;
+    handledResponseId.current = id;
+    const data = lastResponse.notification.request.content.data ?? {};
+    const target = data.route ?? data.url;
+    if (typeof target === 'string' && target.startsWith('/') && !target.startsWith('//')) {
+      router.push(target as never);
+    }
+  }, [lastResponse, isAuthenticated]);
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -390,8 +433,26 @@ function RootLayoutNav() {
         <Stack.Screen name="expert-review-case" options={{ headerShown: false }} />
         <Stack.Screen name="expert-review-new" options={{ headerShown: false }} />
       </Stack>
+      {locked ? (
+        <View style={[StyleSheet.absoluteFill, styles.lockScreen, { backgroundColor: theme.background }]}>
+          <Text style={[styles.lockTitle, { color: theme.text }]}>MyHealth Vault+ is locked</Text>
+          <TouchableOpacity
+            onPress={unlock}
+            accessibilityRole="button"
+            style={[styles.lockBtn, { backgroundColor: theme.primary }]}>
+            <Text style={styles.lockBtnText}>Unlock</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
     </ThemeProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  lockScreen: { alignItems: 'center', justifyContent: 'center', gap: 20, padding: 24 },
+  lockTitle: { fontSize: 18, fontWeight: '800', textAlign: 'center' },
+  lockBtn: { paddingHorizontal: 32, paddingVertical: 14, borderRadius: 14 },
+  lockBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+});
 
 export default Sentry.wrap(RootLayout);

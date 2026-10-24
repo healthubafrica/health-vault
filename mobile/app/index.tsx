@@ -53,13 +53,16 @@ export default function AppEntrySplashScreen() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Signed-in users go straight to the app; everyone else to onboarding.
+  // Signed-in users go straight to the app as soon as the session is restored;
+  // everyone else sees the brand splash for its minimum time, then onboarding.
   useEffect(() => {
-    if (!minSplashDone || isRestoring) return;
-    router.replace(isAuthenticated ? '/(tabs)' : '/onboarding');
+    if (isRestoring) return;
+    if (isAuthenticated) router.replace('/(tabs)');
+    else if (minSplashDone) router.replace('/onboarding');
   }, [minSplashDone, isRestoring, isAuthenticated]);
 
   const handleManualAdvance = () => {
+    if (isRestoring) return;
     router.replace(isAuthenticated ? '/(tabs)' : '/onboarding');
   };
 

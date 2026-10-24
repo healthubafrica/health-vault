@@ -120,9 +120,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return false;
       }
       if (outcome === 'unreachable') {
-        // Offline at launch: keep the stored session, let screens retry.
-        set({ isLoading: false });
-        return false;
+        // Offline at launch: the stored session may well be valid, so stay signed
+        // in and let screens show their offline/retry states. The profile (user)
+        // is unknown until a request succeeds; a later rejected refresh still
+        // signs out via the session-expired handler.
+        set({ isAuthenticated: true, isLoading: false });
+        return true;
       }
 
       const { data: profile } = await patients.getMyProfile();
