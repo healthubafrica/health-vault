@@ -34,7 +34,7 @@ export default function PrivacyPolicyScreen() {
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
         <TouchableOpacity
           activeOpacity={0.7}
-          onPress={() => router.back()}
+          onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back"
           style={styles.backBtn}>
           <ChevronLeft size={24} color={theme.text} />
         </TouchableOpacity>
@@ -46,17 +46,17 @@ export default function PrivacyPolicyScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
 
-        {/* POPIA & GDPR Pill */}
-        <View style={[styles.popiaPill, { backgroundColor: '#EAF5E2', borderColor: '#B7E0A5' }]}>
-          <Shield size={18} color="#006022" />
-          <Text style={styles.popiaPillText}>POPIA Act No. 4 of 2013 & GDPR Certified</Text>
+        {/* NDPA Pill */}
+        <View style={[styles.popiaPill, { backgroundColor: theme.status.success.background, borderColor: theme.status.success.border }]}>
+          <Shield size={18} color={theme.status.success.text} />
+          <Text style={[styles.popiaPillText, { color: theme.status.success.text }]}>Protected under the Nigeria Data Protection Act 2023</Text>
         </View>
 
         {/* Section 1 */}
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Text style={[styles.sectionHeading, { color: theme.text }]}>1. Special Personal Health Information</Text>
           <Text style={[styles.paragraph, { color: theme.textMuted }]}>
-            Health Hub Africa processes special categories of personal data, including diagnostic lab reports, biometric vitals (blood pressure, pulse, SpO₂), medical aid scheme identifiers, and clinician consultation notes.
+            Health Hub Africa processes special categories of personal data, including diagnostic lab reports, biometric vitals (blood pressure, pulse, SpO₂), HMO and health insurance identifiers, and clinician consultation notes.
           </Text>
         </View>
 
@@ -64,7 +64,7 @@ export default function PrivacyPolicyScreen() {
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Text style={[styles.sectionHeading, { color: theme.text }]}>2. Purpose of Data Processing</Text>
           <Text style={[styles.paragraph, { color: theme.textMuted }]}>
-            Your health records are processed strictly to deliver continuous patient care, facilitate remote clinical consultations, provide emergency paramedic triage, and enable electronic medical aid claims. We never sell, monetize, or disclose your health data to advertising brokers.
+            Your health records are processed strictly to deliver continuous patient care, facilitate remote clinical consultations, provide emergency paramedic triage, and process HMO and insurance claims. We never sell, monetize, or disclose your health data to advertising brokers.
           </Text>
         </View>
 
@@ -72,7 +72,7 @@ export default function PrivacyPolicyScreen() {
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Text style={[styles.sectionHeading, { color: theme.text }]}>3. Data Subject Rights</Text>
           <Text style={[styles.paragraph, { color: theme.textMuted }]}>
-            Under POPIA and international data protection standards, you have the right to request a complete cryptographic export of your medical vault records, revoke clinician access tokens at any time, or request the permanent deletion of your profile.
+            Under the Nigeria Data Protection Act 2023, you have the right to request a copy of your health records, withdraw sharing access you have granted at any time, and delete your account. Deleting your account deactivates it; your health records are retained as required for clinical record-keeping.
           </Text>
         </View>
 

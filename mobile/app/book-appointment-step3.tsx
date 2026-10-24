@@ -184,7 +184,7 @@ export default function BookAppointmentStep3Screen() {
 
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={styles.backBtn} activeOpacity={0.7}>
           <ChevronLeft size={22} color={theme.primary} />
           <Text style={[styles.backText, { color: theme.primary }]}>Back</Text>
         </TouchableOpacity>
@@ -207,7 +207,7 @@ export default function BookAppointmentStep3Screen() {
         </Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Selected Provider Mini Summary Card */}
         <View style={[styles.selectedProviderChip, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Avatar uri={params.providerPhotoUrl || undefined} gender={params.providerGender || undefined} name={params.providerName} size={44} />
@@ -220,9 +220,9 @@ export default function BookAppointmentStep3Screen() {
             </Text>
           </View>
           {params.providerId ? (
-            <View style={styles.verifiedPill}>
-              <Check size={12} color="#006022" />
-              <Text style={styles.verifiedText}>Verified</Text>
+            <View style={[styles.verifiedPill, { backgroundColor: theme.status.success.background }]}>
+              <Check size={12} color={theme.status.success.text} />
+              <Text style={[styles.verifiedText, { color: theme.status.success.text }]}>Verified</Text>
             </View>
           ) : null}
         </View>
@@ -283,7 +283,7 @@ export default function BookAppointmentStep3Screen() {
         {/* Date Selector Strip */}
         <View style={styles.section}>
           <Text style={[styles.sectionSubtitle, { color: theme.textMuted }]}>SELECT DATE</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateScroll}>
+          <ScrollView automaticallyAdjustKeyboardInsets horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateScroll}>
             {DATES.map((item) => {
               const isSelected = selectedDate === item.dateStr;
               return (
@@ -423,7 +423,7 @@ export default function BookAppointmentStep3Screen() {
       <View style={[styles.bottomBar, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
         <TouchableOpacity
           activeOpacity={0.8}
-          onPress={() => router.back()}
+          onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back"
           style={[styles.cancelBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Text style={[styles.cancelBtnText, { color: theme.text }]}>Back</Text>
         </TouchableOpacity>

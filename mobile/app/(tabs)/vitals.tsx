@@ -130,7 +130,7 @@ export default function VitalsListFull() {
     }
     switch (status) {
       case 'green':
-        return '#006022';
+        return theme.status.success.text;
       case 'amber':
         return '#92610A';
       case 'red':

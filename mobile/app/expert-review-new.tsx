@@ -91,7 +91,7 @@ export default function ExpertReviewNewScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-        <TouchableOpacity activeOpacity={0.7} onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity activeOpacity={0.7} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={styles.backBtn}>
           <ChevronLeft size={24} color={theme.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: theme.text }]}>Submit a Case</Text>
@@ -99,7 +99,7 @@ export default function ExpertReviewNewScreen() {
       </View>
 
       {submit.isSuccess ? (
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={styles.content}>
           <SuccessState
             title="Case submitted"
             message="Your Expert Review case has been received. You can follow its progress in your case list."
@@ -109,7 +109,7 @@ export default function ExpertReviewNewScreen() {
           />
         </ScrollView>
       ) : (
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={[styles.label, { color: theme.text }]}>Review type</Text>
           {chips(REVIEW_TYPES, values.reviewType, reviewTypeLabel, (o) => set('reviewType', o))}
           {errorText(errors.reviewType)}

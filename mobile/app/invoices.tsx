@@ -98,7 +98,7 @@ export default function InvoicesScreen() {
 
         <TouchableOpacity
           activeOpacity={0.7}
-          onPress={() => router.back()}
+          onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back"
           style={styles.backBtn}>
           <ChevronLeft size={24} color={theme.text} />
         </TouchableOpacity>
@@ -200,14 +200,14 @@ export default function InvoicesScreen() {
                   <View
                     style={[
                       styles.statusPill,
-                      { backgroundColor: isPaid ? '#EAF5E2' : '#FEF3F2' },
+                      { backgroundColor: isPaid ? theme.status.success.background : theme.status.emergency.background },
                     ]}>
                     {isPaid ? (
-                      <CheckCircle2 size={12} color="#006022" />
+                      <CheckCircle2 size={12} color={theme.status.success.text} />
                     ) : (
                       <Clock size={12} color="#B42318" />
                     )}
-                    <Text style={[styles.statusPillText, { color: isPaid ? '#006022' : '#B42318' }]}>
+                    <Text style={[styles.statusPillText, { color: isPaid ? theme.status.success.text : theme.status.emergency.text }]}>
                       {isPaid ? 'PAID' : p.status === 'pending' ? 'PENDING' : p.status.toUpperCase()}
                     </Text>
                   </View>

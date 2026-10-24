@@ -102,7 +102,7 @@ export default function HelpSupportScreen() {
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
         <TouchableOpacity
           activeOpacity={0.7}
-          onPress={() => router.back()}
+          onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back"
           style={styles.backBtn}>
           <ChevronLeft size={24} color={theme.text} />
         </TouchableOpacity>
@@ -110,7 +110,7 @@ export default function HelpSupportScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView
+      <ScrollView automaticallyAdjustKeyboardInsets
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
 

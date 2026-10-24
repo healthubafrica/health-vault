@@ -62,7 +62,7 @@ export default function LabResultDetailScreen() {
     Alert.alert('Not available', 'Downloadable lab report PDFs are not available for this order yet.');
   };
 
-  const getStatusColor = (isFlagged: boolean) => (isFlagged ? '#C0392B' : '#006022');
+  const getStatusColor = (isFlagged: boolean) => (isFlagged ? theme.status.emergency.text : theme.status.success.text);
   const getStatusLabel = (isFlagged: boolean) => (isFlagged ? 'Flagged' : 'Normal');
 
   if (isLoading) {
@@ -79,7 +79,7 @@ export default function LabResultDetailScreen() {
 
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={styles.backBtn} activeOpacity={0.7}>
           <ChevronLeft size={22} color={theme.primary} />
           <Text style={[styles.backText, { color: theme.primary }]}>Back</Text>
         </TouchableOpacity>

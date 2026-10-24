@@ -80,7 +80,7 @@ export default function ResetPasswordScreen() {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityLabel="Back">
+        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={styles.backBtn}>
           <ChevronLeft size={22} color="#275E52" />
           <Text style={styles.backText}>Back</Text>
         </TouchableOpacity>

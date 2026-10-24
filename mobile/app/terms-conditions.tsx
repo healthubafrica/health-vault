@@ -32,7 +32,7 @@ export default function TermsConditionsScreen() {
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
         <TouchableOpacity
           activeOpacity={0.7}
-          onPress={() => router.back()}
+          onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back"
           style={styles.backBtn}>
           <ChevronLeft size={24} color={theme.text} />
         </TouchableOpacity>
@@ -56,10 +56,10 @@ export default function TermsConditionsScreen() {
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Text style={[styles.sectionHeading, { color: theme.text }]}>1. Clinical Telehealth Services</Text>
           <Text style={[styles.paragraph, { color: theme.textMuted }]}>
-            MyHealth Vault+ provides secure audiovisual telecommunication facilitating remote medical consultations between registered patients and accredited healthcare practitioners licensed under the Health Professions Council of South Africa (HPCSA).
+            MyHealth Vault+ provides secure audiovisual telecommunication facilitating remote medical consultations between registered patients and accredited healthcare practitioners licensed by the Medical and Dental Council of Nigeria (MDCN) or their relevant professional regulator.
           </Text>
           <Text style={[styles.paragraph, { color: theme.textMuted }]}>
-            Telemedicine does not replace comprehensive physical in-clinic examinations for urgent or acute conditions. In the event of a life-threatening crisis, patients must immediately utilize the in-app SOS paramedic beacon or dial 10177.
+            Telemedicine does not replace comprehensive physical in-clinic examinations for urgent or acute conditions. In the event of a life-threatening crisis, patients must immediately utilize the in-app SOS paramedic beacon or dial 112.
           </Text>
         </View>
 
@@ -67,23 +67,23 @@ export default function TermsConditionsScreen() {
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Text style={[styles.sectionHeading, { color: theme.text }]}>2. Electronic Prescriptions & Pharmacy Dispensing</Text>
           <Text style={[styles.paragraph, { color: theme.textMuted }]}>
-            Digital prescriptions generated through our platform comply with the Medicines and Related Substances Act. Prescriptions are cryptographically signed by registered practitioners and routed exclusively to certified dispensing pharmacies.
+            Digital prescriptions issued through our platform are written by registered practitioners and are subject to Nigerian pharmacy regulation, including the Pharmacy Council of Nigeria and NAFDAC requirements.
           </Text>
         </View>
 
         {/* Section 3 */}
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.sectionHeading, { color: theme.text }]}>3. Encrypted Health Data & POPIA Compliance</Text>
+          <Text style={[styles.sectionHeading, { color: theme.text }]}>3. Health Data Protection</Text>
           <Text style={[styles.paragraph, { color: theme.textMuted }]}>
-            Your health records, lab reports, and vitals are encrypted client-side using AES-256 standards in full adherence with the Protection of Personal Information Act (POPIA No. 4 of 2013). You retain full ownership and discretion over sharing permissions.
+            Your health records, lab reports, and vitals are encrypted in transit and at rest, and are processed in line with the Nigeria Data Protection Act 2023. You control who your records are shared with.
           </Text>
         </View>
 
         {/* Section 4 */}
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.sectionHeading, { color: theme.text }]}>4. Medical Scheme Claims & Billing</Text>
+          <Text style={[styles.sectionHeading, { color: theme.text }]}>4. HMO Claims & Billing</Text>
           <Text style={[styles.paragraph, { color: theme.textMuted }]}>
-            Health Hub Africa processes direct electronic billing submissions to affiliated medical schemes. Any balance not settled or rejected by your scheme remains the financial responsibility of the principal member.
+            Health Hub Africa can bill affiliated HMOs and health insurers directly. Any balance your HMO or insurer does not settle remains the financial responsibility of the enrollee.
           </Text>
         </View>
 

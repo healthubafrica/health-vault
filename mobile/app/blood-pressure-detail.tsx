@@ -74,7 +74,7 @@ export default function BloodPressureTrendDetailScreen() {
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back"
           style={styles.backBtn}
           activeOpacity={0.7}>
           <ChevronLeft size={22} color={theme.primary} />
