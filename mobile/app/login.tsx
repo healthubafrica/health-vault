@@ -1,316 +1,151 @@
-import React, { useState } from 'react';
-import {
-  StyleSheet,
-  Text,
-  View,
-  TextInput,
-  TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Image,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
+import React, { useRef, useState } from 'react';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Eye, EyeOff } from 'lucide-react-native';
-import BotanicalBackground from '@/components/BotanicalBackground';
-import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
+import { ArrowLeft, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from 'lucide-react-native';
 import { auth, patients, setAccessToken, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/authStore';
+import { Action, Brand, Entrance, welcome as c } from '@/components/welcome/WelcomeUI';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme() ?? 'light';
-  const theme = Colors[colorScheme];
-  const loginStore = useAuthStore((s) => s.login);
-
+  const loginStore = useAuthStore(state => state.login);
+  const passwordRef = useRef<TextInput>(null);
+  const submitting = useRef(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-
-  const handleForgotPassword = () => {
-    router.push({ pathname: '/reset-password', params: { email: email.trim() } } as never);
-  };
-
-  const completeLogin = async (accessToken: string, refreshToken: string) => {
-    // Must happen before any authenticated request below — apiRequest reads
-    // this in-memory token synchronously, and it isn't set until loginStore
-    // runs. Fetching the profile first sent every fresh login out with no
-    // Authorization header, which 401'd, found no refresh token saved yet
-    // either, and surfaced as a false "Your session has expired" error.
-    setAccessToken(accessToken);
-
-    // Fetch full patient profile
-    const { data: profile } = await patients.getMyProfile();
-
-    await loginStore(accessToken, refreshToken, {
-      id: profile.id,
-      email: profile.user.email,
-      firstName: profile.firstName,
-      lastName: profile.lastName,
-      phone: profile.user.phone ?? undefined,
-      avatarUrl: profile.profilePhotoUrl ?? undefined,
-      gender: profile.gender,
-    });
-
-    router.replace('/(tabs)');
-  };
+  const [focused, setFocused] = useState<'email' | 'password' | null>(null);
+  const [error, setError] = useState('');
 
   const handleLogin = async () => {
-    if (!email.trim() || !password) {
-      Alert.alert('Missing fields', 'Please enter your email and password.');
-      return;
-    }
-
+    if (submitting.current) return;
+    if (!email.trim() || !password) { setError('Please enter your email address and password.'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError('Please enter a valid email address.'); return; }
+    submitting.current = true;
     setIsLoading(true);
+    setError('');
     try {
       const result = await auth.login(email.trim(), password);
-
-      await completeLogin(result.accessToken, result.refreshToken);
+      // The profile request needs this token before the persisted session exists.
+      setAccessToken(result.accessToken);
+      const { data: profile } = await patients.getMyProfile();
+      await loginStore(result.accessToken, result.refreshToken, {
+        id: profile.id, email: profile.user.email, firstName: profile.firstName,
+        lastName: profile.lastName, phone: profile.user.phone ?? undefined,
+        avatarUrl: profile.profilePhotoUrl ?? undefined, gender: profile.gender,
+      });
+      router.replace('/(tabs)');
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : 'Login failed. Please try again.';
-      Alert.alert('Sign In Failed', msg);
-    } finally {
-      setIsLoading(false);
-    }
+      setAccessToken(null);
+      setError(err instanceof ApiError ? err.message : 'We could not sign you in. Please try again.');
+    } finally { submitting.current = false; setIsLoading(false); }
   };
 
-  return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-
-      {/* Top Banner */}
-      <View style={styles.topBanner}>
-        <BotanicalBackground showClover={true} opacity={0.8} />
-        <SafeAreaView style={styles.topSafeArea}>
-          <View style={styles.logoRow}>
-            <Image
-              source={require('@/assets/images/splash-icon.png')}
-              style={styles.brandIcon}
-              resizeMode="contain"
-            />
-          </View>
-          <View style={styles.greetingContainer}>
-            <Text style={styles.welcomeTitle}>Welcome</Text>
-            <Text style={styles.welcomeSubtitle}>Sign in to continue</Text>
-          </View>
-        </SafeAreaView>
-      </View>
-
-      {/* Bottom Sheet Card */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.bottomCardContainer}>
-        <View style={styles.bottomCard}>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={styles.cardScrollContent}>
-
-            {/* Email Field */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Email address</Text>
-              <View style={styles.inputWrapper}>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Enter your email"
-                  placeholderTextColor="#98A2B3"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  value={email}
-                  onChangeText={setEmail}
-                />
-              </View>
-            </View>
-
-            {/* Password Field */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Password</Text>
-              <View style={styles.inputWrapper}>
-                <TextInput
-                  style={[styles.textInput, { paddingRight: 44 }]}
-                  placeholder="Enter your password"
-                  placeholderTextColor="#98A2B3"
-                  secureTextEntry={!showPassword}
-                  value={password}
-                  onChangeText={setPassword}
-                />
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={styles.eyeBtn}>
-                  {showPassword ? (
-                    <EyeOff size={18} color="#275E52" />
-                  ) : (
-                    <Eye size={18} color="#275E52" />
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-
-
-            {/* Login Button */}
-            <TouchableOpacity
-              activeOpacity={0.85}
-              disabled={isLoading}
-              onPress={handleLogin}
-              style={[styles.loginBtn, isLoading && { opacity: 0.7 }]}>
-              {isLoading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.loginBtnText}>Sign In</Text>
-              )}
-            </TouchableOpacity>
-
-            {/* Footer Links */}
-            <View style={styles.footerLinksRow}>
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => router.push('/signup')}>
-                <Text style={styles.signUpLinkText}>Create account</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={handleForgotPassword}>
-                <Text style={styles.forgotPasswordLinkText}>Forgot Password?</Text>
-              </TouchableOpacity>
-            </View>
-
-          </ScrollView>
+  return <SafeAreaView style={styles.screen}>
+    <StatusBar barStyle="dark-content" backgroundColor={c.paper} />
+    <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        <View style={styles.header}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Back to introduction"
+            onPress={() => router.canGoBack() ? router.back() : router.replace('/onboarding')} style={styles.back}>
+            <ArrowLeft size={21} color={c.ink} />
+          </Pressable>
+          <Brand />
         </View>
-      </KeyboardAvoidingView>
-    </View>
-  );
+        <Entrance style={styles.intro}>
+          <View style={styles.symbol}><LockKeyhole size={27} color={c.green} strokeWidth={1.4} /></View>
+          <Text style={styles.eyebrow}>YOUR VAULT IS RIGHT HERE</Text>
+          <Text style={styles.title} accessibilityRole="header">Welcome{'\n'}back.</Text>
+          <Text style={styles.subtitle}>Sign in to pick up where you left off.</Text>
+        </Entrance>
+        <View style={styles.form}>
+          <Text nativeID="email-label" style={styles.label}>Email address</Text>
+          <View style={[styles.inputWrap, focused === 'email' && styles.focused]}>
+            <Mail size={19} color={c.muted} strokeWidth={1.5} />
+            <TextInput accessibilityLabel="Email address" accessibilityLabelledBy="email-label"
+              placeholder="you@example.com" placeholderTextColor="#7A877E" keyboardType="email-address"
+              autoCapitalize="none" autoCorrect={false} autoComplete="email" textContentType="emailAddress"
+              value={email} onChangeText={value => { setEmail(value); setError(''); }} style={styles.input}
+              onFocus={() => setFocused('email')} onBlur={() => setFocused(null)} editable={!isLoading}
+              returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} />
+          </View>
+          <View style={styles.passwordHeading}>
+            <Text nativeID="password-label" style={styles.label}>Password</Text>
+            <Pressable accessibilityRole="button" disabled={isLoading} style={styles.forgot}
+              onPress={() => router.push({ pathname: '/reset-password', params: { email: email.trim() } } as never)}>
+              <Text style={styles.forgotText}>Forgot password?</Text>
+            </Pressable>
+          </View>
+          <View style={[styles.inputWrap, focused === 'password' && styles.focused]}>
+            <LockKeyhole size={19} color={c.muted} strokeWidth={1.5} />
+            <TextInput ref={passwordRef} accessibilityLabel="Password" accessibilityLabelledBy="password-label"
+              placeholder="Enter your password" placeholderTextColor="#7A877E" secureTextEntry={!showPassword}
+              autoCapitalize="none" autoCorrect={false} autoComplete="current-password" textContentType="password"
+              value={password} onChangeText={value => { setPassword(value); setError(''); }} style={styles.input}
+              onFocus={() => setFocused('password')} onBlur={() => setFocused(null)} editable={!isLoading}
+              returnKeyType="go" onSubmitEditing={handleLogin} />
+            <Pressable accessibilityRole="button" accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+              accessibilityState={{ selected: showPassword }} onPress={() => setShowPassword(value => !value)} style={styles.eye}>
+              {showPassword ? <EyeOff size={20} color={c.green} /> : <Eye size={20} color={c.green} />}
+            </Pressable>
+          </View>
+          {!!error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
+          <View style={styles.submit}>
+            <Action label={isLoading ? 'Signing in' : 'Sign in'} disabled={isLoading} onPress={handleLogin}>
+              {isLoading ? <View style={styles.busy}><ActivityIndicator color={c.white} /><Text style={styles.busyText}>Signing in…</Text></View> : undefined}
+            </Action>
+          </View>
+          <Pressable accessibilityRole="button" disabled={isLoading} onPress={() => router.push('/signup')} style={styles.signup}>
+            <Text style={styles.signupText}>New to MyHealth Vault+? <Text style={styles.link}>Create account</Text></Text>
+          </Pressable>
+        </View>
+        <View style={styles.bottom}>
+          <View style={styles.reassurance}><ShieldCheck size={16} color={c.green} strokeWidth={1.5} />
+            <Text style={styles.reassuranceText}>Your health is personal. Your vault is too.</Text></View>
+          <View style={styles.legal}>
+            <Pressable accessibilityRole="link" onPress={() => router.push('/privacy-policy')} style={styles.legalLink}><Text style={styles.legalText}>Privacy policy</Text></Pressable>
+            <Text style={styles.legalText}>·</Text>
+            <Pressable accessibilityRole="link" onPress={() => router.push('/terms-conditions')} style={styles.legalLink}><Text style={styles.legalText}>Terms of use</Text></Pressable>
+          </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  </SafeAreaView>;
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#275E52',
-  },
-  topBanner: {
-    height: '46%',
-    backgroundColor: '#275E52',
-    position: 'relative',
-    justifyContent: 'center',
-  },
-  topSafeArea: {
-    flex: 1,
-    paddingHorizontal: 28,
-    justifyContent: 'center',
-    paddingTop: Platform.OS === 'android' ? 24 : 10,
-  },
-  logoRow: {
-    marginBottom: 20,
-  },
-  brandIcon: {
-    width: 44,
-    height: 44,
-    tintColor: '#FFFFFF',
-  },
-  greetingContainer: {
-    gap: 4,
-  },
-  welcomeTitle: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: -0.4,
-  },
-  welcomeSubtitle: {
-    color: '#D0E8D0',
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  bottomCardContainer: {
-    flex: 1,
-  },
-  bottomCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 36,
-    borderTopRightRadius: 36,
-    paddingHorizontal: 28,
-    paddingTop: 32,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  cardScrollContent: {
-    paddingBottom: 40,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#344054',
-    marginBottom: 8,
-  },
-  inputWrapper: {
-    height: 52,
-    borderWidth: 1.2,
-    borderColor: '#D0D5DD',
-    borderRadius: 14,
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    backgroundColor: '#FFFFFF',
-    position: 'relative',
-  },
-  textInput: {
-    fontSize: 15,
-    color: '#101828',
-    height: '100%',
-  },
-  eyeBtn: {
-    position: 'absolute',
-    right: 14,
-    top: 16,
-    padding: 2,
-  },
-  loginBtn: {
-    height: 54,
-    backgroundColor: '#275E52',
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 10,
-    marginBottom: 28,
-    shadowColor: '#275E52',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  loginBtnText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  footerLinksRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-  },
-  signUpLinkText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#275E52',
-  },
-  forgotPasswordLinkText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#275E52',
-  },
+  screen: { flex: 1, backgroundColor: c.paper },
+  keyboard: { flex: 1 },
+  content: { flexGrow: 1, width: '100%', maxWidth: 540, alignSelf: 'center', paddingHorizontal: 28, paddingTop: 16 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  back: { minHeight: 44, minWidth: 44, justifyContent: 'center' },
+  intro: { paddingTop: 34, paddingBottom: 30 },
+  symbol: { height: 56, width: 56, backgroundColor: c.sage, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
+  eyebrow: { fontSize: 10, color: c.green, letterSpacing: 1.8, fontWeight: '700', marginBottom: 12 },
+  title: { fontSize: 58, lineHeight: 60, color: c.ink, letterSpacing: -2.6, fontStyle: 'italic', fontWeight: '500' },
+  subtitle: { color: c.muted, fontSize: 15, lineHeight: 23, marginTop: 14 },
+  form: { paddingBottom: 20 },
+  label: { fontSize: 13, fontWeight: '600', color: c.ink, marginBottom: 9 },
+  inputWrap: { minHeight: 58, paddingLeft: 17, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#FDFCF7', borderColor: c.line, borderWidth: 1, borderRadius: 15 },
+  focused: { borderColor: c.green, backgroundColor: c.white },
+  input: { flex: 1, minWidth: 0, height: 56, fontSize: 15, color: c.ink, paddingRight: 12, ...Platform.select({ web: { outlineStyle: 'none' } as any }) },
+  passwordHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 },
+  forgot: { minHeight: 44, justifyContent: 'center', paddingLeft: 10, marginTop: -9 },
+  forgotText: { fontSize: 12, color: c.green, fontWeight: '600' },
+  eye: { minHeight: 48, minWidth: 48, justifyContent: 'center', alignItems: 'center' },
+  error: { color: '#A53F30', fontSize: 13, lineHeight: 20, marginTop: 12 },
+  submit: { marginTop: 24 },
+  busy: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  busyText: { color: c.white, fontSize: 16, fontWeight: '600' },
+  signup: { minHeight: 56, alignItems: 'center', justifyContent: 'center', paddingVertical: 14 },
+  signupText: { fontSize: 12, color: c.muted, textAlign: 'center', lineHeight: 20 },
+  link: { color: c.ink, fontWeight: '700' },
+  bottom: { flex: 1, justifyContent: 'flex-end', paddingTop: 8, paddingBottom: 10 },
+  reassurance: { borderTopColor: c.line, borderTopWidth: 1, paddingTop: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  reassuranceText: { fontSize: 11, color: c.muted, flexShrink: 1 },
+  legal: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14 },
+  legalLink: { minHeight: 44, justifyContent: 'center' },
+  legalText: { fontSize: 10, color: c.muted },
 });

@@ -593,7 +593,9 @@ The system must not falsely promise active monitoring. Urgent care access must n
 
 ## 26. Release plan
 
-### Phase 0: Clinical and technical discovery (2-3 weeks)
+> **Timeline (updated 2026-10-18):** Release 1 is planned for **3-4 weeks** in total, with phases overlapping. See [Phase 0 decision pack](plans/2026-10-18-telecare-intake-phase0-decision-pack.md) for scope and dependencies.
+
+### Phase 0: Clinical and technical discovery (week 1)
 
 - Approve data dictionary, terminology, value sets, required fields, and safety rules.
 - Inventory exact current UI/API/database coverage.
@@ -604,7 +606,7 @@ The system must not falsely promise active monitoring. Urgent care access must n
 
 **Exit:** Signed clinical mapping, privacy review, OpenEMR test evidence, and Release 1 backlog.
 
-### Release 1A: Longitudinal profile foundation (3-5 weeks)
+### Release 1A: Longitudinal profile foundation (weeks 1-3)
 
 - Add normalized conditions, medications, allergies, procedures, hospitalizations, access needs, and family/social history.
 - Migrate or project existing arrays into compatibility summaries without data loss.
@@ -614,7 +616,7 @@ The system must not falsely promise active monitoring. Urgent care access must n
 
 **Exit:** Returning patients can review and update a structured profile; original values and changes remain auditable.
 
-### Release 1B: TeleCare intake workflow (4-6 weeks, may overlap 1A)
+### Release 1B: TeleCare intake workflow (weeks 1-3, overlaps 1A)
 
 - Versioned questionnaire definition and draft/submission models.
 - Mobile-first sections, conditional logic, progress, and Save and Resume.
@@ -624,7 +626,7 @@ The system must not falsely promise active monitoring. Urgent care access must n
 
 **Exit:** New and returning patients can submit an intake tied to a TeleCare appointment, and clinicians can view the summary plus complete responses.
 
-### Release 1C: Reconciliation and OpenEMR (3-5 weeks)
+### Release 1C: Reconciliation and OpenEMR (weeks 2-4)
 
 - Clinician accept/amend/reject/defer workflow.
 - Approved OpenEMR mappings, queue jobs, retries, idempotency, and conflict handling.

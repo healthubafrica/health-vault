@@ -1,787 +1,279 @@
-import { genderForApi, GENDER_CHOICES, type GenderChoice, isValidPassword, normalizePhone, parseIsoDob, PASSWORD_HINT } from '@/lib/validation';
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  Linking,
-  StyleSheet,
-  Text,
-  View,
-  TextInput,
-  TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Image,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, type TextInputProps, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import {
-  ChevronLeft,
-  Eye,
-  EyeOff,
-  Check,
-} from 'lucide-react-native';
-import BotanicalBackground from '@/components/BotanicalBackground';
-import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
+import { ArrowLeft, Check, Eye, EyeOff, MailCheck } from 'lucide-react-native';
+import { genderForApi, GENDER_CHOICES, type GenderChoice, isValidPassword, normalizePhone, parseIsoDob, PASSWORD_HINT } from '@/lib/validation';
 import { auth, patients, analytics, setAccessToken, ApiError, type AcquisitionSource } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useCooldown } from '@/lib/useCooldown';
+import { Action, Brand, Entrance, welcome as c } from '@/components/welcome/WelcomeUI';
 
+const sources = [['social_media', 'Social media'], ['friend', 'Friend'], ['referral', 'Referral'], ['family', 'Family']] as const;
+const steps = [
+  { name: 'About you', title: 'A healthy start.\nMade for you.', description: 'A few details to set up your health profile.' },
+  { name: 'Your account', title: 'Your details.\nYour own vault.', description: 'Choose how you sign in and keep your account secure.' },
+  { name: 'Verify email', title: 'One last step.\nThen you’re in.', description: 'Enter the six-digit code we sent to' },
+];
 
 export default function SignUpScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme() ?? 'light';
-  const theme = Colors[colorScheme];
-  const loginStore = useAuthStore((s) => s.login);
-
-  // Current Step: 1 = Personal Details, 2 = Contact & Password, 3 = Medical Aid & OTP
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
-
-  useEffect(() => { analytics.track('registration_start'); }, []);
-  useEffect(() => { analytics.track('registration_step_view', { step: String(currentStep) }); }, [currentStep]);
-
-  const openPolicy = (kind: 'terms' | 'privacy') => {
-    analytics.track(kind === 'terms' ? 'terms_viewed' : 'privacy_notice_viewed', { version: 1 });
-    void Linking.openURL(`https://myvaultplus.com/${kind}`);
-  };
-
-  // Form State
+  const loginStore = useAuthStore(state => state.login);
+  const scroll = useRef<ScrollView>(null);
+  const submitting = useRef(false);
+  const resending = useRef(false);
+  const verifiedTokens = useRef<{ accessToken: string; refreshToken: string } | null>(null);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [fullName, setFullName] = useState('');
   const [dob, setDob] = useState('');
   const [gender, setGender] = useState<GenderChoice | null>(null);
   const [idNumber, setIdNumber] = useState('');
-  // The OTP is single-use. If creating the patient profile fails after it was verified,
-  // a retry must reuse these tokens instead of asking for a code that is already spent.
-  const verifiedTokens = useRef<{ accessToken: string; refreshToken: string } | null>(null);
-  const [acquisitionSource, setAcquisitionSource] = useState<AcquisitionSource | ''>('');
-
+  const [source, setSource] = useState<AcquisitionSource | ''>('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [confirmation, setConfirmation] = useState('');
+  const [otp, setOtp] = useState('');
+  const [consent, setConsent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [error, setError] = useState('');
+  const [resendNote, setResendNote] = useState('');
+  const cooldown = useCooldown();
+  const current = steps[step - 1];
 
-  const [otpCode, setOtpCode] = useState('');
-  const resendCooldown = useCooldown();
-  const [resendNote, setResendNote] = useState<string | null>(null);
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  useEffect(() => { scroll.current?.scrollTo({ y: 0, animated: false }); }, [step]);
+  useEffect(() => { analytics.track('registration_start'); }, []);
+  useEffect(() => { analytics.track('registration_step_view', { step: String(step) }); }, [step]);
 
-  const handleResendOtp = async () => {
-    setResendNote(null);
-    try {
-      await auth.resendOtp(email.trim());
-      resendCooldown.start();
-      setResendNote('A new code is on its way. Check your email.');
-    } catch (err) {
-      setResendNote(err instanceof ApiError ? err.message : "We couldn't resend the code. Please try again shortly.");
-    }
-  };
-
-  // ── Step handlers ────────────────────────────────────────────────────────
-
-  const handleNextStep = async () => {
-    if (currentStep === 1) {
-      if (!fullName.trim()) {
-        Alert.alert('Required', 'Please enter your full name.');
-        return;
-      }
-      if (!parseIsoDob(dob.trim())) {
-        Alert.alert('Date of birth', 'Enter your date of birth as YYYY-MM-DD (for example 1990-04-12).');
-        return;
-      }
-      if (!gender) {
-        Alert.alert('Required', 'Please select your gender.');
-        return;
-      }
-      if (!acquisitionSource) {
-        Alert.alert('Required', 'Please tell us how you first heard about Health-Hub Africa.');
-        return;
-      }
+  const handleNext = async () => {
+    if (submitting.current || resending.current) return;
+    setError('');
+    if (step === 1) {
+      if (!fullName.trim()) { setError('Please enter your full name.'); return; }
+      if (!parseIsoDob(dob.trim())) { setError('Enter a valid date of birth as YYYY-MM-DD, for example 1992-07-14.'); return; }
+      if (!gender) { setError('Please select your gender.'); return; }
+      if (!source) { setError('Please select how you first heard about Health Hub Africa.'); return; }
       analytics.track('registration_step_complete', { step: '1' });
-      setCurrentStep(2);
-    } else if (currentStep === 2) {
-      if (!email.trim() || !password || !confirmPassword) {
-        Alert.alert('Required', 'Please fill in all fields.');
-        return;
-      }
-      if (password !== confirmPassword) {
-        Alert.alert('Password mismatch', 'Passwords do not match.');
-        return;
-      }
-      if (!isValidPassword(password)) {
-        Alert.alert('Weak password', PASSWORD_HINT);
-        return;
-      }
-      const phoneResult = normalizePhone(phone);
-      if (!phoneResult.ok) {
-        Alert.alert('Phone number', 'Enter your phone number in international format, e.g. +2348012345678.');
-        return;
-      }
-      setIsLoading(true);
+      setStep(2);
+      return;
+    }
+    if (step === 2) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError('Please enter a valid email address.'); return; }
+      if (!isValidPassword(password)) { setError(PASSWORD_HINT); return; }
+      if (password !== confirmation) { setError('Your passwords do not match. Please check them and try again.'); return; }
+      const normalized = normalizePhone(phone);
+      if (!normalized.ok) { setError('Enter a valid phone number, for example +2348012345678.'); return; }
+      submitting.current = true;
+      setBusy(true);
       try {
-        await auth.register(
-          email.trim(),
-          password,
-          phoneResult.value,
-          fullName.trim(),
-          acquisitionSource as AcquisitionSource,
-        );
+        await auth.register(email.trim(), password, normalized.value, fullName.trim(), source as AcquisitionSource);
         analytics.track('otp_requested', { channel: 'email' });
-        resendCooldown.start();
         analytics.track('registration_step_complete', { step: '2' });
-        setCurrentStep(3);
+        cooldown.start();
+        setResendNote('');
+        setStep(3);
       } catch (err) {
         analytics.track('registration_error');
-        const msg = err instanceof ApiError ? err.message : 'Registration failed. Please try again.';
-        Alert.alert('Registration Error', msg);
-      } finally {
-        setIsLoading(false);
-      }
-    } else if (currentStep === 3) {
-      if (!otpCode || otpCode.length < 6) {
-        Alert.alert('Required', 'Please enter the 6-digit code sent to your email.');
-        return;
-      }
-      if (!agreedToTerms) {
-        Alert.alert('Consent required', 'Please agree to the Privacy Policy to continue.');
-        return;
-      }
-      setIsLoading(true);
-      try {
-        // Verify OTP — backend returns new tokens on success
-        const tokens = verifiedTokens.current ?? (await auth.verifyOtp(email.trim(), otpCode));
-        verifiedTokens.current = tokens;
+        setError(err instanceof ApiError ? err.message : 'We could not create your account. Please try again.');
+      } finally { submitting.current = false; setBusy(false); }
+      return;
+    }
+    if (!verifiedTokens.current && !/^\d{6}$/.test(otp)) { setError('Please enter the six-digit code sent to your email.'); return; }
+    if (!consent) { setError('Please agree to the Privacy Policy and health record storage to continue.'); return; }
+    submitting.current = true;
+    setBusy(true);
+    try {
+      // Verification codes are single-use. Keep the tokens if profile setup needs a retry.
+      if (!verifiedTokens.current) {
+        verifiedTokens.current = await auth.verifyOtp(email.trim(), otp);
         analytics.track('otp_verify_success');
-        analytics.track('registration_complete', { acquisitionSource });
-        const { accessToken, refreshToken } = tokens;
-
-        // Same reason as login.tsx: must be set before any authenticated
-        // request below, or getMyProfile/create both 401 with no token
-        // attached and this whole step fails as "session expired".
-        setAccessToken(accessToken);
-
-        // Fetch or create patient profile
-        let profile;
-        try {
-          const res = await patients.getMyProfile();
-          profile = res.data;
-        } catch (lookupErr) {
-          // Only "no profile yet" (404) means create one. A network/5xx/401 failure must
-          // surface instead of being treated as a missing profile.
-          if (!(lookupErr instanceof ApiError && lookupErr.status === 404)) throw lookupErr;
-          const res = await patients.create({
-            firstName: fullName.trim().split(' ')[0] ?? fullName.trim(),
-            lastName: fullName.trim().split(' ').slice(1).join(' ') || '',
-            dateOfBirth: parseIsoDob(dob.trim()) as string,
-            gender: genderForApi(gender as GenderChoice),
-            country: 'Nigeria',
-            ...(idNumber.trim() ? { nin: idNumber.trim() } : {}),
-          });
-          profile = res.data;
-        }
-
-        patients.updateOnboardingProgress(3, 'otp_verified').catch(() => {});
-
-        await loginStore(accessToken, refreshToken, {
-          id: profile.id,
-          email: profile.user.email,
-          firstName: profile.firstName,
-          lastName: profile.lastName,
-          phone: profile.user.phone ?? undefined,
-          avatarUrl: profile.profilePhotoUrl ?? undefined,
-          gender: profile.gender,
-        });
-
-        router.replace('/(tabs)');
-      } catch (err) {
-        analytics.track('otp_verify_failure');
-        const msg = err instanceof ApiError ? err.message : 'Verification failed. Please try again.';
-        Alert.alert('Verification Error', msg);
-      } finally {
-        setIsLoading(false);
       }
-    }
+      const { accessToken, refreshToken } = verifiedTokens.current;
+      setAccessToken(accessToken);
+      let profile;
+      try {
+        profile = (await patients.getMyProfile()).data;
+      } catch (lookupError) {
+        if (!(lookupError instanceof ApiError && lookupError.status === 404)) throw lookupError;
+        profile = (await patients.create({
+          firstName: fullName.trim().split(/\s+/)[0],
+          lastName: fullName.trim().split(/\s+/).slice(1).join(' '),
+          dateOfBirth: parseIsoDob(dob.trim()) as string,
+          gender: genderForApi(gender as GenderChoice), country: 'Nigeria',
+          ...(idNumber.trim() ? { nin: idNumber.trim() } : {}),
+        })).data;
+      }
+      patients.updateOnboardingProgress(3, 'otp_verified').catch(() => {});
+      await loginStore(accessToken, refreshToken, {
+        id: profile.id, email: profile.user.email, firstName: profile.firstName, lastName: profile.lastName,
+        phone: profile.user.phone ?? undefined, avatarUrl: profile.profilePhotoUrl ?? undefined, gender: profile.gender,
+      });
+      analytics.track('registration_complete', { acquisitionSource: source });
+      router.replace('/(tabs)');
+    } catch (err) {
+      analytics.track(verifiedTokens.current ? 'registration_error' : 'otp_verify_failure');
+      setError(err instanceof ApiError ? err.message : 'We could not finish setting up your vault. Please try again.');
+    } finally { submitting.current = false; setBusy(false); }
   };
 
-  const handleBack = () => {
-    if (currentStep > 1) {
-      setCurrentStep((prev) => (prev - 1) as 1 | 2 | 3);
-    } else {
-      router.back();
-    }
+  const resend = async () => {
+    if (cooldown.remaining > 0 || resending.current || submitting.current || verifiedTokens.current) return;
+    resending.current = true;
+    setIsResending(true);
+    setResendNote('');
+    setError('');
+    try {
+      await auth.resendOtp(email.trim());
+      cooldown.start();
+      setResendNote('A new code is on its way. Check your email.');
+    } catch (err) { setError(err instanceof ApiError ? err.message : 'We could not resend your code. Please try again.'); }
+    finally { resending.current = false; setIsResending(false); }
   };
 
-  const getStepTitle = () => {
-    switch (currentStep) {
-      case 1:
-        return 'Personal Info';
-      case 2:
-        return 'Account & Security';
-      case 3:
-        return 'Verify Your Email';
-    }
+  const back = () => {
+    if (busy || isResending || verifiedTokens.current) return;
+    setError('');
+    if (step > 1) setStep(value => (value - 1) as 1 | 2);
+    else if (router.canGoBack()) router.back();
+    else router.replace('/onboarding');
   };
 
-  return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-
-      {/* Top Banner (Deep Emerald with Botanical Art) */}
-      <View style={styles.topBanner}>
-        <BotanicalBackground showClover={true} opacity={0.8} />
-
-        <SafeAreaView style={styles.topSafeArea}>
-          {/* Header Bar */}
-          <View style={styles.topNavRow}>
-            <TouchableOpacity onPress={handleBack} style={styles.backBtn} activeOpacity={0.7}>
-              <ChevronLeft size={22} color="#FFFFFF" />
-              <Text style={styles.backBtnText}>
-                {currentStep === 1 ? 'Login' : 'Back'}
-              </Text>
-            </TouchableOpacity>
-
-            <Image
-              source={require('@/assets/images/splash-icon.png')}
-              style={styles.brandIcon}
-              resizeMode="contain"
-            />
-          </View>
-
-          {/* Heading and Step Progress */}
-          <View style={styles.greetingContainer}>
-            <Text style={styles.welcomeTitle}>Create Account</Text>
-            <Text style={styles.welcomeSubtitle}>
-              Step {currentStep} of 3: {getStepTitle()}
-            </Text>
-
-            {/* Step Progress Segments */}
-            <View style={styles.progressBarRow}>
-              <View
-                style={[
-                  styles.progressSegment,
-                  { backgroundColor: currentStep >= 1 ? '#FFFFFF' : 'rgba(255, 255, 255, 0.3)' },
-                ]}
-              />
-              <View
-                style={[
-                  styles.progressSegment,
-                  { backgroundColor: currentStep >= 2 ? '#FFFFFF' : 'rgba(255, 255, 255, 0.3)' },
-                ]}
-              />
-              <View
-                style={[
-                  styles.progressSegment,
-                  { backgroundColor: currentStep >= 3 ? '#FFFFFF' : 'rgba(255, 255, 255, 0.3)' },
-                ]}
-              />
-            </View>
-          </View>
-        </SafeAreaView>
-      </View>
-
-      {/* Bottom Sheet Card */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.bottomCardContainer}>
-        <View style={styles.bottomCard}>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={styles.cardScrollContent}>
-            
-            {/* STEP 1: Personal Profile */}
-            {currentStep === 1 && (
-              <View style={styles.stepForm}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Full Legal Name</Text>
-                  <View style={styles.inputWrapper}>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="Enter your full legal name"
-                      placeholderTextColor="#98A2B3"
-                      value={fullName}
-                      onChangeText={setFullName}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Date of Birth</Text>
-                  <View style={styles.inputWrapper}>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="YYYY-MM-DD (e.g. 1992-07-14)"
-                      placeholderTextColor="#98A2B3"
-                      value={dob}
-                      onChangeText={setDob}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Gender</Text>
-                  <View style={styles.genderRow} accessibilityRole="radiogroup">
-                    {GENDER_CHOICES.map(({ value: g, label }) => (
-                      <TouchableOpacity
-                        key={g}
-                        onPress={() => setGender(g)}
-                        activeOpacity={0.8}
-                        accessibilityRole="radio"
-                        accessibilityState={{ selected: gender === g }}
-                        style={[
-                          styles.genderOption,
-                          gender === g && styles.genderOptionSelected,
-                        ]}>
-                        <Text
-                          style={[
-                            styles.genderOptionText,
-                            gender === g && styles.genderOptionTextSelected,
-                          ]}>
-                          {label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>National ID / Passport Number</Text>
-                  <View style={styles.inputWrapper}>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="Enter your national ID or passport number"
-                      placeholderTextColor="#98A2B3"
-                      value={idNumber}
-                      onChangeText={setIdNumber}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>How did you first hear about us?</Text>
-                  <View style={styles.sourceGrid}>
-                    {([
-                      ['social_media', 'Social media'],
-                      ['friend', 'Friend'],
-                      ['referral', 'Referral'],
-                      ['family', 'Family'],
-                    ] as const).map(([value, label]) => (
-                      <TouchableOpacity
-                        key={value}
-                        onPress={() => setAcquisitionSource(value)}
-                        activeOpacity={0.8}
-                        style={[styles.sourceOption, acquisitionSource === value && styles.genderOptionSelected]}>
-                        <Text style={[styles.genderOptionText, acquisitionSource === value && styles.genderOptionTextSelected]}>
-                          {label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              </View>
-            )}
-
-            {/* STEP 2: Contact & Password */}
-            {currentStep === 2 && (
-              <View style={styles.stepForm}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Email Address</Text>
-                  <View style={styles.inputWrapper}>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="name@example.com"
-                      placeholderTextColor="#98A2B3"
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      value={email}
-                      onChangeText={setEmail}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Mobile Phone Number</Text>
-                  <View style={styles.inputWrapper}>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="+2348012345678"
-                      placeholderTextColor="#98A2B3"
-                      keyboardType="phone-pad"
-                      value={phone}
-                      onChangeText={setPhone}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Create Password</Text>
-                  <View style={styles.inputWrapper}>
-                    <TextInput
-                      style={[styles.textInput, { paddingRight: 44 }]}
-                      placeholder="12+ characters, mixed case, number, symbol"
-                      placeholderTextColor="#98A2B3"
-                      secureTextEntry={!showPassword}
-                      value={password}
-                      onChangeText={setPassword}
-                    />
-                    <TouchableOpacity
-                      activeOpacity={0.7}
-                      onPress={() => setShowPassword(!showPassword)}
-                      style={styles.eyeBtn}>
-                      {showPassword ? (
-                        <EyeOff size={18} color="#275E52" />
-                      ) : (
-                        <Eye size={18} color="#275E52" />
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Confirm Password</Text>
-                  <View style={styles.inputWrapper}>
-                    <TextInput
-                      style={[styles.textInput, { paddingRight: 44 }]}
-                      placeholder="Re-enter password"
-                      placeholderTextColor="#98A2B3"
-                      secureTextEntry={!showPassword}
-                      value={confirmPassword}
-                      onChangeText={setConfirmPassword}
-                    />
-                  </View>
-                </View>
-              </View>
-            )}
-
-            {/* STEP 3: OTP Verification */}
-            {currentStep === 3 && (
-              <View style={styles.stepForm}>
-                {/* Email OTP verification */}
-                <View style={styles.otpBox}>
-                  <Text style={styles.otpHeading}>Email Verification Code</Text>
-                  <Text style={styles.otpSub}>
-                    We sent a 6-digit security code to your email address.
-                  </Text>
-                  <View style={[styles.inputWrapper, { marginTop: 10 }]}>
-                    <TextInput
-                      style={[styles.textInput, { textAlign: 'center', letterSpacing: 8, fontSize: 18, fontWeight: '800' }]}
-                      placeholder="••••••"
-                      placeholderTextColor="#98A2B3"
-                      keyboardType="number-pad"
-                      maxLength={6}
-                      value={otpCode}
-                      onChangeText={setOtpCode}
-                    />
-                  </View>
-                  <TouchableOpacity
-                    disabled={resendCooldown.remaining > 0}
-                    onPress={handleResendOtp}
-                    accessibilityLabel="Resend code"
-                    style={{ alignItems: 'center', marginTop: 12 }}>
-                    <Text style={[styles.termsBold, resendCooldown.remaining > 0 && { opacity: 0.5 }]}>
-                      {resendCooldown.remaining > 0 ? `Resend code in ${resendCooldown.remaining}s` : 'Resend code'}
-                    </Text>
-                  </TouchableOpacity>
-                  {resendNote ? <Text style={[styles.otpSub, { textAlign: 'center', marginTop: 6 }]}>{resendNote}</Text> : null}
-                </View>
-
-                {/* Terms Consent */}
-                <View style={{ flexDirection: 'row', gap: 16, marginVertical: 12 }}>
-                  <TouchableOpacity onPress={() => openPolicy('terms')}><Text style={{ color: theme.primary }}>Terms of Service</Text></TouchableOpacity>
-                  <TouchableOpacity onPress={() => openPolicy('privacy')}><Text style={{ color: theme.primary }}>Privacy Policy</Text></TouchableOpacity>
-                </View>
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={() => { if (!agreedToTerms) { analytics.track('terms_accepted', { version: 1 }); } setAgreedToTerms(!agreedToTerms); }}
-                  style={styles.termsRow}>
-                  <View
-                    style={[
-                      styles.checkbox,
-                      agreedToTerms && styles.checkboxSelected,
-                    ]}>
-                    {agreedToTerms && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
-                  </View>
-                  <Text style={styles.termsText}>
-                    I agree to the <Text style={styles.termsBold} onPress={() => router.push('/privacy-policy')}>Privacy Policy</Text> and consent to secure encrypted medical record storage.
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Primary Action Button */}
-            <TouchableOpacity
-              activeOpacity={0.85}
-              disabled={isLoading}
-              onPress={handleNextStep}
-              style={styles.loginBtn}>
-              {isLoading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.loginBtnText}>
-                  {currentStep === 3 ? 'Verify & Create Vault' : 'Continue'}
-                </Text>
-              )}
-            </TouchableOpacity>
-
-            {/* Bottom Link to Login */}
-            <View style={styles.footerLinksRow}>
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => router.push('/login')}>
-                <Text style={styles.alreadyHaveText}>
-                  Already have an account? <Text style={styles.signInLinkText}>Sign In</Text>
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-          </ScrollView>
+  return <SafeAreaView style={styles.screen}>
+    <StatusBar barStyle="dark-content" backgroundColor={c.paper} />
+    <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <View style={styles.frame}>
+        <View style={styles.header}>
+          <Pressable accessibilityRole="button" accessibilityLabel={step === 1 ? 'Back to introduction' : 'Previous step'}
+            disabled={busy || isResending || !!verifiedTokens.current} onPress={back} style={styles.back}>
+            <ArrowLeft size={21} color={busy || verifiedTokens.current ? c.line : c.ink} />
+          </Pressable><Brand />
         </View>
-      </KeyboardAvoidingView>
+        <View style={styles.progress} accessibilityLabel={`Step ${step} of 3: ${current.name}`}>
+          <View style={styles.segments}>{steps.map((item, index) => <View key={item.name} style={[styles.segment, { backgroundColor: index < step ? c.green : c.line }]} />)}</View>
+          <View style={styles.stepRow}><Text style={styles.stepText}>STEP 0{step} / 03</Text><Text style={styles.stepName}>{current.name}</Text></View>
+        </View>
+        <ScrollView ref={scroll} style={styles.scroll} showsVerticalScrollIndicator keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContent}>
+          <Entrance key={step} style={styles.intro}>
+            {step === 3 && <View style={styles.mailDisc}><MailCheck size={28} color={c.green} strokeWidth={1.5} /></View>}
+            <Text accessibilityRole="header" style={styles.title}>{current.title}</Text>
+            <Text style={styles.description}>{current.description}{step === 3 && <Text style={styles.email}>{'\n'}{email.trim()}</Text>}</Text>
+          </Entrance>
+          {step === 1 && <View>
+            <Field label="Full name" placeholder="Your full legal name" value={fullName} onChangeText={setFullName} autoComplete="name" textContentType="name" autoCapitalize="words" editable={!busy} />
+            <Field label="Date of birth" placeholder="YYYY-MM-DD" hint="For example, 1992-07-14" value={dob} onChangeText={setDob} autoCorrect={false} maxLength={10} keyboardType="numbers-and-punctuation" editable={!busy} />
+            <Text style={styles.label}>Gender</Text>
+            <View style={styles.choices} accessibilityRole="radiogroup" accessibilityLabel="Gender">{GENDER_CHOICES.map(({ value, label }) => <Choice key={value} label={label} selected={gender === value} onPress={() => setGender(value)} />)}</View>
+            <Field label="National identity number (NIN)" optional placeholder="Enter your NIN" value={idNumber} onChangeText={setIdNumber} autoCapitalize="none" editable={!busy} />
+            <Text style={styles.label}>How did you first hear about us?</Text>
+            <View style={styles.sourceGrid} accessibilityRole="radiogroup" accessibilityLabel="How you heard about us">{sources.map(([value, label]) => <View key={value} style={styles.sourceItem}><Choice label={label} selected={source === value} onPress={() => setSource(value)} /></View>)}</View>
+          </View>}
+          {step === 2 && <View>
+            <Field label="Email address" placeholder="you@example.com" value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" autoComplete="email" textContentType="emailAddress" editable={!busy} />
+            <Field label="Phone number" optional placeholder="+2348012345678" value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" textContentType="telephoneNumber" editable={!busy} />
+            <Field label="Create password" placeholder="Choose a strong password" hint={PASSWORD_HINT} password value={password} onChangeText={setPassword} autoComplete="new-password" textContentType="newPassword" editable={!busy} />
+            <Field label="Confirm password" placeholder="Re-enter your password" password value={confirmation} onChangeText={setConfirmation} autoComplete="new-password" textContentType="newPassword" editable={!busy} returnKeyType="go" onSubmitEditing={handleNext} />
+          </View>}
+          {step === 3 && <View>
+            <Field label="Verification code" placeholder="000000" value={otp} onChangeText={value => setOtp(value.replace(/\D/g, '').slice(0, 6))}
+              keyboardType="number-pad" maxLength={6} autoComplete="one-time-code" textContentType="oneTimeCode" editable={!busy && !verifiedTokens.current}
+              style={styles.code} autoCorrect={false} />
+            <View style={styles.resendRow}><Text style={styles.muted}>Didn’t get the email?</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="Resend code" onPress={resend}
+                disabled={cooldown.remaining > 0 || busy || isResending || !!verifiedTokens.current} style={styles.resend}>
+                <Text style={[styles.link, (cooldown.remaining > 0 || busy || isResending || !!verifiedTokens.current) && { color: c.muted }]}>
+                  {isResending ? 'Sending…' : cooldown.remaining > 0 ? `Resend in ${cooldown.remaining}s` : 'Resend code'}
+                </Text>
+              </Pressable>
+            </View>
+            {!!resendNote && <Text accessibilityLiveRegion="polite" style={styles.note}>{resendNote}</Text>}
+            {!!verifiedTokens.current && <Text accessibilityLiveRegion="polite" style={styles.note}>Your email is verified. Retry below to finish setting up your vault.</Text>}
+            <View style={styles.consentRow}>
+              <Pressable accessibilityRole="checkbox" accessibilityLabel="Agree to Privacy Policy and health record storage" accessibilityState={{ checked: consent }} aria-checked={consent}
+                disabled={busy} onPress={() => { if (!consent) analytics.track('terms_accepted', { version: 1 }); setConsent(value => !value); }} style={styles.checkboxTouch}>
+                <View style={[styles.checkbox, consent && styles.checked]}>{consent && <Check size={15} color={c.white} strokeWidth={2.5} />}</View>
+              </Pressable>
+              <Text style={styles.consentText}>I agree to the Privacy Policy and consent to secure storage of my health records.</Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 16 }}>
+              <Pressable accessibilityRole="link" onPress={() => { analytics.track('privacy_notice_viewed', { version: 1 }); router.push('/privacy-policy'); }} style={styles.policy}><Text style={styles.link}>Read the Privacy Policy</Text></Pressable>
+              <Pressable accessibilityRole="link" onPress={() => { analytics.track('terms_viewed', { version: 1 }); router.push('/terms-conditions'); }} style={styles.policy}><Text style={styles.link}>Terms of Service</Text></Pressable>
+            </View>
+          </View>}
+        </ScrollView>
+        <View style={styles.footer}>
+          {!!error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
+          <Action label={busy ? 'Please wait' : step === 1 ? 'Continue' : step === 2 ? 'Send verification code' : verifiedTokens.current ? 'Finish setup' : 'Verify & create account'} disabled={busy || isResending} onPress={handleNext}>
+            {busy ? <View style={styles.busy}><ActivityIndicator color={c.white} /><Text style={styles.busyText}>{step === 2 ? 'Sending your code…' : 'Setting up your vault…'}</Text></View> : undefined}
+          </Action>
+          <Pressable accessibilityRole="button" disabled={busy || isResending} onPress={() => router.push('/login')} style={styles.signIn}>
+            <Text style={styles.signInText}>Already have an account? <Text style={styles.link}>Sign in</Text></Text>
+          </Pressable>
+        </View>
+      </View>
+    </KeyboardAvoidingView>
+  </SafeAreaView>;
+}
+
+function Field({ label, hint, optional, password: isPassword, style, ...props }: TextInputProps & { label: string; hint?: string; optional?: boolean; password?: boolean }) {
+  const [focused, setFocused] = useState(false);
+  const [visible, setVisible] = useState(false);
+  return <View style={styles.field}>
+    <Text style={styles.label}>{label}{optional && <Text style={styles.optional}>  Optional</Text>}</Text>
+    <View style={[styles.inputWrap, focused && styles.focused]}>
+      <TextInput {...props} accessibilityLabel={label} placeholderTextColor="#7A877E" secureTextEntry={isPassword ? !visible : props.secureTextEntry}
+        autoCapitalize={isPassword ? 'none' : props.autoCapitalize} autoCorrect={isPassword ? false : props.autoCorrect}
+        onFocus={event => { setFocused(true); props.onFocus?.(event); }} onBlur={event => { setFocused(false); props.onBlur?.(event); }} style={[styles.input, style]} />
+      {isPassword && <Pressable accessibilityRole="button" accessibilityLabel={`${visible ? 'Hide' : 'Show'} ${label.toLowerCase()}`} onPress={() => setVisible(value => !value)} style={styles.eye}>
+        {visible ? <EyeOff size={20} color={c.green} /> : <Eye size={20} color={c.green} />}
+      </Pressable>}
     </View>
-  );
+    {!!hint && <Text style={styles.hint}>{hint}</Text>}
+  </View>;
+}
+function Choice({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  return <Pressable accessibilityRole="radio" accessibilityLabel={label} accessibilityState={{ checked: selected }} aria-checked={selected} onPress={onPress}
+    style={({ pressed }) => [styles.choice, selected && styles.selectedChoice, pressed && { opacity: 0.75 }]}>
+    <Text style={[styles.choiceText, selected && { color: c.ink, fontWeight: '700' }]}>{label}</Text>
+    {selected && <Check size={14} color={c.green} />}
+  </Pressable>;
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#275E52',
-  },
-  topBanner: {
-    height: '38%',
-    backgroundColor: '#275E52',
-    position: 'relative',
-    justifyContent: 'center',
-  },
-  topSafeArea: {
-    flex: 1,
-    paddingHorizontal: 24,
-    justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'android' ? 20 : 6,
-    paddingBottom: 24,
-  },
-  topNavRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 4,
-  },
-  backBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  backBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  brandIcon: {
-    width: 36,
-    height: 36,
-    tintColor: '#FFFFFF',
-  },
-  greetingContainer: {
-    gap: 6,
-  },
-  welcomeTitle: {
-    color: '#FFFFFF',
-    fontSize: 26,
-    fontWeight: '800',
-    letterSpacing: -0.3,
-  },
-  welcomeSubtitle: {
-    color: '#D0E8D0',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  progressBarRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 6,
-  },
-  progressSegment: {
-    flex: 1,
-    height: 4,
-    borderRadius: 2,
-  },
-  bottomCardContainer: {
-    flex: 1,
-  },
-  bottomCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 36,
-    borderTopRightRadius: 36,
-    paddingHorizontal: 24,
-    paddingTop: 28,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  cardScrollContent: {
-    paddingBottom: 40,
-  },
-  stepForm: {
-    marginBottom: 10,
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#344054',
-    marginBottom: 6,
-  },
-  inputWrapper: {
-    height: 50,
-    borderWidth: 1.2,
-    borderColor: '#D0D5DD',
-    borderRadius: 14,
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    backgroundColor: '#FFFFFF',
-    position: 'relative',
-  },
-  textInput: {
-    fontSize: 14,
-    color: '#101828',
-    height: '100%',
-  },
-  eyeBtn: {
-    position: 'absolute',
-    right: 14,
-    top: 15,
-    padding: 2,
-  },
-  genderRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  sourceGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  sourceOption: {
-    width: '48%',
-    height: 44,
-    borderRadius: 12,
-    borderWidth: 1.2,
-    borderColor: '#D0D5DD',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  genderOption: {
-    flexGrow: 1,
-    flexBasis: '22%',
-    paddingHorizontal: 8,
-    height: 44,
-    borderRadius: 12,
-    borderWidth: 1.2,
-    borderColor: '#D0D5DD',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  genderOptionSelected: {
-    backgroundColor: '#EAF5E2',
-    borderColor: '#275E52',
-  },
-  genderOptionText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#344054',
-  },
-  genderOptionTextSelected: {
-    color: '#275E52',
-    fontWeight: '700',
-  },
-  otpBox: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 16,
-    marginBottom: 16,
-  },
-  otpHeading: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 2,
-  },
-  otpSub: {
-    fontSize: 11,
-    color: '#64748B',
-    lineHeight: 16,
-  },
-  termsRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    marginBottom: 16,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: '#D0D5DD',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 2,
-  },
-  checkboxSelected: {
-    backgroundColor: '#275E52',
-    borderColor: '#275E52',
-  },
-  termsText: {
-    flex: 1,
-    fontSize: 12,
-    lineHeight: 17,
-    color: '#475467',
-  },
-  termsBold: {
-    fontWeight: '700',
-    color: '#275E52',
-  },
-  loginBtn: {
-    height: 54,
-    backgroundColor: '#275E52',
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 6,
-    marginBottom: 18,
-    shadowColor: '#275E52',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  loginBtnText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  footerLinksRow: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 4,
-  },
-  alreadyHaveText: {
-    fontSize: 14,
-    color: '#667085',
-  },
-  signInLinkText: {
-    fontWeight: '700',
-    color: '#275E52',
-  },
+  screen: { flex: 1, backgroundColor: c.paper }, keyboard: { flex: 1 },
+  frame: { flex: 1, width: '100%', maxWidth: 540, alignSelf: 'center' },
+  header: { paddingHorizontal: 28, paddingTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  back: { minWidth: 44, minHeight: 44, justifyContent: 'center' },
+  progress: { paddingHorizontal: 28, paddingTop: 20, paddingBottom: 12 },
+  segments: { flexDirection: 'row', gap: 6 }, segment: { flex: 1, height: 3, borderRadius: 3 },
+  stepRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
+  stepText: { fontSize: 9, letterSpacing: 1.4, color: c.green, fontWeight: '600' }, stepName: { fontSize: 11, color: c.muted },
+  scroll: { flex: 1 }, scrollContent: { paddingHorizontal: 28, paddingTop: 16, paddingBottom: 22 },
+  intro: { marginBottom: 28 }, title: { fontSize: 39, lineHeight: 44, color: c.ink, fontStyle: 'italic', fontWeight: '500', letterSpacing: -1.7 },
+  description: { color: c.muted, fontSize: 14, lineHeight: 22, marginTop: 12 }, email: { color: c.ink, fontWeight: '600' },
+  field: { marginBottom: 18 }, label: { fontSize: 12, fontWeight: '600', color: c.ink, marginBottom: 9 }, optional: { color: c.muted, fontWeight: '400', fontSize: 10 },
+  inputWrap: { minHeight: 54, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: c.line, borderRadius: 14, backgroundColor: '#FDFCF7', paddingLeft: 16 },
+  focused: { borderColor: c.green, backgroundColor: c.white },
+  input: { flex: 1, minWidth: 0, height: 54, fontSize: 14, color: c.ink, paddingRight: 16, ...Platform.select({ web: { outlineStyle: 'none' } as any }) },
+  eye: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  hint: { color: c.muted, fontSize: 11, lineHeight: 17, marginTop: 7 },
+  choices: { flexDirection: 'row', gap: 8, marginBottom: 18 },
+  choice: { flex: 1, minHeight: 44, paddingVertical: 10, paddingHorizontal: 10, flexDirection: 'row', gap: 4, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.line, borderRadius: 12 },
+  selectedChoice: { backgroundColor: c.sage, borderColor: c.green }, choiceText: { fontSize: 12, color: c.muted },
+  sourceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, sourceItem: { width: '48%' },
+  mailDisc: { width: 56, height: 56, borderRadius: 28, backgroundColor: c.sage, alignItems: 'center', justifyContent: 'center', marginBottom: 22 },
+  code: { fontSize: 24, fontWeight: '600', letterSpacing: 10, textAlign: 'center' },
+  resendRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', columnGap: 6, marginTop: -6 },
+  resend: { minHeight: 44, justifyContent: 'center' }, muted: { color: c.muted, fontSize: 12 },
+  note: { color: c.green, fontSize: 12, lineHeight: 19, marginTop: 8 },
+  consentRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 24 },
+  checkboxTouch: { minHeight: 44, width: 44, justifyContent: 'center' },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderColor: c.muted, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  checked: { backgroundColor: c.green, borderColor: c.green }, consentText: { color: c.muted, fontSize: 12, lineHeight: 20, flex: 1, paddingTop: 4 },
+  policy: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start', marginLeft: 44 },
+  footer: { paddingHorizontal: 28, paddingTop: 12, paddingBottom: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line },
+  error: { color: '#A53F30', fontSize: 12, lineHeight: 18, marginBottom: 12 },
+  busy: { flex: 1, flexDirection: 'row', gap: 10, alignItems: 'center', justifyContent: 'center' }, busyText: { color: c.white, fontSize: 14, fontWeight: '600' },
+  signIn: { minHeight: 44, justifyContent: 'center', alignItems: 'center', paddingVertical: 10 },
+  signInText: { color: c.muted, fontSize: 12 }, link: { color: c.ink, fontSize: 12, fontWeight: '700' },
 });

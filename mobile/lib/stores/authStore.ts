@@ -11,6 +11,7 @@ import {
   patients,
 } from '../api';
 import { unregisterPushToken } from '../notifications';
+import { setSentryUser } from '../sentry';
 
 export interface UserProfile {
   id: string;
@@ -75,6 +76,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (accessToken: string, refreshToken: string, user: UserProfile) => {
     setAccessToken(accessToken);
     await saveRefreshToken(refreshToken);
+    setSentryUser(user);
     set({ user, isAuthenticated: true, isLoading: false });
   },
 
@@ -87,6 +89,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await apiRequest('/auth/logout', { method: 'POST' }, false).catch(() => {});
     } finally {
       await clearStoredTokens();
+      setSentryUser(null);
       set({ user: null, isAuthenticated: false, isLoading: false });
     }
   },
@@ -129,16 +132,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       const { data: profile } = await patients.getMyProfile();
+      const userProfile: UserProfile = {
+        id: profile.id,
+        email: profile.user.email,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        phone: profile.user.phone ?? undefined,
+        avatarUrl: profile.profilePhotoUrl ?? undefined,
+        gender: profile.gender,
+      };
+      setSentryUser(userProfile);
       set({
-        user: {
-          id: profile.id,
-          email: profile.user.email,
-          firstName: profile.firstName,
-          lastName: profile.lastName,
-          phone: profile.user.phone ?? undefined,
-          avatarUrl: profile.profilePhotoUrl ?? undefined,
-          gender: profile.gender,
-        },
+        user: userProfile,
         isAuthenticated: true,
         isLoading: false,
       });
@@ -158,6 +163,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 // API module can import this store).
 export function registerSessionExpiryHandler() {
   setSessionExpiredHandler(() => {
+    setSentryUser(null);
     useAuthStore.setState({ user: null, isAuthenticated: false, isLoading: false });
   });
 }

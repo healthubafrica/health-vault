@@ -1,9 +1,8 @@
 import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, ThemeProvider, useNavigationContainerRef } from '@react-navigation/native';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Notifications from 'expo-notifications';
-import * as Sentry from '@sentry/react-native';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -15,6 +14,10 @@ import { queryClient } from '@/lib/queryClient';
 import { useAuthStore, registerSessionExpiryHandler } from '@/lib/stores/authStore';
 import { registerForPushNotificationsAsync, syncPushTokenWithBackend } from '@/lib/notifications';
 import Colors from '@/constants/Colors';
+import { initSentry, routingInstrumentation, Sentry } from '@/lib/sentry';
+
+// Initialize Sentry crash reporting & performance monitoring
+initSentry();
 
 export {
   ErrorBoundary,
@@ -43,16 +46,6 @@ const PUBLIC_ROUTES = new Set([
 
 SplashScreen.preventAutoHideAsync();
 
-// Must run once, at module scope, before the app renders. Disabled (no-op)
-// in local dev builds without a DSN configured — same pattern as the API
-// and portal's Sentry setup.
-Sentry.init({
-  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
-  enabled: !!process.env.EXPO_PUBLIC_SENTRY_DSN,
-  environment: __DEV__ ? 'development' : 'production',
-  tracesSampleRate: __DEV__ ? 1.0 : 0.1,
-});
-
 // Must run once, before any LiveKit room is used. @livekit/react-native-webrtc
 // has no web implementation, so this is native-only — `expo start --web`
 // never touches TeleCare video.
@@ -69,6 +62,13 @@ function RootLayout() {
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
   const restoreSession = useAuthStore((s) => s.restoreSession);
+  const navigationRef = useNavigationContainerRef();
+
+  useEffect(() => {
+    if (navigationRef) {
+      routingInstrumentation.registerNavigationContainer(navigationRef);
+    }
+  }, [navigationRef]);
 
   useEffect(() => {
     registerSessionExpiryHandler();

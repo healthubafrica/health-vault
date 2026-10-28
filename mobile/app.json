@@ -55,14 +55,33 @@
       "policy": "appVersion"
     },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "buildToolsVersion": "36.0.0"
+          }
+        }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "health-hub-africa",
+          "project": "myvaultplus-mobile",
+          "url": "https://de.sentry.io/"
+        }
+      ],
       "expo-updates",
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/android-icon-monochrome.png",
+          "imageWidth": 128,
           "resizeMode": "contain",
-          "backgroundColor": "#137333"
+          "backgroundColor": "#183E32"
         }
       ],
       "expo-asset",
@@ -95,7 +114,6 @@
           "locationWhenInUsePermission": "MyHealth Vault+ uses your location only when you request emergency dispatch, so responders can find you."
         }
       ],
-      "@sentry/react-native/expo",
       "./plugins/withCallForegroundService"
     ],
     "experiments": {

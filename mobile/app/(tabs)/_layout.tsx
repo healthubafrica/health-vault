@@ -1,13 +1,13 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { View } from 'react-native';
-import CurvedTabBar from '@/components/CurvedTabBar';
+import PillTabBar from '@/components/PillTabBar';
 
 export default function TabLayout() {
   return (
     <View style={{ flex: 1 }}>
       <Tabs
-        tabBar={(props) => <CurvedTabBar {...props} />}
+        tabBar={(props) => <PillTabBar {...props} />}
         screenOptions={{
           headerShown: false,
         }}>

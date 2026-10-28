@@ -1,490 +1,91 @@
-import React, { useState, useRef } from 'react';
-import {
-  StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-  Dimensions,
-  FlatList,
-  Animated,
-} from 'react-native';
+import React, { useRef, useState } from 'react';
+import { FlatList, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import {
-  ChevronRight,
-  ShieldCheck,
-  Video,
-  Activity,
-  Ambulance,
-  FileText,
-  Clock,
-  Sparkles,
-  Heart,
-  UserPlus,
-  LogIn,
-} from 'lucide-react-native';
+import CareIllustration, { CareScene } from '@/components/welcome/CareIllustration';
+import { Action, Brand, Entrance, welcome as c } from '@/components/welcome/WelcomeUI';
 
-import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-interface OnboardingSlide {
-  id: string;
-  stepNumber: number;
-  title: string;
-  tagline: string;
-  description: string;
-  badgeLabel: string;
-  badgeSub: string;
-  iconBg: string;
-  iconColor: string;
-  icon: any;
-}
-
-const FEATURE_SLIDES: OnboardingSlide[] = [
-  {
-    id: 'slide-1',
-    stepNumber: 1,
-    title: 'Your Complete Health Vault',
-    tagline: 'Records & Vitals',
-    description:
-      'Store, access, and share your complete medical history, verified lab results, and prescriptions securely in one encrypted place.',
-    badgeLabel: 'Records & Vitals',
-    badgeSub: 'Secure and encrypted',
-    iconBg: '#EAF5E2',
-    iconColor: '#006022',
-    icon: Activity,
-  },
-  {
-    id: 'slide-2',
-    stepNumber: 2,
-    title: 'Instant TeleCare & Doctors',
-    tagline: '24/7 Clinical Access',
-    description:
-      'Connect with certified medical specialists in minutes via secure HD video consultations from the comfort of your home.',
-    badgeLabel: 'Video Consultations',
-    badgeSub: 'Talk to a clinician',
-    iconBg: '#EBF5EC',
-    iconColor: '#0E4A30',
-    icon: Video,
-  },
-  {
-    id: 'slide-3',
-    stepNumber: 3,
-    title: 'Rapid Emergency Dispatch',
-    tagline: 'DispatchCare Response',
-    description:
-      'One-tap emergency response with instant access to your emergency medical profile and real-time paramedic GPS tracking.',
-    badgeLabel: 'Emergency Dispatch',
-    badgeSub: 'Request help in one tap',
-    iconBg: '#FDECEA',
-    iconColor: '#C0392B',
-    icon: Ambulance,
-  },
+const slides: { id: CareScene; tag: string; title: string; description: string; note: string }[] = [
+  { id: 'records', tag: 'YOUR HEALTH, TOGETHER', title: 'A little more\npeace of mind.', description: 'Your records, results, and vitals. In one place, wherever life takes you.', note: 'Your health story. Always with you.' },
+  { id: 'telecare', tag: 'CARE THAT COMES TO YOU', title: 'Closer to care.\nWherever you are.', description: 'Connect with a clinician through TeleCare, without the trip to the waiting room.', note: 'Real conversations. Personal care.' },
+  { id: 'dispatch', tag: 'SUPPORT WHEN IT MATTERS', title: 'A helping hand.\nWhen you need it.', description: 'Request emergency support and share your location with the response team.', note: 'Connected to support, every step.' },
 ];
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme() ?? 'light';
-  const theme = Colors[colorScheme];
+  const list = useRef<FlatList>(null);
+  const [index, setIndex] = useState(0);
+  const [width, setWidth] = useState(0);
+  const [height, setHeight] = useState(844);
+  const compact = height < 700;
+  const artHeight = compact ? Math.max(130, Math.min(210, height - 410)) : Math.min(300, width * 330 / 360);
+  const goTo = (next: number) => { setIndex(next); list.current?.scrollToOffset({ offset: next * width, animated: true }); };
 
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const flatListRef = useRef<FlatList>(null);
-
-  const goToSlide = (nextIndex: number) => {
-    if (nextIndex >= 0 && nextIndex < FEATURE_SLIDES.length) {
-      setCurrentIndex(nextIndex);
-      flatListRef.current?.scrollToOffset({
-        offset: nextIndex * SCREEN_WIDTH,
-        animated: true,
-      });
-    }
-  };
-
-  const handleNext = () => {
-    if (currentIndex < FEATURE_SLIDES.length - 1) {
-      goToSlide(currentIndex + 1);
-    } else {
-      router.push('/signup');
-    }
-  };
-
-  const handleSkip = () => {
-    router.push('/signup');
-  };
-
-  return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
-      <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
-
-      {/* Top Header: Step Segments & Skip */}
-      <View style={styles.topHeader}>
-        {/* Step Progress Segments */}
-        <View style={styles.segmentRow}>
-          {FEATURE_SLIDES.map((_, idx) => {
-            const isFilled = idx <= currentIndex;
-            return (
-              <View
-                key={idx}
-                style={[
-                  styles.segment,
-                  {
-                    backgroundColor: isFilled ? theme.primary : theme.border,
-                  },
-                ]}
-              />
-            );
-          })}
-        </View>
-
-        {/* Action Row */}
-        <View style={styles.topActionRow}>
-          <View style={styles.stepBadge}>
-            <Text style={styles.stepBadgeText}>Step {currentIndex + 1} of {FEATURE_SLIDES.length}</Text>
-          </View>
-
-          <TouchableOpacity onPress={handleSkip} activeOpacity={0.7} style={styles.skipBtn}>
-            <Text style={[styles.skipText, { color: theme.textMuted }]}>Skip</Text>
-          </TouchableOpacity>
-        </View>
+  return <SafeAreaView style={styles.screen}>
+    <StatusBar barStyle="dark-content" backgroundColor={c.paper} />
+    <View style={styles.frame} onLayout={event => {
+      const nextWidth = event.nativeEvent.layout.width;
+      setHeight(event.nativeEvent.layout.height);
+      if (nextWidth !== width) { setWidth(nextWidth); list.current?.scrollToOffset({ offset: index * nextWidth, animated: false }); }
+    }}>
+      <View style={[styles.header, compact && { paddingTop: 6 }]}>
+        <Brand />
+        <Pressable accessibilityRole="button" onPress={() => router.push('/signup')} style={styles.skip}>
+          <Text style={styles.skipText}>Skip</Text>
+        </Pressable>
       </View>
-
-      {/* Feature Carousel */}
-      <FlatList
-        ref={flatListRef}
-        data={FEATURE_SLIDES}
-        keyExtractor={(item) => item.id}
-        horizontal
-        pagingEnabled
-        style={{ flex: 1 }}
-        contentContainerStyle={{ flexGrow: 1 }}
-        showsHorizontalScrollIndicator={false}
-        scrollEventThrottle={16}
-        keyboardShouldPersistTaps="handled"
-        getItemLayout={(_, index) => ({
-          length: SCREEN_WIDTH,
-          offset: SCREEN_WIDTH * index,
-          index,
-        })}
-        onScrollToIndexFailed={(info) => {
-          setTimeout(() => {
-            flatListRef.current?.scrollToIndex({ index: info.index, animated: true });
-          }, 50);
-        }}
-        onMomentumScrollEnd={(e) => {
-          const index = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-          setCurrentIndex(index);
-        }}
-        renderItem={({ item }) => {
-          const IconComponent = item.icon;
-
-          return (
-            <View style={styles.slideContainer}>
-              {/* Typography Header */}
-              <View style={styles.featureHeader}>
-                <Text style={[styles.featureTag, { color: theme.primary }]}>
-                  {item.tagline.toUpperCase()}
-                </Text>
-                <Text style={[styles.featureTitle, { color: theme.text }]}>
-                  {item.title}
-                </Text>
-                <Text style={[styles.featureDesc, { color: theme.textMuted }]}>
-                  {item.description}
-                </Text>
-              </View>
-
-              {/* Center Vector Illustration Box with Floating Badge */}
-              <View style={styles.centerIllustrationBox}>
-                <View
-                  style={[
-                    styles.illustrationCircleOuter,
-                    { backgroundColor: theme.primaryLight },
-                  ]}>
-                  <View
-                    style={[
-                      styles.illustrationCircleInner,
-                      { backgroundColor: theme.surface, borderColor: theme.border },
-                    ]}>
-                    <IconComponent size={64} color={item.iconColor} strokeWidth={1.8} />
-                  </View>
-                </View>
-
-                {/* Floating Status Pill */}
-                <View
-                  style={[
-                    styles.floatingBadgeCard,
-                    { backgroundColor: theme.surface, borderColor: theme.border },
-                  ]}>
-                  <View style={[styles.floatingBadgeIcon, { backgroundColor: item.iconBg }]}>
-                    <Heart size={16} color={item.iconColor} />
-                  </View>
-                  <View>
-                    <Text style={[styles.floatingBadgeTitle, { color: theme.text }]}>
-                      {item.badgeLabel}
-                    </Text>
-                    <Text style={[styles.floatingBadgeSub, { color: theme.textMuted }]}>
-                      {item.badgeSub}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-          );
-        }}
-      />
-
-      {/* Bottom Bar Controls */}
-      <View style={[styles.bottomBar, { backgroundColor: theme.background }]}>
-        {/* Step Indicator Dots */}
-        <View style={styles.dotsRow}>
-          {FEATURE_SLIDES.map((_, idx) => {
-            const isDotActive = currentIndex === idx;
-            return (
-              <TouchableOpacity
-                key={idx}
-                activeOpacity={0.7}
-                onPress={() => goToSlide(idx)}>
-                <View
-                  style={[
-                    styles.dot,
-                    isDotActive
-                      ? [styles.dotActive, { backgroundColor: theme.primary }]
-                      : [styles.dotInactive, { backgroundColor: theme.border }],
-                  ]}
-                />
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Action Buttons */}
-        {currentIndex === FEATURE_SLIDES.length - 1 ? (
-          <View style={styles.finalActionsRow}>
-            <TouchableOpacity
-              onPress={() => router.push('/signup')}
-              activeOpacity={0.8}
-              style={[styles.primaryCtaBtn, { backgroundColor: theme.primary }]}>
-              <UserPlus size={18} color="#FFFFFF" />
-              <Text style={styles.primaryCtaText}>Create Account</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => router.push('/login')}
-              activeOpacity={0.7}
-              style={styles.secondaryLinkBtn}>
-              <Text style={[styles.secondaryLinkText, { color: theme.textMuted }]}>
-                Already have an account?{' '}
-                <Text style={{ color: theme.primary, fontWeight: '700' }}>Sign In</Text>
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.slideNextRow}>
-            <TouchableOpacity
-              onPress={handleNext}
-              activeOpacity={0.8}
-              style={[styles.primaryCtaBtn, { backgroundColor: theme.primary }]}>
-              <Text style={styles.primaryCtaText}>Next</Text>
-              <ChevronRight size={18} color="#FFFFFF" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => router.push('/login')}
-              activeOpacity={0.7}
-              style={styles.secondaryLinkBtn}>
-              <Text style={[styles.secondaryLinkText, { color: theme.textMuted }]}>
-                Already have an account?{' '}
-                <Text style={{ color: theme.primary, fontWeight: '700' }}>Sign In</Text>
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
+      <View style={[styles.progress, compact && { marginTop: 8, marginBottom: 4 }]} accessibilityLabel={`Introduction ${index + 1} of ${slides.length}`}>
+        {slides.map((slide, i) => <Pressable key={slide.id} accessibilityRole="button"
+          accessibilityLabel={`Go to introduction ${i + 1}`} accessibilityState={{ selected: index === i }}
+          onPress={() => goTo(i)} style={styles.progressTouch}>
+          <View style={[styles.segment, { backgroundColor: i <= index ? c.green : c.line }]} />
+        </Pressable>)}
+        <Text style={styles.count}>0{index + 1} / 03</Text>
       </View>
-    </SafeAreaView>
-  );
+      {width > 0 && <FlatList key={width} ref={list} data={slides} horizontal pagingEnabled
+        initialScrollIndex={index} showsHorizontalScrollIndicator={false} style={styles.carousel}
+        getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
+        keyExtractor={item => item.id} extraData={width}
+        onMomentumScrollEnd={event => setIndex(Math.max(0, Math.min(2, Math.round(event.nativeEvent.contentOffset.x / width))))}
+        renderItem={({ item }) => <ScrollView style={{ width }} contentContainerStyle={styles.slide} showsVerticalScrollIndicator={false}>
+          <View style={styles.copy}>
+            <Text style={[styles.tag, compact && { marginBottom: 12 }]}>{item.tag}</Text>
+            <Text style={[styles.title, compact && { fontSize: 34, lineHeight: 38, marginBottom: 12 }]} accessibilityRole="header">{item.title}</Text>
+            <Text style={[styles.description, compact && { fontSize: 14, lineHeight: 21 }]}>{item.description}</Text>
+          </View>
+          <View style={[styles.art, { height: artHeight }]}><CareIllustration scene={item.id} /></View>
+          <Text style={styles.note}>{item.note}</Text>
+        </ScrollView>} />}
+      <Entrance style={styles.footer}>
+        <Action label={index === 2 ? 'Create my account' : 'Continue'} onPress={() => index === 2 ? router.push('/signup') : goTo(index + 1)} />
+        <Pressable accessibilityRole="button" onPress={() => router.push('/login')} style={styles.signIn}>
+          <Text style={styles.signInText}>Already have an account? <Text style={styles.link}>Sign in</Text></Text>
+        </Pressable>
+      </Entrance>
+    </View>
+  </SafeAreaView>;
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  topHeader: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 6,
-  },
-  segmentRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginBottom: 12,
-  },
-  segment: {
-    flex: 1,
-    height: 4,
-    borderRadius: 2,
-  },
-  topActionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  stepBadge: {
-    backgroundColor: '#EAF5E2',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  stepBadgeText: {
-    color: '#006022',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  skipBtn: {
-    padding: 6,
-  },
-  skipText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  slideContainer: {
-    width: SCREEN_WIDTH,
-    paddingHorizontal: 24,
-    justifyContent: 'space-between',
-    paddingBottom: 10,
-  },
-  featureHeader: {
-    paddingTop: 10,
-    marginBottom: 16,
-  },
-  featureTag: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    marginBottom: 6,
-  },
-  featureTitle: {
-    fontSize: 26,
-    fontWeight: '900',
-    lineHeight: 32,
-    letterSpacing: -0.4,
-    marginBottom: 10,
-  },
-  featureDesc: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  centerIllustrationBox: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    height: SCREEN_HEIGHT * 0.38,
-    marginVertical: 10,
-  },
-  illustrationCircleOuter: {
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  illustrationCircleInner: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 3,
-  },
-  floatingBadgeCard: {
-    position: 'absolute',
-    bottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 16,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  floatingBadgeIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  floatingBadgeTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  floatingBadgeSub: {
-    fontSize: 10,
-    marginTop: 1,
-  },
-  bottomBar: {
-    paddingHorizontal: 24,
-    paddingTop: 10,
-    paddingBottom: 24,
-  },
-  dotsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 16,
-  },
-  dot: {
-    height: 6,
-    borderRadius: 3,
-  },
-  dotActive: {
-    width: 20,
-  },
-  dotInactive: {
-    width: 6,
-  },
-  slideNextRow: {
-    gap: 10,
-  },
-  finalActionsRow: {
-    gap: 10,
-  },
-  primaryCtaBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    height: 52,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  primaryCtaText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  secondaryLinkBtn: {
-    alignItems: 'center',
-    paddingVertical: 6,
-  },
-  secondaryLinkText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
+  screen: { flex: 1, backgroundColor: c.paper },
+  frame: { flex: 1, width: '100%', maxWidth: 540, alignSelf: 'center' },
+  header: { paddingHorizontal: 28, paddingTop: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  skip: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' },
+  skipText: { color: c.muted, fontSize: 14 },
+  progress: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 28, gap: 6, marginTop: 18, marginBottom: 12 },
+  progressTouch: { flex: 1, minHeight: 24, justifyContent: 'center' },
+  segment: { height: 3, borderRadius: 3 },
+  count: { color: c.muted, fontSize: 10, letterSpacing: 1, marginLeft: 12 },
+  carousel: { flex: 1 },
+  slide: { flexGrow: 1, paddingTop: 12, paddingBottom: 12, justifyContent: 'space-between' },
+  copy: { paddingHorizontal: 28 },
+  tag: { color: c.green, fontSize: 10, letterSpacing: 1.8, fontWeight: '700', marginBottom: 16 },
+  title: { color: c.ink, fontSize: 43, lineHeight: 48, fontWeight: '500', fontStyle: 'italic', letterSpacing: -2, marginBottom: 18 },
+  description: { color: c.muted, fontSize: 15, lineHeight: 23, maxWidth: 340 },
+  art: { width: '100%', maxWidth: 420, alignSelf: 'center', marginTop: 8 },
+  note: { textAlign: 'center', color: c.muted, fontSize: 11, letterSpacing: 0.3, marginHorizontal: 28, marginTop: 6 },
+  footer: { paddingHorizontal: 28, paddingTop: 14, paddingBottom: 10 },
+  signIn: { minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingVertical: 12 },
+  signInText: { color: c.muted, fontSize: 13 },
+  link: { color: c.ink, fontWeight: '700' },
 });
