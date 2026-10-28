@@ -1,4 +1,6 @@
-import { bloodGroupLabel, bloodGroupToApi } from '@/lib/bloodGroup';
+import { BLOOD_GROUP_LABELS, bloodGroupLabel } from '@/lib/bloodGroup';
+import { buildProfileUpdate, GENOTYPES } from '@/lib/profileForm';
+import { GENDER_CHOICES, genderForApi } from '@/lib/validation';
 import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
@@ -17,7 +19,6 @@ import { useRouter } from 'expo-router';
 import {
   ChevronLeft,
   Camera,
-  ChevronDown,
   Check,
 } from 'lucide-react-native';
 
@@ -27,7 +28,7 @@ import Avatar from '@/components/Avatar';
 import { useMyAvatar } from '@/lib/useMyAvatar';
 import { useColorScheme } from '@/components/useColorScheme';
 import EmergencyFAB from '@/components/EmergencyFAB';
-import { patients, ApiError } from '@/lib/api';
+import { patients } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { uploadProfilePhoto } from '@/lib/profilePhoto';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -46,20 +47,25 @@ export default function EditProfileScreen() {
 
   const profile = profileRes?.data;
 
-  const [formData, setFormData] = useState({
-    firstName: profile?.firstName ?? authUser?.firstName ?? '',
-    lastName: profile?.lastName ?? authUser?.lastName ?? '',
-    email: profile?.user?.email ?? authUser?.email ?? '',
-    phone: profile?.user?.phone ?? authUser?.phone ?? '',
-    dateOfBirth: profile?.dateOfBirth ?? '',
-    gender: profile?.gender ?? '',
-    bloodType: bloodGroupLabel(profile?.bloodGroup) ?? '',
-    height: profile?.medicalInfo?.heightCm ? String(profile.medicalInfo.heightCm) : '',
-    weight: profile?.medicalInfo?.weightKg ? String(profile.medicalInfo.weightKg) : '',
-    address: profile?.address ?? '',
-    city: profile?.city ?? '',
-    country: profile?.country ?? 'Nigeria',
+  const toForm = (p?: typeof profile) => ({
+    firstName: p?.firstName ?? authUser?.firstName ?? '',
+    lastName: p?.lastName ?? authUser?.lastName ?? '',
+    email: p?.user?.email ?? authUser?.email ?? '',
+    phone: p?.user?.phone ?? authUser?.phone ?? '',
+    dateOfBirth: p?.dateOfBirth ? String(p.dateOfBirth).slice(0, 10) : '',
+    gender: p?.gender ?? '',
+    bloodType: bloodGroupLabel(p?.bloodGroup) ?? '',
+    genotype: p?.genotype ?? '',
+    height: p?.medicalInfo?.heightCm ? String(Number(p.medicalInfo.heightCm)) : '',
+    weight: p?.medicalInfo?.weightKg ? String(Number(p.medicalInfo.weightKg)) : '',
+    address: p?.address ?? '',
+    city: p?.city ?? '',
+    state: p?.state ?? '',
+    country: p?.country ?? 'Nigeria',
+    nin: p?.nin ?? '',
   });
+  const [formData, setFormData] = useState(() => toForm(profile));
+  const set = (patch: Partial<typeof formData>) => setFormData((f) => ({ ...f, ...patch }));
 
   // The form is created before the profile request resolves, so fill it from
   // the real profile once it arrives. Without this the defaults stay in place
@@ -68,42 +74,24 @@ export default function EditProfileScreen() {
   useEffect(() => {
     if (!profile || hydrated) return;
     setHydrated(true);
-    setFormData({
-      firstName: profile.firstName ?? '',
-      lastName: profile.lastName ?? '',
-      email: profile.user?.email ?? '',
-      phone: profile.user?.phone ?? '',
-      dateOfBirth: profile.dateOfBirth ? String(profile.dateOfBirth).slice(0, 10) : '',
-      gender: profile.gender ?? '',
-      bloodType: bloodGroupLabel(profile.bloodGroup) ?? '',
-      height: profile.medicalInfo?.heightCm ? String(profile.medicalInfo.heightCm) : '',
-      weight: profile.medicalInfo?.weightKg ? String(profile.medicalInfo.weightKg) : '',
-      address: profile.address ?? '',
-      city: profile.city ?? '',
-      country: profile.country ?? 'Nigeria',
-    });
+    setFormData(toForm(profile));
   }, [profile, hydrated]);
 
   const updateMutation = useMutation({
     mutationFn: async () => {
-      if (!profile?.id) return;
-      return patients.update(profile.id, {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        ...(bloodGroupToApi(formData.bloodType) && { bloodGroup: bloodGroupToApi(formData.bloodType) }),
-        address: formData.address,
-        city: formData.city,
-        country: formData.country,
-        ...((parseFloat(formData.height) > 0 || parseFloat(formData.weight) > 0) && {
-          medicalInfo: {
-            heightCm: parseFloat(formData.height) > 0 ? parseFloat(formData.height) : undefined,
-            weightKg: parseFloat(formData.weight) > 0 ? parseFloat(formData.weight) : undefined,
-          },
-        }),
-      });
+      if (!profile?.id) throw new Error('Your profile has not loaded yet. Please wait a moment and try again.');
+      const built = buildProfileUpdate(formData);
+      if (!built.ok) throw new Error(built.message);
+      return patients.update(profile.id, built.body);
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
+      if (res?.data) qc.setQueryData(['patient', 'profile'], res);
       qc.invalidateQueries({ queryKey: ['patient', 'profile'] });
+      // Other screens greet the patient from the auth store; keep its name in step.
+      const current = useAuthStore.getState().user;
+      if (current) {
+        useAuthStore.setState({ user: { ...current, firstName: formData.firstName.trim(), lastName: formData.lastName.trim() } });
+      }
       Alert.alert(
         'Profile Updated',
         'Your profile information has been saved successfully.',
@@ -111,14 +99,34 @@ export default function EditProfileScreen() {
       );
     },
     onError: (err) => {
-      const msg = err instanceof ApiError ? err.message : 'Failed to update profile on server.';
-      Alert.alert('Error', msg);
+      const msg = err instanceof Error ? err.message : 'Failed to update profile on server.';
+      Alert.alert('Profile not saved', msg);
     },
   });
 
   const handleSaveChanges = () => {
-    updateMutation.mutate();
+    if (!updateMutation.isPending) updateMutation.mutate();
   };
+
+  const chips = (options: { value: string; label: string }[], selected: string, onPick: (v: string) => void) => (
+    <View style={styles.chipRow}>
+      {options.map(({ value, label }) => {
+        const on = selected === value;
+        return (
+          <TouchableOpacity
+            key={value}
+            onPress={() => onPick(on ? '' : value)}
+            activeOpacity={0.8}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: on }}
+            style={[styles.chip, { borderColor: on ? theme.primary : theme.border, backgroundColor: on ? theme.primary : theme.surface }]}>
+            <Text style={[styles.chipText, { color: on ? '#FFFFFF' : theme.text }]}>{label}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+  const asOptions = (values: readonly string[]) => values.map((v) => ({ value: v, label: v }));
 
   const avatar = useMyAvatar();
   const photoUrl = avatar.uri;
@@ -253,34 +261,43 @@ export default function EditProfileScreen() {
             <TextInput
               style={[styles.inputField, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
               value={formData.dateOfBirth}
-              editable={false}
+              onChangeText={(text) => set({ dateOfBirth: text })}
+              placeholder="YYYY-MM-DD"
+              keyboardType="numbers-and-punctuation"
+              maxLength={10}
               placeholderTextColor={theme.textMuted}
             />
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={[styles.inputLabel, { color: theme.textMuted }]}>GENDER</Text>
-            <TouchableOpacity
-              activeOpacity={0.75}
-              disabled
-              style={[styles.dropdownField, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.dropdownText, { color: theme.text }]}>{formData.gender || 'Not set'}</Text>
-            </TouchableOpacity>
+            {chips(
+              GENDER_CHOICES.map(({ value, label }) => ({ value: genderForApi(value), label })),
+              formData.gender,
+              (gender) => set({ gender }),
+            )}
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={[styles.inputLabel, { color: theme.textMuted }]}>BLOOD TYPE</Text>
-            <TouchableOpacity
-              activeOpacity={0.75}
-              onPress={() => {
-                const types = ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'];
-                const nextType = types[(types.indexOf(formData.bloodType) + 1) % types.length];
-                setFormData({ ...formData, bloodType: nextType });
-              }}
-              style={[styles.dropdownField, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.dropdownText, { color: theme.text }]}>{formData.bloodType || 'Not set'}</Text>
-              <ChevronDown size={18} color={theme.textMuted} />
-            </TouchableOpacity>
+            {chips(asOptions(BLOOD_GROUP_LABELS), formData.bloodType, (bloodType) => set({ bloodType }))}
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: theme.textMuted }]}>GENOTYPE</Text>
+            {chips(asOptions(GENOTYPES), formData.genotype, (genotype) => set({ genotype }))}
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: theme.textMuted }]}>NATIONAL HEALTHCARE ID / INSURANCE NO.</Text>
+            <TextInput
+              style={[styles.inputField, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
+              value={formData.nin}
+              onChangeText={(text) => set({ nin: text })}
+              placeholder="Optional"
+              autoCapitalize="characters"
+              placeholderTextColor={theme.textMuted}
+            />
           </View>
         </View>
 
@@ -352,7 +369,17 @@ export default function EditProfileScreen() {
             <TextInput
               style={[styles.inputField, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
               value={formData.city}
-              onChangeText={(text) => setFormData({ ...formData, city: text })}
+              onChangeText={(text) => set({ city: text })}
+              placeholderTextColor={theme.textMuted}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: theme.textMuted }]}>STATE</Text>
+            <TextInput
+              style={[styles.inputField, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
+              value={formData.state}
+              onChangeText={(text) => set({ state: text })}
               placeholderTextColor={theme.textMuted}
             />
           </View>
@@ -379,10 +406,11 @@ export default function EditProfileScreen() {
         <View style={styles.actionGroup}>
           <TouchableOpacity
             onPress={handleSaveChanges}
+            disabled={!profile || updateMutation.isPending}
             activeOpacity={0.85}
-            style={[styles.primaryBtn, { backgroundColor: theme.primary }]}>
-            <Check size={18} color="#FFFFFF" />
-            <Text style={styles.primaryBtnText}>Save Changes</Text>
+            style={[styles.primaryBtn, { backgroundColor: theme.primary, opacity: !profile || updateMutation.isPending ? 0.6 : 1 }]}>
+            {updateMutation.isPending ? <ActivityIndicator color="#FFFFFF" /> : <Check size={18} color="#FFFFFF" />}
+            <Text style={styles.primaryBtnText}>{updateMutation.isPending ? 'Saving…' : 'Save Changes'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -484,17 +512,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  dropdownField: {
+  chipRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  dropdownText: {
-    fontSize: 14,
+  chip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  chipText: {
+    fontSize: 13,
     fontWeight: '600',
   },
   twoColRow: {

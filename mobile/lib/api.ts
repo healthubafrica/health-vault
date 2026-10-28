@@ -185,6 +185,7 @@ export interface PatientProfile {
   profilePhotoUrl?: string | null;
   bloodGroup?: string | null;
   genotype?: string | null;
+  nin?: string | null;
   address?: string | null;
   city?: string | null;
   state?: string | null;
