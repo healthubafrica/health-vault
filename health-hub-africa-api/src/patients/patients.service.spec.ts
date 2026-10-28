@@ -108,3 +108,22 @@ describe('PatientsService.findMyCareTeam — status filter', () => {
     expect(where.patientId).toBe('patient-1');
   });
 });
+
+describe('PatientsService.selfDeactivate — "Delete account"', () => {
+  it('only marks the user inactive (no deletedAt, so admin can reactivate), revokes sessions and drops push devices', async () => {
+    const bcrypt = await import('bcryptjs');
+    const { service, prisma } = buildService();
+    const p = prisma as any;
+    p.user.findUnique.mockResolvedValue({ id: 'user-1', email: 'a@b.c', passwordHash: await bcrypt.hash('Pass1!', 4), isActive: true });
+    p.userSession = { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
+    p.deviceToken = { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) };
+    p.$transaction = jest.fn((ops: unknown[]) => Promise.all(ops));
+    (service as any).notifications = { sendEmail: jest.fn().mockResolvedValue(undefined) };
+
+    await service.selfDeactivate(currentUser, 'Pass1!');
+
+    expect(p.user.update).toHaveBeenCalledWith({ where: { id: 'user-1' }, data: { isActive: false } });
+    expect(p.userSession.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: 'user-1', revokedAt: null } }));
+    expect(p.deviceToken.deleteMany).toHaveBeenCalledWith({ where: { userId: 'user-1' } });
+  });
+});

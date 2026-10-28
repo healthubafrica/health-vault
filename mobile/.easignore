@@ -38,3 +38,8 @@ yarn-error.*
 # Allow EAS to bundle Firebase configuration files for Android/iOS builds
 !google-services.json
 !GoogleService-Info.plist
+
+# GCP/Firebase service-account keys (private key material — never upload)
+health-hub-africa-*.json
+*-service-account*.json
+*-firebase-adminsdk-*.json

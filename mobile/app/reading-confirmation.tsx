@@ -37,7 +37,7 @@ export default function ReadingSavedConfirmationScreen() {
   const dateStr = recorded.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
 
   const getStatusColor = () => {
-    if (status === 'green') return '#006022';
+    if (status === 'green') return theme.status.success.text;
     if (status === 'amber') return '#92610A';
     return '#C0392B';
   };

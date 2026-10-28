@@ -66,15 +66,15 @@ They are kept separate on purpose. Last year's symptoms must never show up as th
 
 ## 8. The delivery plan
 
-Estimates are in weeks of calendar time, assuming roughly two front-end engineers, two back-end engineers, one tester, and part-time product, design, clinical and OpenEMR support. Phases overlap, so the total is **about 3 to 4 months**, not the sum.
+Estimates are in weeks of calendar time, assuming roughly two front-end engineers, two back-end engineers, one tester, and part-time product, design, clinical and OpenEMR support. Phases overlap, so the total is **3 to 4 weeks** for Release 1 (scope and dependencies in the [Phase 0 decision pack](2026-10-18-telecare-intake-phase0-decision-pack.md)).
 
 | Phase | What happens | Est. | What you can see at the end |
 |---|---|---|---|
-| **0. Discovery** | Test what OpenEMR can actually accept. Confirm every question and where its answer goes. Get decisions and approvals (section 9). No production changes. | 2–3 wks | A signed table of "what OpenEMR supports", and the question-to-destination map |
-| **1A. Health Profile** | Structured history with edit tracking. Existing allergy, condition and medicine lists carried over safely. | 3–5 wks | A patient can review and update their profile; edits are tracked |
-| **1B. TeleCare Intake** | The questionnaire, save and resume, document sharing, locked submission, doctor's summary. | 4–6 wks (overlaps 1A) | A patient submits an intake; the doctor sees the summary and the original answers |
-| **1C. Review and OpenEMR** | Accept / Amend / Reject / Decide later, sending approved items, retry and conflict handling. | 3–5 wks (needs Phase 0 sign-off) | An approved allergy appears in OpenEMR once, with no duplicates |
-| **Rollout** | Test on staging, internal pilot, then everyone. | 1–2 wks | Go / no-go review |
+| **0. Discovery** | Test what OpenEMR can actually accept. Confirm every question and where its answer goes. Get decisions and approvals (section 9). No production changes. | Week 1 | A signed table of "what OpenEMR supports", and the question-to-destination map |
+| **1A. Health Profile** | Structured history with edit tracking. Existing allergy, condition and medicine lists carried over safely. | Weeks 1–3 | A patient can review and update their profile; edits are tracked |
+| **1B. TeleCare Intake** | The questionnaire, save and resume, document sharing, locked submission, doctor's summary. | Weeks 1–3 (overlaps 1A) | A patient submits an intake; the doctor sees the summary and the original answers |
+| **1C. Review and OpenEMR** | Accept / Amend / Reject / Decide later, sending approved items, retry and conflict handling. | Weeks 2–4 (needs Phase 0 sign-off) | An approved allergy appears in OpenEMR once, with no duplicates |
+| **Rollout** | Test on staging, internal pilot, then everyone. | Week 4 | Go / no-go review |
 | *Later: native mobile app* | Same experience in the Expo app. Not in this plan's dates. | TBD | n/a |
 
 **Likely to slip the dates:** OpenEMR not supporting some record types (we'd use an approved fallback such as a document), clinical or legal copy arriving late, or a request to add native mobile, children or multi-country consent to the first release.

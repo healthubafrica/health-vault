@@ -132,7 +132,7 @@ export default function ShareRecordsScreen() {
         <View style={styles.header}>
           <View style={{ width: 24 }} />
         </View>
-        <ScrollView contentContainerStyle={[styles.scrollContent, { justifyContent: 'center', flexGrow: 1 }]}>
+        <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={[styles.scrollContent, { justifyContent: 'center', flexGrow: 1 }]}>
           <SuccessState
             title="Share Sent"
             message={`A secure link and one-time verification code was emailed to ${justCreated.emails} recipient${justCreated.emails === 1 ? '' : 's'}. They'll verify their email before viewing anything.`}
@@ -151,18 +151,18 @@ export default function ShareRecordsScreen() {
       <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
 
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-        <TouchableOpacity activeOpacity={0.7} onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity activeOpacity={0.7} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={styles.backBtn}>
           <ChevronLeft size={24} color={theme.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: theme.text }]}>Share My Records</Text>
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-        <View style={[styles.securityPill, { backgroundColor: '#EAF5E2', borderColor: '#B7E0A5' }]}>
-          <ShieldCheck size={16} color="#006022" />
-          <Text style={styles.securityPillText}>
+        <View style={[styles.securityPill, { backgroundColor: theme.status.success.background, borderColor: theme.status.success.border }]}>
+          <ShieldCheck size={16} color={theme.status.success.text} />
+          <Text style={[styles.securityPillText, { color: theme.status.success.text }]}>
             Recipients verify their email with a one-time code before they can view anything.
           </Text>
         </View>

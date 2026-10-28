@@ -7,6 +7,7 @@
 import * as SecureStore from 'expo-secure-store';
 import * as analyticsClient from './analytics/client';
 import type { ExpertReviewCase, CreateExpertReviewInput } from './expertReview';
+import { saveEmergencyProfile, clearEmergencyProfile } from './emergencyProfile';
 
 export const API_BASE =
   (process.env.EXPO_PUBLIC_API_URL ?? 'https://api.myvaultplus.com') + '/api/v1';
@@ -53,6 +54,9 @@ export async function getStoredRefreshToken(): Promise<string | null> {
 
 export async function clearStoredTokens() {
   inMemoryAccessToken = null;
+  // Sign-out, deletion and a dead session all end here: never leave the
+  // previous patient's emergency details on the device.
+  await clearEmergencyProfile();
   try {
     await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
   } catch {}
@@ -181,6 +185,7 @@ export interface PatientProfile {
   profilePhotoUrl?: string | null;
   bloodGroup?: string | null;
   genotype?: string | null;
+  nin?: string | null;
   address?: string | null;
   city?: string | null;
   state?: string | null;
@@ -484,6 +489,11 @@ export const auth = {
 
   logoutAll: () => apiRequest<unknown>('/auth/logout-all', { method: 'POST' }),
 
+  // "Delete account": the backend deactivates the account (data is retained), revokes
+  // every session and emails a confirmation — same endpoint as the portal.
+  deleteAccount: (password: string) =>
+    apiRequest<{ message: string }>('/patients/me/deactivate', { method: 'POST', body: JSON.stringify({ password }) }),
+
   verifyOtp: async (email: string, otp: string, type = 'email') =>
     apiRequest<{ accessToken: string; refreshToken: string }>(
       '/auth/verify-otp',
@@ -529,7 +539,12 @@ export const auth = {
 };
 
 export const patients = {
-  getMyProfile: () => apiRequest<{ data: PatientProfile }>('/patients/me'),
+  // Every successful load also refreshes the encrypted offline emergency copy.
+  getMyProfile: async () => {
+    const res = await apiRequest<{ data: PatientProfile }>('/patients/me');
+    if (res?.data) saveEmergencyProfile(res.data);
+    return res;
+  },
 
   create: (data: Record<string, unknown>) =>
     apiRequest<{ data: PatientProfile }>(

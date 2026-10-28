@@ -168,7 +168,7 @@ export default function ServicesTabScreen() {
             onPress={() => router.push('/book-appointment-step1')}
             style={[styles.detailCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <View style={styles.detailRow}>
-              <View style={[styles.detailIconBox, { backgroundColor: '#EAF5E2' }]}>
+              <View style={[styles.detailIconBox, { backgroundColor: theme.status.success.background }]}>
                 <Clock size={18} color="#137333" />
               </View>
               <View style={{ flex: 1 }}>

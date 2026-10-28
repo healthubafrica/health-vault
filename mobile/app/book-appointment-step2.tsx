@@ -88,7 +88,7 @@ export default function BookAppointmentStep2Screen() {
 
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={styles.backBtn} activeOpacity={0.7}>
           <ChevronLeft size={22} color={theme.primary} />
           <Text style={[styles.backText, { color: theme.primary }]}>Back</Text>
         </TouchableOpacity>
@@ -111,7 +111,7 @@ export default function BookAppointmentStep2Screen() {
         </Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Search Bar */}
         <View style={[styles.searchBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Search size={18} color={theme.textMuted} />
@@ -125,7 +125,7 @@ export default function BookAppointmentStep2Screen() {
         </View>
 
         {/* Filter Pills */}
-        <ScrollView
+        <ScrollView automaticallyAdjustKeyboardInsets
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterScroll}>
@@ -271,13 +271,13 @@ export default function BookAppointmentStep2Screen() {
                   <View
                     style={[
                       styles.availabilityBadge,
-                      { backgroundColor: provider.isAvailable ? '#EAF5E2' : theme.muted },
+                      { backgroundColor: provider.isAvailable ? theme.status.success.background : theme.muted },
                     ]}>
                     <Clock size={12} color={provider.isAvailable ? '#137333' : theme.textMuted} />
                     <Text
                       style={[
                         styles.availabilityText,
-                        { color: provider.isAvailable ? '#006022' : theme.textMuted },
+                        { color: provider.isAvailable ? theme.status.success.text : theme.textMuted },
                       ]}>
                       {provider.isAvailable ? 'Available' : 'Currently unavailable'}
                     </Text>
@@ -303,7 +303,7 @@ export default function BookAppointmentStep2Screen() {
       <View style={[styles.bottomBar, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
         <TouchableOpacity
           activeOpacity={0.8}
-          onPress={() => router.back()}
+          onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back"
           style={[styles.cancelBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Text style={[styles.cancelBtnText, { color: theme.text }]}>Back</Text>
         </TouchableOpacity>

@@ -47,7 +47,7 @@ export default function BookAppointmentStep1Screen() {
 
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={styles.backBtn} activeOpacity={0.7}>
           <ChevronLeft size={22} color={theme.primary} />
           <Text style={[styles.backText, { color: theme.primary }]}>Back</Text>
         </TouchableOpacity>
@@ -98,7 +98,7 @@ export default function BookAppointmentStep1Screen() {
       <View style={[styles.bottomBar, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
         <TouchableOpacity
           activeOpacity={0.8}
-          onPress={() => router.back()}
+          onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back"
           style={[styles.cancelBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Text style={[styles.cancelBtnText, { color: theme.text }]}>Cancel</Text>
         </TouchableOpacity>

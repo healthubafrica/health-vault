@@ -280,6 +280,21 @@ describe('AuthService', () => {
   });
 
   describe('resetPassword', () => {
+    it('rejects an incorrect code and only searches unused, unexpired reset tokens', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-9', email: 'x@test.com' });
+      mockPrisma.verificationToken.findFirst.mockResolvedValue({ id: 'tok-9', token: 'hashed' });
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+      await expect(service.resetPassword('x@test.com', '654321', 'NewPass1!')).rejects.toThrow('Invalid or expired OTP');
+      expect(mockPrisma.verificationToken.findFirst).toHaveBeenCalledWith({
+        where: { userId: 'user-9', type: 'password_reset', usedAt: null, expiresAt: { gt: expect.any(Date) } },
+        orderBy: { createdAt: 'desc' },
+      });
+      expect(bcrypt.compare).toHaveBeenCalledWith('654321', 'hashed');
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockPrisma.userSession.updateMany).not.toHaveBeenCalled();
+    });
+
     it('updates the password, clears any lockout, and revokes every active session', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-9', email: 'x@test.com' });
       mockPrisma.verificationToken.findFirst.mockResolvedValue({ id: 'tok-9', token: 'hashed', expiresAt: new Date(Date.now() + 60_000) });

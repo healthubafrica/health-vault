@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, StatusBar, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, StatusBar, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Star } from 'lucide-react-native';
 
@@ -37,7 +37,7 @@ export default function TelecareRatingScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
-      <View style={styles.body}>
+      <KeyboardAvoidingView style={styles.body} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Text style={[styles.title, { color: theme.text }]}>How was your consultation?</Text>
         <Text style={[styles.sub, { color: theme.textMuted }]}>Your feedback helps us improve TeleCare.</Text>
 
@@ -75,7 +75,7 @@ export default function TelecareRatingScreen() {
         <TouchableOpacity onPress={done} activeOpacity={0.7} style={styles.skip}>
           <Text style={[styles.skipText, { color: theme.textMuted }]}>Skip</Text>
         </TouchableOpacity>
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

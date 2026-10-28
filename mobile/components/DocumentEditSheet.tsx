@@ -92,7 +92,7 @@ export default function DocumentEditSheet({
           />
 
           <Text style={[styles.label, { color: theme.textMuted }]}>CATEGORY</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+          <ScrollView automaticallyAdjustKeyboardInsets horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
             {(Object.keys(DOCUMENT_CATEGORY_LABELS) as DocumentCategory[]).map((cat) => {
               const on = values.category === cat;
               return (
