@@ -159,15 +159,15 @@ export default function HomeDashboardScreen() {
               <View style={styles.wellnessRight}>
                 <View style={styles.metricRow}>
                   <Text style={styles.metricLabel}>Heart Rate</Text>
-                  <View style={[styles.vitalBadge, { backgroundColor: '#EAF5E2' }]}>
-                    <Text style={[styles.vitalBadgeText, { color: '#006022' }]}>{hrDisplay}</Text>
+                  <View style={[styles.vitalBadge, { backgroundColor: theme.status.success.background }]}>
+                    <Text style={[styles.vitalBadgeText, { color: theme.status.success.text }]}>{hrDisplay}</Text>
                   </View>
                 </View>
 
                 <View style={styles.metricRow}>
                   <Text style={styles.metricLabel}>Blood Pressure</Text>
-                  <View style={[styles.vitalBadge, { backgroundColor: '#EAF5E2' }]}>
-                    <Text style={[styles.vitalBadgeText, { color: '#006022' }]}>{bpDisplay}</Text>
+                  <View style={[styles.vitalBadge, { backgroundColor: theme.status.success.background }]}>
+                    <Text style={[styles.vitalBadgeText, { color: theme.status.success.text }]}>{bpDisplay}</Text>
                   </View>
                 </View>
 

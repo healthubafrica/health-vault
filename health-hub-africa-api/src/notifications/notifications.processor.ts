@@ -230,6 +230,15 @@ export class NotificationsProcessor {
     this.logger.log(`Sending push to ${to.substring(0, 20)}...`);
 
     try {
+      // iOS devices register an Expo push token (expo-notifications only exposes a
+      // raw APNs token natively, which FCM rejects); Expo relays it to APNs.
+      if (to.startsWith('ExponentPushToken[')) {
+        await this.sendExpoPush(to, subject ?? 'Health Hub Africa', body);
+        this.logger.log(`Push sent via Expo to ${to.substring(0, 20)}...`);
+        await this.markSent(deliveryId);
+        return;
+      }
+
       const projectId = this.config.get('FIREBASE_PROJECT_ID');
       const clientEmail = this.config.get('FIREBASE_CLIENT_EMAIL');
       const privateKey = this.config.get('FIREBASE_PRIVATE_KEY')?.replace(/\\n/g, '\n');
@@ -269,6 +278,24 @@ export class NotificationsProcessor {
       await this.markFailed(deliveryId, job, err);
       throw err;
     }
+  }
+
+  private async sendExpoPush(to: string, title: string, body: string) {
+    // EXPO_ACCESS_TOKEN is only required if "enhanced push security" is enabled on the Expo project.
+    const accessToken = this.config.get('EXPO_ACCESS_TOKEN');
+    const res = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
+      },
+      body: JSON.stringify({ to, title, body, sound: 'default' }),
+    });
+    if (!res.ok) throw new Error(`Expo push error ${res.status}: ${await res.text()}`);
+    // Expo answers 200 even for a rejected ticket; the per-message status is in the body.
+    const { data } = (await res.json()) as { data?: { status?: string; message?: string } };
+    if (data?.status !== 'ok') throw new Error(`Expo push rejected: ${data?.message ?? 'unknown error'}`);
   }
 
   // Generate a short-lived OAuth2 access token from the Firebase service account

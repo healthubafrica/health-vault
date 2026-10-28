@@ -148,7 +148,9 @@ scripts/check-intake-fixtures.mjs                              (A5: asserts API 
 docs/openemr/INTAKE-CAPABILITY-MATRIX.md                       (P0-1 output)
 ```
 
-## 4. Phase 0: Discovery (2–3 weeks, no PROD changes)
+> **Timeline and decisions updated 2026-10-18:** Release 1 is **3–4 weeks** with phases overlapping. D9 and D10 below are superseded by the [Phase 0 decision pack](2026-10-18-telecare-intake-phase0-decision-pack.md) (new uploads default private with a prompt; legacy items keep provenance and are never downgraded to patient-reported; per-visit records carry a service type and visit reference rather than being TeleCare-only).
+
+## 4. Phase 0: Discovery (week 1, no PROD changes)
 
 Phase 0 produces evidence, not features. Tasks P0-1 and P0-2 can run in parallel with Release 1A. **C2 cannot start until P0-1 is signed off.**
 
@@ -231,7 +233,7 @@ git commit -m "docs(openemr): add intake capability matrix and DEV probe script"
 
 ---
 
-## 5. Release 1A: Longitudinal Health Profile foundation (3–5 weeks)
+## 5. Release 1A: Longitudinal Health Profile foundation (weeks 1–3)
 
 ### Task A1: Security prerequisites: audit PHI redaction and the feature flag
 
@@ -1098,7 +1100,7 @@ async updateItem(kind: ProfileKind, id: string, dto: { baseVersion: number } & R
 
 ---
 
-## 6. Release 1B: TeleCare intake workflow (4–6 weeks; backend can start after A2)
+## 6. Release 1B: TeleCare intake workflow (weeks 1–3; backend can start after A2)
 
 ### Task B1: Intake schema, immutability triggers, partial unique index
 
@@ -1624,7 +1626,7 @@ Routes (`@Roles(provider, admin, super_admin, coordinator)`, resourceType `intak
 
 ---
 
-## 7. Release 1C: Reconciliation and OpenEMR (3–5 weeks; starts after P0-1 sign-off)
+## 7. Release 1C: Reconciliation and OpenEMR (weeks 2–4; starts after P0-1 sign-off)
 
 ### Task C1: Clinical reconciliation (accept / amend / reject / defer)
 

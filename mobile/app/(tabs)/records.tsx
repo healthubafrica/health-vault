@@ -13,8 +13,10 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import {
   Upload,
+  Camera,
   FileText,
   ChevronRight,
   Pill,
@@ -149,11 +151,33 @@ export default function RecordsHubScreen() {
     ]);
   };
 
-  const handleUpload = async () => {
-    if (storagePct >= 100 || atFileLimit) {
-      Alert.alert('Storage limit reached', "You've reached your plan's storage or file limit. Upgrade to add more documents.");
+  const storageFull = () => {
+    if (!(storagePct >= 100 || atFileLimit)) return false;
+    Alert.alert('Storage limit reached', "You've reached your plan's storage or file limit. Upgrade to add more documents.");
+    return true;
+  };
+
+  // Photograph a paper document (lab report, letter, card) straight into the vault.
+  const handleScan = async () => {
+    if (storageFull()) return;
+    const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+    if (!granted) {
+      Alert.alert('Camera access needed', 'Allow camera access for MyHealth Vault+ in your phone settings to scan documents.');
       return;
     }
+    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7 });
+    if (result.canceled || !result.assets?.[0]) return;
+    const photo = result.assets[0];
+    setPendingFile({
+      name: `Scan ${new Date().toISOString().slice(0, 10)}.jpg`,
+      uri: photo.uri,
+      size: photo.fileSize ?? undefined,
+      mimeType: 'image/jpeg',
+    });
+  };
+
+  const handleUpload = async () => {
+    if (storageFull()) return;
     const result = await DocumentPicker.getDocumentAsync({ type: ALLOWED_MIME_TYPES, copyToCacheDirectory: true });
     if (result.canceled || !result.assets?.[0]) return;
     const file = result.assets[0];
@@ -265,7 +289,7 @@ export default function RecordsHubScreen() {
 
       {/* Sub-navigation tabs */}
       <View style={[styles.tabBar, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabScroll}>
+        <ScrollView automaticallyAdjustKeyboardInsets horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabScroll}>
           {TABS.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -292,7 +316,7 @@ export default function RecordsHubScreen() {
       </View>
 
       {/* Content Area */}
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
         <TouchableOpacity
           activeOpacity={0.8}
@@ -340,7 +364,7 @@ export default function RecordsHubScreen() {
               />
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
+            <ScrollView automaticallyAdjustKeyboardInsets horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
               <TouchableOpacity
                 onPress={() => setCategoryFilter(undefined)}
                 style={[styles.categoryChip, { backgroundColor: !categoryFilter ? theme.primary : theme.surface, borderColor: !categoryFilter ? theme.primary : theme.border }]}>
@@ -356,14 +380,25 @@ export default function RecordsHubScreen() {
               ))}
             </ScrollView>
 
-            <TouchableOpacity
-              activeOpacity={0.85}
-              disabled={isUploading}
-              onPress={handleUpload}
-              style={[styles.primaryActionBtn, { backgroundColor: theme.primary, opacity: isUploading ? 0.7 : 1, marginBottom: 20 }]}>
-              {isUploading ? <ActivityIndicator color="#FFFFFF" /> : <Upload size={18} color="#FFFFFF" />}
-              <Text style={styles.primaryActionText}>{isUploading ? 'Uploading…' : 'Upload Document'}</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                disabled={isUploading}
+                onPress={handleUpload}
+                style={[styles.primaryActionBtn, { backgroundColor: theme.primary, opacity: isUploading ? 0.7 : 1 }]}>
+                {isUploading ? <ActivityIndicator color="#FFFFFF" /> : <Upload size={18} color="#FFFFFF" />}
+                <Text style={styles.primaryActionText}>{isUploading ? 'Uploading…' : 'Upload Document'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                disabled={isUploading}
+                onPress={handleScan}
+                accessibilityRole="button"
+                style={[styles.secondaryActionBtn, { borderWidth: 1.5, borderColor: theme.primary, opacity: isUploading ? 0.7 : 1 }]}>
+                <Camera size={18} color={theme.primary} />
+                <Text style={[styles.secondaryActionText, { color: theme.primary }]}>Scan with camera</Text>
+              </TouchableOpacity>
+            </View>
 
             {loadingDocs ? (
               <ListSkeleton rows={3} />

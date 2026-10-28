@@ -28,6 +28,7 @@ import {
 import { Track } from 'livekit-client';
 
 import { telecare, ApiError } from '@/lib/api';
+import { startCallService, stopCallService } from '@/lib/callService';
 
 // The room view — everything inside here has access to the LiveKit room
 // context provided by <LiveKitRoom>.
@@ -102,6 +103,7 @@ export default function TeleCareInCallScreen() {
     AudioSession.startAudioSession();
     return () => {
       AudioSession.stopAudioSession();
+      stopCallService();
     };
   }, []);
 
@@ -129,7 +131,7 @@ export default function TeleCareInCallScreen() {
     return (
       <SafeAreaView style={styles.centeredScreen}>
         <Text style={styles.errorText}>No session specified.</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backLink}>
+        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={styles.backLink}>
           <Text style={styles.backLinkText}>Go back</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -152,7 +154,7 @@ export default function TeleCareInCallScreen() {
         <Text style={styles.errorText}>
           {error instanceof ApiError ? error.message : "We couldn't set up your call. Please try again."}
         </Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backLink}>
+        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={styles.backLink}>
           <Text style={styles.backLinkText}>Go back</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -164,9 +166,9 @@ export default function TeleCareInCallScreen() {
       <SafeAreaView style={styles.centeredScreen}>
         <Text style={styles.errorText}>{callFailed}</Text>
         <Text style={styles.errorSubText}>
-          Please allow camera and microphone access for this app in your device settings, then try again.
+          Check your internet connection and that camera and microphone access is allowed for this app, then try again.
         </Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backLink}>
+        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={styles.backLink}>
           <Text style={styles.backLinkText}>Go back</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -182,7 +184,11 @@ export default function TeleCareInCallScreen() {
         connect
         audio
         video
-        onConnected={() => setHasConnected(true)}
+        onConnected={() => {
+          setHasConnected(true);
+          // Android: keep the call's audio alive if the patient leaves the app.
+          startCallService();
+        }}
         onError={(err) => setCallFailed(err.message)}
         onDisconnected={() => {
           // Only a call that actually connected counts as a real, completed

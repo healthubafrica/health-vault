@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, Lock, KeyRound, LogOut, Fingerprint, FileText } from 'lucide-react-native';
+import { ChevronLeft, Lock, KeyRound, LogOut, Fingerprint, FileText, Trash2 } from 'lucide-react-native';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -79,6 +79,32 @@ export default function PrivacySecurityScreen() {
     ]);
   };
 
+  const [deletePassword, setDeletePassword] = useState('');
+  const deleteAccount = useMutation({
+    mutationFn: () => auth.deleteAccount(deletePassword),
+    onSuccess: async () => {
+      setDeletePassword('');
+      await logout();
+      Alert.alert('Account deleted', 'Your account has been deleted and you have been signed out.');
+    },
+    onError: (err: unknown) => Alert.alert('Could not delete account', err instanceof ApiError ? err.message : 'Please try again.'),
+  });
+
+  const confirmDeleteAccount = () => {
+    if (!deletePassword) {
+      Alert.alert('Password required', 'Enter your password to delete your account.');
+      return;
+    }
+    Alert.alert(
+      'Delete your account?',
+      'You will be signed out on every device and will no longer be able to sign in. Contact support if you change your mind.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete account', style: 'destructive', onPress: () => deleteAccount.mutate() },
+      ],
+    );
+  };
+
   const sessionList = sessions.data?.data ?? [];
 
   return (
@@ -86,14 +112,14 @@ export default function PrivacySecurityScreen() {
       <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
 
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-        <TouchableOpacity activeOpacity={0.7} onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity activeOpacity={0.7} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={styles.backBtn}>
           <ChevronLeft size={24} color={theme.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: theme.text }]}>Privacy & Security</Text>
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Sign-in security */}
         <View style={styles.sectionHeader}>
           <Lock size={18} color={theme.primary} />
@@ -195,6 +221,34 @@ export default function PrivacySecurityScreen() {
           <View style={[styles.divider, { backgroundColor: theme.border }]} />
           <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/privacy-policy')} style={styles.linkRow}>
             <Text style={[styles.rowTitle, { color: theme.text }]}>Privacy policy</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Delete account */}
+        <View style={styles.sectionHeader}>
+          <Trash2 size={18} color={theme.emergency} />
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Delete account</Text>
+        </View>
+        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, padding: 16, gap: 10 }]}>
+          <Text style={[styles.rowDesc, { color: theme.textMuted, marginTop: 0 }]}>
+            Deleting your account signs you out everywhere and stops you signing in again.
+          </Text>
+          <TextInput
+            style={[styles.input, { borderColor: theme.border, color: theme.text }]}
+            placeholder="Confirm with your password"
+            placeholderTextColor={theme.textMuted}
+            secureTextEntry
+            value={deletePassword}
+            onChangeText={setDeletePassword}
+            accessibilityLabel="Password to confirm account deletion"
+          />
+          <TouchableOpacity
+            activeOpacity={0.85}
+            disabled={deleteAccount.isPending}
+            onPress={confirmDeleteAccount}
+            accessibilityRole="button"
+            style={[styles.primaryBtn, { backgroundColor: theme.emergency, opacity: deleteAccount.isPending ? 0.6 : 1 }]}>
+            <Text style={styles.primaryBtnText}>{deleteAccount.isPending ? 'Deleting…' : 'Delete my account'}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

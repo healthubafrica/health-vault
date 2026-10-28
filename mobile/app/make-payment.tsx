@@ -26,12 +26,6 @@ import { parseNairaAmount } from '@/lib/validation';
 import { useGatewayAvailability } from '@/lib/useGatewayAvailability';
 import type { CardGateway } from '@/lib/gateway';
 
-const BANK_DETAILS = {
-  bank: 'United Bank for Africa (UBA)',
-  account: '1028358485',
-  name: 'Health Hub Africa',
-};
-
 type Method = 'card' | 'manual';
 
 export default function MakePaymentScreen() {
@@ -183,22 +177,28 @@ export default function MakePaymentScreen() {
       <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
         <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
         <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-          <TouchableOpacity activeOpacity={0.7} onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={styles.backBtn}>
             <ChevronLeft size={24} color={theme.text} />
           </TouchableOpacity>
           <Text style={[styles.title, { color: theme.text }]}>Bank Transfer</Text>
           <View style={{ width: 36 }} />
         </View>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={styles.scrollContent}>
           <SuccessState
             title="Reference Generated"
             message="Complete the transfer using the details below. Your payment will be marked as paid once we confirm receipt."
             referenceId={transferConfirm.ref}
+            // Account details come only from the API: a copy baked into the app
+            // could send patients' money to an old account after a change.
             details={[
               { label: 'Amount', value: transferConfirm.amount },
-              { label: 'Bank', value: bank?.bankName ?? BANK_DETAILS.bank },
-              { label: 'Account Number', value: bank?.accountNumber ?? BANK_DETAILS.account },
-              { label: 'Account Name', value: bank?.accountName ?? BANK_DETAILS.name },
+              ...(bank?.accountNumber
+                ? [
+                    { label: 'Bank', value: bank.bankName ?? '' },
+                    { label: 'Account Number', value: bank.accountNumber },
+                    { label: 'Account Name', value: bank.accountName ?? '' },
+                  ]
+                : [{ label: 'Bank details', value: "Couldn't load — contact support before transferring" }]),
             ]}
             primaryActionLabel="Done"
             onPrimaryAction={() => router.back()}
@@ -213,17 +213,17 @@ export default function MakePaymentScreen() {
       <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
 
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-        <TouchableOpacity activeOpacity={0.7} onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity activeOpacity={0.7} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={styles.backBtn}>
           <ChevronLeft size={24} color={theme.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: theme.text }]}>Make a Payment</Text>
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={[styles.securityPill, { backgroundColor: '#EAF5E2', borderColor: '#B7E0A5' }]}>
-          <ShieldCheck size={16} color="#006022" />
-          <Text style={styles.securityPillText}>Card payments are handled by our PCI-compliant gateway</Text>
+      <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={[styles.securityPill, { backgroundColor: theme.status.success.background, borderColor: theme.status.success.border }]}>
+          <ShieldCheck size={16} color={theme.status.success.text} />
+          <Text style={[styles.securityPillText, { color: theme.status.success.text }]}>Card payments are handled by our PCI-compliant gateway</Text>
         </View>
 
         <View style={styles.field}>

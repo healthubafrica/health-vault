@@ -43,3 +43,8 @@ expo-env.d.ts
 !mobile/assets/**
 !mobile/google-services.json
 !mobile/GoogleService-Info.plist
+
+# GCP/Firebase service-account keys (private key material — never upload)
+**/health-hub-africa-*.json
+**/*-service-account*.json
+**/*-firebase-adminsdk-*.json

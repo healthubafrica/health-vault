@@ -9,7 +9,9 @@
       "distribution": "internal",
       "channel": "development",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.myvaultplus.com"
+        "EXPO_PUBLIC_API_URL": "https://api.myvaultplus.com",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://a5de4966903458e7ff98b889547fc998@o4511519708807168.ingest.de.sentry.io/4512312596693072"
       }
     },
     "preview": {
@@ -19,18 +21,27 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.myvaultplus.com"
+        "EXPO_PUBLIC_API_URL": "https://api.myvaultplus.com",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://a5de4966903458e7ff98b889547fc998@o4511519708807168.ingest.de.sentry.io/4512312596693072"
       }
     },
     "production": {
       "autoIncrement": true,
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.myvaultplus.com"
+        "EXPO_PUBLIC_API_URL": "https://api.myvaultplus.com",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://a5de4966903458e7ff98b889547fc998@o4511519708807168.ingest.de.sentry.io/4512312596693072"
       }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "./health-hub-africa-b5b33d17416c.json",
+        "track": "beta"
+      }
+    }
   }
 }

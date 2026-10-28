@@ -70,7 +70,7 @@ export default function PaymentMethodsScreen() {
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
         <TouchableOpacity
           activeOpacity={0.7}
-          onPress={() => router.back()}
+          onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back"
           style={styles.backBtn}>
           <ChevronLeft size={24} color={theme.text} />
         </TouchableOpacity>
@@ -83,9 +83,9 @@ export default function PaymentMethodsScreen() {
         showsVerticalScrollIndicator={false}>
 
         {/* Security Badge */}
-        <View style={[styles.securityPill, { backgroundColor: '#EAF5E2', borderColor: '#B7E0A5' }]}>
-          <ShieldCheck size={16} color="#006022" />
-          <Text style={styles.securityPillText}>Cards are tokenized by our payment gateway — we never store your card number</Text>
+        <View style={[styles.securityPill, { backgroundColor: theme.status.success.background, borderColor: theme.status.success.border }]}>
+          <ShieldCheck size={16} color={theme.status.success.text} />
+          <Text style={[styles.securityPillText, { color: theme.status.success.text }]}>Cards are tokenized by our payment gateway — we never store your card number</Text>
         </View>
 
         {/* Saved Cards */}

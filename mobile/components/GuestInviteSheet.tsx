@@ -115,7 +115,7 @@ export default function GuestInviteSheet({
           </TouchableOpacity>
 
           <Text style={[styles.section, { color: theme.textMuted }]}>INVITED GUESTS</Text>
-          <ScrollView style={{ maxHeight: 180 }}>
+          <ScrollView automaticallyAdjustKeyboardInsets style={{ maxHeight: 180 }}>
             {isLoading ? (
               <ActivityIndicator color={theme.primary} />
             ) : error ? (

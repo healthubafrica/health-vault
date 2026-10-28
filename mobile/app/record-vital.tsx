@@ -126,7 +126,7 @@ export default function RecordVitalsEntryScreen() {
 
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={styles.backBtn} activeOpacity={0.7}>
           <ChevronLeft size={22} color={theme.primary} />
           <Text style={[styles.backText, { color: theme.primary }]}>Back</Text>
         </TouchableOpacity>
@@ -134,7 +134,7 @@ export default function RecordVitalsEntryScreen() {
         <View style={{ width: 60 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView automaticallyAdjustKeyboardInsets contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
         {/* Step 1: Metric Selection */}
         <View style={styles.section}>
@@ -246,7 +246,7 @@ export default function RecordVitalsEntryScreen() {
                   {
                     color:
                       currentStatus === 'green'
-                        ? '#006022'
+                        ? theme.status.success.text
                         : currentStatus === 'amber'
                         ? '#92610A'
                         : '#C0392B',
@@ -283,7 +283,7 @@ export default function RecordVitalsEntryScreen() {
             <Text style={styles.saveBtnText}>{isSaving ? 'Saving...' : 'Save Reading'}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.85} style={[styles.cancelBtn, { backgroundColor: theme.primaryLight }]}>
+          <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" activeOpacity={0.85} style={[styles.cancelBtn, { backgroundColor: theme.primaryLight }]}>
             <Text style={[styles.cancelBtnText, { color: theme.primaryDark }]}>Cancel</Text>
           </TouchableOpacity>
         </View>

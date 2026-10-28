@@ -143,8 +143,11 @@ export async function registerForPushNotificationsAsync(): Promise<PushRegistrat
 export async function syncPushTokenWithBackend(
   tokens: { expoPushToken?: string; devicePushToken?: string }
 ): Promise<void> {
-  // The backend sends through FCM, so prefer the native device token.
-  const token = tokens.devicePushToken || tokens.expoPushToken;
+  // Android: the native token is an FCM token the backend sends to directly.
+  // iOS: the native token is a raw APNs token FCM rejects, so register the Expo
+  // token instead; the backend relays ExponentPushToken[...] through Expo.
+  const token =
+    Platform.OS === 'ios' ? tokens.expoPushToken : tokens.devicePushToken || tokens.expoPushToken;
   if (!token || (Platform.OS !== 'ios' && Platform.OS !== 'android')) return;
   try {
     await apiRequest('/notifications/push-token', {

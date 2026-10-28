@@ -102,7 +102,7 @@ export default function NotificationsScreen() {
     time: new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     dateGroup: new Date(n.createdAt).toDateString() === new Date().toDateString() ? 'Today' : 'Earlier',
     isRead: n.isRead,
-    iconBg: n.isRead ? '#F5F5F5' : '#EAF5E2',
+    iconBg: n.isRead ? theme.muted : theme.status.success.background,
     iconColor: theme.primary,
   }));
 
@@ -156,7 +156,7 @@ export default function NotificationsScreen() {
 
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={styles.backBtn} activeOpacity={0.7}>
           <ChevronLeft size={22} color={theme.primary} />
           <Text style={[styles.backText, { color: theme.primary }]}>Back</Text>
         </TouchableOpacity>

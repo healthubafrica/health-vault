@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Alert,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -26,7 +27,7 @@ import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import * as Location from 'expo-location';
 import { patients, dispatch, analytics, ApiError } from '@/lib/api';
-import { bloodGroupLabel } from '@/lib/bloodGroup';
+import { loadEmergencyProfile, toEmergencySnapshot, type EmergencySnapshot } from '@/lib/emergencyProfile';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useQuery } from '@tanstack/react-query';
 
@@ -72,19 +73,33 @@ export default function EmergencyScreen() {
   });
 
   const profile = profileRes?.data;
-  const patientName = profile ? `${profile.firstName} ${profile.lastName}` : (authUser ? `${authUser.firstName} ${authUser.lastName}` : 'Patient');
+  // No network: fall back to the encrypted copy saved on this device.
+  const [offline, setOffline] = useState<EmergencySnapshot | null>(null);
+  useEffect(() => {
+    if (profileError && !profile) loadEmergencyProfile().then(setOffline);
+  }, [profileError, profile]);
+  const snap = profile ? toEmergencySnapshot(profile) : offline;
+
+  const patientName = snap?.name || (authUser ? `${authUser.firstName} ${authUser.lastName}` : 'Patient');
   // Only real, recorded data: a responder must never be shown invented
   // allergies, medicines or contacts.
   const NOT_RECORDED = 'Not recorded';
-  const bloodGroup = bloodGroupLabel(profile?.bloodGroup) ?? NOT_RECORDED;
-  const allergies = profile?.medicalInfo?.allergies?.join(', ') || NOT_RECORDED;
-  const chronicConditions = profile?.medicalInfo?.chronicConditions?.join(', ') || NOT_RECORDED;
-  const currentMedications = profile?.medicalInfo?.activeMedications?.join(', ') || NOT_RECORDED;
-  const emergencyContactName = profile?.emergencyContacts?.[0]?.fullName ?? profile?.nextOfKinName ?? NOT_RECORDED;
-  const emergencyContactPhone = profile?.emergencyContacts?.[0]?.phone ?? profile?.nextOfKinPhone ?? NOT_RECORDED;
-  const emergencyContactRel = profile?.emergencyContacts?.[0]?.relationship ?? profile?.nextOfKinRelationship ?? 'Contact';
+  const bloodGroup = snap?.bloodGroup ?? NOT_RECORDED;
+  const allergies = snap?.allergies || NOT_RECORDED;
+  const chronicConditions = snap?.chronicConditions || NOT_RECORDED;
+  const currentMedications = snap?.medications || NOT_RECORDED;
+  const emergencyContactName = snap?.contact?.name ?? NOT_RECORDED;
+  const emergencyContactPhone = snap?.contact?.phone ?? NOT_RECORDED;
+  const emergencyContactRel = snap?.contact?.relationship ?? 'Contact';
+
+  const callNumber = (phone: string) =>
+    Linking.openURL(`tel:${phone.replace(/[^\d+]/g, '')}`).catch(() =>
+      Alert.alert('Could not start the call', `Dial ${phone} from your phone app.`),
+    );
+  const hasContactPhone = emergencyContactPhone !== NOT_RECORDED;
 
   const handleDispatchCare = () => {
+    if (isRequesting) return;
     Alert.alert(
       'Confirm DispatchCare Request',
       'This will immediately alert HHA Emergency Dispatch with your current GPS location and emergency medical profile. Are you sure?',
@@ -98,8 +113,9 @@ export default function EmergencyScreen() {
             analytics.track('dispatch_request_started', { emergencyType: DISPATCH_EMERGENCY_TYPE });
             try {
               // Best effort: a dispatcher needs the location, but never block
-              // an emergency on a slow or denied GPS fix.
-              const coords = await getCurrentCoordinates();
+              // an emergency on a slow or denied GPS fix. Reuse the fix the
+              // screen already has rather than waiting on a second one.
+              const coords = loc || (await getCurrentCoordinates());
               const created = await dispatch.create({
                 emergencyType: DISPATCH_EMERGENCY_TYPE,
                 description: `Emergency request for ${patientName}`,
@@ -143,13 +159,22 @@ export default function EmergencyScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {profileError && !profile ? (
+        {profileError && !profile && offline ? (
+          <View style={[styles.historyLink, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Text style={[styles.historyText, { color: theme.textMuted, flex: 1 }]}>
+              Offline — showing the copy saved on this phone on {new Date(offline.savedAt).toLocaleDateString()}.
+            </Text>
+            <TouchableOpacity onPress={() => refetchProfile()} accessibilityRole="button">
+              <Text style={[styles.historyText, { color: theme.primary }]}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : profileError && !profile ? (
           <ErrorState title="Couldn't load your medical profile" onRetry={() => refetchProfile()} />
         ) : null}
         
         {/* Back Button & Header */}
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={styles.backBtn}>
             <ChevronLeft size={24} color={theme.text} />
             <Text style={[styles.backText, { color: theme.text }]}>Back</Text>
           </TouchableOpacity>
@@ -159,13 +184,13 @@ export default function EmergencyScreen() {
         <View style={[styles.dispatchCard, { backgroundColor: theme.emergencyLight, borderColor: theme.emergency }]}>
           <AlertOctagon size={36} color={theme.emergency} />
           <Text style={[styles.dispatchHeading, { color: theme.emergency }]}>DispatchCare Emergency</Text>
-          <Text style={[styles.dispatchSub, { color: '#78281F' }]}>
+          <Text style={[styles.dispatchSub, { color: theme.status.emergency.text }]}>
             Fast-response medical dispatch. We share your GPS location when you allow it.
           </Text>
 
-          <View style={[styles.gpsBox, { backgroundColor: '#FFFFFF', borderColor: theme.emergency }]}>
+          <View style={[styles.gpsBox, { backgroundColor: theme.surface, borderColor: theme.emergency }]}>
             <MapPin size={16} color={theme.emergency} />
-            <Text style={styles.gpsText}>
+            <Text style={[styles.gpsText, { color: theme.text }]}>
               {loc === undefined
                 ? 'Getting your location…'
                 : loc
@@ -176,12 +201,24 @@ export default function EmergencyScreen() {
 
           <TouchableOpacity
             onPress={handleDispatchCare}
+            disabled={isRequesting}
             activeOpacity={0.85}
-            style={[styles.dispatchBtn, { backgroundColor: theme.emergency }]}>
+            accessibilityRole="button"
+            style={[styles.dispatchBtn, { backgroundColor: theme.emergency, opacity: isRequesting ? 0.7 : 1 }]}>
             <PhoneCall size={20} color="#FFFFFF" strokeWidth={2.5} />
             <Text style={styles.dispatchBtnText}>
               {isRequesting ? 'CONTACTING DISPATCH...' : 'REQUEST DISPATCHCARE'}
             </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => callNumber(EMERGENCY_NUMBER)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={`Call emergency services on ${EMERGENCY_NUMBER}`}
+            style={[styles.callBtn, { borderColor: theme.emergency, backgroundColor: theme.surface }]}>
+            <PhoneCall size={18} color={theme.emergency} />
+            <Text style={[styles.callBtnText, { color: theme.emergency }]}>CALL {EMERGENCY_NUMBER}</Text>
           </TouchableOpacity>
         </View>
 
@@ -251,6 +288,16 @@ export default function EmergencyScreen() {
                 <Text style={[styles.infoLabel, { color: theme.textMuted }]}>Emergency Contact ({emergencyContactRel})</Text>
                 <Text style={[styles.infoValue, { color: theme.text }]}>{emergencyContactName} • {emergencyContactPhone}</Text>
               </View>
+              {hasContactPhone ? (
+                <TouchableOpacity
+                  onPress={() => callNumber(emergencyContactPhone)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Call ${emergencyContactName}`}
+                  hitSlop={8}
+                  style={[styles.iconBox, { backgroundColor: theme.emergencyLight }]}>
+                  <PhoneCall size={18} color={theme.emergency} />
+                </TouchableOpacity>
+              ) : null}
             </View>
           </View>
         </View>
@@ -341,6 +388,23 @@ const styles = StyleSheet.create({
   },
   dispatchBtnText: {
     color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  callBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    width: '100%',
+    marginTop: 10,
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 2,
+    backgroundColor: '#FFFFFF',
+  },
+  callBtnText: {
     fontSize: 15,
     fontWeight: '900',
     letterSpacing: 0.5,
