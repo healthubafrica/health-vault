@@ -253,6 +253,10 @@ export class ProvidersService {
 
     if (!provider) throw new NotFoundException('Provider not found');
     this.assertOwnerOrAdmin(provider, currentUser);
+    // The title is what patients see ("Dr.", "Nurse"); only admins may set it.
+    if (dto.title !== undefined && currentUser.role !== UserRole.admin && currentUser.role !== UserRole.super_admin) {
+      throw new ForbiddenException('Only an admin can change a provider title');
+    }
     const newPhotoUrl = this.s3.resolvePhotoInput(dto.profilePhotoUrl, provider.userId, [
       provider.profilePhotoUrl,
       provider.user?.profilePhotoUrl,
@@ -273,7 +277,9 @@ export class ProvidersService {
     const normalized = normalizeProviderName(
       dto.firstName ?? provider.firstName,
       dto.lastName ?? provider.lastName,
-      dto.providerType !== undefined ? (TITLE_BY_TYPE[dto.providerType] ?? 'Dr.') : provider.title,
+      dto.providerType !== undefined
+        ? (TITLE_BY_TYPE[dto.providerType] ?? 'Dr.')
+        : (dto.title ?? provider.title),
     );
 
     const updated = await this.prisma.provider.update({
@@ -281,7 +287,7 @@ export class ProvidersService {
       data: {
         ...(dto.firstName !== undefined && { firstName: normalized.firstName }),
         ...(dto.lastName !== undefined && { lastName: normalized.lastName }),
-        ...((dto.firstName !== undefined || dto.lastName !== undefined || dto.providerType !== undefined) && {
+        ...((dto.firstName !== undefined || dto.lastName !== undefined || dto.providerType !== undefined || dto.title !== undefined) && {
           title: normalized.title,
         }),
         ...(dto.specialization !== undefined && { specialty: dto.specialization }),

@@ -1367,7 +1367,7 @@ export const adminApi = {
       request<{ data: AdminProvider }>(`/providers/${id}/verify`, { method: 'PATCH' }),
     // Edit the provider profile itself (name, specialty, license) — distinct
     // from availability, which only flips the booking toggle.
-    update: (id: string, dto: Partial<{ title: string; firstName: string; lastName: string; specialty: string; licenseNumber: string; gender: ProviderGender }>) =>
+    update: (id: string, dto: Partial<{ title: string; firstName: string; lastName: string; specialization: string; licenseNumber: string; gender: ProviderGender }>) =>
       request<{ data: AdminProvider }>(`/providers/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(dto),
