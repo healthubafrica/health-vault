@@ -16,6 +16,25 @@ import { useAuthStore } from '@/lib/stores/authStore'
 import { formatDate } from '@/lib/utils'
 import { buildProviderDisplayName } from '@/lib/providerName'
 
+// Suggestions only: specialty stays free text, so anything not listed can be typed.
+const SPECIALTY_LIST_ID = 'provider-specialties'
+const SPECIALTIES = [
+  'General Practice', 'Family Medicine', 'Internal Medicine', 'Paediatrics',
+  'Obstetrics & Gynaecology', 'General Surgery', 'Orthopaedics', 'Cardiology',
+  'Neurology', 'Psychiatry', 'Dermatology', 'Ophthalmology', 'ENT (Otorhinolaryngology)',
+  'Endocrinology', 'Nephrology', 'Gastroenterology', 'Pulmonology', 'Oncology',
+  'Urology', 'Radiology', 'Anaesthesiology', 'Emergency Medicine', 'Public Health',
+  'Nursing', 'Midwifery', 'Pharmacy', 'Physiotherapy', 'Nutrition & Dietetics',
+]
+
+function SpecialtyOptions() {
+  return (
+    <datalist id={SPECIALTY_LIST_ID}>
+      {SPECIALTIES.map((s) => <option key={s} value={s} />)}
+    </datalist>
+  )
+}
+
 function ProviderDetailDialog({
   provider,
   onClose,
@@ -43,13 +62,16 @@ function ProviderDetailDialog({
     }
     setSavingProfile(true)
     try {
+      // Send only what changed: the API clears verification whenever a
+      // specialty or license value is sent, even if it is unchanged.
+      const changed = <T,>(next: T, prev: T) => (next !== prev ? next : undefined)
       await adminApi.providers.update(provider.id, {
-        title: editForm.title.trim(),
-        firstName: editForm.firstName.trim(),
-        lastName: editForm.lastName.trim(),
-        specialty: editForm.specialty.trim(),
-        licenseNumber: editForm.licenseNumber.trim() || undefined,
-        gender: (editForm.gender || undefined) as ProviderGender | undefined,
+        title: changed(editForm.title.trim(), provider.title ?? ''),
+        firstName: changed(editForm.firstName.trim(), provider.firstName),
+        lastName: changed(editForm.lastName.trim(), provider.lastName),
+        specialization: changed(editForm.specialty.trim(), provider.specialty ?? '') || undefined,
+        licenseNumber: changed(editForm.licenseNumber.trim(), provider.licenseNumber ?? '') || undefined,
+        gender: (changed(editForm.gender, provider.gender ?? '') || undefined) as ProviderGender | undefined,
       })
       toast.success('Provider profile updated')
       onUpdated()
@@ -189,33 +211,45 @@ function ProviderDetailDialog({
             </p>
             <div className="grid grid-cols-3 gap-2">
               <FormInput
-                placeholder="Title"
+                id="edit-title"
+                label="Title"
+                placeholder="e.g. Dr."
                 value={editForm.title}
                 onChange={(e) => setEditForm(f => ({ ...f, title: e.target.value }))}
               />
               <FormInput
-                placeholder="First name"
+                id="edit-first-name"
+                label="First name"
                 value={editForm.firstName}
                 onChange={(e) => setEditForm(f => ({ ...f, firstName: e.target.value }))}
               />
               <FormInput
-                placeholder="Last name"
+                id="edit-last-name"
+                label="Last name"
                 value={editForm.lastName}
                 onChange={(e) => setEditForm(f => ({ ...f, lastName: e.target.value }))}
               />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <FormInput
-                placeholder="Specialty"
+                id="edit-specialty"
+                label="Specialty"
+                placeholder="Choose or type a specialty"
+                list={SPECIALTY_LIST_ID}
                 value={editForm.specialty}
                 onChange={(e) => setEditForm(f => ({ ...f, specialty: e.target.value }))}
               />
               <FormInput
-                placeholder="License number"
+                id="edit-license"
+                label="License number"
+                placeholder="e.g. MDCN/R/12345"
                 value={editForm.licenseNumber}
                 onChange={(e) => setEditForm(f => ({ ...f, licenseNumber: e.target.value }))}
               />
             </div>
+            <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+              Changing the specialty or license number removes the Verified status until you verify the provider again.
+            </p>
             <GenderSelect value={editForm.gender} onChange={(gender) => setEditForm(f => ({ ...f, gender }))} />
             <Button size="sm" onClick={handleSaveProfile} disabled={savingProfile}>
               {savingProfile ? 'Saving…' : 'Save profile'}
@@ -404,6 +438,7 @@ export default function ProvidersPage() {
 
   return (
     <div className="max-w-[1200px]">
+      <SpecialtyOptions />
       <div className="flex items-center justify-between mb-5">
         <div>
           <div className="flex items-center gap-2">
@@ -822,7 +857,7 @@ function ManualImportDialog({
             <FormInput label="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
             <FormInput label="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
           </div>
-          <FormInput label="Specialty" placeholder="e.g. General Practice" value={specialty} onChange={(e) => setSpecialty(e.target.value)} required />
+          <FormInput label="Specialty" placeholder="e.g. General Practice" list={SPECIALTY_LIST_ID} value={specialty} onChange={(e) => setSpecialty(e.target.value)} required />
           <div className="grid grid-cols-2 gap-3">
             <FormInput label="License / NPI (optional)" value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} />
             <FormInput
@@ -1127,7 +1162,7 @@ function CreateProviderDialog({
               <option value="RADIOLOGIST">Radiologist</option>
             </select>
           </div>
-          <FormInput label="Specialty (optional)" placeholder="e.g. Cardiology" value={specialization} onChange={(e) => setSpecialization(e.target.value)} />
+          <FormInput label="Specialty (optional)" placeholder="e.g. Cardiology" list={SPECIALTY_LIST_ID} value={specialization} onChange={(e) => setSpecialization(e.target.value)} />
           <div className="grid grid-cols-2 gap-3">
             <FormInput label="License / NPI (optional)" value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} />
             <FormInput label="Years of experience" type="number" min={0} value={yearsOfExperience} onChange={(e) => setYearsOfExperience(e.target.value)} />
