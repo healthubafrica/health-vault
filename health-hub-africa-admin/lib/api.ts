@@ -970,6 +970,14 @@ export interface Testimonial {
 
 // ── Admin API namespace ───────────────────────────────────────────────────
 
+export type CheckStatus = 'ok' | 'warn' | 'down' | 'unknown'
+
+export interface SystemStatus {
+  overall: CheckStatus
+  checkedAt: string
+  checks: { key: string; label: string; status: CheckStatus; detail: string; link?: string }[]
+}
+
 export const adminApi = {
   users: {
     list: (params?: {
@@ -1465,7 +1473,7 @@ export const adminApi = {
     errors: () => request<{ data: unknown[] }>('/admin/system/errors'),
     retryError: (id: string) =>
       request<{ message: string }>(`/admin/system/errors/${id}/retry`, { method: 'POST' }),
-    health: () => request<{ data: Record<string, string> }>('/admin/system/health'),
+    status: () => request<SystemStatus>('/admin/system/status'),
   },
 
   operations: {
