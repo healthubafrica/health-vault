@@ -37,6 +37,7 @@ import {
   Settings,
   Network,
   Share2,
+  HeartPulse,
 } from 'lucide-react'
 
 interface NavItem {
@@ -74,6 +75,7 @@ const NAV: NavItem[] = [
   { label: 'Clinical Queue', href: '/clinical-queue', icon: Activity, roles: ['admin', 'super_admin'], group: 'Operations' },
   { label: 'STRIDE™ Intelligence', href: '/stride', icon: Cpu, roles: ['admin', 'super_admin', 'coordinator'], group: 'Operations' },
 
+  { label: 'System Status', href: '/system/status', icon: HeartPulse, roles: ['admin', 'super_admin'], group: 'System' },
   { label: 'OpenEMR Sync', href: '/system/sync', icon: RefreshCw, roles: ['admin', 'super_admin'], group: 'System' },
   { label: 'Errors', href: '/system/errors', icon: AlertCircle, roles: ['admin', 'super_admin'], group: 'System' },
   { label: 'Audit Logs', href: '/system/audit-logs', icon: ScrollText, roles: ['super_admin'], group: 'System' },

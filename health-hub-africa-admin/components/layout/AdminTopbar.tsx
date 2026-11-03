@@ -5,6 +5,7 @@ import { useAuthStore } from '@/lib/stores/authStore'
 import { Avatar } from '@/components/ui/Avatar'
 import { Pill } from '@/components/ui/Pill'
 import { LogOut, Bell } from 'lucide-react'
+import { SystemStatusPill } from './SystemStatusPill'
 
 const ROLE_LABELS: Record<string, string> = {
   super_admin: 'Super Admin',
@@ -33,6 +34,8 @@ export function AdminTopbar() {
 
       {/* Right: notifications + user */}
       <div className="flex items-center gap-3">
+        {(user?.role === 'admin' || user?.role === 'super_admin') && <SystemStatusPill />}
+
         <button
           className="w-8 h-8 rounded-xl flex items-center justify-center transition-colors hover:bg-[var(--color-bg)]"
           style={{ color: 'var(--color-text-muted)' }}

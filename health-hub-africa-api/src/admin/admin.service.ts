@@ -1203,36 +1203,6 @@ export class AdminService {
 
   // ── System ────────────────────────────────────────────────────────────────
 
-  async getSystemHealth() {
-    const start = Date.now();
-    try {
-      await this.prisma.$queryRaw`SELECT 1`;
-      const latencyMs = Date.now() - start;
-
-      const [unresolvedErrors, pendingSyncItems] = await Promise.all([
-        this.prisma.integrationError.count({ where: { resolvedAt: null } }),
-        this.prisma.openemrSyncQueue.count({ where: { status: 'pending' } }),
-      ]);
-
-      return {
-        data: {
-          status: 'healthy',
-          db: { status: 'connected', latencyMs },
-          integrations: { unresolvedErrors, pendingSyncItems },
-          checkedAt: new Date().toISOString(),
-        },
-      };
-    } catch {
-      return {
-        data: {
-          status: 'degraded',
-          db: { status: 'error', latencyMs: Date.now() - start },
-          checkedAt: new Date().toISOString(),
-        },
-      };
-    }
-  }
-
   async getSyncQueue(page = 1, limit = 20, status?: string) {
     const skip = (page - 1) * limit;
     const where: any = status ? { status } : {};
