@@ -17,6 +17,7 @@ import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ServiceType, UserRole } from '@prisma/client';
 import { AdminService } from './admin.service';
+import { SystemStatusService } from './system-status.service';
 import { LIFECYCLE_STAGES, LifecycleStage } from '../analytics/analytics.service';
 import { UpdateUserRoleDto, UpdateUserStatusDto, UpdateUserEmailDto, CreateFacilityDto } from './dto/admin.dto';
 import { SetStorageOverrideDto } from './dto/set-storage-override.dto';
@@ -32,7 +33,10 @@ import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decor
 @Roles(UserRole.admin, UserRole.super_admin)
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly systemStatus: SystemStatusService,
+  ) {}
 
   // ── Users ─────────────────────────────────────────────────────────────────
 
@@ -369,10 +373,10 @@ export class AdminController {
 
   // ── System ────────────────────────────────────────────────────────────────
 
-  @Get('system/health')
-  @ApiOperation({ summary: 'Check system and integration health' })
-  getSystemHealth() {
-    return this.adminService.getSystemHealth();
+  @Get('system/status')
+  @ApiOperation({ summary: 'Live status of the API, its dependencies, integrations and AWS' })
+  getSystemStatus(@CurrentUser() user: JwtPayload) {
+    return this.systemStatus.getStatus(user.role);
   }
 
   @Get('system/sync-queue')

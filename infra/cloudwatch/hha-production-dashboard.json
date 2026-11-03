@@ -1,0 +1,404 @@
+{
+  "widgets": [
+    {
+      "type": "alarm",
+      "x": 0,
+      "y": 0,
+      "width": 24,
+      "height": 3,
+      "properties": {
+        "title": "Alarms",
+        "alarms": [
+          "arn:aws:cloudwatch:af-south-1:940482422128:alarm:ALB 5xx Errors High",
+          "arn:aws:cloudwatch:af-south-1:940482422128:alarm:ALB Unhealthy Hosts",
+          "arn:aws:cloudwatch:af-south-1:940482422128:alarm:API 5xx Errors High",
+          "arn:aws:cloudwatch:af-south-1:940482422128:alarm:API Down - no healthy targets",
+          "arn:aws:cloudwatch:af-south-1:940482422128:alarm:API Slow Responses",
+          "arn:aws:cloudwatch:af-south-1:940482422128:alarm:Fargate CPU High",
+          "arn:aws:cloudwatch:af-south-1:940482422128:alarm:Fargate OOM",
+          "arn:aws:cloudwatch:af-south-1:940482422128:alarm:OpenEMR CPU High",
+          "arn:aws:cloudwatch:af-south-1:940482422128:alarm:OpenEMR Disk Usage High",
+          "arn:aws:cloudwatch:af-south-1:940482422128:alarm:OpenEMR Down - no healthy targets",
+          "arn:aws:cloudwatch:af-south-1:940482422128:alarm:OpenEMR Instance Check Failed (auto-reboot)",
+          "arn:aws:cloudwatch:af-south-1:940482422128:alarm:OpenEMR System Check Failed (auto-recover)",
+          "arn:aws:cloudwatch:af-south-1:940482422128:alarm:RDS CPU High",
+          "arn:aws:cloudwatch:af-south-1:940482422128:alarm:RDS Connections High",
+          "arn:aws:cloudwatch:af-south-1:940482422128:alarm:RDS Memory Low",
+          "arn:aws:cloudwatch:af-south-1:940482422128:alarm:RDS Storage Low",
+          "arn:aws:cloudwatch:af-south-1:940482422128:alarm:Redis CPU High",
+          "arn:aws:cloudwatch:af-south-1:940482422128:alarm:fck-nat Instance Check Failed (auto-reboot)",
+          "arn:aws:cloudwatch:af-south-1:940482422128:alarm:fck-nat System Check Failed (auto-recover)"
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 3,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "API requests",
+        "region": "af-south-1",
+        "metrics": [
+          [
+            "AWS/ApplicationELB",
+            "RequestCount",
+            "TargetGroup",
+            "targetgroup/hha-api-tg/2374405822cd13c5",
+            "LoadBalancer",
+            "app/hha-main-alb/c19aa78374b91d86"
+          ]
+        ],
+        "view": "timeSeries",
+        "stat": "Sum",
+        "period": 300
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 3,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "5xx errors",
+        "region": "af-south-1",
+        "metrics": [
+          [
+            "AWS/ApplicationELB",
+            "HTTPCode_Target_5XX_Count",
+            "TargetGroup",
+            "targetgroup/hha-api-tg/2374405822cd13c5",
+            "LoadBalancer",
+            "app/hha-main-alb/c19aa78374b91d86",
+            {
+              "label": "API 5xx"
+            }
+          ],
+          [
+            "AWS/ApplicationELB",
+            "HTTPCode_ELB_5XX_Count",
+            "LoadBalancer",
+            "app/hha-main-alb/c19aa78374b91d86",
+            {
+              "label": "ALB 5xx"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stat": "Sum",
+        "period": 300
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 3,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "API response time p95 (s)",
+        "region": "af-south-1",
+        "metrics": [
+          [
+            "AWS/ApplicationELB",
+            "TargetResponseTime",
+            "TargetGroup",
+            "targetgroup/hha-api-tg/2374405822cd13c5",
+            "LoadBalancer",
+            "app/hha-main-alb/c19aa78374b91d86"
+          ]
+        ],
+        "view": "timeSeries",
+        "stat": "p95",
+        "period": 300
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 9,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "API containers CPU / memory %",
+        "region": "af-south-1",
+        "metrics": [
+          [
+            "AWS/ECS",
+            "CPUUtilization",
+            "ServiceName",
+            "hha-api-service",
+            "ClusterName",
+            "hha-cluster"
+          ],
+          [
+            "AWS/ECS",
+            "MemoryUtilization",
+            "ServiceName",
+            "hha-api-service",
+            "ClusterName",
+            "hha-cluster"
+          ]
+        ],
+        "view": "timeSeries",
+        "stat": "Average",
+        "period": 300,
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 9,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "Healthy targets",
+        "region": "af-south-1",
+        "metrics": [
+          [
+            "AWS/ApplicationELB",
+            "HealthyHostCount",
+            "TargetGroup",
+            "targetgroup/hha-api-tg/2374405822cd13c5",
+            "LoadBalancer",
+            "app/hha-main-alb/c19aa78374b91d86",
+            {
+              "label": "API"
+            }
+          ],
+          [
+            "AWS/ApplicationELB",
+            "HealthyHostCount",
+            "TargetGroup",
+            "targetgroup/hha-openemr-tg/74dd7e9feb2c3469",
+            "LoadBalancer",
+            "app/hha-main-alb/c19aa78374b91d86",
+            {
+              "label": "OpenEMR"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stat": "Minimum",
+        "period": 300
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 9,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "Redis CPU %",
+        "region": "af-south-1",
+        "metrics": [
+          [
+            "AWS/ElastiCache",
+            "CPUUtilization",
+            "CacheClusterId",
+            "hha-redis-cluster-001"
+          ]
+        ],
+        "view": "timeSeries",
+        "stat": "Average",
+        "period": 300,
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 15,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "Database CPU %",
+        "region": "af-south-1",
+        "metrics": [
+          [
+            "AWS/RDS",
+            "CPUUtilization",
+            "DBInstanceIdentifier",
+            "hha-postgres"
+          ]
+        ],
+        "view": "timeSeries",
+        "stat": "Average",
+        "period": 300,
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 15,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "Database connections",
+        "region": "af-south-1",
+        "metrics": [
+          [
+            "AWS/RDS",
+            "DatabaseConnections",
+            "DBInstanceIdentifier",
+            "hha-postgres"
+          ]
+        ],
+        "view": "timeSeries",
+        "stat": "Maximum",
+        "period": 300
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 15,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "Database free memory / storage (bytes)",
+        "region": "af-south-1",
+        "metrics": [
+          [
+            "AWS/RDS",
+            "FreeableMemory",
+            "DBInstanceIdentifier",
+            "hha-postgres"
+          ],
+          [
+            "AWS/RDS",
+            "FreeStorageSpace",
+            "DBInstanceIdentifier",
+            "hha-postgres",
+            {
+              "yAxis": "right"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stat": "Average",
+        "period": 300
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 21,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "OpenEMR CPU %",
+        "region": "af-south-1",
+        "metrics": [
+          [
+            "AWS/EC2",
+            "CPUUtilization",
+            "InstanceId",
+            "i-00acc8c4d004c4fc9"
+          ]
+        ],
+        "view": "timeSeries",
+        "stat": "Average",
+        "period": 300,
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 21,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "OpenEMR disk / memory used %",
+        "region": "af-south-1",
+        "metrics": [
+          [
+            "CWAgent",
+            "disk_used_percent",
+            "path",
+            "/",
+            "InstanceId",
+            "i-00acc8c4d004c4fc9",
+            "fstype",
+            "ext4",
+            {
+              "label": "Disk /"
+            }
+          ],
+          [
+            "CWAgent",
+            "mem_used_percent",
+            "InstanceId",
+            "i-00acc8c4d004c4fc9",
+            {
+              "label": "Memory"
+            }
+          ]
+        ],
+        "view": "timeSeries",
+        "stat": "Maximum",
+        "period": 300,
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 21,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "NAT instance network (bytes)",
+        "region": "af-south-1",
+        "metrics": [
+          [
+            "AWS/EC2",
+            "NetworkIn",
+            "InstanceId",
+            "i-076309f91635cff74"
+          ],
+          [
+            "AWS/EC2",
+            "NetworkOut",
+            "InstanceId",
+            "i-076309f91635cff74"
+          ]
+        ],
+        "view": "timeSeries",
+        "stat": "Sum",
+        "period": 300
+      }
+    }
+  ]
+}
