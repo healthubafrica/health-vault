@@ -129,6 +129,7 @@ export function Sidebar() {
             <Link
               key={href}
               href={href}
+              data-tour={href}
               onClick={() => analytics.track('ui_click', { element_id: navElementId(href), feature_area: 'navigation', destination: href })}
               aria-label={label}
               aria-current={active ? 'page' : undefined}

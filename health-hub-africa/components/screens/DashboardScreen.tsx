@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -32,6 +32,7 @@ import { LogVitalsModal } from '@/components/vitals/LogVitalsModal'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { buildProviderDisplayName } from '@/lib/providerName'
 import { TrackImpression } from '@/components/analytics/TrackImpression'
+import { GettingStarted } from '@/components/dashboard/GettingStarted'
 
 const HeartRateChart = dynamic(() => import('@/components/charts/HeartRateChart').then(m => ({ default: m.HeartRateChart })), { ssr: false })
 const SleepChart = dynamic(() => import('@/components/charts/SleepChart').then(m => ({ default: m.SleepChart })), { ssr: false })
@@ -209,6 +210,11 @@ export function DashboardScreen() {
         <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
       </div>
+
+      {/* Getting started checklist + first-visit welcome tour */}
+      <Suspense fallback={null}>
+        <GettingStarted />
+      </Suspense>
 
       {/* Health Overview */}
       <div className="flex flex-col gap-3">
