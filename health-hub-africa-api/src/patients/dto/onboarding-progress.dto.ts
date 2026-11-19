@@ -1,5 +1,5 @@
-import { IsInt, IsString, Max, MaxLength, Min } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsBoolean, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateOnboardingProgressDto {
   @ApiProperty({ description: 'Current onboarding step, 1-indexed.', minimum: 1, maximum: 6 })
@@ -12,4 +12,16 @@ export class UpdateOnboardingProgressDto {
   @IsString()
   @MaxLength(50)
   stepName: string;
+}
+
+export class UpdateGettingStartedDto {
+  @ApiPropertyOptional({ description: 'Mark the portal welcome tour as finished or skipped.' })
+  @IsOptional()
+  @IsBoolean()
+  tourCompleted?: boolean;
+
+  @ApiPropertyOptional({ description: 'Hide the dashboard getting-started checklist.' })
+  @IsOptional()
+  @IsBoolean()
+  dismissed?: boolean;
 }

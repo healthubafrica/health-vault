@@ -19,7 +19,7 @@ import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { QueryPatientsDto } from './dto/query-patients.dto';
 import { RequestProfilePhotoUrlDto, ProcessProfilePhotoDto } from './dto/profile-photo-upload.dto';
-import { UpdateOnboardingProgressDto } from './dto/onboarding-progress.dto';
+import { UpdateOnboardingProgressDto, UpdateGettingStartedDto } from './dto/onboarding-progress.dto';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser, JwtPayload } from '../common/decorators/current-user.decorator';
 
@@ -101,6 +101,20 @@ export class PatientsController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.patientsService.updateOnboardingProgress(dto, user);
+  }
+
+  @Get('me/getting-started')
+  @ApiOperation({ summary: 'Dashboard getting-started checklist and whether the welcome tour has run' })
+  getGettingStarted(@CurrentUser() user: JwtPayload) {
+    return this.patientsService.getGettingStarted(user);
+  }
+
+  @Patch('me/getting-started')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  @ApiOperation({ summary: 'Mark the welcome tour done and/or hide the getting-started checklist' })
+  updateGettingStarted(@Body() dto: UpdateGettingStartedDto, @CurrentUser() user: JwtPayload) {
+    return this.patientsService.updateGettingStarted(dto, user);
   }
 
   @Post('me/deactivate')

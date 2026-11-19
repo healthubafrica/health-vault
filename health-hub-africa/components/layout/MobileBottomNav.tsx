@@ -67,6 +67,7 @@ export function MobileBottomNav() {
             return (
               <button
                 key={label}
+                data-tour="more"
                 onClick={() => {
                   if (!isMoreOpen) analytics.track('ui_click', { element_id: 'nav_more_menu', feature_area: 'navigation' })
                   setIsMoreOpen(!isMoreOpen)
@@ -86,6 +87,7 @@ export function MobileBottomNav() {
             <Link
               key={href}
               href={href!}
+              data-tour={href}
               onClick={() => {
                 analytics.track('ui_click', { element_id: navElementId(href!), feature_area: 'navigation', destination: href })
                 setIsMoreOpen(false)

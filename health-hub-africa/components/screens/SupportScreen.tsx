@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { LifeBuoy, Plus, Send, X, ChevronDown, ChevronUp } from 'lucide-react'
+import Link from 'next/link'
+import { LifeBuoy, Plus, Send, X, ChevronDown, ChevronUp, Compass } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -67,10 +68,20 @@ export function SupportScreen() {
             Get help from the Health Hub Africa team
           </p>
         </div>
-        <Button size="sm" onClick={() => setShowNew(v => !v)}>
-          {showNew ? <X size={14} className="mr-1" /> : <Plus size={14} className="mr-1" />}
-          {showNew ? 'Close' : 'New Ticket'}
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href="/dashboard?tour=1"
+            onClick={() => analytics.track('ui_click', { element_id: 'support_replay_tour', feature_area: 'onboarding' })}
+            className="flex items-center gap-1.5 h-8 px-3 rounded-xl text-xs font-bold text-[#137333] bg-[#EBF5EC] hover:bg-[#dcefdf] transition-colors"
+          >
+            <Compass size={13} strokeWidth={2.5} />
+            Take the tour
+          </Link>
+          <Button size="sm" onClick={() => setShowNew(v => !v)}>
+            {showNew ? <X size={14} className="mr-1" /> : <Plus size={14} className="mr-1" />}
+            {showNew ? 'Close' : 'New Ticket'}
+          </Button>
+        </div>
       </div>
 
       {showNew && (

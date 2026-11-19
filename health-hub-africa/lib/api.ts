@@ -357,6 +357,14 @@ export interface PatientProfile {
   }>
 }
 
+export type GettingStartedKey = 'health-profile' | 'emergency-contact' | 'upload-record' | 'book-appointment' | 'two-factor'
+
+export interface GettingStarted {
+  tourCompleted: boolean
+  dismissed: boolean
+  items: { key: GettingStartedKey; done: boolean }[]
+}
+
 export const patients = {
   getMyProfile: () => request<{ data: PatientProfile }>('/patients/me'),
 
@@ -378,6 +386,15 @@ export const patients = {
     request<{ data: { ok: true } }>('/patients/me/onboarding-progress', {
       method: 'PATCH',
       body: JSON.stringify({ step, stepName }),
+    }),
+
+  getGettingStarted: () =>
+    request<{ data: GettingStarted }>('/patients/me/getting-started'),
+
+  updateGettingStarted: (data: { tourCompleted?: true; dismissed?: true }) =>
+    request<{ data: { ok: true } }>('/patients/me/getting-started', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
     }),
 
   getProfilePhotoUploadUrl: (data: { contentType: string; sizeBytes: number }) =>
