@@ -357,6 +357,10 @@ model Patient {
   status      String     @default("Stable")
   profilePhotoSizeBytes      Int?    @map("profile_photo_size_bytes")
   storageQuotaOverrideBytes  BigInt? @map("storage_quota_override_bytes")
+  // Portal "getting started" guide: set when the patient finishes or skips the
+  // welcome tour, and when they hide the dashboard checklist. Null = not yet.
+  portalTourCompletedAt      DateTime? @map("portal_tour_completed_at")
+  gettingStartedDismissedAt  DateTime? @map("getting_started_dismissed_at")
   createdAt   DateTime   @default(now()) @map("created_at")
   updatedAt   DateTime   @updatedAt @map("updated_at")
   deletedAt   DateTime?  @map("deleted_at")

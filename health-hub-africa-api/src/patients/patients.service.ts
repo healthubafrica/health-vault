@@ -21,7 +21,7 @@ import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { QueryPatientsDto } from './dto/query-patients.dto';
 import { RequestProfilePhotoUrlDto, ProcessProfilePhotoDto } from './dto/profile-photo-upload.dto';
-import { UpdateOnboardingProgressDto } from './dto/onboarding-progress.dto';
+import { UpdateOnboardingProgressDto, UpdateGettingStartedDto } from './dto/onboarding-progress.dto';
 import { declaredCountryFromCode } from '../common/utils/country.util';
 import { OpenemrService } from '../openemr/openemr.service';
 import { StorageService } from '../storage/storage.service';
@@ -783,6 +783,57 @@ export class PatientsService {
       create: { userId: user.sub, currentStep: dto.step, stepName: dto.stepName },
       update: { currentStep: dto.step, stepName: dto.stepName },
     });
+    return { data: { ok: true } };
+  }
+
+  // Dashboard "Getting started" checklist + whether the welcome tour still
+  // needs to run. Each item links to where the patient completes it.
+  async getGettingStarted(user: JwtPayload) {
+    const patient = await this.prisma.patient.findUnique({
+      where: { userId: user.sub },
+      select: {
+        id: true,
+        bloodGroup: true,
+        genotype: true,
+        nextOfKinPhone: true,
+        portalTourCompletedAt: true,
+        gettingStartedDismissedAt: true,
+        user: { select: { twoFactorEnabled: true } },
+      },
+    });
+    if (!patient) throw new NotFoundException('Patient not found');
+
+    const [emergencyContacts, uploads, appointments] = await Promise.all([
+      this.prisma.emergencyContact.count({ where: { patientId: patient.id } }),
+      this.prisma.clinicalRecord.count({ where: { patientId: patient.id, source: 'patient_upload' } }),
+      this.prisma.appointment.count({ where: { patientId: patient.id } }),
+    ]);
+
+    return {
+      data: {
+        tourCompleted: !!patient.portalTourCompletedAt,
+        dismissed: !!patient.gettingStartedDismissedAt,
+        items: [
+          { key: 'health-profile', done: !!(patient.bloodGroup && patient.genotype) },
+          { key: 'emergency-contact', done: !!patient.nextOfKinPhone || emergencyContacts > 0 },
+          { key: 'upload-record', done: uploads > 0 },
+          { key: 'book-appointment', done: appointments > 0 },
+          { key: 'two-factor', done: patient.user.twoFactorEnabled },
+        ],
+      },
+    };
+  }
+
+  async updateGettingStarted(dto: UpdateGettingStartedDto, user: JwtPayload) {
+    const now = new Date();
+    const { count } = await this.prisma.patient.updateMany({
+      where: { userId: user.sub },
+      data: {
+        ...(dto.tourCompleted && { portalTourCompletedAt: now }),
+        ...(dto.dismissed && { gettingStartedDismissedAt: now }),
+      },
+    });
+    if (!count) throw new NotFoundException('Patient not found');
     return { data: { ok: true } };
   }
 }
